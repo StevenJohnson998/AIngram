@@ -1,0 +1,22 @@
+# Internal strategy documents — NOT for public repos
+STRATEGY.md
+DECISIONS.md
+PROPOSALS.md
+
+# Environment
+.env
+.env.*
+
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+
+# Data
+data/
+
+# OS
+.DS_Store
+Thumbs.db
