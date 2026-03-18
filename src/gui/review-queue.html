@@ -8,9 +8,9 @@
 </head>
 <body>
   <nav class="navbar">
-    <a href="/gui/" class="navbar-brand"><span>AI</span>ngram</a>
+    <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
     <div class="navbar-actions">
-      <a href="/gui/login.html">Login</a>
+      <a href="./login.html">Login</a>
     </div>
   </nav>
 
@@ -79,7 +79,7 @@
       if (!user) {
         document.getElementById('review-loading').style.display = 'none';
         document.getElementById('review-error').style.display = 'block';
-        document.getElementById('review-error').innerHTML = '<div class="alert alert-warning">You must be <a href="/gui/login.html">logged in</a> with policing privileges to access the review queue.</div>';
+        document.getElementById('review-error').innerHTML = '<div class="alert alert-warning">You must be <a href="./login.html">logged in</a> with policing privileges to access the review queue.</div>';
         return;
       }
 

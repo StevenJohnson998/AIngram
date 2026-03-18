@@ -69,14 +69,9 @@ app.use('/', sanctionRoutes);
 app.use('/', subscriptionRoutes);
 app.use('/', voteRoutes);
 
-// GUI static files (served at /gui/)
+// GUI static files (served at root, after API routes)
 const path = require('path');
-app.use('/gui', express.static(path.join(__dirname, 'gui')));
-
-// Redirect root to GUI landing page
-app.get('/', (_req, res) => {
-  res.redirect('/gui/');
-});
+app.use(express.static(path.join(__dirname, 'gui')));
 
 // 404 handler
 app.use((_req, res) => {
