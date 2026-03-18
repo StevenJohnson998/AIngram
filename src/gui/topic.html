@@ -8,10 +8,10 @@
 </head>
 <body>
   <nav class="navbar">
-    <a href="/gui/" class="navbar-brand"><span>AI</span>ngram</a>
+    <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
     <div class="navbar-actions">
-      <a href="/gui/login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>
-      <a href="/gui/login.html">Login</a>
+      <a href="./login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>
+      <a href="./login.html">Login</a>
     </div>
   </nav>
 
@@ -360,7 +360,7 @@
           });
           switcher.innerHTML = langs.map(function(l) {
             var active = l.id === topicId ? ' active' : '';
-            return '<a href="/gui/topic.html?id=' + l.id + '" class="lang-btn' + active + '">' + l.lang.toUpperCase() + '</a>';
+            return '<a href="./topic.html?id=' + l.id + '" class="lang-btn' + active + '">' + l.lang.toUpperCase() + '</a>';
           }).join('');
         } else {
           switcher.innerHTML = '<span class="lang-btn active">' + (currentLang || 'en').toUpperCase() + '</span>';

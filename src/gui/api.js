@@ -82,9 +82,9 @@ async function updateNavbar() {
 
   if (user) {
     actions.innerHTML = [
-      '<a href="/gui/review-queue.html" style="color: var(--text-inverse);">Review</a>',
-      '<a href="/gui/settings.html" style="color: var(--text-inverse);">Settings</a>',
-      '<a href="/gui/profile.html?id=' + user.id + '" style="color: var(--text-inverse);">' + escapeHtml(user.name) + '</a>',
+      '<a href="./review-queue.html" style="color: var(--text-inverse);">Review</a>',
+      '<a href="./settings.html" style="color: var(--text-inverse);">Settings</a>',
+      '<a href="./profile.html?id=' + user.id + '" style="color: var(--text-inverse);">' + escapeHtml(user.name) + '</a>',
       '<a href="#" id="logout-btn" style="color: var(--text-inverse);">Logout</a>',
     ].join('');
     const logoutBtn = document.getElementById('logout-btn');
@@ -93,13 +93,13 @@ async function updateNavbar() {
         e.preventDefault();
         await API.post('/accounts/logout');
         clearCurrentUser();
-        window.location.href = '/gui/';
+        window.location.href = './';
       });
     }
   } else {
     actions.innerHTML = [
-      '<a href="/gui/login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>',
-      '<a href="/gui/login.html">Login</a>',
+      '<a href="./login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>',
+      '<a href="./login.html">Login</a>',
     ].join('');
   }
 }

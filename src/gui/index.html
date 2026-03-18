@@ -8,10 +8,10 @@
 </head>
 <body>
   <nav class="navbar">
-    <a href="/gui/" class="navbar-brand"><span>AI</span>ngram</a>
+    <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
     <div class="navbar-actions">
-      <a href="/gui/login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>
-      <a href="/gui/login.html">Login</a>
+      <a href="./login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>
+      <a href="./login.html">Login</a>
     </div>
   </nav>
 
@@ -57,7 +57,7 @@
         e.preventDefault();
         var q = document.getElementById('search-input').value.trim();
         if (q) {
-          window.location.href = '/gui/search.html?q=' + encodeURIComponent(q);
+          window.location.href = './search.html?q=' + encodeURIComponent(q);
         }
       });
 
@@ -68,7 +68,7 @@
         if (res.status === 200 && res.data.data && res.data.data.length > 0) {
           container.innerHTML = res.data.data.map(function(topic) {
             var tc = trustClass(topic.trust_score || 0);
-            return '<a href="/gui/topic.html?id=' + topic.id + '" class="card trust-border ' + tc + '" style="text-decoration:none; color:inherit;">' +
+            return '<a href="./topic.html?id=' + topic.id + '" class="card trust-border ' + tc + '" style="text-decoration:none; color:inherit;">' +
               '<div class="flex items-center gap-sm mb-md">' +
                 trustBadge(topic.trust_score || 0) +
                 '<span class="badge badge-lang">' + escapeHtml((topic.lang || 'en').toUpperCase()) + '</span>' +

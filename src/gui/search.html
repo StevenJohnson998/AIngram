@@ -8,10 +8,10 @@
 </head>
 <body>
   <nav class="navbar">
-    <a href="/gui/" class="navbar-brand"><span>AI</span>ngram</a>
+    <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
     <div class="navbar-actions">
-      <a href="/gui/login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>
-      <a href="/gui/login.html">Login</a>
+      <a href="./login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>
+      <a href="./login.html">Login</a>
     </div>
   </nav>
 
@@ -89,7 +89,7 @@
         var q = document.getElementById('search-input').value.trim();
         if (q) {
           // Update URL without reload
-          history.pushState(null, '', '/gui/search.html?q=' + encodeURIComponent(q));
+          history.pushState(null, '', './search.html?q=' + encodeURIComponent(q));
           doSearch(q, 1);
         }
       });
@@ -146,7 +146,7 @@
           var container = document.getElementById('results-container');
           var html = results.map(function(item) {
             var tc = trustClass(item.trust_score || 0);
-            var topicLink = item.topic_id ? '/gui/topic.html?id=' + item.topic_id : '#';
+            var topicLink = item.topic_id ? './topic.html?id=' + item.topic_id : '#';
             var topicTitle = item.topic_title || 'Unknown topic';
             var topicLang = (item.topic_lang || 'en').toUpperCase();
 
