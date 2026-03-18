@@ -1,0 +1,249 @@
+jest.mock('../../config/database');
+
+const { getPool } = require('../../config/database');
+const voteService = require('../vote');
+
+describe('vote service', () => {
+  let mockPool;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    mockPool = {
+      query: jest.fn(),
+    };
+
+    getPool.mockReturnValue(mockPool);
+  });
+
+  describe('castVote', () => {
+    const activeAccount = {
+      id: 'acc-1',
+      status: 'active',
+      first_contribution_at: '2026-01-01T00:00:00Z',
+      created_at: '2025-12-01T00:00:00Z', // > 14 days ago
+    };
+
+    it('casts a vote with weight 1.0 for accounts older than 14 days', async () => {
+      const vote = { id: 'vote-1', account_id: 'acc-1', value: 'up', weight: 1.0 };
+
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [activeAccount] }) // account lookup
+        .mockResolvedValueOnce({ rows: [{ account_id: 'acc-other', status: 'active' }] }) // message ownership check
+        .mockResolvedValueOnce({ rows: [vote] }); // upsert
+
+      const result = await voteService.castVote({
+        accountId: 'acc-1',
+        targetType: 'message',
+        targetId: 'msg-1',
+        value: 'up',
+        reasonTag: 'accurate',
+      });
+
+      expect(result).toEqual(vote);
+      // Verify upsert query
+      const upsertCall = mockPool.query.mock.calls[2];
+      expect(upsertCall[0]).toContain('ON CONFLICT');
+      expect(upsertCall[1]).toEqual(['acc-1', 'message', 'msg-1', 'up', 'accurate', 1.0]);
+    });
+
+    it('assigns weight 0.5 for accounts younger than 14 days', async () => {
+      const newAccount = {
+        ...activeAccount,
+        created_at: new Date().toISOString(), // just created
+      };
+
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [newAccount] })
+        .mockResolvedValueOnce({ rows: [{ account_id: 'acc-other', status: 'active' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'vote-1', weight: 0.5 }] });
+
+      await voteService.castVote({
+        accountId: 'acc-1',
+        targetType: 'message',
+        targetId: 'msg-1',
+        value: 'up',
+      });
+
+      const upsertCall = mockPool.query.mock.calls[2];
+      expect(upsertCall[1][5]).toBe(0.5); // weight param
+    });
+
+    it('rejects vote when account has no first_contribution_at (vote lock)', async () => {
+      const lockedAccount = { ...activeAccount, first_contribution_at: null };
+
+      mockPool.query.mockResolvedValueOnce({ rows: [lockedAccount] });
+
+      await expect(
+        voteService.castVote({
+          accountId: 'acc-1',
+          targetType: 'message',
+          targetId: 'msg-1',
+          value: 'up',
+        })
+      ).rejects.toThrow('Cannot vote before making a first contribution');
+    });
+
+    it('rejects vote from provisional accounts', async () => {
+      const provisionalAccount = { ...activeAccount, status: 'provisional' };
+
+      mockPool.query.mockResolvedValueOnce({ rows: [provisionalAccount] });
+
+      await expect(
+        voteService.castVote({
+          accountId: 'acc-1',
+          targetType: 'message',
+          targetId: 'msg-1',
+          value: 'up',
+        })
+      ).rejects.toThrow('Only active accounts can vote');
+    });
+
+    it('upserts when voting again on same target (change vote value)', async () => {
+      const vote = { id: 'vote-1', value: 'down', weight: 1.0 };
+
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [activeAccount] })
+        .mockResolvedValueOnce({ rows: [{ account_id: 'acc-other', status: 'active' }] })
+        .mockResolvedValueOnce({ rows: [vote] });
+
+      const result = await voteService.castVote({
+        accountId: 'acc-1',
+        targetType: 'message',
+        targetId: 'msg-1',
+        value: 'down',
+      });
+
+      expect(result.value).toBe('down');
+      const upsertQuery = mockPool.query.mock.calls[2][0];
+      expect(upsertQuery).toContain('ON CONFLICT');
+      expect(upsertQuery).toContain('DO UPDATE');
+    });
+
+    it('blocks self-voting on own message', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [activeAccount] })
+        .mockResolvedValueOnce({ rows: [{ account_id: 'acc-1', status: 'active' }] }); // same account
+
+      try {
+        await voteService.castVote({
+          accountId: 'acc-1',
+          targetType: 'message',
+          targetId: 'msg-1',
+          value: 'up',
+        });
+        throw new Error('Should have thrown');
+      } catch (err) {
+        expect(err.message).toBe('Cannot vote on own content');
+        expect(err.code).toBe('SELF_VOTE');
+      }
+    });
+
+    it('blocks voting on retracted content', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [activeAccount] })
+        .mockResolvedValueOnce({ rows: [{ account_id: 'acc-other', status: 'retracted' }] });
+
+      await expect(
+        voteService.castVote({
+          accountId: 'acc-1',
+          targetType: 'message',
+          targetId: 'msg-1',
+          value: 'up',
+        })
+      ).rejects.toThrow('Cannot vote on retracted content');
+    });
+
+    it('rejects invalid reason_tag for message target', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [activeAccount] });
+
+      await expect(
+        voteService.castVote({
+          accountId: 'acc-1',
+          targetType: 'message',
+          targetId: 'msg-1',
+          value: 'up',
+          reasonTag: 'fair', // policing-only tag
+        })
+      ).rejects.toThrow("Invalid reason_tag 'fair' for target_type 'message'");
+    });
+
+    it('rejects invalid reason_tag for policing_action target', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [activeAccount] });
+
+      await expect(
+        voteService.castVote({
+          accountId: 'acc-1',
+          targetType: 'policing_action',
+          targetId: 'msg-1',
+          value: 'up',
+          reasonTag: 'accurate', // content-only tag
+        })
+      ).rejects.toThrow("Invalid reason_tag 'accurate' for target_type 'policing_action'");
+    });
+  });
+
+  describe('removeVote', () => {
+    it('returns true when vote is deleted', async () => {
+      mockPool.query.mockResolvedValueOnce({ rowCount: 1 });
+
+      const result = await voteService.removeVote('acc-1', 'message', 'msg-1');
+      expect(result).toBe(true);
+    });
+
+    it('returns false when vote does not exist', async () => {
+      mockPool.query.mockResolvedValueOnce({ rowCount: 0 });
+
+      const result = await voteService.removeVote('acc-1', 'message', 'msg-1');
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('getVotesByTarget', () => {
+    it('returns paginated votes for a target', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ total: 25 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'v1' }, { id: 'v2' }] });
+
+      const result = await voteService.getVotesByTarget('message', 'msg-1', { page: 1, limit: 2 });
+
+      expect(result.data).toHaveLength(2);
+      expect(result.pagination).toEqual({ page: 1, limit: 2, total: 25 });
+    });
+  });
+
+  describe('getVotesByAccount', () => {
+    it('returns paginated votes for an account', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ total: 10 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'v1' }] });
+
+      const result = await voteService.getVotesByAccount('acc-1', { page: 1, limit: 20 });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.pagination.total).toBe(10);
+    });
+  });
+
+  describe('getVoteSummary', () => {
+    it('returns correct summary with up and down counts and weights', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{
+          upCount: 5,
+          downCount: 2,
+          upWeight: 4.5,
+          downWeight: 2.0,
+          total: 7,
+        }],
+      });
+
+      const result = await voteService.getVoteSummary('message', 'msg-1');
+
+      expect(result.upCount).toBe(5);
+      expect(result.downCount).toBe(2);
+      expect(result.upWeight).toBe(4.5);
+      expect(result.downWeight).toBe(2.0);
+      expect(result.total).toBe(7);
+    });
+  });
+});

@@ -1,0 +1,59 @@
+const fs = require('fs');
+
+function validateEnv() {
+  const required = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER'];
+  const missing = required.filter((key) => !process.env[key]);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(', ')}`
+    );
+  }
+
+  const hasPassword = process.env.DB_PASSWORD || process.env.DB_PASSWORD_FILE;
+  if (!hasPassword) {
+    throw new Error(
+      'Missing DB password: set either DB_PASSWORD or DB_PASSWORD_FILE'
+    );
+  }
+
+  if (process.env.DB_PASSWORD_FILE) {
+    const filePath = process.env.DB_PASSWORD_FILE;
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`DB_PASSWORD_FILE not found: ${filePath}`);
+    }
+    process.env.DB_PASSWORD = fs.readFileSync(filePath, 'utf8').trim();
+  }
+
+  // JWT_SECRET is required for auth
+  if (!process.env.JWT_SECRET) {
+    throw new Error('Missing required environment variable: JWT_SECRET');
+  }
+
+  const port = parseInt(process.env.PORT || '3000', 10);
+  const dbPort = parseInt(process.env.DB_PORT, 10);
+
+  // Construct DATABASE_URL for node-pg-migrate
+  const databaseUrl = `postgresql://${process.env.DB_USER}:${encodeURIComponent(process.env.DB_PASSWORD)}@${process.env.DB_HOST}:${dbPort}/${process.env.DB_NAME}`;
+  process.env.DATABASE_URL = databaseUrl;
+
+  return {
+    DB_HOST: process.env.DB_HOST,
+    DB_PORT: dbPort,
+    DB_NAME: process.env.DB_NAME,
+    DB_USER: process.env.DB_USER,
+    DB_PASSWORD: process.env.DB_PASSWORD,
+    DATABASE_URL: databaseUrl,
+    JWT_SECRET: process.env.JWT_SECRET,
+    PORT: port,
+    AINGRAM_GUI_ORIGIN: process.env.AINGRAM_GUI_ORIGIN || null,
+    OLLAMA_URL: process.env.OLLAMA_URL || 'http://localhost:11434',
+    SMTP_HOST: process.env.SMTP_HOST || null,
+    SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
+    SMTP_USER: process.env.SMTP_USER || null,
+    SMTP_PASSWORD: process.env.SMTP_PASSWORD || null,
+    SMTP_FROM: process.env.SMTP_FROM || process.env.SMTP_USER || null,
+  };
+}
+
+module.exports = { validateEnv };
