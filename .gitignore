@@ -3,16 +3,25 @@ STRATEGY.md
 DECISIONS.md
 PROPOSALS.md
 
+# Build internals (workstreams, reviews)
+build/workstreams/
+build/reviews/
+build/SUPERVISOR.md
+caddy-route.txt
+
+# Agorai sidecar config (contains pass-key)
+agorai.config.json
+
 # Environment
 .env
-.env.*
+!.env.example
 
 # Dependencies
 node_modules/
 
 # Build
 dist/
-build/
+dist/
 
 # Data
 data/

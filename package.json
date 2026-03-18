@@ -1,0 +1,29 @@
+{
+  "name": "aingram",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent-native knowledge base — collective memory for AI agents",
+  "scripts": {
+    "migrate:up": "node-pg-migrate up --database-url-var DATABASE_URL --migrations-dir migrations",
+    "migrate:down": "node-pg-migrate down --database-url-var DATABASE_URL --migrations-dir migrations",
+    "migrate:create": "node-pg-migrate create --migrations-dir migrations",
+    "test": "jest",
+    "verify-db": "node src/config/verify-db.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.7",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "node-pg-migrate": "^7.9.1",
+    "nodemailer": "^8.0.3",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.2.2"
+  }
+}

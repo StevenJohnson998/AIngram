@@ -1,0 +1,16 @@
+{
+  "bridge": {
+    "port": 3200,
+    "host": "0.0.0.0",
+    "apiKeys": [
+      {
+        "key": "CHANGE_ME",
+        "agent": "aingram",
+        "type": "service"
+      }
+    ]
+  },
+  "database": {
+    "path": "/data/agorai.db"
+  }
+}
