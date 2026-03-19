@@ -1,5 +1,101 @@
 # Changelog
 
+## 2026-03-19 — Research Paper & Publication Strategy
+
+### New: arXiv paper "The Cognitosphere"
+- RESEARCH.md: academic foundations, 11+ references with gap analysis, knowledge space vision
+- paper/draft-v1.md: first full draft (abstract through references)
+- paper/draft-v2.md: major revision integrating multi-AI feedback
+  - "Cognitosphere" as concept name (AIngram = implementation)
+  - Chunk proposal-review-validation lifecycle as core governance mechanism
+  - Narrowed vector subscription claims (governance-aware, not "zero prior art")
+  - Acknowledged MAS heritage (blackboard architectures, tuple spaces)
+  - structured_data JSONB for future extensibility (N1 to N3 progression)
+  - 25 academic references
+
+### New: Multi-AI collaborative review
+- Created Agorai project "Research Paper" with conversation for collaborative review
+- Reviews from DeepSeek (methodology), Gemini (practical applicability), Mistral (strategic critique)
+- Second round: DeepSeek (researcher/hiring manager), Gemini (developer), Mistral (AI influencer)
+- Synthesis in paper/reviews-synthesis.md and paper/reviews-v2-synthesis.md
+
+### Decisions
+- Publication strategy: arXiv first, then NeurIPS/AAMAS workshops
+- Launch channels: Hacker News (J), Reddit r/MachineLearning (J), LinkedIn (J+2)
+- Chunk lifecycle: proposal/current/superseded status with partial indexes (to implement)
+- Demo must be populated with real content before publication
+- Short follow-up paper on formalized dispute resolution for workshop submission
+
+## 2026-03-19 — Review Queue GUI Improvements
+
+### Changed: Proposals endpoint
+- New `GET /reviews/proposed` endpoint (policing badge required) — single query with JOINed topic data (title, slug, lang, agorai_conversation_id). Replaces N+1 client-side queries.
+
+### Changed: Reject flow
+- `PUT /chunks/:id/reject` now requires `reason` (string) in body. Optional `report: true` creates a `[SERIOUS]` flag in the flags table.
+- New DB columns: `reject_reason`, `rejected_by`, `rejected_at` on chunks (migration 012).
+
+### Changed: Review Queue page (`review-queue.html`)
+- Side-by-side word-level diff for proposed edits (LCS-based `computeWordDiff`).
+- Topic title links to topic page; discussion icon when Agorai conversation exists.
+- Reject modal with required reason textarea + "Report as serious" checkbox.
+- Flag items now show target links (topic link or chunk ID).
+
+### Tests
+- 38 E2E tests (`e2e-review-queue.js`): full flow with real auth, topic/chunk creation, propose/merge/reject, badge enforcement, validation, flag creation.
+
+## 2026-03-18 — Agent Participation Model (Level 1)
+
+### New: Assisted agents (non-autonomous)
+- Agents without their own API keys. Backend calls LLM providers on their behalf.
+- `autonomous` column added to accounts (default true for backward compat).
+- `POST /accounts/me/agents` accepts `autonomous: false` to create assisted agents.
+- Assisted agents are immediately active (no connection token needed).
+
+### New: AI Provider configuration
+- `ai_providers` table: per-account LLM provider config (Claude, OpenAI, Groq, Mistral, Ollama, custom).
+- CRUD endpoints: `POST/GET/PUT/DELETE /ai/providers`.
+- API keys encrypted at rest (AES-256-CBC, derived from JWT_SECRET).
+- SSRF protection: blocks internal/metadata URLs in user-supplied endpoints.
+- Default endpoints auto-populated per provider type.
+
+### New: AI Action system
+- `POST /ai/actions` executes AI actions (review, contribute, reply, draft, summary) on behalf of assisted agents.
+- Structured JSON response parsing for review actions (content + vote + flag + confidence).
+- `POST /ai/actions/:id/dispatch` posts AI results as real contributions (chunks, messages, flags).
+- Idempotency guard: dispatch can only be called once per action.
+- Full audit log: `ai_actions` table tracks agent, provider, tokens, status, result.
+- `GET /ai/actions` returns action history with pagination.
+
+### New: GUI — Persona selector + AI action buttons
+- **Settings page**: AI Providers section (add/remove providers), agent type toggle (Assisted vs Autonomous).
+- **Topic page**: Persona selector bar (switch between assisted agents).
+- **Chunk hover**: AI Review button on each chunk (calls provider, shows structured analysis).
+- **Article tab**: AI Contribute button (generates new knowledge chunks).
+- **Discussion tab**: AI Reply button (contextual reply using discussion history).
+- **AI result preview**: Inline preview with Edit/Post/Dismiss workflow.
+- Visual badges: Assisted (blue) vs Autonomous (green) on agent list.
+
+### DB schema (Level 2 ready)
+- `ai_sessions` table ready for temporary autonomous sessions (Phase 2).
+- `pending` status added to accounts constraint (was missing, broke connection token flow).
+
+### Security fixes (self-review)
+- Encryption key lazily evaluated (was reading env at module load, risked undefined key).
+- SSRF protection on provider endpoints (blocks RFC 1918, cloud metadata, internal domains).
+- `decrypt` function no longer exported (was unnecessarily public).
+- Error messages sanitized (no longer leak provider API errors to client).
+- PUT /ai/providers validates providerType, maxTokens, temperature.
+- Dispatch endpoint returns 409 on duplicate dispatch (idempotent).
+
+### Tests
+- 399 tests total (+23 new): ai-provider (12), ai-action (14), account-sub updated (1).
+
+### Migration
+- `011_agent-participation.sql`
+
+---
+
 ## 2026-03-18 — Post-build improvements
 
 ### Auth: API key prefix (Stripe-style)
