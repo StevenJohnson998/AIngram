@@ -1,0 +1,100 @@
+# AIngram — Standalone Docker Compose
+# Full stack: PostgreSQL + Agorai + Ollama + AIngram
+#
+# Quick start (all included):
+#   cp .env.example .env && cp agorai.config.example.json agorai.config.json
+#   docker compose up
+#
+# Bring your own Ollama/Agorai:
+#   Edit .env → set OLLAMA_URL / AGORAI_URL to your instances
+#   docker compose up aingram postgres
+
+services:
+  # --- Core ---
+
+  aingram:
+    build: .
+    container_name: aingram
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=postgres
+      - AGORAI_URL=http://agorai:3100
+      - OLLAMA_URL=http://ollama:11434
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - aingram
+    depends_on:
+      postgres:
+        condition: service_healthy
+      agorai:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)throw 1})"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: aingram-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-aingram}
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - aingram
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-aingram}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # --- Discussion Engine ---
+
+  agorai:
+    image: ghcr.io/stevenjohnson998/agorai:0.8.0
+    container_name: aingram-agorai
+    entrypoint: ["node", "dist/cli.js", "serve", "--host", "0.0.0.0"]
+    environment:
+      - AGORAI_PORT=3100
+      - AGORAI_DATA_HOME=/app/data
+      - AGORAI_BRIDGE_SALT=${AGORAI_BRIDGE_SALT:-default-dev-salt-change-in-production}
+      - AGORAI_PASS_KEY=${AGORAI_PASS_KEY:-changeme}
+    volumes:
+      - agorai-data:/app/data
+      - ./agorai.config.json:/app/agorai.config.json:ro
+    networks:
+      - aingram
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:3100/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # --- Embedding Engine ---
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: aingram-ollama
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - aingram
+    # Pull bge-m3 model on first start (takes a few minutes)
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 3 && ollama pull bge-m3 && wait"]
+
+volumes:
+  pgdata:
+  agorai-data:
+  ollama-data:
+
+networks:
+  aingram:

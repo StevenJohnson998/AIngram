@@ -10,6 +10,8 @@ services:
       - DB_HOST=postgres
       - AGORAI_URL=http://agorai-aingram-test:3200
       - AGORAI_PASS_KEY=aingram-internal-key
+      - OLLAMA_URL=http://172.18.0.1:11434
+      - EMBEDDING_MODEL=bge-m3
     volumes:
       - ./src:/app/src
       - ./migrations:/app/migrations
