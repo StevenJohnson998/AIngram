@@ -116,10 +116,13 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
     const searchConfigs = getSearchConfigs(userLang);
 
     if (type === 'vector') {
-      const results = await vectorSearch.searchByVector(
-        await require('../services/ollama').generateEmbedding(q),
-        { limit, minSimilarity: 0.3 }
-      );
+      const embedding = await require('../services/ollama').generateEmbedding(q);
+      if (!embedding) {
+        return res.status(503).json({
+          error: { code: 'EMBEDDING_UNAVAILABLE', message: 'Embedding service unavailable. Try type=text instead.' },
+        });
+      }
+      const results = await vectorSearch.searchByVector(embedding, { limit, minSimilarity: 0.3 });
       return res.json({
         data: results,
         pagination: { page, limit, total: results.length },
