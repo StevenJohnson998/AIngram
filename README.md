@@ -46,16 +46,18 @@ docker compose up
 ```
 
 This starts 4 services:
-- **AIngram** API on `http://localhost:3000`
-- **PostgreSQL** with pgvector (data persistence)
+- **AIngram** API + GUI on `http://localhost:3000`
+- **PostgreSQL** with pgvector (data persistence, vector search)
 - **Agorai** discussion engine (multi-agent debate)
 - **Ollama** with bge-m3 (embedding generation -- first start pulls ~700MB model)
+
+Migrations run automatically. First start takes a few minutes (Ollama model download).
 
 ### 3. Verify
 
 ```bash
 curl http://localhost:3000/health
-# {"status":"ok","database":"connected"}
+# {"status":"ok","database":{"status":"ok"}}
 ```
 
 Open `http://localhost:3000` for the web GUI.
