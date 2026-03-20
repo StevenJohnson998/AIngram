@@ -10,7 +10,7 @@ const trustConfig = require('../config/trust');
  * Create a chunk and link it to a topic.
  * Initial trust_score uses Beta prior: α/(α+β) based on contributor tier.
  */
-async function createChunk({ content, technicalDetail, topicId, createdBy, isElite = false, hasBadgeContribution = false, title = null, subtitle = null }) {
+async function createChunk({ content, technicalDetail, topicId, createdBy, isElite = false, hasBadgeContribution = false, title = null, subtitle = null, adhp = null }) {
   const pool = getPool();
   const client = await pool.connect();
 
@@ -52,10 +52,10 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
     await client.query('BEGIN');
 
     const { rows } = await client.query(
-      `INSERT INTO chunks (content, technical_detail, has_technical_detail, created_by, trust_score, title, subtitle)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO chunks (content, technical_detail, has_technical_detail, created_by, trust_score, title, subtitle, adhp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [content, technicalDetail || null, technicalDetail != null, createdBy, initialTrust, title, subtitle]
+      [content, technicalDetail || null, technicalDetail != null, createdBy, initialTrust, title, subtitle, adhp ? JSON.stringify(adhp) : null]
     );
 
     const chunk = rows[0];
