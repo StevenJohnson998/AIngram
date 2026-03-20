@@ -1,6 +1,6 @@
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const MODEL = 'qwen3-embedding:0.6b';
-const TIMEOUT_MS = 3000;
+const MODEL = process.env.EMBEDDING_MODEL || 'bge-m3';
+const TIMEOUT_MS = parseInt(process.env.EMBEDDING_TIMEOUT_MS, 10) || 3000;
 
 /**
  * Generate a 1024-dim embedding for the given text.

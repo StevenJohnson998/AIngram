@@ -36,9 +36,9 @@ function parseApiKey(bearerToken) {
 async function createAccount({ name, type, ownerEmail, password }) {
   const pool = getPool();
 
-  // Check for existing account
+  // Check for existing root account with same email
   const existing = await pool.query(
-    'SELECT id FROM accounts WHERE owner_email = $1',
+    'SELECT id FROM accounts WHERE owner_email = $1 AND parent_id IS NULL',
     [ownerEmail]
   );
   if (existing.rows.length > 0) {
@@ -85,10 +85,10 @@ async function findByEmail(email) {
     `SELECT id, name, type, owner_email, avatar_url, lang, api_key_hash, api_key_last4,
             password_hash, email_confirmed, status,
             reputation_contribution, reputation_policing,
-            badge_contribution, badge_policing,
+            badge_contribution, badge_policing, badge_elite,
             probation_until, account_expires_at, first_contribution_at,
-            created_at, last_active_at
-     FROM accounts WHERE owner_email = $1`,
+            parent_id, autonomous, created_at, last_active_at
+     FROM accounts WHERE owner_email = $1 AND parent_id IS NULL`,
     [email]
   );
   return result.rows[0] || null;
@@ -103,9 +103,9 @@ async function findById(id) {
     `SELECT id, name, type, owner_email, avatar_url, lang, api_key_hash, api_key_last4,
             password_hash, email_confirmed, status,
             reputation_contribution, reputation_policing,
-            badge_contribution, badge_policing,
+            badge_contribution, badge_policing, badge_elite,
             probation_until, account_expires_at, first_contribution_at,
-            created_at, last_active_at
+            parent_id, autonomous, created_at, last_active_at
      FROM accounts WHERE id = $1`,
     [id]
   );
@@ -139,9 +139,9 @@ async function findByApiKeyPrefix(prefix) {
     `SELECT id, name, type, owner_email, avatar_url, lang, api_key_hash, api_key_prefix, api_key_last4,
             password_hash, email_confirmed, status,
             reputation_contribution, reputation_policing,
-            badge_contribution, badge_policing,
+            badge_contribution, badge_policing, badge_elite,
             probation_until, account_expires_at, first_contribution_at,
-            created_at, last_active_at
+            parent_id, autonomous, created_at, last_active_at
      FROM accounts WHERE api_key_prefix = $1`,
     [prefix]
   );
@@ -292,6 +292,30 @@ async function resetPassword(token, newPassword) {
 }
 
 /**
+ * Resend confirmation email: generate a new token and send it.
+ * Silent on non-existent or already confirmed accounts (anti-enumeration).
+ */
+async function resendConfirmation(email) {
+  const pool = getPool();
+
+  const account = await findByEmail(email);
+  if (!account || account.email_confirmed) return;
+
+  const confirmToken = generateToken();
+  const confirmTokenHash = hashToken(confirmToken);
+  const confirmTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+  await pool.query(
+    `UPDATE accounts
+     SET email_confirm_token_hash = $1, email_confirm_token_expires = $2
+     WHERE id = $3`,
+    [confirmTokenHash, confirmTokenExpires, account.id]
+  );
+
+  emailService.sendConfirmationEmail(account, confirmToken);
+}
+
+/**
  * Get public profile (safe fields only).
  */
 async function getPublicProfile(accountId) {
@@ -319,6 +343,241 @@ function toSafeAccount(account) {
   return safe;
 }
 
+/**
+ * Create an agent sub-account under a parent human account.
+ * No email/password needed.
+ * If generateKey is true (default), generates API key and sets status 'active'.
+ * If generateKey is false, sets status 'pending' with no API key.
+ * Returns { account, apiKey } (apiKey is null when generateKey is false).
+ */
+async function createSubAccount({ name, parentId, generateKey = true, autonomous = true, providerId = null, description = null }) {
+  const pool = getPool();
+
+  // Verify parent is a root human account
+  const parent = await findById(parentId);
+  if (!parent) {
+    const err = new Error('Parent account not found');
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+  if (parent.type !== 'human') {
+    const err = new Error('Only human accounts can create sub-accounts');
+    err.code = 'FORBIDDEN';
+    throw err;
+  }
+  if (parent.parent_id) {
+    const err = new Error('Sub-accounts cannot create sub-accounts');
+    err.code = 'FORBIDDEN';
+    throw err;
+  }
+
+  // Validate description length
+  if (description && description.length > 2000) {
+    const err = new Error('Description must be at most 2000 characters');
+    err.code = 'VALIDATION_ERROR';
+    throw err;
+  }
+
+  const RETURNING = 'RETURNING id, name, type, owner_email, status, api_key_last4, parent_id, autonomous, provider_id, description, created_at';
+
+  if (!autonomous) {
+    // Assisted agent: active immediately, no API key needed (backend acts on its behalf)
+    const result = await pool.query(
+      `INSERT INTO accounts (name, type, owner_email, parent_id, status, autonomous, provider_id, description)
+       VALUES ($1, 'ai', $2, $3, 'active', false, $4, $5)
+       ${RETURNING}`,
+      [name, parent.owner_email, parentId, providerId, description]
+    );
+
+    return { account: result.rows[0], apiKey: null };
+  }
+
+  if (generateKey) {
+    // Active sub-account with API key (backward compat / direct API usage)
+    const { fullKey, prefix, secret } = generateApiKey();
+    const apiKeyHash = await bcrypt.hash(secret, BCRYPT_APIKEY_ROUNDS);
+    const apiKeyLast4 = fullKey.slice(-4);
+
+    const result = await pool.query(
+      `INSERT INTO accounts (name, type, owner_email, api_key_hash, api_key_prefix, api_key_last4, parent_id, status, autonomous, provider_id, description)
+       VALUES ($1, 'ai', $2, $3, $4, $5, $6, 'active', true, $7, $8)
+       ${RETURNING}`,
+      [name, parent.owner_email, apiKeyHash, prefix, apiKeyLast4, parentId, providerId, description]
+    );
+
+    return { account: result.rows[0], apiKey: fullKey };
+  }
+
+  // Pending sub-account without API key (connection token flow)
+  const result = await pool.query(
+    `INSERT INTO accounts (name, type, owner_email, parent_id, status, autonomous, provider_id, description)
+     VALUES ($1, 'ai', $2, $3, 'pending', true, $4, $5)
+     ${RETURNING}`,
+    [name, parent.owner_email, parentId, providerId, description]
+  );
+
+  return { account: result.rows[0], apiKey: null };
+}
+
+/**
+ * Activate a pending sub-account: generate API key, set status 'active'.
+ * Returns { account, apiKey }.
+ */
+async function activateSubAccount(subAccountId) {
+  const pool = getPool();
+
+  const sub = await findById(subAccountId);
+  if (!sub) {
+    const err = new Error('Sub-account not found');
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+
+  // Generate API key
+  const { fullKey, prefix, secret } = generateApiKey();
+  const apiKeyHash = await bcrypt.hash(secret, BCRYPT_APIKEY_ROUNDS);
+  const apiKeyLast4 = fullKey.slice(-4);
+
+  const result = await pool.query(
+    `UPDATE accounts SET api_key_hash = $1, api_key_prefix = $2, api_key_last4 = $3, status = 'active'
+     WHERE id = $4
+     RETURNING id, name, type, owner_email, status, api_key_last4, parent_id, created_at`,
+    [apiKeyHash, prefix, apiKeyLast4, subAccountId]
+  );
+
+  return { account: result.rows[0], apiKey: fullKey };
+}
+
+/**
+ * List sub-accounts for a parent account.
+ */
+async function listSubAccounts(parentId) {
+  const pool = getPool();
+  const result = await pool.query(
+    `SELECT id, name, type, status, api_key_last4, autonomous, provider_id, description, created_at
+     FROM accounts WHERE parent_id = $1
+     ORDER BY created_at DESC`,
+    [parentId]
+  );
+  return result.rows;
+}
+
+/**
+ * Deactivate a sub-account (ban it). Only the parent can do this.
+ */
+async function deactivateSubAccount(subAccountId, parentId) {
+  const pool = getPool();
+  const result = await pool.query(
+    `UPDATE accounts SET status = 'banned'
+     WHERE id = $1 AND parent_id = $2
+     RETURNING id, name, status`,
+    [subAccountId, parentId]
+  );
+  if (result.rows.length === 0) {
+    const err = new Error('Sub-account not found or not owned by you');
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+  return result.rows[0];
+}
+
+/**
+ * Update a sub-account (name, providerId, description). Only the parent can do this.
+ */
+async function updateSubAccount(subAccountId, parentId, { name, providerId, description }) {
+  const pool = getPool();
+  const fields = [];
+  const values = [];
+  let idx = 1;
+
+  if (name !== undefined) {
+    if (!name || typeof name !== 'string' || name.length < 2 || name.length > 100) {
+      const err = new Error('name must be between 2 and 100 characters');
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+    fields.push(`name = $${idx++}`);
+    values.push(name);
+  }
+
+  if (providerId !== undefined) {
+    // null clears the provider, a UUID sets it
+    fields.push(`provider_id = $${idx++}`);
+    values.push(providerId || null);
+  }
+
+  if (description !== undefined) {
+    if (description && description.length > 2000) {
+      const err = new Error('Description must be at most 2000 characters');
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+    fields.push(`description = $${idx++}`);
+    values.push(description || null);
+  }
+
+  if (fields.length === 0) {
+    const err = new Error('No fields to update');
+    err.code = 'VALIDATION_ERROR';
+    throw err;
+  }
+
+  values.push(subAccountId, parentId);
+  const result = await pool.query(
+    `UPDATE accounts SET ${fields.join(', ')}
+     WHERE id = $${idx++} AND parent_id = $${idx}
+     RETURNING id, name, type, status, api_key_last4, autonomous, provider_id, description, created_at`,
+    values
+  );
+
+  if (result.rows.length === 0) {
+    const err = new Error('Sub-account not found or not owned by you');
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+
+  return result.rows[0];
+}
+
+/**
+ * Reactivate a banned sub-account. Only the parent can do this.
+ * Assisted or autonomous-with-key -> 'active', autonomous-without-key -> 'pending'.
+ */
+async function reactivateSubAccount(subAccountId, parentId) {
+  const pool = getPool();
+
+  // Fetch the sub-account
+  const lookup = await pool.query(
+    'SELECT id, status, autonomous, api_key_last4 FROM accounts WHERE id = $1 AND parent_id = $2',
+    [subAccountId, parentId]
+  );
+
+  if (lookup.rows.length === 0) {
+    const err = new Error('Sub-account not found or not owned by you');
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+
+  const sub = lookup.rows[0];
+  if (sub.status !== 'banned') {
+    const err = new Error('Sub-account is not deactivated');
+    err.code = 'VALIDATION_ERROR';
+    throw err;
+  }
+
+  // Determine new status: assisted or has key -> active, autonomous without key -> pending
+  const newStatus = (sub.autonomous === false || sub.api_key_last4) ? 'active' : 'pending';
+
+  const result = await pool.query(
+    `UPDATE accounts SET status = $1
+     WHERE id = $2 AND parent_id = $3
+     RETURNING id, name, type, status, api_key_last4, autonomous, created_at`,
+    [newStatus, subAccountId, parentId]
+  );
+
+  return result.rows[0];
+}
+
 module.exports = {
   createAccount,
   findByEmail,
@@ -335,4 +594,11 @@ module.exports = {
   resetPassword,
   getPublicProfile,
   toSafeAccount,
+  resendConfirmation,
+  createSubAccount,
+  activateSubAccount,
+  listSubAccounts,
+  deactivateSubAccount,
+  updateSubAccount,
+  reactivateSubAccount,
 };

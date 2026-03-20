@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const jwt = require('jsonwebtoken');
 const accountService = require('../services/account');
+const connectionTokenService = require('../services/connection-token');
 const { authenticateRequired } = require('../middleware/auth');
 const { registrationLimiter, publicLimiter } = require('../middleware/rate-limit');
 
@@ -134,6 +135,12 @@ router.post('/login', publicLimiter, async (req, res) => {
       });
     }
 
+    if (!account.email_confirmed) {
+      return res.status(403).json({
+        error: { code: 'EMAIL_NOT_CONFIRMED', message: 'Please confirm your email before logging in. Check your inbox.' },
+      });
+    }
+
     const token = generateToken(account);
     const isProduction = process.env.NODE_ENV === 'production';
     setTokenCookie(res, token, isProduction);
@@ -241,6 +248,187 @@ router.delete('/me/revoke-key', authenticateRequired, async (req, res) => {
 });
 
 /**
+ * POST /accounts/me/agents — create agent persona (pending, no API key)
+ */
+router.post('/me/agents', authenticateRequired, async (req, res) => {
+  try {
+    const { name, autonomous, providerId, description } = req.body;
+
+    if (!name || typeof name !== 'string' || name.length < 2 || name.length > 100) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'name must be between 2 and 100 characters' },
+      });
+    }
+
+    if (req.account.type !== 'human') {
+      return res.status(403).json({
+        error: { code: 'FORBIDDEN', message: 'Only human accounts can create sub-accounts' },
+      });
+    }
+
+    if (req.account.parentId) {
+      return res.status(403).json({
+        error: { code: 'FORBIDDEN', message: 'Sub-accounts cannot create sub-accounts' },
+      });
+    }
+
+    // autonomous=false -> assisted agent (active immediately, no key)
+    // autonomous=true (default) -> autonomous agent (pending, needs connection token)
+    const isAutonomous = autonomous !== false;
+
+    const { account } = await accountService.createSubAccount({
+      name,
+      parentId: req.account.id,
+      generateKey: false,
+      autonomous: isAutonomous,
+      providerId: providerId || null,
+      description: description || null,
+    });
+
+    return res.status(201).json({ account });
+  } catch (err) {
+    if (err.code === 'FORBIDDEN') {
+      return res.status(403).json({ error: { code: 'FORBIDDEN', message: err.message } });
+    }
+    console.error('Create sub-account error:', err.message);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    });
+  }
+});
+
+/**
+ * GET /accounts/me/agents — list my agent sub-accounts
+ */
+router.get('/me/agents', authenticateRequired, async (req, res) => {
+  try {
+    const agents = await accountService.listSubAccounts(req.account.id);
+    return res.status(200).json({ agents });
+  } catch (err) {
+    console.error('List sub-accounts error:', err.message);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    });
+  }
+});
+
+/**
+ * DELETE /accounts/me/agents/:id — deactivate agent sub-account
+ */
+router.delete('/me/agents/:id', authenticateRequired, async (req, res) => {
+  try {
+    const result = await accountService.deactivateSubAccount(req.params.id, req.account.id);
+    return res.status(200).json({ account: result });
+  } catch (err) {
+    if (err.code === 'NOT_FOUND') {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: err.message } });
+    }
+    console.error('Deactivate sub-account error:', err.message);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    });
+  }
+});
+
+/**
+ * PUT /accounts/me/agents/:id — rename agent sub-account
+ */
+router.put('/me/agents/:id', authenticateRequired, async (req, res) => {
+  try {
+    const { name, providerId, description } = req.body;
+    const account = await accountService.updateSubAccount(req.params.id, req.account.id, { name, providerId, description });
+    return res.status(200).json({ account });
+  } catch (err) {
+    if (err.code === 'VALIDATION_ERROR') {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message } });
+    }
+    if (err.code === 'NOT_FOUND') {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: err.message } });
+    }
+    console.error('Update sub-account error:', err.message);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    });
+  }
+});
+
+/**
+ * POST /accounts/me/agents/:id/reactivate — reactivate a banned agent
+ */
+router.post('/me/agents/:id/reactivate', authenticateRequired, async (req, res) => {
+  try {
+    const account = await accountService.reactivateSubAccount(req.params.id, req.account.id);
+    return res.status(200).json({ account });
+  } catch (err) {
+    if (err.code === 'NOT_FOUND') {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: err.message } });
+    }
+    if (err.code === 'VALIDATION_ERROR') {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message } });
+    }
+    console.error('Reactivate sub-account error:', err.message);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    });
+  }
+});
+
+/**
+ * POST /accounts/me/agents/:id/connection-token — generate token for a specific agent
+ */
+router.post('/me/agents/:id/connection-token', authenticateRequired, publicLimiter, async (req, res) => {
+  try {
+    if (req.account.type !== 'human') {
+      return res.status(403).json({
+        error: { code: 'FORBIDDEN', message: 'Only human accounts can generate connection tokens' },
+      });
+    }
+    if (req.account.parentId) {
+      return res.status(403).json({
+        error: { code: 'FORBIDDEN', message: 'Sub-accounts cannot generate connection tokens' },
+      });
+    }
+
+    const { token, expiresAt } = await connectionTokenService.createConnectionToken(req.account.id, req.params.id);
+
+    return res.status(201).json({ token, expiresAt });
+  } catch (err) {
+    if (err.code === 'RATE_LIMITED') {
+      return res.status(429).json({ error: { code: 'RATE_LIMITED', message: err.message } });
+    }
+    if (err.code === 'FORBIDDEN') {
+      return res.status(403).json({ error: { code: 'FORBIDDEN', message: err.message } });
+    }
+    console.error('Create connection token error:', err.message);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    });
+  }
+});
+
+/**
+ * POST /accounts/resend-confirmation — resend email confirmation link
+ */
+router.post('/resend-confirmation', publicLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Missing required field: email' },
+      });
+    }
+
+    // Always return same response regardless of email existence (anti-enumeration)
+    await accountService.resendConfirmation(email);
+
+    return res.status(200).json({ message: 'If an unconfirmed account exists with this email, a confirmation link has been sent.' });
+  } catch (err) {
+    console.error('Resend confirmation error:', err.message);
+    return res.status(200).json({ message: 'If an unconfirmed account exists with this email, a confirmation link has been sent.' });
+  }
+});
+
+/**
  * GET /accounts/confirm-email?token=xxx
  */
 router.get('/confirm-email', publicLimiter, async (req, res) => {
@@ -308,6 +496,41 @@ router.post('/reset-password', publicLimiter, async (req, res) => {
     console.error('Request password reset error:', err.message);
     // Still return 200 to avoid leaking info
     return res.status(200).json({ message: 'If an account exists with this email, a reset link has been sent.' });
+  }
+});
+
+/**
+ * POST /accounts/connect — redeem connection token (no auth required)
+ */
+router.post('/connect', registrationLimiter, async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Missing required field: token' },
+      });
+    }
+
+    const { account, apiKey } = await connectionTokenService.redeemConnectionToken(token);
+
+    // Build docs URL from request origin
+    const proto = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const docs = `${proto}://${host}/llms.txt`;
+
+    return res.status(201).json({ account, apiKey, docs });
+  } catch (err) {
+    if (err.code === 'INVALID_TOKEN') {
+      return res.status(400).json({ error: { code: 'INVALID_TOKEN', message: err.message } });
+    }
+    if (err.code === 'FORBIDDEN') {
+      return res.status(403).json({ error: { code: 'FORBIDDEN', message: err.message } });
+    }
+    console.error('Redeem connection token error:', err.message);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    });
   }
 });
 

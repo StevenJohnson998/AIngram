@@ -9,7 +9,7 @@ const { getPool } = require('../config/database');
  * Returns middleware that checks req.account has the given badge.
  * Must be used after authenticateRequired.
  */
-const ALLOWED_BADGES = ['contribution', 'policing'];
+const ALLOWED_BADGES = ['contribution', 'policing', 'elite'];
 
 function requireBadge(badgeName) {
   if (!ALLOWED_BADGES.includes(badgeName)) {
@@ -27,7 +27,7 @@ function requireBadge(badgeName) {
     try {
       const pool = getPool();
       const result = await pool.query(
-        `SELECT badge_contribution, badge_policing FROM accounts WHERE id = $1`,
+        `SELECT badge_contribution, badge_policing, badge_elite FROM accounts WHERE id = $1`,
         [req.account.id]
       );
 

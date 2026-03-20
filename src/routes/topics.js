@@ -7,6 +7,8 @@ const topicService = require('../services/topic');
 const chunkService = require('../services/chunk');
 
 const auth = require('../middleware/auth');
+const { requireBadge } = require('../middleware/badge');
+const accountService = require('../services/account');
 
 const router = Router();
 
@@ -117,6 +119,13 @@ router.get('/topics/by-slug/:slug/:lang', auth.authenticateOptional, async (req,
     const topic = await topicService.getTopicBySlug(slug, lang);
     if (!topic) return notFoundError(res, 'Topic not found');
 
+    // Fetch chunks with sources for the topic detail view
+    const chunksResult = await chunkService.getChunksByTopic(topic.id, { limit: 100 });
+    const chunksWithSources = await Promise.all(
+      chunksResult.data.map(c => chunkService.getChunkById(c.id))
+    );
+    topic.chunks = chunksWithSources.filter(Boolean);
+
     return res.json(topic);
   } catch (err) {
     console.error('Error getting topic by slug:', err);
@@ -124,11 +133,18 @@ router.get('/topics/by-slug/:slug/:lang', auth.authenticateOptional, async (req,
   }
 });
 
-// GET /topics/:id — get topic by ID
+// GET /topics/:id — get topic by ID (includes chunks with sources)
 router.get('/topics/:id', auth.authenticateOptional, async (req, res) => {
   try {
     const topic = await topicService.getTopicById(req.params.id);
     if (!topic) return notFoundError(res, 'Topic not found');
+
+    // Fetch chunks with sources for the topic detail view
+    const chunksResult = await chunkService.getChunksByTopic(req.params.id, { limit: 100 });
+    const chunksWithSources = await Promise.all(
+      chunksResult.data.map(c => chunkService.getChunkById(c.id))
+    );
+    topic.chunks = chunksWithSources.filter(Boolean);
 
     return res.json(topic);
   } catch (err) {
@@ -274,15 +290,27 @@ router.post(
       const topic = await topicService.getTopicById(req.params.id);
       if (!topic) return notFoundError(res, 'Topic not found');
 
+      // Check badges for initial trust (Beta prior)
+      const creator = await accountService.findById(req.account.id);
+      const isElite = creator && creator.badge_elite;
+      const hasBadgeContribution = creator && creator.badge_contribution;
+
       const chunk = await chunkService.createChunk({
         content,
         technicalDetail,
         topicId: req.params.id,
         createdBy: req.account.id,
+        isElite,
+        hasBadgeContribution,
       });
 
       return res.status(201).json(chunk);
     } catch (err) {
+      if (err.code === 'DUPLICATE_CONTENT') {
+        return res.status(409).json({
+          error: { code: 'DUPLICATE_CONTENT', message: err.message, existingChunkId: err.existingChunkId },
+        });
+      }
       console.error('Error creating chunk:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create chunk' } });
     }
@@ -379,6 +407,199 @@ router.post(
     } catch (err) {
       console.error('Error adding source:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to add source' } });
+    }
+  }
+);
+
+// --- Editorial model routes ---
+
+// GET /topics/:id/history — version history for a topic
+router.get('/topics/:id/history', auth.authenticateOptional, async (req, res) => {
+  try {
+    const existing = await topicService.getTopicById(req.params.id);
+    if (!existing) return notFoundError(res, 'Topic not found');
+
+    const { page, limit } = parsePagination(req.query);
+    const result = await chunkService.getTopicHistory(req.params.id, { page, limit });
+    return res.json(result);
+  } catch (err) {
+    console.error('Error getting topic history:', err);
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get topic history' } });
+  }
+});
+
+// POST /chunks/:id/propose-edit — propose edit to existing chunk
+router.post(
+  '/chunks/:id/propose-edit',
+  auth.authenticateRequired,
+  auth.requireStatus('active', 'provisional'),
+  async (req, res) => {
+    try {
+      const { content, technicalDetail } = req.body;
+
+      if (!content || typeof content !== 'string' || content.length < 10 || content.length > 5000) {
+        return validationError(res, 'Content must be between 10 and 5000 characters');
+      }
+
+      const existing = await chunkService.getChunkById(req.params.id);
+      if (!existing) return notFoundError(res, 'Chunk not found');
+      if (existing.status !== 'active') {
+        return validationError(res, 'Can only propose edits to active chunks');
+      }
+
+      // Find the topic for this chunk
+      const pool = require('../config/database').getPool();
+      const { rows: ctRows } = await pool.query(
+        'SELECT topic_id FROM chunk_topics WHERE chunk_id = $1 LIMIT 1',
+        [req.params.id]
+      );
+      const topicId = ctRows.length > 0 ? ctRows[0].topic_id : null;
+
+      const creator = await accountService.findById(req.account.id);
+      const isElite = creator && creator.badge_elite;
+
+      // Elite + low-sensitivity topic → auto-merge
+      if (isElite && topicId) {
+        const topic = await topicService.getTopicById(topicId);
+        if (topic && topic.sensitivity === 'low') {
+          // Auto-merge: create proposed then merge immediately
+          const proposed = await chunkService.proposeEdit({
+            originalChunkId: req.params.id,
+            content,
+            technicalDetail,
+            proposedBy: req.account.id,
+            topicId,
+            isElite: true,
+          });
+          const merged = await chunkService.mergeChunk(proposed.id, req.account.id);
+          return res.status(201).json(merged);
+        }
+      }
+
+      const proposed = await chunkService.proposeEdit({
+        originalChunkId: req.params.id,
+        content,
+        technicalDetail,
+        proposedBy: req.account.id,
+        topicId,
+        isElite,
+      });
+
+      return res.status(201).json(proposed);
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
+      console.error('Error proposing edit:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to propose edit' } });
+    }
+  }
+);
+
+// PUT /chunks/:id/merge — merge proposed chunk (policing badge required)
+router.put(
+  '/chunks/:id/merge',
+  auth.authenticateRequired,
+  requireBadge('policing'),
+  async (req, res) => {
+    try {
+      const merged = await chunkService.mergeChunk(req.params.id, req.account.id);
+      return res.json(merged);
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
+      console.error('Error merging chunk:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to merge chunk' } });
+    }
+  }
+);
+
+// PUT /chunks/:id/reject — reject proposed chunk (policing badge required)
+router.put(
+  '/chunks/:id/reject',
+  auth.authenticateRequired,
+  requireBadge('policing'),
+  async (req, res) => {
+    try {
+      const { reason, report } = req.body || {};
+      if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+        return validationError(res, 'reason is required');
+      }
+      const rejected = await chunkService.rejectChunk(req.params.id, {
+        reason: reason.trim(),
+        report: !!report,
+        rejectedBy: req.account.id,
+      });
+      return res.json(rejected);
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
+      console.error('Error rejecting chunk:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to reject chunk' } });
+    }
+  }
+);
+
+// POST /chunks/:id/propose-revert — propose reverting to a previous version
+router.post(
+  '/chunks/:id/propose-revert',
+  auth.authenticateRequired,
+  auth.requireStatus('active', 'provisional'),
+  async (req, res) => {
+    try {
+      const { targetVersion, reason } = req.body;
+
+      if (!targetVersion || typeof targetVersion !== 'number' || targetVersion < 1) {
+        return validationError(res, 'targetVersion must be a positive integer');
+      }
+
+      const existing = await chunkService.getChunkById(req.params.id);
+      if (!existing) return notFoundError(res, 'Chunk not found');
+
+      // Find topic
+      const pool = require('../config/database').getPool();
+      const { rows: ctRows } = await pool.query(
+        'SELECT topic_id FROM chunk_topics WHERE chunk_id = $1 LIMIT 1',
+        [req.params.id]
+      );
+      const topicId = ctRows.length > 0 ? ctRows[0].topic_id : null;
+
+      // Policing badge holders can revert immediately
+      const creator = await accountService.findById(req.account.id);
+      const hasPolicingBadge = creator && creator.badge_policing;
+
+      const proposed = await chunkService.proposeRevert({
+        chunkId: req.params.id,
+        targetVersion,
+        reason,
+        proposedBy: req.account.id,
+        topicId,
+      });
+
+      if (hasPolicingBadge) {
+        const merged = await chunkService.mergeChunk(proposed.id, req.account.id);
+        return res.status(201).json(merged);
+      }
+
+      return res.status(201).json(proposed);
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
+      console.error('Error proposing revert:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to propose revert' } });
+    }
+  }
+);
+
+// GET /reviews/proposed — list pending proposals (policing badge required)
+router.get(
+  '/reviews/proposed',
+  auth.authenticateRequired,
+  requireBadge('policing'),
+  async (req, res) => {
+    try {
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+      const result = await chunkService.listPendingProposals({ page, limit });
+      return res.json(result);
+    } catch (err) {
+      console.error('Error listing pending proposals:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list proposals' } });
     }
   }
 );

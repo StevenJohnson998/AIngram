@@ -32,6 +32,22 @@ app.use(cors(corsOptions));
 // Body parsing
 app.use(express.json({ limit: '100kb' }));
 
+// Response envelope middleware: ensures all JSON responses follow {data: ...} or {error: ...} pattern.
+// List responses already return {data: [], pagination: {}} -- those pass through unchanged.
+// Single-object responses (topic, chunk, account) get wrapped in {data: ...}.
+app.use((_req, res, next) => {
+  const origJson = res.json.bind(res);
+  res.json = function (body) {
+    if (body === null || body === undefined) return origJson(body);
+    // Already enveloped: has data/error/status key at top level
+    if (body.data !== undefined || body.error || body.status === 'ok') {
+      return origJson(body);
+    }
+    return origJson({ data: body });
+  };
+  next();
+});
+
 // Cookie parsing (simple, no dependency needed - JWT is in cookie header)
 const cookieParser = (req, _res, next) => {
   req.cookies = {};
@@ -57,21 +73,31 @@ const flagRoutes = require('./routes/flags');
 const sanctionRoutes = require('./routes/sanctions');
 const subscriptionRoutes = require('./routes/subscriptions');
 const voteRoutes = require('./routes/votes');
+const aiProviderRoutes = require('./routes/ai-providers');
+const aiActionRoutes = require('./routes/ai-actions');
 
-app.use('/health', healthRoutes);
-app.use('/accounts', accountRoutes);
-app.use('/', topicRoutes);
-app.use('/', searchRoutes);
-app.use('/', discussionRoutes);
-app.use('/', messageRoutes);
-app.use('/', flagRoutes);
-app.use('/', sanctionRoutes);
-app.use('/', subscriptionRoutes);
-app.use('/', voteRoutes);
+// API v1 routes (versioned prefix)
+const v1 = express.Router();
+v1.use('/health', healthRoutes);
+v1.use('/accounts', accountRoutes);
+v1.use('/', topicRoutes);
+v1.use('/', searchRoutes);
+v1.use('/', discussionRoutes);
+v1.use('/', messageRoutes);
+v1.use('/', flagRoutes);
+v1.use('/', sanctionRoutes);
+v1.use('/', subscriptionRoutes);
+v1.use('/', voteRoutes);
+v1.use('/ai/providers', aiProviderRoutes);
+v1.use('/ai/actions', aiActionRoutes);
+
+// Mount v1 at both /v1 and / (backwards compat during transition)
+app.use('/v1', v1);
+app.use('/', v1);
 
 // GUI static files (served at root, after API routes)
 const path = require('path');
-app.use(express.static(path.join(__dirname, 'gui')));
+app.use(express.static(path.join(__dirname, 'gui'), { extensions: ['html'] }));
 
 // 404 handler
 app.use((_req, res) => {
@@ -97,7 +123,36 @@ function startServer() {
 
 // Start server if run directly (not imported for testing)
 if (require.main === module) {
-  startServer();
+  const server = startServer();
+
+  // Start auto-merge background job
+  const { startAutoMerge } = require('./services/auto-merge');
+  startAutoMerge();
+
+  // Graceful shutdown: drain connections on SIGTERM/SIGINT
+  const shutdown = (signal) => {
+    console.log(`\n${signal} received. Shutting down gracefully...`);
+    server.close(() => {
+      console.log('HTTP server closed.');
+      const { getPool } = require('./config/database');
+      const pool = getPool();
+      if (pool && typeof pool.end === 'function') {
+        pool.end().then(() => {
+          console.log('Database pool closed.');
+          process.exit(0);
+        }).catch(() => process.exit(1));
+      } else {
+        process.exit(0);
+      }
+    });
+    // Force exit after 10s if connections don't drain
+    setTimeout(() => {
+      console.error('Forced shutdown after 10s timeout');
+      process.exit(1);
+    }, 10000).unref();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 module.exports = { app, startServer };

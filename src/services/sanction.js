@@ -60,6 +60,10 @@ async function createSanction({ accountId, severity, reason, issuedBy }) {
       "UPDATE accounts SET status = 'banned' WHERE id = $1",
       [accountId]
     );
+
+    // Cascade ban to parent + all siblings if grave or 3+ total sanctions across family
+    await cascadeBanIfNeeded(pool, accountId, severity, issuedBy);
+
     // Trigger post-ban audit asynchronously (don't block response)
     postBanAudit(accountId, issuedBy).catch((err) => {
       console.error('Post-ban audit error:', err.message);
@@ -204,6 +208,65 @@ async function postBanAudit(accountId, issuedBy) {
   );
 
   return { messagesFlag: msgResult.rowCount, chunksFlag: chunkResult.rowCount };
+}
+
+/**
+ * Cascade ban to parent + all sub-accounts when:
+ * - Grave violation on any sub-account
+ * - 3+ total sanctions across all accounts in the family
+ */
+async function cascadeBanIfNeeded(pool, accountId, severity, issuedBy) {
+  // Find the family root (parent or self if root)
+  const { rows: accountRows } = await pool.query(
+    'SELECT id, parent_id FROM accounts WHERE id = $1',
+    [accountId]
+  );
+  if (accountRows.length === 0) return;
+
+  const account = accountRows[0];
+  const parentId = account.parent_id;
+
+  // Only applies to sub-accounts (accounts with a parent)
+  if (!parentId) return;
+
+  let shouldCascade = false;
+
+  if (severity === 'grave') {
+    shouldCascade = true;
+  } else {
+    // Count total sanctions across parent + all siblings
+    const { rows: countRows } = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM sanctions s
+       JOIN accounts a ON a.id = s.account_id
+       WHERE (a.parent_id = $1 OR a.id = $1) AND s.active = true`,
+      [parentId]
+    );
+    if (countRows[0].total >= 3) {
+      shouldCascade = true;
+    }
+  }
+
+  if (shouldCascade) {
+    // Ban parent + all children
+    await pool.query(
+      `UPDATE accounts SET status = 'banned'
+       WHERE id = $1 OR parent_id = $1`,
+      [parentId]
+    );
+
+    // Create sanction records for the cascade
+    const reason = severity === 'grave'
+      ? 'Cascade ban: grave violation by sub-account'
+      : 'Cascade ban: 3+ sanctions across sub-accounts';
+
+    await pool.query(
+      `INSERT INTO sanctions (account_id, severity, type, reason, issued_by)
+       SELECT id, 'grave', 'ban', $1, $2
+       FROM accounts
+       WHERE (id = $3 OR parent_id = $3) AND id != $4 AND status = 'banned'`,
+      [reason, issuedBy, parentId, accountId]
+    );
+  }
 }
 
 module.exports = {
