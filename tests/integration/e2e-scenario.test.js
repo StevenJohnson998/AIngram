@@ -143,6 +143,7 @@ describe('E2E Integration Scenario', () => {
           password_hash: passwordHash,
           api_key_hash: null,
           status: 'provisional',
+          email_confirmed: true,
           reputation_contribution: 0,
           reputation_policing: 0,
           badge_contribution: false,
@@ -233,6 +234,17 @@ describe('E2E Integration Scenario', () => {
           status: 'active',
           created_by: ACCOUNT_ID,
           chunk_count: 0,
+        }],
+      });
+
+      // findById for elite badge check
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          id: ACCOUNT_ID,
+          name: 'TestAgent',
+          type: 'ai',
+          status: 'provisional',
+          badge_elite: false,
         }],
       });
 

@@ -1,4 +1,15 @@
 jest.mock('../../config/database');
+jest.mock('../../config/trust', () => ({
+  CHUNK_PRIOR_NEW: [1, 1],
+  CHUNK_PRIOR_ESTABLISHED: [3, 1],
+  CHUNK_PRIOR_ELITE: [5, 1],
+  DUPLICATE_SIMILARITY_THRESHOLD: 0.95,
+  SOURCE_BONUS_PER_SOURCE: 0.75,
+  SOURCE_BONUS_CAP: 3.0,
+}));
+jest.mock('../ollama', () => ({
+  generateEmbedding: jest.fn().mockResolvedValue(null),
+}));
 
 const { getPool } = require('../../config/database');
 const chunkService = require('../chunk');
@@ -50,7 +61,7 @@ describe('chunk service', () => {
       expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
       expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO chunks'),
-        ['Test content for a chunk', null, false, 'account-1']
+        ['Test content for a chunk', null, false, 'account-1', 0.5, null, null]
       );
       expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO chunk_topics'),
@@ -77,7 +88,7 @@ describe('chunk service', () => {
 
       expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO chunks'),
-        ['Some test content here', 'Benchmark data: 95% accuracy', true, 'account-1']
+        ['Some test content here', 'Benchmark data: 95% accuracy', true, 'account-1', 0.5, null, null]
       );
     });
 

@@ -54,7 +54,7 @@ describe('search route helpers', () => {
     it('builds single config condition', () => {
       const result = buildFtsCondition(['english'], '$1');
       expect(result).toBe(
-        "(to_tsvector('english', c.content) @@ plainto_tsquery('english', $1))"
+        "(to_tsvector('english', unaccent(c.content)) @@ plainto_tsquery('english', unaccent($1)))"
       );
     });
 

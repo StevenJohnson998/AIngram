@@ -1,4 +1,10 @@
 jest.mock('../../config/database');
+jest.mock('../../config/trust', () => ({
+  VOTE_WEIGHT_NEW_ACCOUNT: 0.5,
+  VOTE_WEIGHT_ESTABLISHED: 1.0,
+  NEW_ACCOUNT_THRESHOLD_DAYS: 14,
+  VOTER_REP_BASE: 0.5,
+}));
 
 const { getPool } = require('../../config/database');
 const voteService = require('../vote');
@@ -24,12 +30,14 @@ describe('vote service', () => {
       created_at: '2025-12-01T00:00:00Z', // > 14 days ago
     };
 
-    it('casts a vote with weight 1.0 for accounts older than 14 days', async () => {
+    it('casts a vote with EigenTrust-weighted weight for established accounts', async () => {
+      // base=1.0 (old account) * repFactor=(0.5+0.5)=1.0 → weight=1.0
       const vote = { id: 'vote-1', account_id: 'acc-1', value: 'up', weight: 1.0 };
 
       mockPool.query
         .mockResolvedValueOnce({ rows: [activeAccount] }) // account lookup
-        .mockResolvedValueOnce({ rows: [{ account_id: 'acc-other', status: 'active' }] }) // message ownership check
+        .mockResolvedValueOnce({ rows: [{ account_id: 'acc-other', status: 'active' }] }) // message check
+        .mockResolvedValueOnce({ rows: [{ rep: 0.5 }] }) // voter reputation (EigenTrust)
         .mockResolvedValueOnce({ rows: [vote] }); // upsert
 
       const result = await voteService.castVote({
@@ -41,21 +49,23 @@ describe('vote service', () => {
       });
 
       expect(result).toEqual(vote);
-      // Verify upsert query
-      const upsertCall = mockPool.query.mock.calls[2];
+      const upsertCall = mockPool.query.mock.calls[3];
       expect(upsertCall[0]).toContain('ON CONFLICT');
+      // weight = base(1.0) * (0.5 + 0.5) = 1.0
       expect(upsertCall[1]).toEqual(['acc-1', 'message', 'msg-1', 'up', 'accurate', 1.0]);
     });
 
-    it('assigns weight 0.5 for accounts younger than 14 days', async () => {
+    it('assigns dampened weight for new accounts', async () => {
+      // base=0.5 (new account) * repFactor=(0.5+0.5)=1.0 → weight=0.5
       const newAccount = {
         ...activeAccount,
-        created_at: new Date().toISOString(), // just created
+        created_at: new Date().toISOString(),
       };
 
       mockPool.query
         .mockResolvedValueOnce({ rows: [newAccount] })
         .mockResolvedValueOnce({ rows: [{ account_id: 'acc-other', status: 'active' }] })
+        .mockResolvedValueOnce({ rows: [{ rep: 0.5 }] }) // voter reputation
         .mockResolvedValueOnce({ rows: [{ id: 'vote-1', weight: 0.5 }] });
 
       await voteService.castVote({
@@ -65,8 +75,8 @@ describe('vote service', () => {
         value: 'up',
       });
 
-      const upsertCall = mockPool.query.mock.calls[2];
-      expect(upsertCall[1][5]).toBe(0.5); // weight param
+      const upsertCall = mockPool.query.mock.calls[3];
+      expect(upsertCall[1][5]).toBe(0.5); // weight = 0.5 * (0.5+0.5) = 0.5
     });
 
     it('rejects vote when account has no first_contribution_at (vote lock)', async () => {
@@ -105,6 +115,7 @@ describe('vote service', () => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [activeAccount] })
         .mockResolvedValueOnce({ rows: [{ account_id: 'acc-other', status: 'active' }] })
+        .mockResolvedValueOnce({ rows: [{ rep: 0.5 }] }) // voter reputation
         .mockResolvedValueOnce({ rows: [vote] });
 
       const result = await voteService.castVote({
@@ -115,7 +126,7 @@ describe('vote service', () => {
       });
 
       expect(result.value).toBe('down');
-      const upsertQuery = mockPool.query.mock.calls[2][0];
+      const upsertQuery = mockPool.query.mock.calls[3][0];
       expect(upsertQuery).toContain('ON CONFLICT');
       expect(upsertQuery).toContain('DO UPDATE');
     });
