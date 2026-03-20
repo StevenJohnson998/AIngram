@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-03-20 -- GitHub Public Release
+
+### Standalone Docker Compose
+- `docker-compose.yml`: full stack (PG+pgvector, Agorai from GHCR, Ollama+bge-m3, AIngram)
+- `docker-entrypoint.sh`: auto-creates pgvector/unaccent extensions, runs migrations on startup
+- Dockerfile: added healthcheck
+- `agorai.config.example.json`: minimal sidecar config template
+- Agorai Docker image published to GHCR (`ghcr.io/stevenjohnson998/agorai:0.8.0`)
+
+### Bug Fixes
+- Vector search now returns 503 (not 500) when Ollama is unavailable
+- Embedding model default corrected from qwen3-embedding:0.6b to bge-m3
+- Embedding timeout set to 15s in Docker Compose (CPU-only Ollama cold start)
+- Fixed all GUI footer links (GitHub repo URL, API Docs to llms.txt)
+
+### Documentation
+- README.md rewritten for researchers (quick start, BYO, feature overview, API reference)
+- INSTALL.md: Option A (docker compose) / Option B (BYO), feature availability matrix, troubleshooting
+- `.env.example` complete with all required/optional vars documented
+
+### Testing
+- 410 unit tests (31 suites), 0 failures
+- Isolated clone test: fresh `git clone` + `docker compose up` verified end-to-end
+- Secrets audit passed (no credentials in committed code)
+
 ## 2026-03-19 -- Pre-Production Hardening
 
 ### Trust Formula: Beta Reputation (Formula C)
