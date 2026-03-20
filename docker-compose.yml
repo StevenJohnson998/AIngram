@@ -21,6 +21,7 @@ services:
       - DB_HOST=postgres
       - AGORAI_URL=http://agorai:3100
       - OLLAMA_URL=http://ollama:11434
+      - EMBEDDING_TIMEOUT_MS=15000
     ports:
       - "127.0.0.1:3000:3000"
     networks:
