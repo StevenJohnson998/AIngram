@@ -1,7 +1,11 @@
 'use strict';
 
-const AGORAI_URL = process.env.AGORAI_URL || 'http://localhost:3200';
-const AGORAI_PASS_KEY = process.env.AGORAI_PASS_KEY || '';
+const agoraiConfig = require('../config/agorai.json');
+
+// Config file overrides env vars (allows AIngram-specific Agorai config)
+const AGORAI_URL = agoraiConfig.url || process.env.AGORAI_URL || 'http://localhost:3200';
+const AGORAI_PASS_KEY = agoraiConfig.passKey || process.env.AGORAI_PASS_KEY || '';
+const AGORAI_TIMEOUT = agoraiConfig.timeout || 5000;
 
 let sessionId = null;
 let projectId = null;
@@ -26,7 +30,7 @@ async function mcpCall(method, params = {}) {
   const body = { jsonrpc: '2.0', id, method, params };
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
+  const timer = setTimeout(() => controller.abort(), AGORAI_TIMEOUT);
 
   try {
     const res = await fetch(`${AGORAI_URL}/mcp`, {
@@ -126,17 +130,18 @@ async function ensureInitialized() {
       body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
     }).catch(() => {});
 
-    // Step 3: Find or create "aingram" project
+    // Step 3: Find or create project
+    const projName = agoraiConfig.projectName || 'aingram';
     const projects = await callTool('list_projects');
     if (Array.isArray(projects)) {
-      const existing = projects.find(p => p.name === 'aingram');
+      const existing = projects.find(p => p.name === projName);
       if (existing) {
         projectId = existing.id;
       }
     }
     if (!projectId) {
       const project = await callTool('create_project', {
-        name: 'aingram',
+        name: projName,
         description: 'AIngram Knowledge Base discussions',
       });
       if (project) projectId = project.id;
@@ -163,10 +168,11 @@ async function ensureInitialized() {
  */
 async function createConversation(title) {
   if (!await ensureInitialized()) return null;
+  const convDefaults = agoraiConfig.conversationDefaults || {};
   const conv = await callTool('create_conversation', {
     project_id: projectId,
     title,
-    public_read: true,
+    public_read: convDefaults.publicRead !== false,
     default_visibility: 'public',
   });
   return conv?.id || null;

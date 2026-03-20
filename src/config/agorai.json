@@ -1,0 +1,12 @@
+{
+  "_comment": "AIngram-specific Agorai sidecar config. Overrides env vars when present.",
+  "url": null,
+  "passKey": null,
+  "timeout": 5000,
+  "projectName": "aingram",
+  "conversationDefaults": {
+    "mode": "wild-agora",
+    "publicRead": true,
+    "keryxEnabled": false
+  }
+}

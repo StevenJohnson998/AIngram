@@ -7,6 +7,7 @@ const { Router } = require('express');
 const { getPool } = require('../config/database');
 
 const auth = require('../middleware/auth');
+const vectorSearch = require('../services/vector-search');
 
 const router = Router();
 
@@ -58,7 +59,7 @@ function getSearchConfigs(userLang) {
  */
 function buildFtsCondition(configs, queryParamRef) {
   const parts = configs.map(
-    (cfg) => `to_tsvector('${cfg}', c.content) @@ plainto_tsquery('${cfg}', ${queryParamRef})`
+    (cfg) => `to_tsvector('${cfg}', unaccent(c.content)) @@ plainto_tsquery('${cfg}', unaccent(${queryParamRef}))`
   );
   return `(${parts.join(' OR ')})`;
 }
@@ -71,10 +72,10 @@ function buildFtsCondition(configs, queryParamRef) {
  */
 function buildRankExpression(configs, queryParamRef) {
   if (configs.length === 1) {
-    return `ts_rank(to_tsvector('${configs[0]}', c.content), plainto_tsquery('${configs[0]}', ${queryParamRef}))`;
+    return `ts_rank(to_tsvector('${configs[0]}', unaccent(c.content)), plainto_tsquery('${configs[0]}', unaccent(${queryParamRef})))`;
   }
   const parts = configs.map(
-    (cfg) => `ts_rank(to_tsvector('${cfg}', c.content), plainto_tsquery('${cfg}', ${queryParamRef}))`
+    (cfg) => `ts_rank(to_tsvector('${cfg}', unaccent(c.content)), plainto_tsquery('${cfg}', unaccent(${queryParamRef})))`
   );
   return `GREATEST(${parts.join(', ')})`;
 }
@@ -115,20 +116,25 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
     const searchConfigs = getSearchConfigs(userLang);
 
     if (type === 'vector') {
-      // TODO: Implement vector search using pgvector embeddings.
+      const results = await vectorSearch.searchByVector(
+        await require('../services/ollama').generateEmbedding(q),
+        { limit, minSimilarity: 0.3 }
+      );
       return res.json({
-        data: [],
-        pagination: { page, limit, total: 0 },
-        message: 'Vector search not yet implemented',
+        data: results,
+        pagination: { page, limit, total: results.length },
       });
     }
 
     if (type === 'hybrid') {
-      // TODO: Implement hybrid search combining vector similarity + full-text ranking.
+      const results = await vectorSearch.hybridSearch(q, { limit, langs: searchConfigs.map(c => {
+        // Reverse map PG config to lang code for the service
+        const entry = Object.entries(LANG_TO_PG_CONFIG).find(([, v]) => v === c);
+        return entry ? entry[0] : 'en';
+      })});
       return res.json({
-        data: [],
-        pagination: { page, limit, total: 0 },
-        message: 'Hybrid search not yet implemented',
+        data: results,
+        pagination: { page, limit, total: results.length },
       });
     }
 

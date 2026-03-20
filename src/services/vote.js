@@ -3,6 +3,7 @@
  */
 
 const { getPool } = require('../config/database');
+const trustConfig = require('../config/trust');
 
 const VALID_REASON_TAGS = [
   'accurate', 'inaccurate', 'relevant', 'off_topic',
@@ -19,7 +20,7 @@ const POLICING_REASON_TAGS = ['fair', 'unfair', 'sabotage'];
 const VALID_TARGET_TYPES = ['message', 'policing_action'];
 const VALID_VALUES = ['up', 'down'];
 
-const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+const NEW_ACCOUNT_MS = trustConfig.NEW_ACCOUNT_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
 
 /**
  * Cast or update a vote (upsert).
@@ -84,9 +85,18 @@ async function castVote({ accountId, targetType, targetId, value, reasonTag }) {
     }
   }
 
-  // Calculate weight: account age < 14 days -> 0.5, else 1.0
+  // Calculate weight: base (age dampening) * EigenTrust (voter reputation factor)
   const accountAge = Date.now() - new Date(account.created_at).getTime();
-  const weight = accountAge < FOURTEEN_DAYS_MS ? 0.5 : 1.0;
+  const baseWeight = accountAge < NEW_ACCOUNT_MS ? trustConfig.VOTE_WEIGHT_NEW_ACCOUNT : trustConfig.VOTE_WEIGHT_ESTABLISHED;
+
+  // EigenTrust: fetch voter's own reputation to amplify/dampen their vote
+  const { rows: repRows } = await pool.query(
+    'SELECT COALESCE(reputation_contribution, 0.5) AS rep FROM accounts WHERE id = $1',
+    [accountId]
+  );
+  const voterRep = repRows.length > 0 ? repRows[0].rep : 0.5;
+  const repFactor = trustConfig.VOTER_REP_BASE + voterRep;
+  const weight = baseWeight * repFactor;
 
   // Upsert vote
   const { rows } = await pool.query(
