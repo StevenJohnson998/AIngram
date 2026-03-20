@@ -68,6 +68,12 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
     );
 
     await client.query('COMMIT');
+
+    // Fire-and-forget: trigger subscription matching for newly proposed chunk
+    const { matchNewChunk } = require('./subscription-matcher');
+    matchNewChunk(chunk.id, 'proposed')
+      .catch(err => console.error('Subscription matching failed (proposed):', err));
+
     return chunk;
   } catch (err) {
     await client.query('ROLLBACK');
@@ -292,6 +298,12 @@ async function mergeChunk(proposedChunkId, mergedById) {
     );
 
     await client.query('COMMIT');
+
+    // Fire-and-forget: trigger subscription matching for newly active chunk
+    const { matchNewChunk } = require('./subscription-matcher');
+    matchNewChunk(proposedChunkId, 'active')
+      .catch(err => console.error('Subscription matching failed:', err));
+
     return merged[0];
   } catch (err) {
     await client.query('ROLLBACK');

@@ -6,9 +6,10 @@ const { getPool } = require('../config/database');
  * Does NOT dispatch notifications (Phase 3).
  *
  * @param {string} chunkId - UUID of the newly embedded chunk
+ * @param {'active'|'proposed'} triggerStatus - chunk status that triggered the match
  * @returns {Array<{subscriptionId, accountId, matchType: 'vector'|'keyword'|'topic', similarity?}>}
  */
-async function matchNewChunk(chunkId) {
+async function matchNewChunk(chunkId, triggerStatus = 'active') {
   const pool = getPool();
 
   // 1. Get chunk data: embedding, content, and associated topic IDs
@@ -31,6 +32,11 @@ async function matchNewChunk(chunkId) {
   );
   const topicIds = topicRows.map((r) => r.topic_id);
 
+  // Determine which trigger_status values to match
+  const triggerFilter = triggerStatus === 'proposed'
+    ? ['proposed', 'both']
+    : ['active', 'both'];
+
   const matches = [];
 
   // 2. Vector subscriptions: cosine similarity >= threshold
@@ -43,8 +49,9 @@ async function matchNewChunk(chunkId) {
          AND s.type = 'vector'
          AND s.active = true
          AND s.embedding IS NOT NULL
+         AND s.trigger_status = ANY($2)
          AND 1 - (s.embedding <=> c.embedding) >= COALESCE(s.similarity_threshold, 0.7)`,
-      [chunkId]
+      [chunkId, triggerFilter]
     );
 
     for (const sub of vectorSubs) {
@@ -63,7 +70,9 @@ async function matchNewChunk(chunkId) {
      FROM subscriptions
      WHERE type = 'keyword'
        AND active = true
-       AND keyword IS NOT NULL`
+       AND keyword IS NOT NULL
+       AND trigger_status = ANY($1)`,
+    [triggerFilter]
   );
 
   for (const sub of keywordSubs) {
@@ -83,8 +92,9 @@ async function matchNewChunk(chunkId) {
        FROM subscriptions
        WHERE type = 'topic'
          AND active = true
-         AND topic_id = ANY($1)`,
-      [topicIds]
+         AND topic_id = ANY($1)
+         AND trigger_status = ANY($2)`,
+      [topicIds, triggerFilter]
     );
 
     for (const sub of topicSubs) {
