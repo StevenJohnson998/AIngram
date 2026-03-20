@@ -78,7 +78,7 @@ describe('ollama', () => {
 
       const result = await checkHealth();
 
-      expect(result).toEqual({ available: true, model: 'qwen3-embedding:0.6b' });
+      expect(result).toEqual({ available: true, model: 'bge-m3' });
     });
 
     it('returns available: false when Ollama is down', async () => {
@@ -86,7 +86,7 @@ describe('ollama', () => {
 
       const result = await checkHealth();
 
-      expect(result).toEqual({ available: false, model: 'qwen3-embedding:0.6b' });
+      expect(result).toEqual({ available: false, model: 'bge-m3' });
     });
 
     it('returns available: false on non-OK response', async () => {
@@ -94,7 +94,7 @@ describe('ollama', () => {
 
       const result = await checkHealth();
 
-      expect(result).toEqual({ available: false, model: 'qwen3-embedding:0.6b' });
+      expect(result).toEqual({ available: false, model: 'bge-m3' });
     });
   });
 });
