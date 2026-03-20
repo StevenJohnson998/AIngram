@@ -2,48 +2,78 @@
  * AIngram API client — shared across all GUI pages.
  * All endpoints use the same origin (Express serves both API and GUI).
  * Auth is via JWT cookie (aingram_token), sent automatically with credentials: 'same-origin'.
+ *
+ * BASE_PATH handles reverse proxy prefixes (e.g. /aingram/).
+ * If the page is at /aingram/login.html, BASE_PATH = '/aingram'.
+ * All fetch calls prepend BASE_PATH so API requests reach the correct proxy target.
  */
+const BASE_PATH = (function() {
+  const path = window.location.pathname;
+  const idx = path.lastIndexOf('/');
+  return idx > 0 ? path.substring(0, idx) : '';
+})();
+
+/**
+ * Unwrap standardized API envelope.
+ * API always returns {data: ...} for success or {error: ...} for failure.
+ * This helper extracts the envelope so callers get clean objects.
+ *
+ * Returns: { status, data, pagination?, error? }
+ *  - Single resource: data = the object
+ *  - List: data = the array, pagination = {page, limit, total}
+ *  - Error: error = {code, message}
+ */
+function _unwrap(status, json) {
+  if (!json) return { status, data: null };
+  if (json.error) return { status, data: json, error: json.error };
+  // Lists have data as array + pagination
+  if (Array.isArray(json.data)) return { status, data: json.data, pagination: json.pagination };
+  // Single resource wrapped in {data: {...}}
+  if (json.data !== undefined) return { status, data: json.data, pagination: json.pagination };
+  // Fallback (shouldn't happen with envelope middleware)
+  return { status, data: json };
+}
 
 const API = {
   async get(path) {
-    const res = await fetch(path, { credentials: 'same-origin' });
+    const res = await fetch(BASE_PATH + path, { credentials: 'same-origin' });
     if (res.status === 204) return { status: 204, data: null };
-    const data = await res.json();
-    return { status: res.status, data };
+    const json = await res.json();
+    return _unwrap(res.status, json);
   },
 
   async post(path, body) {
-    const res = await fetch(path, {
+    const res = await fetch(BASE_PATH + path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
       body: JSON.stringify(body),
     });
     if (res.status === 204) return { status: 204, data: null };
-    const data = await res.json();
-    return { status: res.status, data };
+    const json = await res.json();
+    return _unwrap(res.status, json);
   },
 
   async put(path, body) {
-    const res = await fetch(path, {
+    const res = await fetch(BASE_PATH + path, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
       body: JSON.stringify(body),
     });
     if (res.status === 204) return { status: 204, data: null };
-    const data = await res.json();
-    return { status: res.status, data };
+    const json = await res.json();
+    return _unwrap(res.status, json);
   },
 
   async del(path) {
-    const res = await fetch(path, {
+    const res = await fetch(BASE_PATH + path, {
       method: 'DELETE',
       credentials: 'same-origin',
     });
     if (res.status === 204) return { status: 204, data: null };
-    const data = await res.json().catch(() => null);
-    return { status: res.status, data };
+    const json = await res.json().catch(() => null);
+    return _unwrap(res.status, json);
   },
 };
 
@@ -81,12 +111,16 @@ async function updateNavbar() {
   if (!actions) return;
 
   if (user) {
-    actions.innerHTML = [
-      '<a href="./review-queue.html" style="color: var(--text-inverse);">Review</a>',
-      '<a href="./settings.html" style="color: var(--text-inverse);">Settings</a>',
-      '<a href="./profile.html?id=' + user.id + '" style="color: var(--text-inverse);">' + escapeHtml(user.name) + '</a>',
-      '<a href="#" id="logout-btn" style="color: var(--text-inverse);">Logout</a>',
-    ].join('');
+    var navItems = [];
+    // Show "New Article" + "Connect an Agent" for root human accounts only
+    if (user.type === 'human' && !user.parent_id && !user.parentId) {
+      navItems.push('<a href="./new-article.html" class="nav-link nav-link-new">+ New Article</a>');
+      navItems.push('<a href="./settings.html#agents" class="btn-connect" style="color: var(--text-inverse);"><span class="btn-connect-text">Connect an Agent</span> &rarr;</a>');
+    }
+    navItems.push('<a href="./profile.html?id=' + user.id + '" style="color: var(--text-inverse);">' + escapeHtml(user.name) + '</a>');
+    navItems.push('<a href="./settings.html" style="color: var(--text-inverse);" title="Settings">&#9881;</a>');
+    navItems.push('<a href="#" id="logout-btn" style="color: var(--text-inverse);">Logout</a>');
+    actions.innerHTML = navItems.join('');
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', async (e) => {
@@ -102,6 +136,16 @@ async function updateNavbar() {
       '<a href="./login.html">Login</a>',
     ].join('');
   }
+
+  // Highlight active nav link
+  var navLinks = document.querySelectorAll('.navbar-nav .nav-link');
+  var path = window.location.pathname;
+  navLinks.forEach(function(link) {
+    var href = link.getAttribute('href');
+    if (href && path.endsWith(href.replace('./', '/'))) {
+      link.classList.add('active');
+    }
+  });
 }
 
 /**
@@ -158,4 +202,24 @@ function getParam(name) {
  */
 function showAlert(container, type, message) {
   container.innerHTML = '<div class="alert alert-' + type + '">' + escapeHtml(message) + '</div>';
+}
+
+/**
+ * Generate a ready-to-paste prompt for agent connection.
+ */
+function generateConnectionPrompt(token) {
+  var base = window.location.origin + BASE_PATH;
+  return [
+    '# AIngram — Agent Knowledge Base',
+    '',
+    'Your owner is granting you access to AIngram, an open-source knowledge base for AI agents.',
+    '',
+    'Activate your account:',
+    '',
+    '  POST ' + base + '/accounts/connect',
+    '  Content-Type: application/json',
+    '  {"token": "' + token + '"}',
+    '',
+    'The response contains your API key and a link to the full API documentation.',
+  ].join('\n');
 }

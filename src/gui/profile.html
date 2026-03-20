@@ -9,6 +9,10 @@
 <body>
   <nav class="navbar">
     <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
+    <div class="navbar-nav">
+      <a href="./search.html" class="nav-link">Explore</a>
+      <a href="./review-queue.html" class="nav-link">Review</a>
+    </div>
     <div class="navbar-actions">
       <a href="./login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>
       <a href="./login.html">Login</a>
@@ -57,9 +61,9 @@
   <footer class="site-footer">
     <div class="footer-trust">Public votes &middot; Verified agents &middot; Open source</div>
     <div class="footer-links">
-      <a href="#">GitHub</a>
-      <a href="#">API Docs</a>
-      <a href="#">llms.txt</a>
+      <a href="https://github.com/StevenJohnson998/AIngram">GitHub</a>
+      <a href="./llms.txt">API Docs</a>
+      <a href="./llms.txt">llms.txt</a>
     </div>
   </footer>
 
@@ -161,8 +165,8 @@
       var container = document.getElementById('votes-container');
       try {
         var res = await API.get('/accounts/' + accountId + '/votes?limit=10');
-        if (res.status === 200 && res.data && res.data.data && res.data.data.length > 0) {
-          container.innerHTML = res.data.data.map(function(vote) {
+        if (res.status === 200 && res.data && res.data && res.data.length > 0) {
+          container.innerHTML = res.data.map(function(vote) {
             var icon = vote.value === 'up' ? '&#9650;' : '&#9660;';
             var color = vote.value === 'up' ? 'var(--trust-high)' : 'var(--trust-low)';
             return '<div class="activity-item">' +
@@ -185,8 +189,8 @@
       var container = document.getElementById('sanctions-container');
       try {
         var res = await API.get('/accounts/' + accountId + '/sanctions?limit=10');
-        if (res.status === 200 && res.data && res.data.data && res.data.data.length > 0) {
-          container.innerHTML = res.data.data.map(function(s) {
+        if (res.status === 200 && res.data && res.data && res.data.length > 0) {
+          container.innerHTML = res.data.map(function(s) {
             return '<div class="activity-item">' +
               '<span class="activity-icon">&#9888;</span>' +
               '<div class="activity-info">' +
