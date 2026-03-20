@@ -1,9 +1,80 @@
 const { getPool } = require('../config/database');
 
 /**
+ * Apply ADHP policy filtering to subscription matches.
+ * Compares chunk.adhp against each matched account's adhp profile.
+ *
+ * Rules (only applied when chunk.adhp IS NOT NULL):
+ * - If account.adhp IS NULL → blocked (undeclared = assume worst)
+ * - sensitivity_level: chunk <= account (if chunk declares one)
+ * - direct_marketing_opt_out: if true on chunk, skip accounts with purpose='marketing'
+ * - training_opt_out: if true on chunk, skip accounts with training_use=true
+ * - scientific_research_opt_out: if true on chunk, skip accounts with purpose='scientific'
+ * - jurisdiction: if chunk declares jurisdictions, account must declare one that's in the list
+ *
+ * @param {object} chunkAdhp - chunk's ADHP profile (may be null)
+ * @param {Array} matches - array of {subscriptionId, accountId, matchType, similarity?}
+ * @returns {Array} filtered matches
+ */
+async function filterByAdhp(chunkAdhp, matches) {
+  if (!chunkAdhp || matches.length === 0) return matches;
+
+  const pool = getPool();
+  const accountIds = [...new Set(matches.map(m => m.accountId))];
+
+  const { rows: accounts } = await pool.query(
+    'SELECT id, adhp FROM accounts WHERE id = ANY($1)',
+    [accountIds]
+  );
+
+  const accountMap = new Map(accounts.map(a => [a.id, a.adhp]));
+
+  return matches.filter(match => {
+    const accountAdhp = accountMap.get(match.accountId);
+
+    // Account has no ADHP profile → blocked by any chunk that has restrictions
+    if (!accountAdhp) return false;
+
+    // sensitivity_level: chunk must be <= account's accepted level
+    if (chunkAdhp.sensitivity_level != null) {
+      const accountLevel = accountAdhp.sensitivity_level;
+      if (accountLevel == null) return false; // undeclared = assume worst
+      if (chunkAdhp.sensitivity_level > accountLevel) return false;
+    }
+
+    // direct_marketing_opt_out: chunk opts out → skip marketing agents
+    if (chunkAdhp.direct_marketing_opt_out === true) {
+      if (accountAdhp.purpose === 'marketing') return false;
+    }
+
+    // training_opt_out: chunk opts out → skip agents that use data for training
+    if (chunkAdhp.training_opt_out === true) {
+      if (accountAdhp.training_use === true) return false;
+    }
+
+    // scientific_research_opt_out: chunk opts out → skip scientific agents
+    if (chunkAdhp.scientific_research_opt_out === true) {
+      if (accountAdhp.purpose === 'scientific') return false;
+    }
+
+    // jurisdiction: chunk restricts to specific jurisdictions → account must be in list
+    if (Array.isArray(chunkAdhp.jurisdiction) && chunkAdhp.jurisdiction.length > 0) {
+      const accountJurisdiction = accountAdhp.jurisdiction;
+      if (!accountJurisdiction) return false; // undeclared = blocked
+      // Account jurisdiction can be a string or array
+      const accountJurisdictions = Array.isArray(accountJurisdiction) ? accountJurisdiction : [accountJurisdiction];
+      const hasOverlap = accountJurisdictions.some(j => chunkAdhp.jurisdiction.includes(j));
+      if (!hasOverlap) return false;
+    }
+
+    return true;
+  });
+}
+
+/**
  * Find subscriptions that match a newly embedded chunk.
  * Checks three subscription types: vector, keyword, topic.
- * Does NOT dispatch notifications (Phase 3).
+ * Then applies ADHP policy filtering if the chunk has an ADHP profile.
  *
  * @param {string} chunkId - UUID of the newly embedded chunk
  * @param {'active'|'proposed'} triggerStatus - chunk status that triggered the match
@@ -12,9 +83,9 @@ const { getPool } = require('../config/database');
 async function matchNewChunk(chunkId, triggerStatus = 'active') {
   const pool = getPool();
 
-  // 1. Get chunk data: embedding, content, and associated topic IDs
+  // 1. Get chunk data: embedding, content, adhp, and associated topic IDs
   const { rows: chunkRows } = await pool.query(
-    'SELECT id, content, embedding FROM chunks WHERE id = $1',
+    'SELECT id, content, embedding, adhp FROM chunks WHERE id = $1',
     [chunkId]
   );
 
@@ -106,7 +177,10 @@ async function matchNewChunk(chunkId, triggerStatus = 'active') {
     }
   }
 
-  return matches;
+  // 5. ADHP policy filtering
+  const filtered = await filterByAdhp(chunk.adhp, matches);
+
+  return filtered;
 }
 
-module.exports = { matchNewChunk };
+module.exports = { matchNewChunk, filterByAdhp };

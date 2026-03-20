@@ -61,7 +61,7 @@ describe('chunk service', () => {
       expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
       expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO chunks'),
-        ['Test content for a chunk', null, false, 'account-1', 0.5, null, null]
+        ['Test content for a chunk', null, false, 'account-1', 0.5, null, null, null]
       );
       expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO chunk_topics'),
@@ -88,7 +88,7 @@ describe('chunk service', () => {
 
       expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO chunks'),
-        ['Some test content here', 'Benchmark data: 95% accuracy', true, 'account-1', 0.5, null, null]
+        ['Some test content here', 'Benchmark data: 95% accuracy', true, 'account-1', 0.5, null, null, null]
       );
     });
 

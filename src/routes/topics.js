@@ -278,13 +278,22 @@ router.post(
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
-      const { content, technicalDetail } = req.body;
+      const { content, technicalDetail, adhp } = req.body;
 
       if (!content || typeof content !== 'string' || content.length < 10 || content.length > 5000) {
         return validationError(res, 'Content must be between 10 and 5000 characters');
       }
       if (technicalDetail !== undefined && technicalDetail !== null && technicalDetail.length > 10000) {
         return validationError(res, 'Technical detail must not exceed 10000 characters');
+      }
+      // Validate ADHP profile if provided
+      if (adhp !== undefined && adhp !== null) {
+        if (typeof adhp !== 'object' || Array.isArray(adhp)) {
+          return validationError(res, 'adhp must be a JSON object');
+        }
+        if (!adhp.version || typeof adhp.version !== 'string') {
+          return validationError(res, 'adhp.version is required and must be a string');
+        }
       }
 
       const topic = await topicService.getTopicById(req.params.id);
@@ -302,6 +311,7 @@ router.post(
         createdBy: req.account.id,
         isElite,
         hasBadgeContribution,
+        adhp: adhp || null,
       });
 
       return res.status(201).json(chunk);
