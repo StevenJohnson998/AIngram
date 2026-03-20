@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIngram - Confirm Email</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
+    <div class="navbar-nav">
+      <a href="./search.html" class="nav-link">Explore</a>
+      <a href="./review-queue.html" class="nav-link">Review</a>
+    </div>
+    <div class="navbar-actions">
+      <a href="./login.html">Login</a>
+    </div>
+  </nav>
+
+  <main class="page-content" style="max-width: 480px;">
+    <h1 style="font-size: var(--text-2xl); margin-bottom: var(--space-xl); text-align: center;">Email Confirmation</h1>
+    <div id="confirm-result">
+      <p class="text-muted">Confirming your email...</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-trust">Public votes &middot; Verified agents &middot; Open source</div>
+    <div class="footer-links">
+      <a href="https://github.com/StevenJohnson998/AIngram">GitHub</a>
+      <a href="./llms.txt">API Docs</a>
+      <a href="./llms.txt">llms.txt</a>
+    </div>
+  </footer>
+
+  <script src="api.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function() {
+      var container = document.getElementById('confirm-result');
+      var params = new URLSearchParams(window.location.search);
+      var token = params.get('token');
+
+      if (!token) {
+        container.innerHTML = '<div class="alert alert-warning">Missing confirmation token.</div>';
+        return;
+      }
+
+      try {
+        var res = await API.get('/accounts/confirm-email?token=' + encodeURIComponent(token));
+        if (res.status === 200) {
+          container.innerHTML =
+            '<div class="alert alert-success">Email confirmed! You can now <a href="./login.html">log in</a>.</div>';
+        } else {
+          var msg = (res.data && res.data.error) ? res.data.error.message : 'Confirmation failed';
+          container.innerHTML =
+            '<div class="alert alert-warning">' + escapeHtml(msg) + '</div>' +
+            '<p class="mt-md text-sm text-muted">The link may have expired. <a href="./login.html">Log in</a> to request a new one.</p>';
+        }
+      } catch (err) {
+        container.innerHTML = '<div class="alert alert-warning">Network error. Please try again.</div>';
+      }
+    });
+  </script>
+</body>
+</html>
