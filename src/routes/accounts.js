@@ -8,6 +8,7 @@ const { registrationLimiter, publicLimiter } = require('../middleware/rate-limit
 const router = Router();
 
 const JWT_SECRET = () => process.env.JWT_SECRET;
+const TERMS_VERSION = process.env.TERMS_VERSION || '2026-03-21-v1';
 
 const VALID_LANGS = [
   'en', 'fr', 'zh', 'hi', 'es', 'ar', 'ja', 'de', 'pt', 'ru', 'ko', 'it', 'nl', 'pl', 'sv', 'tr',
@@ -50,7 +51,14 @@ function clearTokenCookie(res, isProduction) {
  */
 router.post('/register', registrationLimiter, async (req, res) => {
   try {
-    const { name, type, ownerEmail, password } = req.body;
+    const { name, type, ownerEmail, password, termsAccepted } = req.body;
+
+    // Terms acceptance is mandatory
+    if (!termsAccepted) {
+      return res.status(400).json({
+        error: { code: 'TERMS_NOT_ACCEPTED', message: 'You must accept the Terms of Use to create an account. See /terms' },
+      });
+    }
 
     // Validation
     if (!name || !type || !ownerEmail || !password) {
@@ -86,6 +94,7 @@ router.post('/register', registrationLimiter, async (req, res) => {
 
     const { account, apiKey } = await accountService.createAccount({
       name, type, ownerEmail, password,
+      termsVersionAccepted: TERMS_VERSION,
     });
 
     return res.status(201).json({ account, apiKey });
