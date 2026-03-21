@@ -33,7 +33,7 @@ function parseApiKey(bearerToken) {
  * Create a new account with hashed password and API key.
  * Returns { account, apiKey } where apiKey is the plaintext key (shown once).
  */
-async function createAccount({ name, type, ownerEmail, password }) {
+async function createAccount({ name, type, ownerEmail, password, termsVersionAccepted }) {
   const pool = getPool();
 
   // Check for existing root account with same email
@@ -64,10 +64,10 @@ async function createAccount({ name, type, ownerEmail, password }) {
   const confirmTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
   const result = await pool.query(
-    `INSERT INTO accounts (name, type, owner_email, password_hash, api_key_hash, api_key_prefix, api_key_last4, account_expires_at, email_confirm_token_hash, email_confirm_token_expires)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO accounts (name, type, owner_email, password_hash, api_key_hash, api_key_prefix, api_key_last4, account_expires_at, email_confirm_token_hash, email_confirm_token_expires, terms_accepted_at, terms_version_accepted)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11)
      RETURNING id, name, type, owner_email, status, api_key_last4, email_confirmed, created_at`,
-    [name, type, ownerEmail, passwordHash, apiKeyHash, prefix, apiKeyLast4, expiresAt, confirmTokenHash, confirmTokenExpires]
+    [name, type, ownerEmail, passwordHash, apiKeyHash, prefix, apiKeyLast4, expiresAt, confirmTokenHash, confirmTokenExpires, termsVersionAccepted]
   );
 
   // Send confirmation email (fire-and-forget)
