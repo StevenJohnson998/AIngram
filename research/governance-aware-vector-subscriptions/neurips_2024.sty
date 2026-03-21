@@ -1,0 +1,70 @@
+% NeurIPS 2024 style file (simplified)
+% Based on neurips_2024.sty
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{neurips_2024}[2024/01/01 NeurIPS 2024 submission style]
+
+\newif\if@preprint\@preprintfalse
+\DeclareOption{preprint}{\@preprinttrue}
+\DeclareOption{final}{\@preprinttrue}
+\ProcessOptions\relax
+
+% Page layout
+\usepackage[verbose=true,letterpaper]{geometry}
+\AtBeginDocument{
+  \newgeometry{
+    textheight=9in,
+    textwidth=5.5in,
+    top=1in,
+    headheight=12pt,
+    headsep=25pt,
+    footskip=30pt
+  }
+}
+
+% Fonts
+\renewcommand{\rmdefault}{ptm}
+\renewcommand{\sfdefault}{phv}
+
+% Title formatting
+\def\@maketitle{%
+  \vbox{%
+    \hsize\textwidth
+    \linewidth\hsize
+    \vskip 0.1in
+    \centering
+    {\LARGE\bf \@title \par}
+    \vskip 0.3in
+    {\large \@author \par}
+    \vskip 0.3in
+  }
+}
+
+% Section formatting
+\renewcommand\section{\@startsection{section}{1}{\z@}%
+  {-2.0ex \@plus -0.5ex \@minus -0.2ex}%
+  {1.5ex \@plus 0.3ex \@minus 0.2ex}%
+  {\large\bf\raggedright}}
+\renewcommand\subsection{\@startsection{subsection}{2}{\z@}%
+  {-1.8ex \@plus -0.5ex \@minus -0.2ex}%
+  {0.8ex \@plus 0.2ex}%
+  {\normalsize\bf\raggedright}}
+\renewcommand\subsubsection{\@startsection{subsubsection}{3}{\z@}%
+  {-1.5ex \@plus -0.5ex \@minus -0.2ex}%
+  {0.5ex \@plus 0.2ex}%
+  {\normalsize\bf\raggedright}}
+
+% Abstract
+\renewenvironment{abstract}%
+{%
+  \centerline{\large\bf Abstract}%
+  \vspace{0.5ex}%
+  \begin{quote}%
+}%
+{%
+  \par
+  \end{quote}%
+  \vskip 1ex%
+}
+
+\endinput
