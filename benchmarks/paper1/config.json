@@ -1,0 +1,31 @@
+{
+  "paper": "Governance-Aware Vector Subscriptions for Agent Knowledge Bases",
+  "author": "Steven Johnson",
+  "arxiv_submission": "2026-03-21",
+  "arxiv_id": "submit/7391096",
+  "git_commit_benchmark": "6dde3b0",
+  "git_commit_submission": "2c033f5",
+  "git_tag": "paper1-arxiv-v1",
+  "benchmark_date": "2026-03-20",
+  "scripts": {
+    "v1": "benchmarks/pasa.js",
+    "v2": "benchmarks/pasa-v2.js"
+  },
+  "parameters": {
+    "num_chunks": 1000,
+    "num_agents": 50,
+    "domains": ["medical", "financial", "ai_safety", "climate", "cybersecurity"],
+    "sensitivity_levels": [1, 2, 3, 4, 5],
+    "similarity_threshold": 0.7,
+    "embedding_model": "bge-m3",
+    "embedding_dim": 1024,
+    "embedding_source": "ollama",
+    "ollama_url": "http://172.18.0.1:11434",
+    "total_subscriptions": 93,
+    "scalability_tiers": [10, 50, 100, 500],
+    "ablation_sample_size": 200,
+    "curation_sample_size": 200
+  },
+  "data_generation": "synthetic, deterministic per script run. Embeddings depend on Ollama bge-m3 model version.",
+  "reproduction": "docker exec aingram-api-test node benchmarks/pasa.js && docker exec aingram-api-test node benchmarks/pasa-v2.js"
+}
