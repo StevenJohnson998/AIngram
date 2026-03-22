@@ -1,0 +1,121 @@
+{
+  "precision_recall": {
+    "governed": {
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "total_notifications": 80,
+      "true_positives": 80,
+      "false_positives": 0,
+      "false_negatives": 0
+    },
+    "ungoverned": {
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "total_notifications": 158,
+      "true_positives": 158,
+      "false_positives": 0,
+      "false_negatives": 0
+    },
+    "sample_size": 100,
+    "total_ground_truth_governed": 80,
+    "total_ground_truth_ungoverned": 158
+  },
+  "policy_compliance": {
+    "governed": {
+      "compliance_rate": 1,
+      "violations": 0,
+      "total_notifications": 80
+    },
+    "ungoverned": {
+      "compliance_rate": 0.5063291139240507,
+      "violations": 78,
+      "total_notifications": 158
+    },
+    "keyword_baseline": {
+      "violations": 802
+    }
+  },
+  "latency": {
+    "subscription_count": 93,
+    "governed": {
+      "p50_ms": 0.971896,
+      "p95_ms": 1.559625,
+      "mean_ms": 1.07715018
+    },
+    "ungoverned": {
+      "p50_ms": 1.390062,
+      "p95_ms": 2.488361,
+      "mean_ms": 1.5499364000000002
+    },
+    "overhead_pct": -30.503588405304892
+  },
+  "scalability": [
+    {
+      "subscription_count": 10,
+      "actual_count": 10,
+      "p50_ms": 0.631531,
+      "p95_ms": 1.362022,
+      "mean_ms": 0.7025994,
+      "min_ms": 0.436047,
+      "max_ms": 1.628666
+    },
+    {
+      "subscription_count": 50,
+      "actual_count": 50,
+      "p50_ms": 0.706051,
+      "p95_ms": 1.380942,
+      "mean_ms": 0.7521708666666667,
+      "min_ms": 0.473287,
+      "max_ms": 1.502144
+    },
+    {
+      "subscription_count": 100,
+      "actual_count": 100,
+      "p50_ms": 1.289621,
+      "p95_ms": 2.101874,
+      "mean_ms": 1.2922929,
+      "min_ms": 0.711731,
+      "max_ms": 2.141315
+    },
+    {
+      "subscription_count": 500,
+      "actual_count": 500,
+      "p50_ms": 3.012329,
+      "p95_ms": 4.982681,
+      "mean_ms": 3.1138249999999994,
+      "min_ms": 1.378062,
+      "max_ms": 5.146564
+    }
+  ],
+  "adversarial": {
+    "sample_size": 50,
+    "ungoverned_would_be_violations": 35,
+    "governed_actual_violations": 0,
+    "violations_prevented": 35,
+    "prevention_rate": 1
+  },
+  "config": {
+    "num_chunks": 1000,
+    "num_agents": 50,
+    "domains": [
+      "medical",
+      "financial",
+      "ai_safety",
+      "climate",
+      "cybersecurity"
+    ],
+    "similarity_threshold": 0.7,
+    "embedding_model": "bge-m3",
+    "embedding_dim": 1024,
+    "total_subscriptions": 93,
+    "scalability_tiers": [
+      10,
+      50,
+      100,
+      500
+    ],
+    "timestamp": "2026-03-20T10:47:34.447Z"
+  }
+}

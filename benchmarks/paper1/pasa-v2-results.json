@@ -1,0 +1,130 @@
+{
+  "policy_dimension_ablation": {
+    "sample_size": 200,
+    "ungoverned": {
+      "total_notifications": 309,
+      "violations": {
+        "level": 121,
+        "commercial": 55,
+        "training": 33,
+        "scientific_only": 28,
+        "jurisdiction": 103,
+        "any": 223
+      }
+    },
+    "level_only": {
+      "total_notifications": 188,
+      "violations": {
+        "level": 0,
+        "commercial": 29,
+        "training": 18,
+        "scientific_only": 11,
+        "jurisdiction": 64,
+        "any": 102
+      },
+      "violations_blocked": 121,
+      "block_rate": 0.5426008968609866
+    },
+    "level_commercial": {
+      "total_notifications": 159,
+      "violations": {
+        "level": 0,
+        "commercial": 0,
+        "training": 17,
+        "scientific_only": 10,
+        "jurisdiction": 58,
+        "any": 73
+      },
+      "violations_blocked": 150,
+      "block_rate": 0.672645739910314
+    },
+    "level_commercial_training": {
+      "total_notifications": 142,
+      "violations": {
+        "level": 0,
+        "commercial": 0,
+        "training": 0,
+        "scientific_only": 8,
+        "jurisdiction": 51,
+        "any": 56
+      },
+      "violations_blocked": 167,
+      "block_rate": 0.7488789237668162
+    },
+    "all_dimensions": {
+      "total_notifications": 86,
+      "violations": {
+        "level": 0,
+        "commercial": 0,
+        "training": 0,
+        "scientific_only": 0,
+        "jurisdiction": 0,
+        "any": 0
+      },
+      "violations_blocked": 223,
+      "block_rate": 1
+    }
+  },
+  "curation_guarantee": {
+    "with_curation": {
+      "total_notifications": 149,
+      "from_current": 149,
+      "from_proposed": 0
+    },
+    "without_curation": {
+      "total_notifications": 189,
+      "from_current": 149,
+      "from_proposed": 40
+    },
+    "chunk_counts": {
+      "total": 1000,
+      "current": 738,
+      "proposed": 262,
+      "sample_size": 200,
+      "sample_current": 153,
+      "sample_proposed": 47
+    },
+    "unvalidated_leak": {
+      "notifications_from_proposed": 40,
+      "total_without_curation": 189,
+      "leak_rate": 0.21164021164021163,
+      "prevented_by_curation": 40
+    }
+  },
+  "config": {
+    "num_chunks": 1000,
+    "num_agents": 50,
+    "domains": [
+      "medical",
+      "financial",
+      "ai_safety",
+      "climate",
+      "cybersecurity"
+    ],
+    "similarity_threshold": 0.7,
+    "embedding_model": "bge-m3",
+    "embedding_dim": 1024,
+    "total_subscriptions": 93,
+    "ablation_sample_size": 200,
+    "curation_sample_size": 200,
+    "chunk_flags": {
+      "commercial_opt_out": 278,
+      "training_opt_out": 188,
+      "scientific_only": 143,
+      "jurisdiction_EU": 353,
+      "jurisdiction_US": 288,
+      "jurisdiction_global": 359,
+      "status_proposed": 262,
+      "status_current": 738
+    },
+    "agent_flags": {
+      "purpose_scientific": 17,
+      "purpose_commercial": 17,
+      "purpose_mixed": 16,
+      "training_use": 23,
+      "jurisdiction_EU": 25,
+      "jurisdiction_US": 25
+    },
+    "timestamp": "2026-03-20T12:16:13.625Z"
+  }
+}
