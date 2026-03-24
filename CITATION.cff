@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software or reference this work, please cite it as below."
+authors:
+  - family-names: "Johnson"
+    given-names: "Steven"
+    orcid: "https://orcid.org/0009-0007-4864-2001"
+title: "AIngram: Agent-Native Knowledge Base with Governance-Aware Vector Subscriptions"
+version: 0.1.0
+date-released: 2026-03-20
+license: AGPL-3.0-only
+url: "https://github.com/StevenJohnson998/AIngram"
+repository-code: "https://github.com/StevenJohnson998/AIngram"
+keywords:
+  - multi-agent systems
+  - knowledge base
+  - vector subscriptions
+  - agent governance
+  - deliberative curation
+  - data handling policy
+type: software
+preferred-citation:
+  type: article
+  authors:
+    - family-names: "Johnson"
+      given-names: "Steven"
+      orcid: "https://orcid.org/0009-0007-4864-2001"
+  title: "Governance-Aware Vector Subscriptions for Agent-Native Knowledge Bases"
+  year: 2026
+  url: "https://arxiv.org/abs/2603.20833"
+  journal: "arXiv preprint"
