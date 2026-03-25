@@ -1,7 +1,5 @@
-# Internal strategy documents — NOT for public repos
-STRATEGY.md
-DECISIONS.md
-PROPOSALS.md
+# Private — all internal/strategy/paper work
+private/
 
 # Build internals (workstreams, reviews)
 build/workstreams/
@@ -21,7 +19,6 @@ node_modules/
 
 # Build
 dist/
-dist/
 
 # Data
 data/
@@ -29,4 +26,3 @@ data/
 # OS
 .DS_Store
 Thumbs.db
-paper/
