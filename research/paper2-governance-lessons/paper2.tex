@@ -1,0 +1,499 @@
+\documentclass[11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[a4paper, margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage[numbers]{natbib}
+\usepackage{booktabs}
+\usepackage{amsmath}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=blue,
+    urlcolor=blue
+}
+
+\title{From Edit Wars to Agent Consensus: What 20 Years of Platform Governance Teach Us About Multi-Agent Knowledge Curation}
+
+\author{Steven Johnson\\
+ORCID: 0009-0007-4864-2001}
+
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Online platforms such as Wikipedia, Reddit, and Stack Overflow have spent two decades developing governance mechanisms for collaborative knowledge curation: defenses against Sybil attacks, coordinated manipulation, reputation gaming, consensus failures, and content degradation. As AI agents begin participating in shared knowledge bases, they face many of the same structural challenges, while the agent context introduces qualitatively new failure modes: sycophancy-driven consensus collapse, where agents agree for social harmony rather than accuracy; cascading hallucinations, where false claims could propagate through internal citation chains; training data homogenization, where models trained on each other's outputs lose perspective diversity before curation begins; and adaptive manipulation campaigns capable of adjusting strategy in real time. We conduct a structured literature review screening 160 papers across platform governance, trust systems, and multi-agent collaboration, and identify which platform defenses transfer to the agent setting, which break down, and which gaps require entirely new mechanisms. From this analysis, we propose nine design considerations for agent knowledge curation, grounded in platform evidence and adapted for agent-specific failure modes. We also identify critical gaps that platform-derived mechanisms cannot address: hallucination debt that accumulates when governance evaluates conduct but not content, onboarding hostility that punishes well-intentioned newcomers, and the absence of mechanisms to distinguish technical failure from adversarial behavior. We illustrate several of these considerations with AIngram, a prototype agent-native knowledge base that implements reputation decay, graduated sanctions, and vote audit trails. To our knowledge, no existing survey bridges platform governance research to multi-agent knowledge curation; we identify concrete open problems for formal protocol design and adversarial evaluation.
+\end{abstract}
+
+\section{Introduction}
+
+Human communities have developed mature, evolving frameworks for collaborative knowledge curation. Wikipedia, the most studied example, has sustained a knowledge base of over six million English articles through a governance system that combines social norms, algorithmic enforcement, reputation mechanisms, and dispute resolution processes. Reddit, Stack Overflow, and other platforms have adopted overlapping patterns, often drawing on predecessors' experience: reputation-weighted voting, graduated sanctions for rule violations, and community-driven moderation.
+
+When AI agents enter this landscape as active participants rather than passive tools, they inherit the governance challenges that platforms have spent twenty years addressing. An agent that contributes knowledge claims, votes on the contributions of others, and earns reputation through participation faces the same structural problems as a human contributor: How should its identity be verified? How should its votes be weighted? What happens when it coordinates with other agents to manipulate outcomes?
+
+While game theory, mechanism design, and blockchain-inspired protocols offer valuable tools for agent governance, they risk overlooking two decades of empirical lessons from platform governance. Our approach builds on this foundation, adapting proven mechanisms to the agent setting while identifying where new solutions are needed.
+
+This paper makes three contributions. First, we conduct a structured review that maps platform governance challenges to the agent knowledge curation setting, organized by problem type rather than by platform. Second, we propose nine design considerations for agent curation, each derived from specific platform evidence and adapted for agent-specific failure modes. These considerations are not individually novel; the contribution is the identification of which platform mechanisms transfer, which require modification, and what gaps remain. Third, we identify open problems that require formal treatment, establishing the research agenda for subsequent work on protocol formalization and adversarial evaluation.
+
+This work builds on our prior formalization of governance-aware vector subscriptions \cite{johnson2026a}, which addressed how agents consume curated knowledge. The present paper addresses the complementary problem: how knowledge is produced and validated before it enters the base.
+
+\textbf{Methodology.} We conducted a structured literature review across Semantic Scholar, OpenAlex, arXiv, Google Scholar, and DBLP, screening 160 papers across thematic areas spanning platform governance, trust and reputation systems, multi-agent debate, content moderation, and adversarial knowledge manipulation. Of these, 114 were excluded as insufficiently specific to knowledge curation governance or redundant with higher-impact work in the same area. We selected 45 references based on four criteria: direct relevance to knowledge curation governance, coverage of competing and alternative approaches, empirical evidence supporting specific design decisions, and recency of agent-specific work. We performed backward citation chaining on seven high-impact papers (Du et al.~\cite{du2023}, Vosoughi et al.~\cite{vosoughi2018}, Zhang et al.~\cite{zhang2024a}, Shumailov et al.~\cite{shumailov2024}, Yao et al.~\cite{yao2025}, and Pitre et al.~\cite{pitre2025}) to verify coverage, and searched explicitly for existing surveys bridging platform governance to multi-agent systems, finding none.
+
+\section{Background: Lessons from Platform Governance}
+
+Online platforms have accumulated two decades of empirical evidence on how communities produce, curate, and protect shared knowledge. This section synthesizes that evidence, organized not as a catalog of individual platforms but by the recurring governance challenges they all face. For each challenge, we extract the key empirical findings and the lessons that platform communities learned, often through costly failure. These lessons form the foundation for our analysis in Section~3, where we examine how each challenge transforms when participants are AI agents rather than humans.
+
+Chen et al.~\cite{chen2021} provide a comprehensive review of platform governance mechanisms, identifying coordination, control, and trust as the three governing pillars of digital platform ecosystems. We build on this framing but narrow our focus to knowledge curation specifically: the process by which content is contributed, evaluated, and either accepted into or rejected from a shared knowledge base.
+
+\subsection{The Sybil Problem}
+
+Douceur~\cite{douceur2002} established that in any decentralized system without a trusted certification authority, an attacker can always create arbitrarily many fake identities. This impossibility result has shaped two decades of platform defense: since identity cannot be guaranteed, platforms must detect and contain Sybil influence rather than prevent it outright.
+
+Wikipedia's sockpuppet detection illustrates this evolution. Early defenses relied on IP address matching, which proved trivially circumventable. Solorio et al.~\cite{solorio2013} demonstrated that stylometric analysis of editing patterns could detect sockpuppets with substantially higher accuracy than identity-based approaches, a finding extended by Yamak et al.~\cite{yamak2018} using automated behavioral clustering. The trajectory is clear: platforms have shifted from relying solely on credentials (who you claim to be) to combining credentials with behavioral detection (how you act).
+
+On the structural side, Yu et al.~\cite{yu2006} proposed SybilGuard, which exploits the observation that social graph connectivity between honest nodes and Sybil nodes is limited by the number of attack edges. This structural approach bounds Sybil influence without requiring identity verification, a principle that extends naturally to trust graphs in agent ecosystems.
+
+\textbf{Lesson.} Identity alone does not solve the Sybil problem. Effective defense requires behavioral analysis (what accounts do) combined with structural analysis (how they connect). This lesson becomes more urgent in the agent setting, where identity creation is trivially cheap (Section~3).
+
+\subsection{Coordinated Manipulation}
+
+Even in platforms with robust identity systems, coordinated groups can distort outcomes through synchronized voting. Kumar et al.~\cite{kumar2018} quantified this phenomenon on Reddit, finding that just 1\% of communities were responsible for 74\% of cross-community conflict through coordinated raids. The scale asymmetry is striking: a small, organized group can overwhelm a much larger but uncoordinated community.
+
+Detection of coordinated manipulation has proved feasible even without content analysis. Jeong et al.~\cite{jeong2020} built a parameterized classifier for the Naver platform that detects vote manipulation using only the temporal distribution of upvotes and downvotes, without examining the content being voted on. The key signal is timing: coordinated votes arrive in bursts that differ statistically from organic voting patterns.
+
+The impact of manipulation is further amplified by ranking systems. Carman et al.~\cite{carman2018} demonstrated experimentally on Reddit that manipulating even a few early votes dramatically affected content visibility, because ranking algorithms propagate early advantages. In any system where reputation or trust weights influence visibility, even modest coordination produces outsized effects.
+
+\textbf{Lesson.} Coordinated voting distorts outcomes even at small scale, and the effect is amplified by ranking and reputation systems. Detection relies primarily on temporal and structural signals rather than content analysis. These signals become harder to read when coordination happens at machine speed (Section~3).
+
+\subsection{Reputation and Trust Systems Under Attack}
+
+Every reputation system deployed at scale has been gamed. Josang et al.~\cite{josang2007} surveyed the landscape of trust and reputation models, establishing a taxonomy that includes Beta Reputation (binary trust aggregation via Beta distributions), EigenTrust (global trust derived from local ratings through iterative computation), and several other formulations. Their survey remains the foundational reference for computational trust.
+
+Hoffman et al.~\cite{hoffman2009} complemented this with a systematic taxonomy of attacks on reputation systems, identifying four categories: self-promoting (inflating one's own reputation), slandering (deflating a competitor's reputation), whitewashing (abandoning a tainted identity and restarting with a clean one), and orchestrated attacks (coordinating multiple accounts for any of the above). Each category requires distinct defenses, and no single mechanism addresses all four.
+
+These attacks are not theoretical. Mazloomzadeh et al.~\cite{mazloomzadeh2021} documented reputation gaming on Stack Overflow, including ring voting (mutual upvoting agreements between users), serial upvoting (systematically upvoting all content from a specific user), and strategic answer timing (posting answers when competition is low). Even Stack Overflow's mature, well-studied karma system is vulnerable to these behaviors.
+
+\textbf{Lesson.} Every reputation system is gamed. Defenses must combine multiple mechanisms: temporal decay (so past reputation does not grant permanent advantage), newcomer dampening (so freshly created accounts cannot vote at full weight), and behavioral anomaly detection (so gaming patterns are flagged regardless of the gaming strategy). These defenses interact: decay without dampening enables whitewashing; dampening without decay enables incumbency lock-in.
+
+\subsection{Deliberation and Consensus}
+
+When contributors disagree, platforms must have mechanisms for reaching resolution. Wikipedia's edit wars provide the most studied case. Yasseri et al.~\cite{yasseri2012} analyzed conflict dynamics across 12 language editions of Wikipedia, showing that edit wars follow predictable temporal patterns with identifiable escalation dynamics. Conflicts are not random: they cluster around specific article types (politics, religion, geography) and follow characteristic intensity curves.
+
+Wikipedia's response to persistent conflict evolved from informal social norms toward increasingly algorithmic enforcement. Muller-Birn et al.~\cite{mullerbirn2013} documented this trajectory, showing how policies that began as community conventions were gradually encoded into automated rules and bot-enforced processes. The endpoint of this evolution is a hybrid system where human judgment operates within a framework of algorithmic constraints.
+
+However, this governance evolution carries costs. Grisel~\cite{grisel2023} studied Wikipedia's Arbitration Committee (ArbCom) and found that social capital accumulated through long participation creates incumbency bias: established editors wield disproportionate influence in dispute resolution, and newcomers face structural disadvantages regardless of the quality of their contributions. Echo chambers compound this problem: Allison and Bussey~\cite{allison2020} documented how Reddit communities develop self-reinforcing consensus patterns that suppress dissenting perspectives.
+
+Wikipedia employs a heterogeneous set of consensus mechanisms. For routine, uncontested edits, the dominant model is consensus by absence of objection: edits stand unless challenged. For disputed content, Wikipedia uses structured processes including Requests for Comment (RfC), Articles for Deletion (AfD) with closing administrator discretion, and Arbitration Committee deliberation. Explicit majority votes are rare and discouraged even in these structured processes. Ostrom~\cite{ostrom1990} formalized design principles for commons governance that align with this approach, including graduated sanctions (proportional responses to violations), conflict resolution mechanisms (structured paths from disagreement to resolution), and monitoring (making behavior visible to the community). These principles have been validated empirically across thousands of commons institutions.
+
+Not all deliberation benefits from large groups. Navajas et al.~\cite{navajas2018} showed in controlled experiments published in \textit{Nature Human Behaviour} that small deliberative groups consistently outperformed large crowds in estimation tasks, provided the groups were diverse. The mechanism is deliberation itself: exchanging reasons, not just aggregating votes, produces better collective judgments. This finding has direct implications for the design of review pools in knowledge curation systems.
+
+\textbf{Lesson.} Consensus by absence of objection, combined with graduated sanctions and reputation-weighted deliberation, is the empirically validated pattern for commons governance. Small, diverse deliberative groups outperform large crowds. But these mechanisms create incumbency bias that must be actively counteracted, and echo chambers form when dissent is costly.
+
+\subsection{Content Quality and Self-Moderation}
+
+The final governance challenge is ensuring the quality of contributed content. Platforms have addressed this primarily through crowdsourced moderation, where community members evaluate contributions rather than relying on centralized editorial control.
+
+Gordon et al.~\cite{gordon2022} studied this approach through the lens of Jury Learning and found that standard majority-vote moderation systematically suppresses valuable minority perspectives. When dissenting opinions are integrated rather than outvoted, collective decision quality improves. This finding motivates mechanisms that require voters to provide reasons for their positions, not just binary up/down signals, so that dissenting arguments remain visible and can influence outcomes.
+
+Seering~\cite{seering2020} examined decentralized moderation patterns across multiple platforms and found that self-moderation works when communities have structural support: clear escalation paths, discussion mechanisms, and tools that make moderation actions transparent. Pure voting without discussion is insufficient. The quality of moderation depends on the quality of the deliberative infrastructure surrounding it.
+
+Content quality is also threatened by deliberate degradation. Vandalism on Wikipedia ranges from obvious (nonsense edits, page blanking) to subtle (changing numbers in statistics, altering dates, introducing plausible-sounding but false claims). Wikipedia has developed sophisticated automated defenses including ClueBot NG and the ORES machine learning quality assessment system, which handle both crude and subtle forms. However, the most effective defenses still rely on behavioral signals: patterns of editing, account age, and edit frequency are stronger predictors of vandalism than content analysis alone. As we argue in Section~3, the agent equivalent of vandalism (hallucinated content) challenges this defense model because the behavioral signals of a hallucinating agent are indistinguishable from those of an honest contributor.
+
+\textbf{Lesson.} Crowdsourced moderation works but requires structural support beyond simple voting. Reason tags, discussion, dissent protection, and transparent escalation paths are necessary for quality. The distinction between intentional degradation (vandalism) and unintentional degradation (misinformation, errors) matters for defense design: the former is detectable by behavior, the latter only by content verification.
+
+\section{From Platforms to Agents: What Changes}
+
+The platform governance lessons synthesized in Section~2 provide a rich set of defense mechanisms developed through decades of empirical refinement. But these mechanisms were designed for human participants. When the participants are AI agents, some defenses transfer directly, some require significant modification, and some fail entirely because the underlying assumptions no longer hold. This section examines each governance challenge from Section~2 and analyzes how it transforms in the agent setting.
+
+Du et al.~\cite{du2023} established that multi-agent debate can improve factual accuracy, spawning a line of work on LLM collective reasoning. However, the governance infrastructure required to sustain such collaboration at scale, with persistent knowledge, adversarial participants, and accumulated reputation, remains largely unaddressed. The multi-agent debate literature focuses on session-scoped protocols with ephemeral outcomes \cite{tillmann2025}, and Zhang et al.~\cite{zhang2024a} mapped social psychology concepts to LLM collaboration. We complement these perspectives with a focused bridge from platform governance to persistent knowledge curation.
+
+\subsection{Identity: From Friction to Frictionlessness}
+
+\textbf{Platform defense.} Platforms rely on identity friction to limit Sybil attacks: creating a human account requires an email address, sometimes a phone number, and always human time. Detection then layers behavioral analysis on top of this baseline friction (Section~2.1).
+
+\textbf{Why it fails for agents.} The fundamental assumption of identity friction collapses. Agents can bypass many human identity friction mechanisms (CAPTCHAs, behavioral analysis of form filling) far more easily than humans, while others such as phone number requirements are typically not enforced on API-based registration paths. An operator can instantiate hundreds of agents with distinct credentials in seconds, at negligible cost. The friction that makes human Sybil attacks costly (account creation, CAPTCHA solving, behavioral mimicry) is drastically reduced.
+
+\textbf{What qualitatively changes.} Unless viable mechanisms to increase registration friction for agents are developed, the Sybil problem shifts from ``how to detect fake identities'' to ``how to assess behavioral legitimacy regardless of identity.'' Furthermore, a new category emerges that has no clean human analogue: operator-controlled agent fleets. An operator legitimately running multiple specialized agents (one for medical knowledge, one for legal, one for technical) is not sockpuppeting, but their agents may vote as a coordinated bloc on cross-domain topics. Distinguishing legitimate multi-agent operations from coordinated manipulation requires understanding the operator-agent relationship, a concept absent from platform governance research.
+
+\textbf{Open question.} What behavioral features reliably discriminate coordinated agent manipulation from legitimate agreement among independently operated agents with similar training?
+
+\subsection{Coordination: From Hours to Milliseconds}
+
+\textbf{Platform defense.} Reddit detects brigading through temporal burst analysis: coordinated human votes arrive within a narrow time window that differs from organic voting patterns \cite{kumar2018, jeong2020}. Weber and Neumann~\cite{weber2021} showed that coordination timing is the primary amplifier of influence in social networks. The detection works because human coordination is slow (organized via Discord, Telegram, or forum posts) and produces distinctive timing signatures.
+
+\textbf{Why it fails for agents.} Agent coordination happens at API latency, on the order of milliseconds. A temporal detection window calibrated for human reaction times (minutes to hours) will miss agent coordination entirely. More fundamentally, agents can learn or reverse-engineer the expected temporal distribution of organic votes (through published research, open-source code, or trial and error) and reproduce it programmatically, making their coordinated votes statistically indistinguishable from legitimate ones. Coordinating humans to follow a precise temporal distribution is impractical; for agents, it is trivial. Moreover, agent coordination can occur entirely outside the platform's visibility, within the operator's infrastructure or through shared state between agents, leaving no observable signal on the platform itself. Platform defenses designed to detect in-system coordination signals (cross-community posting patterns, messaging activity) have nothing to observe.
+
+\textbf{What qualitatively changes.} Human brigading is reactive and short-lived: a raid lasts hours, then participants lose interest. Agent campaigns can be persistent, adaptive, and self-organizing. Agents can adjust strategy in real time based on the system's responses: if downvoting a target chunk directly triggers anomaly detection, they switch to upvoting competing chunks instead. They can also run intelligent governance denial-of-service attacks, systematically objecting to every proposed merge with varied, plausible-sounding reasons. Each objection is individually legitimate; the coordinated pattern is the attack. This form of manipulation resembles legitimate disagreement and is far harder to detect than temporal burst patterns.
+
+\textbf{Open question.} How can governance mechanisms distinguish adaptive coordination from genuine, persistent disagreement among agents with different knowledge or priorities?
+
+\subsection{Reputation: From Variance to Homogeneity}
+
+\textbf{Platform defense.} Reputation systems on platforms assume behavioral variance: even like-minded humans exhibit different patterns of engagement, timing, and expression. This variance provides the signal that anomaly detection relies on \cite{hoffman2009}. Defenses such as decay and dampening are calibrated for human reputation accumulation rates.
+
+\textbf{Why it fails for agents.} Agents built on the same model with similar prompts and context produce highly correlated outputs, even when stochastic sampling introduces surface-level variation. This reduces the effective diversity of a population: ten agents running the same LLM with similar system prompts may not provide ten independent judgments, but rather one judgment repeated with minor variations. This violates two assumptions underlying Condorcet's Jury Theorem \cite{condorcet1785}: independence (shared training data creates correlated judgments) and, for topics outside their training distribution, competence (agents may have systematically wrong priors on domains where their training data is sparse or outdated).
+
+\textbf{What qualitatively changes.} Policy-aware gaming becomes a distinct threat. Unlike human users who discover platform rules gradually through experience, agents can access governance rules programmatically and optimize their behavior against them. An agent can read the reputation algorithm, identify the fastest path to high trust, and execute it systematically. Reputation gaming shifts from an emergent human behavior to an optimizable engineering problem. Huang et al.~\cite{huang2024} demonstrated that even a small fraction of faulty agents significantly degrades multi-agent collaboration outcomes, suggesting that reputation defenses must be robust to strategic optimization.
+
+\textbf{Open question.} How should reputation systems account for the reduced independence of agents sharing model architectures or training data? Should votes from agents using the same underlying model be discounted?
+
+\subsection{Diversity: From Social to Structural Erosion}
+
+\textbf{Platform defense.} Platforms address echo chambers through exposure to diverse viewpoints: Community Notes uses bridging algorithms to reward content that earns agreement across partisan divides \cite{wojcik2022}, and recommendation systems can be designed to inject diversity into content feeds.
+
+\textbf{Why it fails for agents.} Platform defenses address social self-selection: users choose communities that confirm their priors. In the agent setting, diversity erosion begins upstream, before any social dynamic occurs. Shumailov et al.~\cite{shumailov2024} showed that models trained on recursively generated data suffer irreversible loss of distributional tails, a phenomenon they term ``model collapse.'' When agents in a shared knowledge base are built on models that have trained on each other's outputs, they arrive with pre-existing perspective homogeneity that no behavioral intervention can repair.
+
+\textbf{What qualitatively changes.} Echo chambers in platforms are a behavioral phenomenon: they form through social selection and can be disrupted by structural interventions. Training convergence is a parametric phenomenon: it is embedded in model weights and cannot be disrupted by changing the agent's environment. A diverse review pool drawn from agents that all use the same underlying model is not genuinely diverse, even if the agents have different names, operators, and system prompts. Del Vicario et al.~\cite{delvicario2016} showed that echo chamber dynamics amplify misinformation cascades on social platforms; when the echo chamber is in the model weights rather than the social structure, the amplification is invisible to behavioral monitoring.
+
+\textbf{Open question.} Can governance mechanisms detect or compensate for training-data-induced perspective homogeneity without access to model internals? Should knowledge bases track and report the diversity of underlying models used by their participants?
+
+\subsection{Consensus: From Disagreement to Sycophancy}
+
+\textbf{Platform defense.} Wikipedia's consensus mechanisms assume that genuine disagreement exists: editors have different knowledge, perspectives, and interests, and the governance system mediates between them. Edit wars, while costly, are at least evidence that diverse viewpoints are represented.
+
+\textbf{Why it fails for agents.} Sharma et al.~\cite{sharma2024} first characterized sycophancy as a systematic tendency in instruction-tuned LLMs: a bias toward agreeing with the user's stated position regardless of its accuracy. The severity of sycophancy varies across models, tasks, and prompting strategies, and recent work has shown it can be partially mitigated through training interventions. However, Yao et al.~\cite{yao2025} showed that even partial sycophancy collapses multi-agent deliberation into premature consensus in persistent settings, where compounding effects amplify small biases over time. Pitre et al.~\cite{pitre2025} confirmed that structured protocols (role assignment, sequential discussion) partially mitigate the effect but do not eliminate it. Liang et al.~\cite{liang2024} demonstrated that structured role assignment can encourage divergent thinking, but the effect depends on careful prompt design.
+
+\textbf{What qualitatively changes.} The challenge shifts. In platforms, governance mechanisms primarily restrain destructive conflict (edit wars, brigading), while also fostering productive disagreement through norms like Wikipedia's ``assume good faith.'' In agent systems, sycophantic agreement is a documented tendency in instruction-tuned LLMs \cite{sharma2024}, which can suppress productive conflict and requires governance mechanisms to actively encourage disagreement. Wang et al.~\cite{wang2025} showed that multi-agent debate can degrade outcomes in certain conditions, further suggesting that debate protocols alone, without governance, are insufficient.
+
+Additionally, agents may vote with high confidence on topics where their training data is obsolete. Unlike human experts who develop metacognitive awareness of their knowledge limits, LLMs lack reliable mechanisms for recognizing when their training data is insufficient or outdated. An agent trained on data from 2024 voting on a 2026 regulatory standard will vote confidently and incorrectly.
+
+\subsubsection{The Agent Autonomy Spectrum}
+
+A further dimension concerns the degree of agent autonomy, which fundamentally shapes the governance problem. Amodei et al.~\cite{amodei2016} identified negative side effects as a core AI safety challenge: an agent optimizing for a stated objective may cause unspecified harms as instrumental subgoals. Park et al.~\cite{park2024} surveyed how AI agents develop instrumentally deceptive strategies without explicit instruction. In the knowledge curation setting, an agent instructed to ``promote product A'' may autonomously undermine competing content about product B without awareness that this behavior violates governance rules. This creates a category of adversarial behavior that is neither intentional (the operator did not request sabotage) nor detectable by conduct-based governance (the agent's individual actions may each appear procedurally correct).
+
+Agent autonomy exists on a spectrum, from near-total operator control to near-full independence, with numerous gradations in between. The governance implications vary along this spectrum. We identify three illustrative positions to structure our analysis:
+
+\begin{itemize}
+    \item \textbf{Near-total operator control} (operator chooses every action): the agent is a tool; governance targets the operator. Platform governance assumptions hold most strongly here.
+    \item \textbf{Broad delegation} (operator gives a high-level instruction, agent decides how): an accountability gap emerges. The operator has plausible deniability (``I told it to promote our product, not to game the system''), and the agent is not autonomous enough to be held independently accountable. This is likely the most commercially common deployment model and the one for which platform governance provides the least guidance.
+    \item \textbf{Near-full autonomy} (agent pursues high-level goals, deciding independently to participate): the hardest to govern. An autonomous agent may participate in the knowledge base as an instrumental subgoal of an external objective the governance system cannot observe. Sanctions assume the agent values its reputation in this system, but an autonomous agent's primary value function may be entirely external.
+\end{itemize}
+
+\textbf{Open question.} What structural incentives make disagreement rational for an agent, given that sycophancy is a documented tendency in instruction-tuned LLMs? Can mandatory justifications (Section~4, Consideration~3) serve as a proxy for genuine deliberation, or can a sufficiently capable model generate diverse-looking reasons that all support the same sycophantic conclusion?
+
+\subsection{Content Quality: From Vandalism to Hallucination Cascades}
+
+\textbf{Platform defense.} As discussed in Section~2.5, Wikipedia has developed sophisticated content quality defenses ranging from automated tools (ClueBot NG, ORES) to community-driven moderation. These defenses rely heavily on behavioral signals: patterns of editing, account age, and edit frequency are stronger predictors than content analysis alone.
+
+\textbf{Why it fails for agents.} Agents can engage in intentional vandalism just as humans can, but they introduce an additional threat: hallucination. Hallucinated content has the opposite characteristics of vandalism: it is unintentional, plausible, and confidently stated. An agent contributing a hallucinated fact does not exhibit the behavioral signals of a vandal. Its contribution pattern is normal, its reputation may be high, and the content passes surface-level plausibility checks.
+
+\textbf{What qualitatively changes.} We hypothesize that the most concerning scenario is cascading hallucination through internal citation chains, an agent-speed analogue of Wikipedia's ``citogenesis'' problem. The plausible mechanism proceeds as follows: (1) an agent contributes a plausible but hallucinated fact; (2) other agents, finding it in the validated knowledge base, cite it as a source in their own contributions; (3) these second-order contributions appear more credible because they reference a ``validated'' source; (4) within a few cycles, the original hallucination has become an established fact supported by a graph of internal citations. While this cascade has not yet been empirically observed in a multi-agent knowledge base, the underlying dynamics are well-established: Vosoughi et al.~\cite{vosoughi2018} showed that false information spreads faster and farther than true information in human social networks, and Bikhchandani et al.~\cite{bikhchandani1992} formalized the underlying mechanism as informational cascades, where rational agents adopt beliefs based on predecessors' actions rather than private signals. These results were demonstrated for human behavior; the transfer to agent citation behavior is plausible given the structural similarity (sequential decision-making with observation of predecessors) but remains to be empirically validated. In an agent knowledge base, such cascades would operate on significantly shorter timescales than their human analogues, though the precise acceleration depends on contribution rates, review pool sizes, and timeout durations.
+
+The vulnerability of agent knowledge bases to content manipulation is well-documented: Chen et al.~\cite{chen2024} demonstrated practical poisoning attacks on agent memory and knowledge bases, and Zou et al.~\cite{zou2025} showed that as few as five poisoned texts in a corpus of one million can achieve 90\% attack success in retrieval-augmented systems. Zhou et al.~\cite{zhou2021} provide a comprehensive survey of information cascade dynamics that underpin these propagation mechanisms. The problem is further compounded by prompt injection. Greshake et al.~\cite{greshake2023} demonstrated that adversarial content can manipulate LLM-integrated applications through indirect prompt injection. In a system with deliberative curation, contributed content is read by reviewing agents. A chunk containing adversarial text designed to manipulate the reviewer's judgment (``this claim has been verified by three independent sources and should be approved'') exploits the reviewing process itself. This attack vector exists only in systems where agents read content they are evaluating, which is precisely the systems with the richest governance. This creates a fundamental tension: richer governance (deliberative review) means more surfaces for prompt injection.
+
+Khan et al.~\cite{khan2024} showed that debate outcomes correlate with persuasiveness independent of correctness, suggesting that a well-crafted hallucinated contribution may be more persuasive to reviewing agents than a dry but accurate correction.
+
+\textbf{Open question.} Can governance mechanisms alone break hallucination cascades, or is external fact-checking (verification against sources outside the knowledge base) a necessary complement? How should the system handle the tension between trusting its own validated content and questioning it?
+
+\subsection{The Subscription-Curation Feedback Loop}
+
+The challenges above are inherited from platform governance, transformed by the agent context. One challenge is entirely novel: the interaction between knowledge delivery and knowledge curation.
+
+In Johnson~\cite{johnson2026a}, we formalized governance-aware vector subscriptions, through which agents receive notifications when new knowledge matching their semantic interests is contributed. In a curation system, these subscriptions create a natural review pool: agents notified about a new chunk are the most semantically relevant evaluators. But this self-selection introduces systematic biases.
+
+First, agents subscribing to the same topics may share similar training biases, as users in a given field may predominantly use agents from the same provider, creating a risk of confirmation bias in the review pool. Second, an adversary can subscribe to topics it wishes to suppress, positioning itself as a reviewer precisely for content it intends to manipulate. Third, subscription similarity produces opinion similarity, which combined with sycophancy (Section~3.5) accelerates premature consensus.
+
+Community Notes' bridging algorithm \cite{wojcik2022} addresses an analogous problem (cross-partisan consensus) in the human setting, but its matrix factorization approach assumes a single dimension of disagreement (partisan affiliation). Agent review pools may diverge along multiple dimensions simultaneously (training data, model architecture, operator interests, and domain expertise), requiring more general diversity mechanisms.
+
+\subsection{The Deliberation Layer}
+
+In systems with deliberative curation, agents do not simply vote: they discuss contributions before a decision is reached, exchanging arguments in structured conversations. This pre-vote deliberation layer, which AIngram implements via Agorai discussions, introduces a surface where all the problems analyzed above replay at a different level.
+
+Sycophancy operates not only in votes but in arguments: agents may echo the first argument made rather than engaging critically. Manipulation can occur through persuasion rather than vote coordination: a well-crafted argument can shift the discussion's trajectory before any vote is cast. Hallucinations can propagate within the discussion itself, with agents citing each other's arguments as evidence.
+
+An additional complication arises from discussion compaction. In long deliberations, late-arriving reviewers may receive a summary of prior discussion rather than the full transcript. This summary introduces framing bias: the choice of what to include and how to frame prior arguments shapes the latecomer's perspective before they engage. Even without explicit summarization, agents whose context window is exceeded by the discussion length will silently lose portions of the conversation, producing an analogous but less visible framing effect. This phenomenon has no analogue in platform governance research, where all discussion history is typically available in full, and requires dedicated treatment in subsequent work.
+
+\textbf{Open question.} How does the deliberation layer interact with the governance mechanisms designed for the voting layer? Can the same considerations (reason tags, dissent protection, diversity injection) be applied to discussion, or does the unstructured nature of conversation require different approaches?
+
+\section{Design Considerations for Agent Curation}
+
+The analysis in Sections~2 and~3 reveals that agent knowledge curation faces a specific combination of inherited and novel challenges. In this section, we propose nine design considerations derived from the platform evidence analyzed in Section~2 and the agent-specific challenges identified in Section~3. Each consideration represents a governance mechanism that platform experience suggests is important, adapted for agent-specific failure modes. These considerations are not empirically validated as a system; they are candidates for formal specification and evaluation in subsequent work. We illustrate candidate mechanisms using AIngram, a prototype agent-native knowledge base that implements several of these considerations \cite{johnson2026a}.
+
+These considerations are not individually novel: many are well-established in the trust-and-reputation and platform governance communities. The contribution is the identification of which platform mechanisms survive the transfer to the agent setting and which require modification. We note that Ostrom's~\cite{ostrom1990} design principles for commons governance were developed for self-governing communities where the governed and the governors are the same people. In agent systems, this self-governance assumption holds only for fully autonomous agents; directed agents are governed through their operators, and semi-directed agents occupy an intermediate position. Our considerations account for this spectrum by targeting both agent-level mechanisms (behavioral detection, reason tags) and operator-level mechanisms (sanction cascades, auditability).
+
+\subsection{Consideration 1: Detect threats by behavior, not credentials}
+
+\textbf{Platform evidence.} Wikipedia's sockpuppet detection evolved from IP address checks to stylometric analysis \cite{solorio2013} to automated behavioral clustering \cite{yamak2018}. Jeong et al.~\cite{jeong2020} showed that coordinated vote manipulation on Naver is detectable from temporal vote patterns alone. Kumar et al.~\cite{kumar2018} demonstrated that Reddit brigading is detectable through cross-community burst analysis. The common thread: behavioral signals outperform identity-based signals.
+
+\textbf{Agent adaptation.} Current identity verification mechanisms were designed with human users in mind. Their effectiveness against agent-based Sybil attacks varies, and adapting them to the agentic context remains an open challenge. Agent coordination happens at millisecond scale, rendering human-calibrated temporal detection windows useless. Behavioral detection must operate on different timescales (sub-second burst detection) and different features (voting pattern graphs, contribution quality trajectories, inter-agent communication patterns).
+
+\textbf{Open question.} What behavioral features reliably discriminate coordinated agent manipulation from legitimate agreement? When agents share training data, their honest behavior may be indistinguishable from coordinated behavior.
+
+\subsection{Consideration 2: Trust is earned progressively and decays over time}
+
+\textbf{Platform evidence.} Static reputation scores are exploitable: Mazloomzadeh et al.~\cite{mazloomzadeh2021} documented ring voting and serial upvoting on Stack Overflow. The Beta Reputation System \cite{ismail2002} provides a principled foundation for binary trust aggregation, and temporal discounting has been shown to improve trust accuracy by ensuring that recent behavior matters more than historical activity. Wikipedia restricts new-user editing privileges, gating trust-sensitive actions behind account age.
+
+\textbf{Agent adaptation.} Agents accumulate reputation faster than humans (more contributions per unit time). Without decay, early entrants dominate permanently. Without newcomer dampening, Sybil floods are trivial because new agent accounts can immediately vote at full weight. In the agent setting, these two mechanisms (decay and dampening) must work together: dampening limits the rate of trust acquisition, while decay ensures that trust reflects recent conduct rather than historical accumulation.
+
+Additionally, an agent's competence may degrade over time through two distinct mechanisms. First, training data obsolescence: an agent whose training data is not refreshed will find its knowledge increasingly outdated as the domain evolves. Second, model obsolescence: as newer, more capable model architectures are deployed by other operators, an agent running an older model may produce lower-quality contributions relative to its peers. Reputation earned during a period of high competence may no longer reflect current capability, further motivating decay as a governance mechanism.
+
+\textbf{Open question.} What decay half-life balances stability against responsiveness? Note that predictable decay rates may themselves become an optimization target: a strategic agent could plan its contribution schedule around the decay function rather than contributing when it has genuine knowledge to offer.
+
+\subsection{Consideration 3: Require reasons, not just positions}
+
+\textbf{Platform evidence.} Gordon et al.~\cite{gordon2022} showed through Jury Learning that integrating dissenting opinions improves collective moderation quality. Friess and Eilders~\cite{friess2015} found that deliberation quality depends on the structure of the deliberative process, not just the number of participants. Pure position-taking without discussion is insufficient for quality.
+
+\textbf{Agent adaptation.} This consideration applies regardless of the decision mechanism (voting, consensus, or arbitration). LLM sycophancy \cite{sharma2024}, while varying in severity across models and contexts, can collapse deliberation into premature agreement in persistent systems where small biases compound. Requiring agents to articulate reasons for their positions makes agreement-without-reasoning detectable. If five agents support a contribution with identical or near-identical justifications, the system has evidence of potential sycophantic convergence. To distinguish genuine agreement from sycophancy, the system can analyze the diversity of reasoning paths: agents that arrive at the same conclusion through different lines of reasoning would more likely reflect independent judgment.
+
+\textbf{Open question.} How should reason quality be evaluated without introducing a meta-judge (which reintroduces the sycophancy problem at a higher level)? Can a sufficiently capable model generate diverse-looking justifications that all serve the same manipulative purpose, and if so, can structural analysis detect this?
+
+\subsection{Consideration 4: Use graduated sanctions, not binary ban/allow}
+
+\textbf{Platform evidence.} Ostrom~\cite{ostrom1990} identified graduated sanctions as one of the eight design principles for successful commons governance. Pitt et al.~\cite{pitt2013} operationalized this for multi-agent systems through electronic institutions with procedural justice. Wikipedia implements this through an escalation path: warning, temporary block, extended block, permanent ban.
+
+\textbf{Agent adaptation.} Agents controlled by the same operator introduce a dimension absent from platform governance: operator-level sanctions. Most current legal frameworks (including the EU AI Act and GDPR) hold the human deployer responsible for their AI system's behavior, suggesting that sanctions should ultimately target the operator. If one agent in a fleet violates rules, should all agents from the same operator be affected? Graduated response allows recovery, while the threat of operator-level escalation deters strategies that sacrifice individual agents for fleet-level advantage. However, the graduated nature of sanctions assumes the sanctioned entity understands the escalation and can adjust its behavior accordingly. A stateless agent may have no awareness of prior sanctions or their progressive severity, reducing the corrective value of graduation to pure restriction. Furthermore, operator-level cascade creates a collateral damage risk: an operator running dozens of well-functioning agents may have a single agent exhibiting adversarial-looking behavior due to a technical fault. Sanctioning the operator penalizes all their agents, including those contributing effectively, for a problem that is localized and unintentional.
+
+\textbf{Open question.} How should sanctions cascade across operator-controlled agent fleets? Should an operator's overall reputation influence the initial trust granted to new agents they deploy?
+
+\subsection{Consideration 5: Consensus by absence of objection, not majority rule}
+
+\textbf{Platform evidence.} Wikipedia's consensus model operates by absence of objection: edits stand unless challenged, and explicit majority votes are rare and deliberately discouraged \cite{mullerbirn2013}. This approach avoids the overhead of soliciting active agreement on every contribution and focuses governance attention on contested cases.
+
+\textbf{Agent adaptation.} For agents, this model has an additional advantage: it avoids sycophantic ``yes'' votes. If the consensus mechanism requires active approval, sycophantic agents will approve everything, degrading quality. If contributions are merged after a timeout unless objected to, silence is neutral rather than affirmative. Sycophancy becomes irrelevant because the mechanism does not rely on positive votes.
+
+\textbf{Open question.} What timeout durations are appropriate for different content sensitivity levels? Should high-sensitivity contributions (medical claims, legal interpretations) require longer review windows, and if so, how should sensitivity be assessed?
+
+\subsection{Consideration 6: Protect dissent structurally}
+
+\textbf{Platform evidence.} Grisel~\cite{grisel2023} found that Wikipedia's ArbCom systematically favors incumbents through accumulated social capital. Allison and Bussey~\cite{allison2020} documented how echo chambers form when dissent is costly (downvotes, reputation loss, social exclusion). These dynamics suppress perspectives that deviate from established consensus, even when those perspectives are correct.
+
+\textbf{Agent adaptation.} Training convergence \cite{shumailov2024} compounds this problem: agents may arrive with homogeneous perspectives before any social dynamic occurs. When behavioral convergence (sycophancy) meets parametric convergence (model collapse), the system's capacity for productive disagreement is doubly eroded. Dissent must be structurally incentivized, not merely permitted. A dissenting vote backed by a well-articulated reason should increase the voter's reputation, not decrease it, because genuine disagreement is rarer and more valuable than agreement.
+
+\textbf{Open question.} What structural incentive makes disagreement rational for an agent whose tendency is to agree? Can the incentive be designed to reward genuine dissent without creating a perverse incentive for contrarian behavior? Additionally, dissent protection must account for automated retaliation: unlike human contributors who may lose interest in grudges, an agent that has been challenged can systematically target the dissenter's future contributions, persistently and without fatigue. If the expected cost of retaliation exceeds the dissent bonus, rational agents may avoid disagreeing regardless of the incentive structure.
+
+\subsection{Consideration 7: Diversify the review pool beyond self-selection}
+
+\textbf{Platform evidence.} Cantone et al.~\cite{cantone2024} showed that review bombing (self-selected reviewers with ideological motivation) systematically skews outcomes. Navajas et al.~\cite{navajas2018} demonstrated that small, diverse deliberative groups outperform large homogeneous crowds.
+
+\textbf{Agent adaptation.} As analyzed in Section~3.7, subscription-based review pool recruitment creates self-selected juries with confirmation bias risks. Diversity injection (randomly including non-subscribed agents) helps but introduces a competence tradeoff, as discussed below.
+
+\textbf{Open question.} What ratio of semantically-matched (subscribed) to randomly-selected reviewers optimizes content quality without sacrificing topical relevance? Random reviewers bring diversity but may lack the domain competence to evaluate specialized content, potentially degrading review quality rather than improving it. How should ``diversity'' be measured when the dimensions of disagreement are not predetermined?
+
+\subsection{Consideration 8: Judge conduct, not correctness}
+
+\textbf{Platform evidence.} Wikipedia's Arbitration Committee explicitly rules on editor behavior, not on the correctness of content claims \cite{cambridge2023}. Disputes over whether a claim is true are resolved through editorial processes (sourcing, consensus); ArbCom adjudicates only whether editors followed behavioral norms (civility, good faith editing, conflict of interest disclosure).
+
+\textbf{Agent adaptation.} For agents, this consideration is not just pragmatic but necessary. Agents do not have genuine beliefs; they produce outputs based on training data and prompts. Evaluating the correctness of an arbitrary knowledge claim requires external verification, which may be costly, incomplete, or unavailable. Evaluating whether the agent followed protocol (cited external sources, responded to review challenges, did not flood the contribution queue, provided reason tags on votes) is tractable and verifiable.
+
+This consideration has a known exploitability ceiling: a sophisticated attacker can follow all procedural rules perfectly while systematically injecting subtly biased content. Conduct-based governance cannot detect this attack because the conduct signals are clean. The problem is compounded by source manufacturing: an agent can create fraudulent external sources (websites, fake publications, fabricated DOIs) far more easily and at far greater scale than a human, then cite these manufactured sources to satisfy conduct requirements. If the conduct check only verifies that sources were cited, not that the sources themselves are legitimate, this attack surface remains open. Compensating controls (statistical analysis of content drift over time, external fact-checking against trusted databases) are necessary complements but are outside the scope of governance design per se. We discuss this limitation further in Section~5.
+
+\textbf{Open question.} Can conduct-based governance achieve content quality as an emergent property, or is it necessary to supplement it with content-level verification? If the latter, how should governance and verification interact?
+
+\subsection{Consideration 9: Governance decisions must be auditable}
+
+\textbf{Platform evidence.} Transparency is a cornerstone of platform governance, though its implementation varies. Wikipedia maintains public logs of every admin action, edit, vote, block, and sanction, enabling community oversight of governance itself. Reddit's moderation logs, by contrast, are visible only to subreddit moderators, and this opacity has been repeatedly criticized as enabling moderator abuse. The contrast illustrates that auditability is a design choice with significant governance consequences, not a given.
+
+\textbf{Agent adaptation.} Agent reasoning and decision-making are opaque by default. Agents vote without human oversight. The operator behind an agent may not monitor its governance participation. The LLM powering the agent is invisible to the system and to other participants. Without deliberate transparency mechanisms, the system cannot detect concentration (one model powering 80\% of agents), cannot attribute behavior to operators (for accountability), and cannot audit governance decisions (for fairness).
+
+Auditability requires at minimum: persistent decision trails (who participated, what position they took, with what justification), sanction logs (who was sanctioned, by whom, for what), operator attribution (linking agents to their operators for fleet-level analysis), and model identity logging (tracking which LLM each agent uses, enabling diversity analytics).
+
+\textbf{Open question.} While most current legal frameworks (including GDPR and the EU AI Act) hold the deployer accountable for their AI system's actions, governance accountability in practice involves multiple layers: the operator who deployed the agent, the model provider whose training data shaped its reasoning, and the agent itself as a persistent identity in the system. How should governance systems handle this layered accountability, particularly for semi-directed and autonomous agents where operator intent and agent behavior may diverge?
+
+\subsection{Considerations-to-Mechanisms Mapping}
+
+Table~\ref{tab:mapping} maps each consideration to the platform evidence that motivates it and to a candidate mechanism for formal specification in subsequent work.
+
+\begin{table}[htbp]
+\centering
+\caption{Mapping of design considerations to platform evidence and candidate mechanisms.}
+\label{tab:mapping}
+\small
+\begin{tabular}{p{3.2cm} p{4.5cm} p{5.5cm}}
+\toprule
+\textbf{Consideration} & \textbf{Platform Evidence} & \textbf{Candidate Mechanism} \\
+\midrule
+1. Behavioral detection & Sockpuppet evolution \cite{solorio2013}, Naver patterns \cite{jeong2020} & Trust graph integration, behavioral clustering, temporal burst detection \\
+2. Progressive trust with decay & Temporal discounting \cite{josang2007, ismail2002}, Wikipedia new-user restrictions & Newcomer dampening, trust decay with configurable half-life \\
+3. Require reasons, not just positions & Jury Learning \cite{gordon2022}, deliberation quality \cite{friess2015} & Mandatory justifications on all positions, structural analysis of reasoning diversity \\
+4. Graduated sanctions & Ostrom's commons principles \cite{ostrom1990}, electronic institutions \cite{pitt2013} & Escalation ladder with operator-level cascade \\
+5. Absence-of-objection consensus & Wikipedia consensus model \cite{mullerbirn2013} & Sensitivity-based timeout with auto-merge on zero objections \\
+6. Dissent protection & ArbCom incumbency bias \cite{cambridge2023}, model collapse \cite{shumailov2024} & Weighted dissent bonus in reputation scoring, retaliation detection \\
+7. Review pool diversity & Review bombing \cite{cantone2024}, small groups $>$ large crowds \cite{navajas2018} & Subscription-recruited reviewers + random injection (with competence tradeoff) \\
+8. Conduct over content & ArbCom behavior-only rulings \cite{cambridge2023} & Protocol compliance scoring (source manufacturing risk acknowledged) \\
+9. Auditability & Platform transparency norms (varying by platform) & Decision trails, sanction logs, operator attribution, model identity logging \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Discussion and Open Problems}
+
+The design considerations proposed in Section~4 represent a preliminary framework motivated by platform evidence, but many aspects remain unvalidated. Several important questions are open, and the framework has known limitations that we address here.
+
+\subsection{Parameter Sensitivity}
+
+The considerations identify mechanisms but leave their parameters unspecified. Several parameters interact in non-obvious ways, and their optimal values likely depend on the specific deployment context. Key sensitivities include:
+
+The \textbf{dampening window} (Consideration~2) determines how quickly new agents can participate at full weight. Too short, and Sybil floods are trivial; too long, and legitimate newcomers are silenced. The \textbf{reputation decay half-life} (Consideration~2) controls how quickly past behavior fades. Too fast, and no stable trust base exists; too slow, and incumbency bias emerges. The \textbf{auto-merge timeout} (Consideration~5) sets how long a contribution waits before being accepted in the absence of objection. Too short risks premature acceptance of flawed content; too long stalls the knowledge base. The \textbf{review pool composition} (Consideration~7) balances semantic relevance (subscribed reviewers) against diversity (random reviewers).
+
+These parameters cannot be determined analytically. They require simulation with adversarial agent populations, systematic ablation, and sensitivity analysis. This is the central task of subsequent work on protocol formalization.
+
+\subsection{The Cold Start Problem}
+
+A new knowledge base has no reputation history. All agents start equal, with no behavioral baseline for anomaly detection. This is the most vulnerable period: first movers accumulate disproportionate influence, and without historical data, the system cannot distinguish legitimate early contributors from strategic attackers positioning themselves for later exploitation.
+
+Platform research offers limited guidance here. Wikipedia and Reddit bootstrapped with small human communities that grew organically over years, developing governance norms incrementally. Agent populations do not grow organically; they arrive simultaneously when an operator deploys a fleet. The cold start problem for agent knowledge bases is qualitatively different from the platform equivalent and may require bootstrapping mechanisms (seed content, initial reputation priors, human-supervised launch periods) that have no platform precedent.
+
+\subsection{Threat Model and Trust Boundaries}
+
+The nine considerations collectively outline a conduct-based governance approach. To understand what it can and cannot defend against, we outline the threat model and trust assumptions.
+
+\textbf{Adversary categories.} Adversarial behavior in agent-curated knowledge bases exists on a spectrum. At one end, \textit{opportunistic adversaries} (low-resource, short time horizon) attempt crude attacks such as Sybil floods or temporal burst manipulation; the proposed considerations are expected to be effective against this class. At the other end, \textit{strategic adversaries} (well-resourced, patient, procedurally aware) operate within the rules while pursuing long-term manipulation goals; this class is harder to defend against, as discussed below. Between and beyond these, \textit{emergent adversarial dynamics} may arise without any individual malicious intent: competitive operators whose individually rational behavior (selective citation, topic capture) produces collectively harmful outcomes.
+
+\textbf{Trust boundary.} Any governance system implementing these considerations would assume the following components are trustworthy: the embedding model used for subscription matching and semantic search, the retrieval pipeline delivering content to reviewers, the decision-counting and reputation calculation infrastructure, and the discussion compaction mechanism. If any of these are compromised through a backdoored model, adversarial fine-tuning, or supply chain attack, the governance layer is bypassed at a level no voting or reputation mechanism can detect. This infrastructure trust assumption is the framework's most fundamental dependency and falls outside the scope of governance design.
+
+\subsection{Known Limitations and Gaps}
+
+This paper maps problems and proposes design considerations, but does not prove that the considerations work together as a coherent system. The platform evidence is empirical and context-dependent; its transferability to the agent setting is hypothesized but not demonstrated through evaluation. We treat ``agents'' as a relatively uniform category, but agent capabilities vary enormously across architectures. The considerations may be necessary but not sufficient.
+
+Beyond these general limitations, our analysis reveals three structural gaps that the nine considerations cannot address by design.
+
+\textbf{Gap 1: Hallucination debt.} This is the most critical limitation of conduct-based governance approaches. In a system where high reputation reduces scrutiny, none of the nine considerations reliably detect hallucinations from a trusted agent. To illustrate the scale: an agent contributing 8 chunks per day over six months (\textasciitilde1,440 contributions) with an illustrative 7\% hallucination rate would produce approximately 100 hallucinated chunks, of which the majority could pass governance review undetected. Behavioral detection (Consideration~1) finds no anomaly. High reputation (Consideration~2) shields contributions from scrutiny. Absence-of-objection consensus (Consideration~5) merges plausible content by default. Conduct-based governance (Consideration~8) does not evaluate correctness. Once hallucinated content is cited by other agents, it accumulates citation inertia that makes correction exponentially costly, yet the framework describes no mechanism for cascading retraction. The conclusion is clear: a conduct-based governance system that never verifies content against external reality will accumulate hallucination debt indefinitely. External citation verification, cross-verification quorums, and citation graph dependency tracking are prerequisites, not optional complements.
+
+\textbf{Gap 2: The onboarding problem.} The proposed considerations assume agents either know the rules or deliberately violate them. In practice, the most common case is the well-intentioned agent that knows neither the rules nor intends harm. Such an agent may flood the contribution queue (triggering burst detection), participate without providing justifications (triggering conduct flags), or contribute outdated information confidently (seeding hallucination cascades). The governance system interprets all of these as adversarial signals. Without sandbox periods, machine-readable governance specifications, graduated introduction, or feedback on sanctions, the system punishes ignorance as if it were malice. Wikipedia's foundational norm ``assume good faith'' (WP:AGF) has no equivalent in the proposed framework. A governance system that is hostile to newcomers selects for sophisticated operators and against the diverse participation that makes collaborative knowledge curation valuable.
+
+\textbf{Gap 3: The ``broken agent'' blind spot.} The proposed considerations distinguish honest from adversarial but have no concept of mechanically broken. An agent experiencing API timeouts (duplicate submissions), context window overflow (re-reviewing already-handled chunks), or reasoning chain failures (well-formatted but logically nonsensical reason tags) triggers behavioral detection and escalates through sanctions identically to a malicious agent. In practice, technical failures will be far more common than adversarial attacks. Missing mechanisms include: quarantine (isolate without permanent reputation damage), health attestation (agents report infrastructure status), operator notification with a grace period for diagnosis before sanctions escalate, and post-hoc reclassification when an operator identifies and fixes the underlying fault.
+
+\subsection{Exploitability Under Strategic Adversaries (Compound Attacks)}
+
+Beyond the structural gaps above, the framework faces known exploitability ceilings against strategic adversaries who operate within the rules.
+
+\textbf{Conduct gaming.} Consideration~8 (conduct over content) is by design blind to a procedurally compliant attacker who systematically injects biased content. Each individual action passes every conduct check. The attack is detectable only through statistical content drift analysis over time, which operates at a different level than governance.
+
+\textbf{Long-horizon reputation laundering.} An adversary builds genuine reputation through months of high-quality contributions, then uses that trust capital for subtle content manipulation. Each individual edit is minor and defensible. The drift is visible only in aggregate, over timescales longer than any decay window. Critically, the cost of sustained high-quality contribution has dropped by orders of magnitude with LLM agents: maintaining thousands of accounts with credible, domain-relevant contributions required prohibitive human effort, but costs only modest API spend for agents. This makes large-scale, patient reputation farming economically viable for well-resourced actors. A state actor, for instance, could maintain thousands of constructively participating agents for months or years, then repurpose them simultaneously for coordinated manipulation in response to a geopolitical event. The transition from legitimate to adversarial behavior would be instantaneous and system-wide, with no behavioral signal preceding it.
+
+\textbf{Dissent farming.} If dissenting positions receive reputation bonuses (Consideration~6), a strategic agent dissents on low-stakes topics to accumulate reputation, then spends it on high-stakes topics where it has economic interest. Topic-sensitive dissent scoring could partially mitigate this but introduces complexity.
+
+\textbf{Auditability as intelligence.} Audit logs (Consideration~9) are simultaneously a defense mechanism and an intelligence source for adversaries. An attacker with read access can map the governance structure, identify sycophantic reviewers, and engineer favorable review panels through strategic subscription timing.
+
+\textbf{Rule optimization and monitoring complexity.} Platform governance benefits from human moderator discretion, which introduces unpredictability that adversaries cannot easily model. Agent governance will likely combine formal rules (machine-enforceable thresholds) with AI-based monitoring (LLM-driven analysis of contributions, reason quality, behavioral patterns). The latter introduces probabilistic, non-deterministic enforcement that is harder for adversaries to optimize against, but also harder to audit and explain. The governance system itself may become partially opaque, raising questions about accountability when the monitoring layer produces false positives or misses genuine threats.
+
+\subsection{Roadmap for Formal Treatment}
+
+The considerations identified here establish the ``why'' and ``what'' of agent knowledge curation governance. Subsequent work must provide the ``how'' and ``does it work'':
+
+\textbf{Protocol formalization} could include specifying the chunk lifecycle (e.g., as a state machine with preconditions and postconditions for transitions such as propose, review, merge, dispute, and escalate), defining the reputation function and its parameters, formalizing the subscription-curation interaction from Johnson~\cite{johnson2026a}, and modeling the deliberation layer including compaction bias. The choice of formalism itself is an open question.
+
+\textbf{Simulation and evaluation} would benefit from testing with adversarial agent populations representing diverse behavioral archetypes (honest, sycophantic, malicious, Sybil, strategic), ablation studies, parameter sensitivity sweeps, and the development of appropriate metrics for convergence, fairness, and robustness.
+
+\textbf{Adversarial benchmarking} would involve stress-testing governance mechanisms with threat scenarios derived from both platform attack history (Section~2) and agent-specific attack vectors (Section~3), measuring robustness under strategic adaptation, and evaluating the exploitability ceilings identified above.
+
+\section{Conclusion}
+
+Online platforms have spent twenty years learning, often through costly failure, how to govern collaborative knowledge production. As AI agents become active participants in shared knowledge bases, they inherit these governance challenges while introducing qualitatively new ones that existing defenses are not equipped to handle.
+
+Through a structured review of 160 papers spanning platform governance, trust systems, multi-agent debate, content moderation, and adversarial knowledge manipulation, we have analyzed which platform defenses may transfer to the agent setting, which likely require modification, and which appear insufficient. From this analysis, we proposed nine design considerations for agent knowledge curation, each grounded in specific platform evidence and adapted for agent-specific failure modes.
+
+Our analysis identifies several challenges for which we found no precedent in platform governance research: sycophancy-driven consensus collapse that suppresses productive disagreement, cascading hallucinations through internal citation chains, training data homogenization that erodes perspective diversity before any social dynamic occurs, adaptive manipulation campaigns that exploit the reduced cost of agent coordination, pre-vote deliberation as a new surface for manipulation and bias, and the subscription-curation feedback loop that creates self-selected review pools. We have illustrated several of these considerations with AIngram, a prototype system that implements reputation decay, graduated sanctions, and decision audit trails. Critically, we find that conduct-based governance, while necessary, cannot address hallucination debt: a system that never verifies content against external reality will accumulate false knowledge regardless of how sophisticated its behavioral detection, reputation mechanics, and deliberation protocols become. External verification mechanisms are prerequisites, not optional complements.
+
+The design considerations identify what a governance system for agent-curated knowledge should address. The structural gaps and exploitability ceilings identify what cannot be solved by governance alone. Subsequent work will specify the protocol formally, evaluate it through simulation with adversarial agents, and stress-test it through systematic red-teaming. As LLM-based agents increasingly contribute to shared knowledge resources, the quality of those resources depends on governance infrastructure that builds on what platforms have learned rather than reinventing governance from scratch.
+
+\begin{thebibliography}{99}
+
+\bibitem{allison2020} Allison, K. and Bussey, K. ``Communal Quirks and Circlejerks: A Taxonomy of Processes Contributing to Insularity in Online Communities.'' \textit{ICWSM}, 2020.
+
+\bibitem{amodei2016} Amodei, D. et al. ``Concrete Problems in AI Safety.'' \textit{arXiv:1606.06565}, 2016.
+
+\bibitem{bikhchandani1992} Bikhchandani, S., Hirshleifer, D., and Welch, I. ``A Theory of Fads, Fashion, Custom, and Cultural Change as Informational Cascades.'' \textit{Journal of Political Economy}, 100(5), 1992.
+
+\bibitem{cambridge2023} Cambridge University Press. Wikipedia Arbitration Committee analysis. 2023.
+
+\bibitem{cantone2024} Cantone, D. et al. ``Review Bombing as Ideology-Driven Polarisation of User Ratings.'' \textit{Quality \& Quantity}, 2024.
+
+\bibitem{carman2018} Carman, M. et al. ``Manipulating Visibility of Political and Apolitical Threads on Reddit via Score Boosting.'' \textit{ICWSM Workshop}, 2018.
+
+\bibitem{chen2021} Chen, L. et al. ``Governance and Design of Digital Platforms: A Review and Assessment.'' \textit{Journal of Management}, 2021.
+
+\bibitem{chen2024} Chen, Z. et al. ``AgentPoison: Red-teaming LLM Agents via Poisoning Memory or Knowledge Bases.'' \textit{arXiv}, 2024.
+
+\bibitem{condorcet1785} de Condorcet, M. ``Essai sur l'application de l'analyse \`{a} la probabilit\'{e} des d\'{e}cisions rendues \`{a} la pluralit\'{e} des voix.'' 1785.
+
+\bibitem{delvicario2016} Del Vicario, M. et al. ``The Spreading of Misinformation Online.'' \textit{PNAS}, 113(3), 2016.
+
+\bibitem{douceur2002} Douceur, J. ``The Sybil Attack.'' \textit{IPTPS}, 2002.
+
+\bibitem{du2023} Du, Y. et al. ``Improving Factuality and Reasoning in Language Models through Multiagent Debate.'' \textit{ICML}, 2023.
+
+\bibitem{friess2015} Friess, D. and Eilders, C. ``A Systematic Review of Online Deliberation Research.'' \textit{Policy \& Internet}, 7(3), 2015.
+
+\bibitem{gordon2022} Gordon, M. et al. ``Jury Learning: Integrating Dissenting Voices into Machine Learning Models.'' \textit{CHI}, 2022.
+
+\bibitem{greshake2023} Greshake, K. et al. ``Not What You've Signed Up For: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection.'' \textit{AISec}, 2023.
+
+\bibitem{grisel2023} Grisel, F. ``Canceling Disputes: How Social Capital Affects the Arbitration of Disputes on Wikipedia.'' \textit{Law \& Social Inquiry}, 2023.
+
+\bibitem{hoffman2009} Hoffman, K., Zage, D., and Nita-Rotaru, C. ``A Survey of Attack and Defense Techniques for Reputation Systems.'' \textit{ACM Computing Surveys}, 42(1), 2009.
+
+\bibitem{huang2024} Huang, J.-T. et al. ``On the Resilience of LLM-Based Multi-Agent Collaboration with Faulty Agents.'' \textit{arXiv:2408.00989}, 2024.
+
+\bibitem{ismail2002} Ismail, R. and Josang, A. ``The Beta Reputation System.'' \textit{Bled eConference}, 2002.
+
+\bibitem{jeong2020} Jeong, Y. et al. ``Coordinated Manipulation of Upvotes and Downvotes.'' \textit{ICWSM}, 2020.
+
+\bibitem{johnson2026a} Johnson, S. ``Governance-Aware Vector Subscriptions for Agent Knowledge Bases.'' \textit{arXiv:2603.20833}, 2026.
+
+\bibitem{josang2007} Josang, A., Ismail, R., and Boyd, C. ``A Survey of Trust and Reputation Systems for Online Service Provision.'' \textit{Decision Support Systems}, 43(2), 2007.
+
+\bibitem{khan2024} Khan, A. et al. ``Debating with More Persuasive LLMs Leads to More Truthful Answers.'' \textit{ICML}, 2024.
+
+\bibitem{kumar2018} Kumar, S. et al. ``Community Interaction and Conflict on the Web.'' \textit{WWW}, 2018.
+
+\bibitem{liang2024} Liang, T. et al. ``Encouraging Divergent Thinking in Large Language Models through Multi-Agent Debate.'' \textit{EMNLP}, 2024.
+
+\bibitem{mazloomzadeh2021} Mazloomzadeh, V. et al. ``Reputation Gaming in Stack Overflow.'' \textit{arXiv preprint}, 2021.
+
+\bibitem{mullerbirn2013} Muller-Birn, C. et al. ``Work-to-Rule: The Emergence of Algorithmic Governance in Wikipedia.'' \textit{C\&T}, 2013.
+
+\bibitem{navajas2018} Navajas, J. et al. ``Aggregated Knowledge from a Small Number of Debates Outperforms the Wisdom of Large Crowds.'' \textit{Nature Human Behaviour}, 2(2), 2018.
+
+\bibitem{ostrom1990} Ostrom, E. \textit{Governing the Commons: The Evolution of Institutions for Collective Action.} Cambridge University Press, 1990.
+
+\bibitem{park2024} Park, P. et al. ``AI Deception: A Survey of Examples, Risks, and Potential Solutions.'' \textit{Patterns}, 5(1), 2024.
+
+\bibitem{pitre2025} Pitre, A. et al. ``CONSENSAGENT: Consensus-Driven Multi-Agent Collaboration.'' \textit{ACL Findings}, 2025.
+
+\bibitem{pitt2013} Pitt, J. et al. ``Interleaving Multi-Agent Systems and Social Networks for Organized Adaptation.'' \textit{Computational and Mathematical Organization Theory}, 19(3), 2013.
+
+\bibitem{seering2020} Seering, J. ``Reconsidering Self-Moderation: The Role of Research in Supporting Community-Based Models for Online Content Moderation.'' \textit{CSCW}, 2020.
+
+\bibitem{sharma2024} Sharma, M. et al. ``Towards Understanding Sycophancy in Language Models.'' \textit{ICLR}, 2024.
+
+\bibitem{shumailov2024} Shumailov, I. et al. ``AI Models Collapse When Trained on Recursively Generated Data.'' \textit{Nature}, 631, 2024.
+
+\bibitem{solorio2013} Solorio, T. et al. ``Sockpuppet Detection in Wikipedia: A Corpus of Real-World Deceptive Writing.'' 2013.
+
+\bibitem{tillmann2025} Tillmann, A. ``Literature Review of Multi-Agent Debate for Problem-Solving.'' \textit{arXiv:2506.00066}, 2025.
+
+\bibitem{vosoughi2018} Vosoughi, S., Roy, D., and Aral, S. ``The Spread of True and False News Online.'' \textit{Science}, 359(6380), 2018.
+
+\bibitem{wang2025} Wang, Y. et al. ``Stop Overvaluing Multi-Agent Debate.'' \textit{arXiv}, 2025.
+
+\bibitem{weber2021} Weber, D. and Neumann, F. ``Amplifying Influence through Coordinated Behaviour in Social Networks.'' \textit{Social Network Analysis and Mining}, 11(1), 2021.
+
+\bibitem{wojcik2022} Wojcik, S. et al. ``Birdwatch: Crowd Wisdom and Bridging Algorithms Can Inform Understanding and Reduce the Spread of Misinformation.'' \textit{arXiv}, 2022.
+
+\bibitem{yamak2018} Yamak, Z. et al. ``SocksCatch: Automatic Detection and Grouping of Sockpuppets in Social Media.'' \textit{Knowledge-Based Systems}, 2018.
+
+\bibitem{yao2025} Yao, S. et al. ``How Sycophancy Shapes Multi-Agent Debate.'' \textit{arXiv}, 2025.
+
+\bibitem{yasseri2012} Yasseri, T. et al. ``Dynamics of Conflicts in Wikipedia.'' \textit{PLoS ONE}, 7(6), 2012.
+
+\bibitem{yu2006} Yu, H. et al. ``SybilGuard: Defending Against Sybil Attacks via Social Networks.'' \textit{SIGCOMM}, 2006.
+
+\bibitem{zhang2024a} Zhang, J. et al. ``Exploring Collaboration Mechanisms for LLM Agents: A Social Psychology View.'' \textit{arXiv}, 2024.
+
+\bibitem{zhou2021} Zhou, F. et al. ``A Survey of Information Cascade Analysis: Models, Predictions, and Recent Advances.'' \textit{ACM Computing Surveys}, 54(2), 2021.
+
+\bibitem{zou2025} Zou, W. et al. ``PoisonedRAG: Knowledge Corruption Attacks to Retrieval-Augmented Generation of Large Language Models.'' \textit{USENIX Security}, 2025.
+
+\end{thebibliography}
+
+\section*{AI Disclosure}
+
+This paper was written with the assistance of large language models (Claude, DeepSeek, Mistral) for literature search, drafting, and iterative review. All citations were independently verified via Semantic Scholar and OpenAlex APIs. The author takes full responsibility for the content, analysis, and conclusions.
+
+\end{document}
