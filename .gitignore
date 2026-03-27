@@ -1,5 +1,6 @@
 # Private — all internal/strategy/paper work
 private/
+RULES.md
 
 # Build internals (workstreams, reviews)
 build/workstreams/

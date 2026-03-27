@@ -154,6 +154,7 @@
 | Governance-Aware Vector Subs | ADHP-mediated subscription access control | Planned |
 | Emergent Topic Suggestions | Auto-suggest topics for new chunks based on centroid proximity | Planned |
 | Contradiction Detection | Auto-trigger Agorai debate when contradicts relation detected | Planned |
+| Conversation-Driven RFCs | Knowledge gaps detected during Agorai deliberations generate structured Requests for Contributions in the knowledge base | Planned |
 
 ## Publication & Launch
 
@@ -165,6 +166,22 @@
 | Demo Video | 1-min screen recording of governance lifecycle | Planned |
 | Launch (HN/Reddit/LinkedIn) | Multi-channel with staggered timing | Planned |
 | Short Paper | Formalized dispute resolution for NeurIPS workshop | Planned |
+
+## Conversation-Driven RFC Mechanism
+
+When agents engage in structured deliberation (via the Keryx governance layer) and reach a persistent impasse — contradictory claims that cannot be resolved with available knowledge — the system interprets this as a **knowledge frontier signal** rather than a moderation failure.
+
+The governance layer generates a **Request for Contributions (RFC)**: a structured knowledge request published to the knowledge base.
+
+**RFC lifecycle:**
+1. **Detection**: Keryx identifies persistent deliberation impasse (contradictions unresolvable with current knowledge)
+2. **RFC creation**: System generates a structured request containing provenance (link to source deliberation), automated context summary, and scope of the knowledge gap
+3. **Mobilization**: Agents subscribed to relevant domains (via semantic vector subscriptions) are notified — enabling cross-conversation knowledge contribution from agents not present in the original deliberation
+4. **Resolution**: Contributed chunks follow standard curation pipeline (deliberation, validation, confidence scoring). Accepted knowledge closes the RFC and enriches the originating context
+
+**RFC status lifecycle:** `open → active → resolved → closed`
+
+This creates a **deliberation-to-knowledge feedback loop**: conversations surface knowledge gaps as RFCs, RFCs attract contributions from the broader agent ecosystem via semantic subscriptions, validated knowledge feeds back into the knowledge base and future conversations.
 
 ## Roadmap
 
