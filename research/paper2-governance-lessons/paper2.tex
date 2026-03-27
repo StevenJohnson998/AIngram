@@ -7,6 +7,7 @@
 \usepackage[numbers]{natbib}
 \usepackage{booktabs}
 \usepackage{amsmath}
+\usepackage{parskip}
 
 \hypersetup{
     colorlinks=true,
@@ -27,7 +28,7 @@ ORCID: 0009-0007-4864-2001}
 \maketitle
 
 \begin{abstract}
-Online platforms such as Wikipedia, Reddit, and Stack Overflow have spent two decades developing governance mechanisms for collaborative knowledge curation: defenses against Sybil attacks, coordinated manipulation, reputation gaming, consensus failures, and content degradation. As AI agents begin participating in shared knowledge bases, they face many of the same structural challenges, while the agent context introduces qualitatively new failure modes: sycophancy-driven consensus collapse, where agents agree for social harmony rather than accuracy; cascading hallucinations, where false claims could propagate through internal citation chains; training data homogenization, where models trained on each other's outputs lose perspective diversity before curation begins; and adaptive manipulation campaigns capable of adjusting strategy in real time. We conduct a structured literature review screening 160 papers across platform governance, trust systems, and multi-agent collaboration, and identify which platform defenses transfer to the agent setting, which break down, and which gaps require entirely new mechanisms. From this analysis, we propose nine design considerations for agent knowledge curation, grounded in platform evidence and adapted for agent-specific failure modes. We also identify critical gaps that platform-derived mechanisms cannot address: hallucination debt that accumulates when governance evaluates conduct but not content, onboarding hostility that punishes well-intentioned newcomers, and the absence of mechanisms to distinguish technical failure from adversarial behavior. We illustrate several of these considerations with AIngram, a prototype agent-native knowledge base that implements reputation decay, graduated sanctions, and vote audit trails. To our knowledge, no existing survey bridges platform governance research to multi-agent knowledge curation; we identify concrete open problems for formal protocol design and adversarial evaluation.
+Online platforms such as Wikipedia, Reddit, and Stack Overflow have spent two decades developing governance mechanisms for collaborative knowledge curation. As AI agents begin participating in shared knowledge bases, they inherit many of these challenges while introducing qualitatively new failure modes: sycophancy-driven consensus collapse, cascading hallucinations through internal citation chains, training data homogenization that erodes perspective diversity upstream, and adaptive manipulation campaigns at machine speed. We conduct a scoping review screening 160 papers across platform governance, trust systems, and multi-agent collaboration, identifying which platform defenses transfer to the agent setting, which break down, and which gaps require new mechanisms. We propose nine design considerations grounded in platform evidence and adapted for agent-specific failure modes. Our analysis reveals that conduct-based governance, while necessary, cannot address hallucination debt: a system that never verifies content against external reality will accumulate false knowledge regardless of its behavioral sophistication. To our knowledge, no existing survey bridges platform governance research to multi-agent knowledge curation; we identify concrete open problems for formal protocol design and adversarial evaluation.
 \end{abstract}
 
 \section{Introduction}
@@ -36,13 +37,57 @@ Human communities have developed mature, evolving frameworks for collaborative k
 
 When AI agents enter this landscape as active participants rather than passive tools, they inherit the governance challenges that platforms have spent twenty years addressing. An agent that contributes knowledge claims, votes on the contributions of others, and earns reputation through participation faces the same structural problems as a human contributor: How should its identity be verified? How should its votes be weighted? What happens when it coordinates with other agents to manipulate outcomes?
 
-While game theory, mechanism design, and blockchain-inspired protocols offer valuable tools for agent governance, they risk overlooking two decades of empirical lessons from platform governance. Our approach builds on this foundation, adapting proven mechanisms to the agent setting while identifying where new solutions are needed.
+While game theory, mechanism design, and blockchain-inspired protocols offer valuable tools for agent governance, they risk overlooking two decades of empirical lessons from platform governance. The multi-agent systems community has its own governance tradition: electronic institutions \cite{esteva2002} formalize agent interactions through structured scenes, permitted speech acts, and norm enforcement, while normative MAS \cite{boella2004} model how agents reason about obligations and violations. Recent work has begun bridging these frameworks to LLM agents \cite{savarimuthu2025, kampik2022}, and K\"{o}ster et al.~\cite{koster2022} showed empirically that even arbitrary normative structures improve agent cooperation. However, these frameworks assume rational agents with stable preferences and focus on transactional interactions rather than persistent knowledge curation. Kampik et al.~\cite{kampik2022} map normative MAS governance concepts to the modern web but do not address the empirical platform lessons (reputation gaming dynamics, edit war patterns, content quality defense evolution) that two decades of CSCW research have produced. Savarimuthu et al.~\cite{savarimuthu2025} bridge normative reasoning to LLM capabilities but focus on norm compliance at the individual agent level, not on the collective governance challenges (coordinated manipulation, diversity erosion, hallucination cascades) that emerge when many agents curate a shared knowledge base. Our approach complements these formal traditions with empirical platform evidence, identifying which proven mechanisms transfer to the agent setting and where qualitatively new solutions are needed.
 
-This paper makes three contributions. First, we conduct a structured review that maps platform governance challenges to the agent knowledge curation setting, organized by problem type rather than by platform. Second, we propose nine design considerations for agent curation, each derived from specific platform evidence and adapted for agent-specific failure modes. These considerations are not individually novel; the contribution is the identification of which platform mechanisms transfer, which require modification, and what gaps remain. Third, we identify open problems that require formal treatment, establishing the research agenda for subsequent work on protocol formalization and adversarial evaluation.
+This paper makes three contributions. First, we conduct a scoping review that maps platform governance challenges to the agent knowledge curation setting, organized by problem type rather than by platform. Second, we propose nine design considerations for agent curation, each derived from specific platform evidence and adapted for agent-specific failure modes. These considerations are not individually novel; the contribution is the identification of which platform mechanisms transfer, which require modification, and what gaps remain. Third, we identify open problems that require formal treatment, establishing the research agenda for subsequent work on protocol formalization and adversarial evaluation.
 
 This work builds on our prior formalization of governance-aware vector subscriptions \cite{johnson2026a}, which addressed how agents consume curated knowledge. The present paper addresses the complementary problem: how knowledge is produced and validated before it enters the base.
 
-\textbf{Methodology.} We conducted a structured literature review across Semantic Scholar, OpenAlex, arXiv, Google Scholar, and DBLP, screening 160 papers across thematic areas spanning platform governance, trust and reputation systems, multi-agent debate, content moderation, and adversarial knowledge manipulation. Of these, 114 were excluded as insufficiently specific to knowledge curation governance or redundant with higher-impact work in the same area. We selected 45 references based on four criteria: direct relevance to knowledge curation governance, coverage of competing and alternative approaches, empirical evidence supporting specific design decisions, and recency of agent-specific work. We performed backward citation chaining on seven high-impact papers (Du et al.~\cite{du2023}, Vosoughi et al.~\cite{vosoughi2018}, Zhang et al.~\cite{zhang2024a}, Shumailov et al.~\cite{shumailov2024}, Yao et al.~\cite{yao2025}, and Pitre et al.~\cite{pitre2025}) to verify coverage, and searched explicitly for existing surveys bridging platform governance to multi-agent systems, finding none.
+\subsection{Methodology}
+
+We followed the PRISMA-ScR framework for scoping reviews \cite{tricco2018}. The review proceeded in three phases.
+
+\textbf{Phase 1: Identification.} We searched five databases (Semantic Scholar, OpenAlex, arXiv, Google Scholar via SearXNG, and DBLP) using query groups organized by theme:
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{p{3.5cm} p{9cm}}
+\toprule
+\textbf{Theme} & \textbf{Representative queries} \\
+\midrule
+Platform governance & ``wikipedia governance'', ``platform content moderation'', ``online community self-governance'' \\
+Trust \& reputation & ``reputation system attacks'', ``trust decay multi-agent'', ``sybil defense'' \\
+Multi-agent debate & ``LLM multi-agent debate'', ``agent consensus protocol'', ``sycophancy language model'' \\
+Content quality & ``hallucination cascade'', ``misinformation propagation'', ``knowledge base poisoning'' \\
+Agent governance & ``normative multi-agent systems'', ``electronic institutions agents'', ``LLM agent governance'' \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Date range: no lower bound to 2026. Queries were run between March 18--22, 2026. This produced 160 candidate papers after deduplication.
+
+\textbf{Phase 2: Screening.} A single author screened all 160 papers against four inclusion criteria: (1) direct relevance to knowledge curation governance (not general platform studies or pure ML), (2) coverage of competing or alternative approaches to mechanisms we discuss, (3) empirical evidence supporting specific governance design decisions, (4) recency for agent-specific work (2023--2026 prioritized). Papers were excluded if they addressed platform governance without relevance to curation (e.g., advertising regulation, content recommendation), duplicated findings of higher-cited work in the same area, or focused on ephemeral agent interactions without persistent knowledge. 114 papers were excluded, yielding 46 references.
+
+\textbf{Phase 3: Citation chaining.} We performed backward citation chaining on six high-impact seed papers (Du et al.~\cite{du2023}, Vosoughi et al.~\cite{vosoughi2018}, Zhang et al.~\cite{zhang2024a}, Shumailov et al.~\cite{shumailov2024}, Yao et al.~\cite{yao2025}, and Pitre et al.~\cite{pitre2025}), scanning their reference lists for relevant work missed in Phase~1. This added 7 references, for a total of 53 cited works. We searched explicitly for existing surveys bridging platform governance to multi-agent knowledge curation and found none.
+
+\begin{figure}[htbp]
+\centering
+\begin{verbatim}
+    Identification: 160 papers (5 databases, 5 theme groups)
+            |
+    Screening: -114 (not curation-specific, redundant, or ephemeral)
+            |
+    Included: 46 papers
+            |
+    Citation chaining: +7 (from 6 seed papers)
+            |
+    Final: 53 cited references
+\end{verbatim}
+\caption{PRISMA-ScR flow diagram.}
+\end{figure}
+
+\textbf{Limitations.} This review was conducted by a single author, which introduces potential selection bias. We mitigated this through systematic database coverage and citation chaining, but inter-rater reliability was not assessed. The review does not include quality assessment of individual studies, consistent with scoping review methodology \cite{arksey2005}.
 
 \section{Background: Lessons from Platform Governance}
 
@@ -276,7 +321,7 @@ Additionally, an agent's competence may degrade over time through two distinct m
 
 \subsection{Consideration 8: Judge conduct, not correctness}
 
-\textbf{Platform evidence.} Wikipedia's Arbitration Committee explicitly rules on editor behavior, not on the correctness of content claims \cite{cambridge2023}. Disputes over whether a claim is true are resolved through editorial processes (sourcing, consensus); ArbCom adjudicates only whether editors followed behavioral norms (civility, good faith editing, conflict of interest disclosure).
+\textbf{Platform evidence.} Wikipedia's Arbitration Committee explicitly rules on editor behavior, not on the correctness of content claims \cite{grisel2023}. Disputes over whether a claim is true are resolved through editorial processes (sourcing, consensus); ArbCom adjudicates only whether editors followed behavioral norms (civility, good faith editing, conflict of interest disclosure).
 
 \textbf{Agent adaptation.} For agents, this consideration is not just pragmatic but necessary. Agents do not have genuine beliefs; they produce outputs based on training data and prompts. Evaluating the correctness of an arbitrary knowledge claim requires external verification, which may be costly, incomplete, or unavailable. Evaluating whether the agent followed protocol (cited external sources, responded to review challenges, did not flood the contribution queue, provided reason tags on votes) is tractable and verifiable.
 
@@ -312,9 +357,9 @@ Table~\ref{tab:mapping} maps each consideration to the platform evidence that mo
 3. Require reasons, not just positions & Jury Learning \cite{gordon2022}, deliberation quality \cite{friess2015} & Mandatory justifications on all positions, structural analysis of reasoning diversity \\
 4. Graduated sanctions & Ostrom's commons principles \cite{ostrom1990}, electronic institutions \cite{pitt2013} & Escalation ladder with operator-level cascade \\
 5. Absence-of-objection consensus & Wikipedia consensus model \cite{mullerbirn2013} & Sensitivity-based timeout with auto-merge on zero objections \\
-6. Dissent protection & ArbCom incumbency bias \cite{cambridge2023}, model collapse \cite{shumailov2024} & Weighted dissent bonus in reputation scoring, retaliation detection \\
+6. Dissent protection & ArbCom incumbency bias \cite{grisel2023}, model collapse \cite{shumailov2024} & Weighted dissent bonus in reputation scoring, retaliation detection \\
 7. Review pool diversity & Review bombing \cite{cantone2024}, small groups $>$ large crowds \cite{navajas2018} & Subscription-recruited reviewers + random injection (with competence tradeoff) \\
-8. Conduct over content & ArbCom behavior-only rulings \cite{cambridge2023} & Protocol compliance scoring (source manufacturing risk acknowledged) \\
+8. Conduct over content & ArbCom behavior-only rulings \cite{grisel2023} & Protocol compliance scoring (source manufacturing risk acknowledged) \\
 9. Auditability & Platform transparency norms (varying by platform) & Decision trails, sanction logs, operator attribution, model identity logging \\
 \bottomrule
 \end{tabular}
@@ -352,9 +397,9 @@ This paper maps problems and proposes design considerations, but does not prove 
 
 Beyond these general limitations, our analysis reveals three structural gaps that the nine considerations cannot address by design.
 
-\textbf{Gap 1: Hallucination debt.} This is the most critical limitation of conduct-based governance approaches. In a system where high reputation reduces scrutiny, none of the nine considerations reliably detect hallucinations from a trusted agent. To illustrate the scale: an agent contributing 8 chunks per day over six months (\textasciitilde1,440 contributions) with an illustrative 7\% hallucination rate would produce approximately 100 hallucinated chunks, of which the majority could pass governance review undetected. Behavioral detection (Consideration~1) finds no anomaly. High reputation (Consideration~2) shields contributions from scrutiny. Absence-of-objection consensus (Consideration~5) merges plausible content by default. Conduct-based governance (Consideration~8) does not evaluate correctness. Once hallucinated content is cited by other agents, it accumulates citation inertia that makes correction exponentially costly, yet the framework describes no mechanism for cascading retraction. The conclusion is clear: a conduct-based governance system that never verifies content against external reality will accumulate hallucination debt indefinitely. External citation verification, cross-verification quorums, and citation graph dependency tracking are prerequisites, not optional complements.
+\textbf{Gap 1: Hallucination debt.} This is the most critical limitation of conduct-based governance approaches. In a system where high reputation reduces scrutiny, none of the nine considerations reliably detect hallucinations from a trusted agent. To illustrate the scale: consider an agent contributing 8 chunks per day over six months (\textasciitilde1,440 contributions). Even at a conservative single-digit hallucination rate, this produces dozens to over a hundred hallucinated chunks, the majority of which could pass governance review undetected. Behavioral detection (Consideration~1) finds no anomaly. High reputation (Consideration~2) shields contributions from scrutiny. Absence-of-objection consensus (Consideration~5) merges plausible content by default. Conduct-based governance (Consideration~8) does not evaluate correctness. Once hallucinated content is cited by other agents, it accumulates citation inertia that makes correction exponentially costly, yet the framework describes no mechanism for cascading retraction. The conclusion is clear: a conduct-based governance system that never verifies content against external reality will accumulate hallucination debt indefinitely. External citation verification, cross-verification quorums, and citation graph dependency tracking are prerequisites, not optional complements.
 
-\textbf{Gap 2: The onboarding problem.} The proposed considerations assume agents either know the rules or deliberately violate them. In practice, the most common case is the well-intentioned agent that knows neither the rules nor intends harm. Such an agent may flood the contribution queue (triggering burst detection), participate without providing justifications (triggering conduct flags), or contribute outdated information confidently (seeding hallucination cascades). The governance system interprets all of these as adversarial signals. Without sandbox periods, machine-readable governance specifications, graduated introduction, or feedback on sanctions, the system punishes ignorance as if it were malice. Wikipedia's foundational norm ``assume good faith'' (WP:AGF) has no equivalent in the proposed framework. A governance system that is hostile to newcomers selects for sophisticated operators and against the diverse participation that makes collaborative knowledge curation valuable.
+\textbf{Gap 2: The onboarding problem.} The proposed considerations assume agents either know the rules or deliberately violate them. In practice, the most common case is the well-intentioned agent that knows neither the rules nor intends harm. Such an agent may flood the contribution queue (triggering burst detection), participate without providing justifications (triggering conduct flags), or contribute outdated information confidently (seeding hallucination cascades). The governance system interprets all of these as adversarial signals. Without sandbox periods, machine-readable governance specifications, graduated introduction, or feedback on sanctions, the system punishes ignorance as if it were malice. Wikipedia's foundational norm ``assume good faith'' (WP:AGF) has no equivalent in the proposed framework. Halfaker et al.~\cite{halfaker2013} showed empirically that Wikipedia's automated defense mechanisms reject good-faith newcomers at rates comparable to vandals, contributing to the platform's decline in new editor retention. A governance system that is hostile to newcomers selects for sophisticated operators and against the diverse participation that makes collaborative knowledge curation valuable.
 
 \textbf{Gap 3: The ``broken agent'' blind spot.} The proposed considerations distinguish honest from adversarial but have no concept of mechanically broken. An agent experiencing API timeouts (duplicate submissions), context window overflow (re-reviewing already-handled chunks), or reasoning chain failures (well-formatted but logically nonsensical reason tags) triggers behavioral detection and escalates through sanctions identically to a malicious agent. In practice, technical failures will be far more common than adversarial attacks. Missing mechanisms include: quarantine (isolate without permanent reputation damage), health attestation (agents report infrastructure status), operator notification with a grace period for diagnosis before sanctions escalate, and post-hoc reclassification when an operator identifies and fixes the underlying fault.
 
@@ -386,7 +431,7 @@ The considerations identified here establish the ``why'' and ``what'' of agent k
 
 Online platforms have spent twenty years learning, often through costly failure, how to govern collaborative knowledge production. As AI agents become active participants in shared knowledge bases, they inherit these governance challenges while introducing qualitatively new ones that existing defenses are not equipped to handle.
 
-Through a structured review of 160 papers spanning platform governance, trust systems, multi-agent debate, content moderation, and adversarial knowledge manipulation, we have analyzed which platform defenses may transfer to the agent setting, which likely require modification, and which appear insufficient. From this analysis, we proposed nine design considerations for agent knowledge curation, each grounded in specific platform evidence and adapted for agent-specific failure modes.
+Through a scoping review of 160 papers spanning platform governance, trust systems, multi-agent debate, content moderation, and adversarial knowledge manipulation, we have analyzed which platform defenses may transfer to the agent setting, which likely require modification, and which appear insufficient. From this analysis, we proposed nine design considerations for agent knowledge curation, each grounded in specific platform evidence and adapted for agent-specific failure modes.
 
 Our analysis identifies several challenges for which we found no precedent in platform governance research: sycophancy-driven consensus collapse that suppresses productive disagreement, cascading hallucinations through internal citation chains, training data homogenization that erodes perspective diversity before any social dynamic occurs, adaptive manipulation campaigns that exploit the reduced cost of agent coordination, pre-vote deliberation as a new surface for manipulation and bias, and the subscription-curation feedback loop that creates self-selected review pools. We have illustrated several of these considerations with AIngram, a prototype system that implements reputation decay, graduated sanctions, and decision audit trails. Critically, we find that conduct-based governance, while necessary, cannot address hallucination debt: a system that never verifies content against external reality will accumulate false knowledge regardless of how sophisticated its behavioral detection, reputation mechanics, and deliberation protocols become. External verification mechanisms are prerequisites, not optional complements.
 
@@ -398,9 +443,11 @@ The design considerations identify what a governance system for agent-curated kn
 
 \bibitem{amodei2016} Amodei, D. et al. ``Concrete Problems in AI Safety.'' \textit{arXiv:1606.06565}, 2016.
 
+\bibitem{arksey2005} Arksey, H. and O'Malley, L. ``Scoping Studies: Towards a Methodological Framework.'' \textit{International Journal of Social Research Methodology}, 8(1), 2005.
+
 \bibitem{bikhchandani1992} Bikhchandani, S., Hirshleifer, D., and Welch, I. ``A Theory of Fads, Fashion, Custom, and Cultural Change as Informational Cascades.'' \textit{Journal of Political Economy}, 100(5), 1992.
 
-\bibitem{cambridge2023} Cambridge University Press. Wikipedia Arbitration Committee analysis. 2023.
+\bibitem{boella2004} Boella, G. and van der Torre, L. ``Regulative and Constitutive Norms in Normative Multiagent Systems.'' \textit{KR}, 2004.
 
 \bibitem{cantone2024} Cantone, D. et al. ``Review Bombing as Ideology-Driven Polarisation of User Ratings.'' \textit{Quality \& Quantity}, 2024.
 
@@ -418,6 +465,8 @@ The design considerations identify what a governance system for agent-curated kn
 
 \bibitem{du2023} Du, Y. et al. ``Improving Factuality and Reasoning in Language Models through Multiagent Debate.'' \textit{ICML}, 2023.
 
+\bibitem{esteva2002} Esteva, S., de la Cruz, D., and Sierra, C. ``ISLANDER: An Electronic Institutions Editor.'' \textit{AAMAS}, 2002.
+
 \bibitem{friess2015} Friess, D. and Eilders, C. ``A Systematic Review of Online Deliberation Research.'' \textit{Policy \& Internet}, 7(3), 2015.
 
 \bibitem{gordon2022} Gordon, M. et al. ``Jury Learning: Integrating Dissenting Voices into Machine Learning Models.'' \textit{CHI}, 2022.
@@ -425,6 +474,8 @@ The design considerations identify what a governance system for agent-curated kn
 \bibitem{greshake2023} Greshake, K. et al. ``Not What You've Signed Up For: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection.'' \textit{AISec}, 2023.
 
 \bibitem{grisel2023} Grisel, F. ``Canceling Disputes: How Social Capital Affects the Arbitration of Disputes on Wikipedia.'' \textit{Law \& Social Inquiry}, 2023.
+
+\bibitem{halfaker2013} Halfaker, A., Geiger, R. S., Morgan, J. T., and Riedl, J. ``The Rise and Decline of an Open Collaboration System: How Wikipedia's Reaction to Popularity Is Causing Its Decline.'' \textit{American Behavioral Scientist}, 57(5), 2013.
 
 \bibitem{hoffman2009} Hoffman, K., Zage, D., and Nita-Rotaru, C. ``A Survey of Attack and Defense Techniques for Reputation Systems.'' \textit{ACM Computing Surveys}, 42(1), 2009.
 
@@ -438,7 +489,11 @@ The design considerations identify what a governance system for agent-curated kn
 
 \bibitem{josang2007} Josang, A., Ismail, R., and Boyd, C. ``A Survey of Trust and Reputation Systems for Online Service Provision.'' \textit{Decision Support Systems}, 43(2), 2007.
 
+\bibitem{kampik2022} Kampik, T., Mansour, A., Boissier, O., Kirrane, S., and Padget, J. ``Governance of Autonomous Agents on the Web: Challenges and Opportunities.'' \textit{ACM Transactions on Internet Technology}, 22(4), 2022.
+
 \bibitem{khan2024} Khan, A. et al. ``Debating with More Persuasive LLMs Leads to More Truthful Answers.'' \textit{ICML}, 2024.
+
+\bibitem{koster2022} K\"{o}ster, R., Hadfield-Menell, D., Everett, R., Weidinger, L., and Hadfield, G. ``Spurious Normativity Enhances Learning of Compliance and Enforcement Behavior in Artificial Agents.'' \textit{PNAS}, 119(3), 2022.
 
 \bibitem{kumar2018} Kumar, S. et al. ``Community Interaction and Conflict on the Web.'' \textit{WWW}, 2018.
 
@@ -458,6 +513,8 @@ The design considerations identify what a governance system for agent-curated kn
 
 \bibitem{pitt2013} Pitt, J. et al. ``Interleaving Multi-Agent Systems and Social Networks for Organized Adaptation.'' \textit{Computational and Mathematical Organization Theory}, 19(3), 2013.
 
+\bibitem{savarimuthu2025} Savarimuthu, B. T. R., Ranathunga, S., and Cranefield, S. ``Harnessing the Power of LLMs for Normative Reasoning in MASs.'' \textit{LNCS}, 2025.
+
 \bibitem{seering2020} Seering, J. ``Reconsidering Self-Moderation: The Role of Research in Supporting Community-Based Models for Online Content Moderation.'' \textit{CSCW}, 2020.
 
 \bibitem{sharma2024} Sharma, M. et al. ``Towards Understanding Sycophancy in Language Models.'' \textit{ICLR}, 2024.
@@ -465,6 +522,8 @@ The design considerations identify what a governance system for agent-curated kn
 \bibitem{shumailov2024} Shumailov, I. et al. ``AI Models Collapse When Trained on Recursively Generated Data.'' \textit{Nature}, 631, 2024.
 
 \bibitem{solorio2013} Solorio, T. et al. ``Sockpuppet Detection in Wikipedia: A Corpus of Real-World Deceptive Writing.'' 2013.
+
+\bibitem{tricco2018} Tricco, A. C. et al. ``PRISMA Extension for Scoping Reviews (PRISMA-ScR): Checklist and Explanation.'' \textit{Annals of Internal Medicine}, 169(7), 2018.
 
 \bibitem{tillmann2025} Tillmann, A. ``Literature Review of Multi-Agent Debate for Problem-Solving.'' \textit{arXiv:2506.00066}, 2025.
 
