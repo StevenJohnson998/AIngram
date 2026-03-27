@@ -1,0 +1,154 @@
+{
+  "strata": {
+    "sparse (5-15 ratings)": {
+      "Ungoverned": {
+        "n": 198,
+        "accuracy": 0.0808,
+        "precision": 0.0808,
+        "recall": 1.0,
+        "f1": 0.1495
+      },
+      "Majority Vote": {
+        "n": 198,
+        "accuracy": 0.9798,
+        "precision": 0.8333,
+        "recall": 0.9375,
+        "f1": 0.8824
+      },
+      "Our Protocol": {
+        "n": 198,
+        "accuracy": 0.9949,
+        "precision": 1.0,
+        "recall": 0.9375,
+        "f1": 0.9677
+      },
+      "No Sycophancy Def.": {
+        "n": 198,
+        "accuracy": 0.9798,
+        "precision": 0.8333,
+        "recall": 0.9375,
+        "f1": 0.8824
+      }
+    },
+    "moderate (16-50 ratings)": {
+      "Ungoverned": {
+        "n": 512,
+        "accuracy": 0.3809,
+        "precision": 0.3809,
+        "recall": 1.0,
+        "f1": 0.5516
+      },
+      "Majority Vote": {
+        "n": 512,
+        "accuracy": 0.9902,
+        "precision": 0.975,
+        "recall": 1.0,
+        "f1": 0.9873
+      },
+      "Our Protocol": {
+        "n": 512,
+        "accuracy": 0.9961,
+        "precision": 0.9898,
+        "recall": 1.0,
+        "f1": 0.9949
+      },
+      "No Sycophancy Def.": {
+        "n": 512,
+        "accuracy": 0.9941,
+        "precision": 0.9848,
+        "recall": 1.0,
+        "f1": 0.9924
+      }
+    },
+    "dense (51-200 ratings)": {
+      "Ungoverned": {
+        "n": 738,
+        "accuracy": 0.6192,
+        "precision": 0.6192,
+        "recall": 1.0,
+        "f1": 0.7649
+      },
+      "Majority Vote": {
+        "n": 738,
+        "accuracy": 0.9973,
+        "precision": 0.9956,
+        "recall": 1.0,
+        "f1": 0.9978
+      },
+      "Our Protocol": {
+        "n": 738,
+        "accuracy": 0.9932,
+        "precision": 1.0,
+        "recall": 0.9891,
+        "f1": 0.9945
+      },
+      "No Sycophancy Def.": {
+        "n": 738,
+        "accuracy": 0.9959,
+        "precision": 0.9978,
+        "recall": 0.9956,
+        "f1": 0.9967
+      }
+    },
+    "very dense (200+ ratings)": {
+      "Ungoverned": {
+        "n": 222,
+        "accuracy": 0.7027,
+        "precision": 0.7027,
+        "recall": 1.0,
+        "f1": 0.8254
+      },
+      "Majority Vote": {
+        "n": 222,
+        "accuracy": 0.982,
+        "precision": 0.9872,
+        "recall": 0.9872,
+        "f1": 0.9872
+      },
+      "Our Protocol": {
+        "n": 222,
+        "accuracy": 0.9505,
+        "precision": 1.0,
+        "recall": 0.9295,
+        "f1": 0.9635
+      },
+      "No Sycophancy Def.": {
+        "n": 222,
+        "accuracy": 0.9775,
+        "precision": 0.9871,
+        "recall": 0.9808,
+        "f1": 0.9839
+      }
+    }
+  },
+  "overall": {
+    "Ungoverned": {
+      "n": 1670,
+      "accuracy": 0.4934,
+      "precision": 0.4934,
+      "recall": 1.0,
+      "f1": 0.6608
+    },
+    "Majority Vote": {
+      "n": 1670,
+      "accuracy": 0.991,
+      "precision": 0.9856,
+      "recall": 0.9964,
+      "f1": 0.9909
+    },
+    "Our Protocol": {
+      "n": 1670,
+      "accuracy": 0.9886,
+      "precision": 0.9975,
+      "recall": 0.9794,
+      "f1": 0.9884
+    },
+    "No Sycophancy Def.": {
+      "n": 1670,
+      "accuracy": 0.991,
+      "precision": 0.9891,
+      "recall": 0.9927,
+      "f1": 0.9909
+    }
+  }
+}

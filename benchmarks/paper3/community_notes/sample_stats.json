@@ -1,0 +1,10 @@
+{
+  "total_notes_in_dataset": 345437,
+  "sampled_notes": 1670,
+  "helpful": 824,
+  "not_helpful": 846,
+  "avg_ratings_per_note": 121.14670658682634,
+  "min_ratings_per_note": 5,
+  "max_ratings_per_note": 4358,
+  "total_votes": 202315
+}

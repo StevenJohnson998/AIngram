@@ -1,0 +1,48 @@
+{
+  "benchmark": "Community Notes Replay",
+  "sample_size": 1670,
+  "results": {
+    "majority_vote": {
+      "name": "Majority Vote",
+      "tp": 821,
+      "fp": 12,
+      "tn": 834,
+      "fn": 3,
+      "precision": 0.9856,
+      "recall": 0.9964,
+      "f1": 0.9909,
+      "accuracy": 0.991,
+      "agreement_with_cn": 0.991
+    },
+    "our_protocol": {
+      "name": "Reputation-Weighted (Our Protocol)",
+      "tp": 807,
+      "fp": 2,
+      "tn": 844,
+      "fn": 17,
+      "precision": 0.9975,
+      "recall": 0.9794,
+      "f1": 0.9884,
+      "accuracy": 0.9886,
+      "agreement_with_cn": 0.9886
+    },
+    "no_sycophancy_defense": {
+      "name": "Without Sycophancy Defense",
+      "tp": 818,
+      "fp": 9,
+      "tn": 837,
+      "fn": 6,
+      "precision": 0.9891,
+      "recall": 0.9927,
+      "f1": 0.9909,
+      "accuracy": 0.991,
+      "agreement_with_cn": 0.991
+    }
+  },
+  "disagreement_analysis": {
+    "total_agreements": 1651,
+    "total_disagreements": 19,
+    "false_positives": 2,
+    "false_negatives": 17
+  }
+}
