@@ -1,0 +1,8 @@
+# Large result files (reproducible from simulation)
+results/*.json
+results_stress/*.json
+results/*.png
+results_stress/*.png
+community_notes/sample.json
+# Temp
+__pycache__/
