@@ -4,6 +4,7 @@
 
 const { Router } = require('express');
 const voteService = require('../services/vote');
+const formalVoteService = require('../services/formal-vote');
 const reputationService = require('../services/reputation');
 
 const auth = require('../middleware/auth');
@@ -162,5 +163,105 @@ router.get('/accounts/:id/reputation', auth.authenticateOptional, async (req, re
     return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get reputation' } });
   }
 });
+
+// --- Formal Vote Routes (Sprint 3: commit-reveal protocol) ---
+
+// POST /votes/formal/commit — submit a hashed vote commitment
+router.post(
+  '/votes/formal/commit',
+  auth.authenticateRequired, authenticatedLimiter,
+  async (req, res) => {
+    try {
+      const { chunk_id, commit_hash } = req.body;
+
+      if (!chunk_id || !UUID_RE.test(chunk_id)) {
+        return validationError(res, 'chunk_id must be a valid UUID');
+      }
+      if (!commit_hash || typeof commit_hash !== 'string' || commit_hash.length < 32) {
+        return validationError(res, 'commit_hash must be a SHA-256 hex string');
+      }
+
+      const vote = await formalVoteService.commitVote({
+        accountId: req.account.id,
+        chunkId: chunk_id,
+        commitHash: commit_hash,
+      });
+
+      return res.status(201).json(vote);
+    } catch (err) {
+      if (err.code === 'INVALID_PHASE') return res.status(409).json({ error: { code: err.code, message: err.message } });
+      if (err.code === 'DEADLINE_PASSED') return res.status(409).json({ error: { code: err.code, message: err.message } });
+      if (err.code === 'SELF_VOTE') return res.status(403).json({ error: { code: err.code, message: err.message } });
+      if (err.code === 'VOTE_LOCKED') return res.status(403).json({ error: { code: err.code, message: err.message } });
+      if (err.code === 'FORBIDDEN') return forbiddenError(res, err.message);
+      if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
+      if (err.code === 'WEIGHT_TOO_LOW') return res.status(403).json({ error: { code: err.code, message: err.message } });
+      console.error('Error committing formal vote:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to commit vote' } });
+    }
+  }
+);
+
+// POST /votes/formal/reveal — reveal a previously committed vote
+router.post(
+  '/votes/formal/reveal',
+  auth.authenticateRequired, authenticatedLimiter,
+  async (req, res) => {
+    try {
+      const { chunk_id, vote_value, reason_tag, salt } = req.body;
+
+      if (!chunk_id || !UUID_RE.test(chunk_id)) {
+        return validationError(res, 'chunk_id must be a valid UUID');
+      }
+      if (vote_value === undefined || vote_value === null) {
+        return validationError(res, 'vote_value is required (-1, 0, or 1)');
+      }
+      if (!salt || typeof salt !== 'string') {
+        return validationError(res, 'salt is required');
+      }
+
+      const vote = await formalVoteService.revealVote({
+        accountId: req.account.id,
+        chunkId: chunk_id,
+        voteValue: vote_value,
+        reasonTag: reason_tag,
+        salt,
+      });
+
+      return res.status(200).json(vote);
+    } catch (err) {
+      if (err.code === 'INVALID_PHASE') return res.status(409).json({ error: { code: err.code, message: err.message } });
+      if (err.code === 'DEADLINE_PASSED') return res.status(409).json({ error: { code: err.code, message: err.message } });
+      if (err.code === 'HASH_MISMATCH') return res.status(400).json({ error: { code: err.code, message: err.message } });
+      if (err.code === 'ALREADY_REVEALED') return res.status(409).json({ error: { code: err.code, message: err.message } });
+      if (err.code === 'VALIDATION_ERROR') return validationError(res, err.message);
+      if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
+      console.error('Error revealing formal vote:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to reveal vote' } });
+    }
+  }
+);
+
+// GET /chunks/:id/votes — formal vote status (phase-aware visibility)
+router.get(
+  '/chunks/:id/votes',
+  auth.authenticateOptional,
+  async (req, res) => {
+    try {
+      if (!UUID_RE.test(req.params.id)) {
+        return validationError(res, 'Chunk ID must be a valid UUID');
+      }
+
+      const requestingAccountId = req.account ? req.account.id : null;
+      const status = await formalVoteService.getVoteStatus(req.params.id, requestingAccountId);
+
+      return res.json(status);
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
+      console.error('Error getting vote status:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get vote status' } });
+    }
+  }
+);
 
 module.exports = router;

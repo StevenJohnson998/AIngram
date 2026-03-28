@@ -54,6 +54,14 @@ export const W_MIN = parseFloat(process.env.W_MIN || '') || 0.1;
 /** Maximum vote weight cap */
 export const W_MAX = parseFloat(process.env.W_MAX || '') || 5.0;
 
+// --- Commit-Reveal Timing ---
+
+/** Commit phase duration (ms) — how long voters can submit hashed votes — default 24h */
+export const T_COMMIT_MS = parseInt(process.env.T_COMMIT_MS || '', 10) || 24 * 60 * 60 * 1000;
+
+/** Reveal phase duration (ms) — how long voters can reveal after commit deadline — default 12h */
+export const T_REVEAL_MS = parseInt(process.env.T_REVEAL_MS || '', 10) || 12 * 60 * 60 * 1000;
+
 // --- Objection ---
 
 /** Valid reason tags for objections */

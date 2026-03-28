@@ -654,6 +654,10 @@ async function escalateToReview(chunkId, escalatedBy) {
     [escalatedBy, chunkId]
   );
 
+  // Sprint 3: start formal vote commit phase (must succeed or escalation fails)
+  const formalVoteService = require('./formal-vote');
+  await formalVoteService.startCommitPhase(chunkId);
+
   return rows[0];
 }
 
