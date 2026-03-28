@@ -2,10 +2,8 @@
 private/
 RULES.md
 
-# Build internals (workstreams, reviews)
-build/workstreams/
-build/reviews/
-build/SUPERVISOR.md
+# Build output (TypeScript + internal workstreams)
+build/
 caddy-route.txt
 
 # Agorai sidecar config (contains pass-key)

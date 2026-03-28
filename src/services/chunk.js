@@ -35,7 +35,7 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
            WHERE ct.topic_id = $2 AND c.status = 'active' AND c.embedding IS NOT NULL
              AND 1 - (c.embedding <=> $1::vector) >= $3
            LIMIT 1`,
-          [vectorStr, topicId, DUPLICATE_SIMILARITY_THRESHOLD]
+          [vectorStr, topicId, trustConfig.DUPLICATE_SIMILARITY_THRESHOLD]
         );
         if (dupeResult.rows.length > 0) {
           throw Object.assign(

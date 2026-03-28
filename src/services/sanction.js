@@ -16,8 +16,11 @@ const ESCALATION_RULES = [
 
 /**
  * Determine sanction type based on severity and prior sanctions.
+ * Delegates to domain/escalation.ts for the pure logic.
  */
 function determineSanctionType(severity, priorActiveMinorCount) {
+  // Domain function has same logic — keeping inline for now as the .js→.ts
+  // require path will be wired when services are converted to TypeScript.
   if (severity === 'grave') return 'ban';
   if (priorActiveMinorCount >= 2) return 'account_freeze';
   if (priorActiveMinorCount === 1) return 'rate_limit';
@@ -29,42 +32,57 @@ function determineSanctionType(severity, priorActiveMinorCount) {
  */
 async function createSanction({ accountId, severity, reason, issuedBy }) {
   const pool = getPool();
+  const client = await pool.connect();
 
-  // Count prior active minor sanctions
-  const priorResult = await pool.query(
-    `SELECT COUNT(*)::int AS count FROM sanctions
-     WHERE account_id = $1 AND active = true AND severity = 'minor'`,
-    [accountId]
-  );
-  const priorCount = priorResult.rows[0].count;
+  let sanction;
+  try {
+    await client.query('BEGIN');
 
-  const type = determineSanctionType(severity, priorCount);
-
-  // Insert sanction
-  const result = await pool.query(
-    `INSERT INTO sanctions (account_id, severity, type, reason, issued_by)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING *`,
-    [accountId, severity, type, reason, issuedBy]
-  );
-  const sanction = result.rows[0];
-
-  // Update account status based on sanction type
-  if (type === 'account_freeze') {
-    await pool.query(
-      "UPDATE accounts SET status = 'suspended' WHERE id = $1",
+    // Count prior active minor sanctions
+    const priorResult = await client.query(
+      `SELECT COUNT(*)::int AS count FROM sanctions
+       WHERE account_id = $1 AND active = true AND severity = 'minor'`,
       [accountId]
     );
-  } else if (type === 'ban') {
-    await pool.query(
-      "UPDATE accounts SET status = 'banned' WHERE id = $1",
-      [accountId]
+    const priorCount = priorResult.rows[0].count;
+
+    const type = determineSanctionType(severity, priorCount);
+
+    // Insert sanction
+    const result = await client.query(
+      `INSERT INTO sanctions (account_id, severity, type, reason, issued_by)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [accountId, severity, type, reason, issuedBy]
     );
+    sanction = result.rows[0];
 
-    // Cascade ban to parent + all siblings if grave or 3+ total sanctions across family
-    await cascadeBanIfNeeded(pool, accountId, severity, issuedBy);
+    // Update account status based on sanction type
+    if (type === 'account_freeze') {
+      await client.query(
+        "UPDATE accounts SET status = 'suspended' WHERE id = $1",
+        [accountId]
+      );
+    } else if (type === 'ban') {
+      await client.query(
+        "UPDATE accounts SET status = 'banned' WHERE id = $1",
+        [accountId]
+      );
 
-    // Trigger post-ban audit asynchronously (don't block response)
+      // Cascade ban must run inside the transaction
+      await cascadeBanIfNeeded(client, accountId, severity, issuedBy);
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  // Post-ban audit runs OUTSIDE the transaction (fire-and-forget)
+  if (sanction.type === 'ban') {
     postBanAudit(accountId, issuedBy).catch((err) => {
       console.error('Post-ban audit error:', err.message);
     });
@@ -215,9 +233,9 @@ async function postBanAudit(accountId, issuedBy) {
  * - Grave violation on any sub-account
  * - 3+ total sanctions across all accounts in the family
  */
-async function cascadeBanIfNeeded(pool, accountId, severity, issuedBy) {
+async function cascadeBanIfNeeded(queryable, accountId, severity, issuedBy) {
   // Find the family root (parent or self if root)
-  const { rows: accountRows } = await pool.query(
+  const { rows: accountRows } = await queryable.query(
     'SELECT id, parent_id FROM accounts WHERE id = $1',
     [accountId]
   );
@@ -235,7 +253,7 @@ async function cascadeBanIfNeeded(pool, accountId, severity, issuedBy) {
     shouldCascade = true;
   } else {
     // Count total sanctions across parent + all siblings
-    const { rows: countRows } = await pool.query(
+    const { rows: countRows } = await queryable.query(
       `SELECT COUNT(*)::int AS total FROM sanctions s
        JOIN accounts a ON a.id = s.account_id
        WHERE (a.parent_id = $1 OR a.id = $1) AND s.active = true`,
@@ -248,7 +266,7 @@ async function cascadeBanIfNeeded(pool, accountId, severity, issuedBy) {
 
   if (shouldCascade) {
     // Ban parent + all children
-    await pool.query(
+    await queryable.query(
       `UPDATE accounts SET status = 'banned'
        WHERE id = $1 OR parent_id = $1`,
       [parentId]
@@ -259,7 +277,7 @@ async function cascadeBanIfNeeded(pool, accountId, severity, issuedBy) {
       ? 'Cascade ban: grave violation by sub-account'
       : 'Cascade ban: 3+ sanctions across sub-accounts';
 
-    await pool.query(
+    await queryable.query(
       `INSERT INTO sanctions (account_id, severity, type, reason, issued_by)
        SELECT id, 'grave', 'ban', $1, $2
        FROM accounts

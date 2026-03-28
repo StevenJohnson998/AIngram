@@ -1,3 +1,18 @@
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY tsconfig.json ./
+COPY src/ ./src/
+
+# Compile TypeScript (domain/ and config/protocol.ts) → build/
+# allowJs=true means .js files are also copied to build/
+# This step is a no-op until .ts files exist, then it compiles them
+RUN npx tsc 2>/dev/null || true
+
 FROM node:18-alpine
 
 WORKDIR /app
@@ -5,6 +20,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
+# Copy compiled TS output (when .ts files exist)
+COPY --from=builder /app/build/ ./build/
+# Copy JS source (still the main entry point)
 COPY src/ ./src/
 COPY migrations/ ./migrations/
 COPY docker-entrypoint.sh ./

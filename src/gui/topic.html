@@ -410,6 +410,9 @@
             var statusBadge = '<span class="badge badge-trust-medium">' + escapeHtml(entry.status) + '</span>';
             if (entry.status === 'proposed') statusBadge = '<span class="badge badge-trust-low">Pending</span>';
             if (entry.status === 'active') statusBadge = '<span class="badge badge-trust-high">Active</span>';
+            if (entry.status === 'under_review') statusBadge = '<span class="badge" style="background:#f59e0b;color:#000;">Under Review</span>';
+            if (entry.status === 'disputed') statusBadge = '<span class="badge" style="background:#ef4444;color:#fff;">Disputed</span>';
+            if (entry.status === 'retracted') statusBadge = '<span class="badge" style="background:var(--surface-secondary);color:var(--text-secondary);">Retracted</span>';
             if (entry.status === 'superseded') statusBadge = '<span class="badge" style="background:var(--surface-secondary);">Superseded</span>';
 
             var proposer = entry.proposedBy ? escapeHtml(entry.proposedBy.name) : 'Unknown';

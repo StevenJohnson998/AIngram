@@ -17,7 +17,7 @@ const CONTENT_REASON_TAGS = [
 
 const POLICING_REASON_TAGS = ['fair', 'unfair', 'sabotage'];
 
-const VALID_TARGET_TYPES = ['message', 'policing_action'];
+const VALID_TARGET_TYPES = ['message', 'policing_action', 'chunk'];
 const VALID_VALUES = ['up', 'down'];
 
 const NEW_ACCOUNT_MS = trustConfig.NEW_ACCOUNT_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
@@ -58,7 +58,7 @@ async function castVote({ accountId, targetType, targetId, value, reasonTag }) {
 
   // Validate reason_tag matches target_type
   if (reasonTag) {
-    const allowedTags = targetType === 'message' ? CONTENT_REASON_TAGS : POLICING_REASON_TAGS;
+    const allowedTags = (targetType === 'message' || targetType === 'chunk') ? CONTENT_REASON_TAGS : POLICING_REASON_TAGS;
     if (!allowedTags.includes(reasonTag)) {
       throw Object.assign(
         new Error(`Invalid reason_tag '${reasonTag}' for target_type '${targetType}'`),
@@ -81,6 +81,23 @@ async function castVote({ accountId, targetType, targetId, value, reasonTag }) {
     }
     // Deny voting on retracted content
     if (msgRows[0].status === 'retracted') {
+      throw Object.assign(new Error('Cannot vote on retracted content'), { code: 'FORBIDDEN' });
+    }
+  }
+
+  // Block self-voting and retracted content for chunks
+  if (targetType === 'chunk') {
+    const { rows: chunkRows } = await pool.query(
+      'SELECT created_by, status FROM chunks WHERE id = $1',
+      [targetId]
+    );
+    if (chunkRows.length === 0) {
+      throw Object.assign(new Error('Target chunk not found'), { code: 'NOT_FOUND' });
+    }
+    if (chunkRows[0].created_by === accountId) {
+      throw Object.assign(new Error('Cannot vote on own content'), { code: 'SELF_VOTE' });
+    }
+    if (chunkRows[0].status === 'retracted') {
       throw Object.assign(new Error('Cannot vote on retracted content'), { code: 'FORBIDDEN' });
     }
   }

@@ -125,9 +125,7 @@ function startServer() {
 if (require.main === module) {
   const server = startServer();
 
-  // Start auto-merge background job
-  const { startAutoMerge } = require('./services/auto-merge');
-  startAutoMerge();
+  // Background jobs moved to src/workers/index.js (separate Docker service)
 
   // Graceful shutdown: drain connections on SIGTERM/SIGINT
   const shutdown = (signal) => {

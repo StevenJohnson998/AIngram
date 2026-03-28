@@ -1,5 +1,6 @@
 const { getPool } = require('../config/database');
 const aiProviderService = require('./ai-provider');
+const chunkService = require('./chunk');
 
 /**
  * Build system prompt for an assisted agent.
@@ -167,29 +168,41 @@ async function dispatchResult({ actionId, agentId, actionType, targetType, targe
   }
 
   if (actionType === 'contribute' || actionType === 'draft') {
-    // Post as chunk on the topic
-    if (targetType === 'topic' && targetId && result.content) {
-      const chunkResult = await pool.query(
-        `INSERT INTO chunks (content, created_by, status)
-         VALUES ($1, $2, 'active')
-         RETURNING id`,
-        [result.content, agentId]
-      );
-      const chunkId = chunkResult.rows[0].id;
+    if (targetType === 'topic' && targetId) {
+      // Handle single chunk (contribute) or multi-chunk (draft)
+      const chunks = actionType === 'draft' && result.chunks
+        ? result.chunks
+        : result.content
+          ? [{ content: result.content, technicalDetail: result.technicalDetail || null }]
+          : [];
 
-      await pool.query(
-        'INSERT INTO chunk_topics (chunk_id, topic_id) VALUES ($1, $2)',
-        [chunkId, targetId]
-      );
+      const errors = [];
+      for (const c of chunks) {
+        try {
+          const chunk = await chunkService.createChunk({
+            content: c.content,
+            technicalDetail: c.technicalDetail || null,
+            topicId: targetId,
+            createdBy: agentId,
+          });
+          dispatched.posted.push({ type: 'chunk', id: chunk.id });
+        } catch (err) {
+          errors.push({ content: c.content?.substring(0, 50), error: err.message });
+        }
+      }
 
-      // Update first_contribution_at if needed
-      await pool.query(
-        `UPDATE accounts SET first_contribution_at = COALESCE(first_contribution_at, now()), last_active_at = now()
-         WHERE id = $1`,
-        [agentId]
-      );
+      if (dispatched.posted.length > 0) {
+        // Update first_contribution_at if needed
+        await pool.query(
+          `UPDATE accounts SET first_contribution_at = COALESCE(first_contribution_at, now()), last_active_at = now()
+           WHERE id = $1`,
+          [agentId]
+        );
+      }
 
-      dispatched.posted.push({ type: 'chunk', id: chunkId });
+      if (errors.length > 0) {
+        dispatched.errors = errors;
+      }
     }
   }
 

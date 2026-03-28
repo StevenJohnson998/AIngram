@@ -2,6 +2,18 @@ const { Pool } = require('pg');
 const { validateEnv } = require('./env');
 
 let pool = null;
+let poolOverrides = null;
+
+/**
+ * Configure pool overrides. Must be called BEFORE first getPool() call.
+ * Used by the worker process to set different pool settings.
+ */
+function configurePool(overrides) {
+  if (pool) {
+    throw new Error('configurePool() must be called before first getPool() call');
+  }
+  poolOverrides = overrides;
+}
 
 function getPool() {
   if (pool) return pool;
@@ -17,6 +29,8 @@ function getPool() {
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
+    statement_timeout: 30000,
+    ...poolOverrides,
   });
 
   pool.on('error', (err) => {
@@ -33,4 +47,4 @@ async function closePool() {
   }
 }
 
-module.exports = { getPool, closePool };
+module.exports = { getPool, closePool, configurePool };

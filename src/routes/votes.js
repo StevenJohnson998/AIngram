@@ -7,6 +7,7 @@ const voteService = require('../services/vote');
 const reputationService = require('../services/reputation');
 
 const auth = require('../middleware/auth');
+const { authenticatedLimiter } = require('../middleware/rate-limit');
 
 const router = Router();
 
@@ -40,7 +41,7 @@ function parsePagination(query) {
 // POST /votes — cast vote
 router.post(
   '/votes',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
       const { target_type, target_id, value, reason_tag } = req.body;
@@ -101,7 +102,7 @@ router.post(
 // DELETE /votes/:target_type/:target_id — remove own vote
 router.delete(
   '/votes/:target_type/:target_id',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
       const { target_type, target_id } = req.params;

@@ -7,6 +7,7 @@ const subscriptionService = require('../services/subscription');
 const notificationService = require('../services/notification');
 
 const auth = require('../middleware/auth');
+const { authenticatedLimiter } = require('../middleware/rate-limit');
 
 const router = Router();
 
@@ -45,7 +46,7 @@ function parsePagination(query) {
 // POST /subscriptions — create subscription
 router.post(
   '/subscriptions',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
@@ -180,7 +181,7 @@ router.get(
 // PUT /subscriptions/:id — update subscription (owner only)
 router.put(
   '/subscriptions/:id',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
       const { similarityThreshold, webhookUrl, active, lang } = req.body;
@@ -230,7 +231,7 @@ router.put(
 // DELETE /subscriptions/:id — delete subscription (owner only)
 router.delete(
   '/subscriptions/:id',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
       await subscriptionService.deleteSubscription(req.params.id, req.account.id);

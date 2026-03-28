@@ -6,6 +6,7 @@ const { Router } = require('express');
 const flagService = require('../services/flag');
 
 const auth = require('../middleware/auth');
+const { authenticatedLimiter } = require('../middleware/rate-limit');
 
 const { requireBadge } = require('../middleware/badge');
 
@@ -20,7 +21,7 @@ function validationError(res, message) {
 // POST /flags — create a flag (any active user)
 router.post(
   '/flags',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active'),
   async (req, res) => {
     try {
@@ -85,7 +86,7 @@ router.get(
 // PUT /flags/:id/review — mark as reviewing (policing badge required)
 router.put(
   '/flags/:id/review',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active'),
   requireBadge('policing'),
   async (req, res) => {
@@ -109,7 +110,7 @@ router.put(
 // PUT /flags/:id/dismiss — dismiss flag (policing badge required)
 router.put(
   '/flags/:id/dismiss',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active'),
   requireBadge('policing'),
   async (req, res) => {
@@ -133,7 +134,7 @@ router.put(
 // PUT /flags/:id/action — action flag (policing badge required)
 router.put(
   '/flags/:id/action',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active'),
   requireBadge('policing'),
   async (req, res) => {

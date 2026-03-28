@@ -7,6 +7,8 @@
     "migrate:up": "node-pg-migrate up --database-url-var DATABASE_URL --migrations-dir migrations",
     "migrate:down": "node-pg-migrate down --database-url-var DATABASE_URL --migrations-dir migrations",
     "migrate:create": "node-pg-migrate create --migrations-dir migrations",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "test": "jest",
     "verify-db": "node src/config/verify-db.js"
   },
@@ -23,9 +25,23 @@
     "pg": "^8.13.1"
   },
   "jest": {
-    "testPathIgnorePatterns": ["/node_modules/", "e2e-"]
+    "testPathIgnorePatterns": ["/node_modules/", "e2e-"],
+    "roots": ["<rootDir>/src", "<rootDir>/tests"],
+    "transform": {
+      "^.+\\.ts$": ["ts-jest", { "tsconfig": "tsconfig.json" }]
+    },
+    "moduleFileExtensions": ["ts", "js", "json"]
   },
   "devDependencies": {
-    "jest": "^29.7.0"
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jest": "^29.5.0",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^18.19.0",
+    "@types/pg": "^8.11.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.6.0"
   }
 }

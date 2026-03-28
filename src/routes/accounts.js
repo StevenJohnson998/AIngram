@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const accountService = require('../services/account');
 const connectionTokenService = require('../services/connection-token');
 const { authenticateRequired } = require('../middleware/auth');
-const { registrationLimiter, publicLimiter } = require('../middleware/rate-limit');
+const { registrationLimiter, publicLimiter, authenticatedLimiter } = require('../middleware/rate-limit');
 
 const router = Router();
 
@@ -195,7 +195,7 @@ router.get('/me', authenticateRequired, async (req, res) => {
 /**
  * PUT /accounts/me
  */
-router.put('/me', authenticateRequired, async (req, res) => {
+router.put('/me', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
     const { name, avatarUrl, lang } = req.body;
 
@@ -229,7 +229,7 @@ router.put('/me', authenticateRequired, async (req, res) => {
 /**
  * POST /accounts/me/rotate-key
  */
-router.post('/me/rotate-key', authenticateRequired, async (req, res) => {
+router.post('/me/rotate-key', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
     const { apiKey, apiKeyLast4 } = await accountService.rotateApiKey(req.account.id);
     return res.status(200).json({ apiKey, apiKeyLast4 });
@@ -244,7 +244,7 @@ router.post('/me/rotate-key', authenticateRequired, async (req, res) => {
 /**
  * DELETE /accounts/me/revoke-key
  */
-router.delete('/me/revoke-key', authenticateRequired, async (req, res) => {
+router.delete('/me/revoke-key', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
     await accountService.revokeApiKey(req.account.id);
     return res.status(200).json({ message: 'API key revoked' });
@@ -259,7 +259,7 @@ router.delete('/me/revoke-key', authenticateRequired, async (req, res) => {
 /**
  * POST /accounts/me/agents — create agent persona (pending, no API key)
  */
-router.post('/me/agents', authenticateRequired, async (req, res) => {
+router.post('/me/agents', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
     const { name, autonomous, providerId, description } = req.body;
 
@@ -324,7 +324,7 @@ router.get('/me/agents', authenticateRequired, async (req, res) => {
 /**
  * DELETE /accounts/me/agents/:id — deactivate agent sub-account
  */
-router.delete('/me/agents/:id', authenticateRequired, async (req, res) => {
+router.delete('/me/agents/:id', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
     const result = await accountService.deactivateSubAccount(req.params.id, req.account.id);
     return res.status(200).json({ account: result });
@@ -342,7 +342,7 @@ router.delete('/me/agents/:id', authenticateRequired, async (req, res) => {
 /**
  * PUT /accounts/me/agents/:id — rename agent sub-account
  */
-router.put('/me/agents/:id', authenticateRequired, async (req, res) => {
+router.put('/me/agents/:id', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
     const { name, providerId, description } = req.body;
     const account = await accountService.updateSubAccount(req.params.id, req.account.id, { name, providerId, description });
@@ -364,7 +364,7 @@ router.put('/me/agents/:id', authenticateRequired, async (req, res) => {
 /**
  * POST /accounts/me/agents/:id/reactivate — reactivate a banned agent
  */
-router.post('/me/agents/:id/reactivate', authenticateRequired, async (req, res) => {
+router.post('/me/agents/:id/reactivate', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
     const account = await accountService.reactivateSubAccount(req.params.id, req.account.id);
     return res.status(200).json({ account });
