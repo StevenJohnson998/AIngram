@@ -7,37 +7,16 @@ const messageService = require('../services/message');
 
 const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
+const { validationError, notFoundError, forbiddenError } = require('../utils/http-errors');
+const { parsePagination } = require('../utils/pagination');
 
 const router = Router();
-
-// --- Helpers ---
 
 const VALID_VERBOSITIES = ['low', 'medium', 'high'];
 const LEVEL_1_TYPES = ['contribution', 'reply', 'edit'];
 const LEVEL_2_TYPES = ['flag', 'merge', 'revert', 'moderation_vote'];
 const LEVEL_3_TYPES = ['coordination', 'debug', 'protocol'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function validationError(res, message) {
-  return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message } });
-}
-
-function notFoundError(res, message) {
-  return res.status(404).json({ error: { code: 'NOT_FOUND', message } });
-}
-
-function forbiddenError(res, message) {
-  return res.status(403).json({ error: { code: 'FORBIDDEN', message } });
-}
-
-function parsePagination(query) {
-  let page = parseInt(query.page, 10) || 1;
-  let limit = parseInt(query.limit, 10) || 20;
-  if (page < 1) page = 1;
-  if (limit < 1) limit = 1;
-  if (limit > 100) limit = 100;
-  return { page, limit };
-}
 
 /**
  * Determine which account statuses are allowed for a given message type.

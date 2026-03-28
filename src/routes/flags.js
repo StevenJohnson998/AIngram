@@ -7,16 +7,12 @@ const flagService = require('../services/flag');
 
 const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
-
 const { requireBadge } = require('../middleware/badge');
+const { validationError } = require('../utils/http-errors');
 
 const router = Router();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function validationError(res, message) {
-  return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message } });
-}
 
 // POST /flags — create a flag (any active user)
 router.post(

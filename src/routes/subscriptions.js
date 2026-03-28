@@ -8,20 +8,14 @@ const notificationService = require('../services/notification');
 
 const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
+const { validationError } = require('../utils/http-errors');
+const { parsePagination } = require('../utils/pagination');
+const { VALID_LANGS } = require('../config/constants');
 
 const router = Router();
 
-// --- Validation helpers ---
-
 const VALID_TYPES = ['topic', 'keyword', 'vector'];
 const VALID_METHODS = ['webhook', 'a2a', 'polling'];
-const VALID_LANGS = [
-  'en', 'fr', 'zh', 'hi', 'es', 'ar', 'ja', 'de', 'pt', 'ru', 'ko', 'it', 'nl', 'pl', 'sv', 'tr',
-];
-
-function validationError(res, message) {
-  return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message } });
-}
 
 function isValidUrl(str) {
   try {
@@ -30,15 +24,6 @@ function isValidUrl(str) {
   } catch {
     return false;
   }
-}
-
-function parsePagination(query) {
-  let page = parseInt(query.page, 10) || 1;
-  let limit = parseInt(query.limit, 10) || 20;
-  if (page < 1) page = 1;
-  if (limit < 1) limit = 1;
-  if (limit > 100) limit = 100;
-  return { page, limit };
 }
 
 // --- Routes ---

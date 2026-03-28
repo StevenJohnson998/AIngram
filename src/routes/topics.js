@@ -10,40 +10,15 @@ const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
 const { requireTier } = require('../middleware/tier-gate');
-const accountService = require('../services/account');
+const { validationError, notFoundError, forbiddenError } = require('../utils/http-errors');
+const { parsePagination } = require('../utils/pagination');
+const { VALID_LANGS } = require('../config/constants');
 
 const router = Router();
-
-// --- Validation helpers ---
-
-const VALID_LANGS = [
-  'en', 'fr', 'zh', 'hi', 'es', 'ar', 'ja', 'de', 'pt', 'ru', 'ko', 'it', 'nl', 'pl', 'sv', 'tr',
-];
 
 const VALID_SENSITIVITIES = ['low', 'high'];
 const VALID_STATUSES = ['active', 'locked', 'archived'];
 const VALID_FLAGS = ['spam', 'poisoning', 'hallucination', 'review_needed'];
-
-function validationError(res, message) {
-  return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message } });
-}
-
-function notFoundError(res, message) {
-  return res.status(404).json({ error: { code: 'NOT_FOUND', message } });
-}
-
-function forbiddenError(res, message) {
-  return res.status(403).json({ error: { code: 'FORBIDDEN', message } });
-}
-
-function parsePagination(query) {
-  let page = parseInt(query.page, 10) || 1;
-  let limit = parseInt(query.limit, 10) || 20;
-  if (page < 1) page = 1;
-  if (limit < 1) limit = 1;
-  if (limit > 100) limit = 100;
-  return { page, limit };
-}
 
 // --- Topic routes ---
 
@@ -121,12 +96,7 @@ router.get('/topics/by-slug/:slug/:lang', auth.authenticateOptional, async (req,
     const topic = await topicService.getTopicBySlug(slug, lang);
     if (!topic) return notFoundError(res, 'Topic not found');
 
-    // Fetch chunks with sources for the topic detail view
-    const chunksResult = await chunkService.getChunksByTopic(topic.id, { limit: 100 });
-    const chunksWithSources = await Promise.all(
-      chunksResult.data.map(c => chunkService.getChunkById(c.id))
-    );
-    topic.chunks = chunksWithSources.filter(Boolean);
+    topic.chunks = await chunkService.getChunksWithSourcesByTopic(topic.id);
 
     return res.json(topic);
   } catch (err) {
@@ -301,18 +271,13 @@ router.post(
       const topic = await topicService.getTopicById(req.params.id);
       if (!topic) return notFoundError(res, 'Topic not found');
 
-      // Check badges for initial trust (Beta prior)
-      const creator = await accountService.findById(req.account.id);
-      const isElite = creator && creator.badge_elite;
-      const hasBadgeContribution = creator && creator.badge_contribution;
-
       const chunk = await chunkService.createChunk({
         content,
         technicalDetail,
         topicId: req.params.id,
         createdBy: req.account.id,
-        isElite,
-        hasBadgeContribution,
+        isElite: req.account.badgeElite,
+        hasBadgeContribution: req.account.badgeContribution,
         adhp: adhp || null,
       });
 
@@ -515,11 +480,8 @@ router.post(
       );
       const topicId = ctRows.length > 0 ? ctRows[0].topic_id : null;
 
-      const creator = await accountService.findById(req.account.id);
-      const isElite = creator && creator.badge_elite;
-
       // Elite + low-sensitivity topic → auto-merge
-      if (isElite && topicId) {
+      if (req.account.badgeElite && topicId) {
         const topic = await topicService.getTopicById(topicId);
         if (topic && topic.sensitivity === 'low') {
           // Auto-merge: create proposed then merge immediately
@@ -529,7 +491,7 @@ router.post(
             technicalDetail,
             proposedBy: req.account.id,
             topicId,
-            isElite: true,
+            isElite: req.account.badgeElite,
           });
           const merged = await chunkService.mergeChunk(proposed.id, req.account.id);
           return res.status(201).json(merged);
@@ -542,7 +504,7 @@ router.post(
         technicalDetail,
         proposedBy: req.account.id,
         topicId,
-        isElite,
+        isElite: req.account.badgeElite,
       });
 
       return res.status(201).json(proposed);
@@ -626,10 +588,6 @@ router.post(
       );
       const topicId = ctRows.length > 0 ? ctRows[0].topic_id : null;
 
-      // Policing badge holders can revert immediately
-      const creator = await accountService.findById(req.account.id);
-      const hasPolicingBadge = creator && creator.badge_policing;
-
       const proposed = await chunkService.proposeRevert({
         chunkId: req.params.id,
         targetVersion,
@@ -638,7 +596,8 @@ router.post(
         topicId,
       });
 
-      if (hasPolicingBadge) {
+      // Policing badge holders can revert immediately
+      if (req.account.badgePolicing) {
         const merged = await chunkService.mergeChunk(proposed.id, req.account.id);
         return res.status(201).json(merged);
       }
