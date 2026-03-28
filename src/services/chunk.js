@@ -6,7 +6,7 @@
 const { getPool } = require('../config/database');
 const { generateEmbedding } = require('./ollama');
 const trustConfig = require('../config/trust');
-const { transition, retractReasonForEvent } = require('../../build/domain');
+const { transition, retractReasonForEvent } = require('../domain');
 const accountService = require('./account');
 
 /**
@@ -167,22 +167,29 @@ async function updateChunk(id, { content, technicalDetail }) {
 async function retractChunk(id, { reason = 'withdrawn', retractedBy = null } = {}) {
   const pool = getPool();
 
-  // Get current status to validate transition
-  const { rows: current } = await pool.query('SELECT status FROM chunks WHERE id = $1', [id]);
-  if (current.length === 0) {
-    throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
-  }
-
-  // Determine lifecycle event based on reason
+  // Determine valid source states for this retraction reason
   const event = reason === 'timeout' ? 'TIMEOUT' : 'WITHDRAW';
-  transition(current[0].status, event); // throws LifecycleError if invalid
+  // proposed and under_review can WITHDRAW/TIMEOUT; validate statically
+  const validFromStates = event === 'TIMEOUT'
+    ? ['proposed', 'under_review', 'disputed']
+    : ['proposed', 'under_review'];
 
+  // Atomic: update only if in a valid source state (avoids TOCTOU)
   const { rows } = await pool.query(
     `UPDATE chunks SET status = 'retracted', retract_reason = $2, updated_at = now()
-     WHERE id = $1
+     WHERE id = $1 AND status = ANY($3)
      RETURNING *`,
-    [id, reason]
+    [id, reason, validFromStates]
   );
+
+  if (rows.length === 0) {
+    // Distinguish not-found from invalid transition
+    const { rows: exists } = await pool.query('SELECT status FROM chunks WHERE id = $1', [id]);
+    if (exists.length === 0) {
+      throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
+    }
+    transition(exists[0].status, event); // throws LifecycleError with proper message
+  }
 
   // Log activity
   await pool.query(
@@ -191,7 +198,7 @@ async function retractChunk(id, { reason = 'withdrawn', retractedBy = null } = {
     [retractedBy, id, JSON.stringify({ reason })]
   );
 
-  return rows[0] || null;
+  return rows[0];
 }
 
 /**
@@ -373,34 +380,31 @@ async function mergeChunk(proposedChunkId, mergedById) {
 async function rejectChunk(proposedChunkId, { reason, report, rejectedBy } = {}) {
   const pool = getPool();
 
-  // Get current status
-  const { rows: current } = await pool.query('SELECT status FROM chunks WHERE id = $1', [proposedChunkId]);
-  if (current.length === 0) {
-    throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
-  }
-
-  // Validate lifecycle: VOTE_REJECT from under_review, WITHDRAW from proposed
-  const event = current[0].status === 'under_review' ? 'VOTE_REJECT' : 'WITHDRAW';
-  transition(current[0].status, event); // throws if invalid
-  const retractReason = retractReasonForEvent(event) || 'rejected';
-
+  // Atomic: reject only if in proposed or under_review (avoids TOCTOU)
   const { rows } = await pool.query(
     `UPDATE chunks SET status = 'retracted', updated_at = now(),
             reject_reason = $2, rejected_by = $3, rejected_at = now(),
-            retract_reason = $4
-     WHERE id = $1
+            retract_reason = CASE WHEN status = 'under_review' THEN 'rejected' ELSE 'withdrawn' END
+     WHERE id = $1 AND status IN ('proposed', 'under_review')
      RETURNING *`,
-    [proposedChunkId, reason || null, rejectedBy || null, retractReason]
+    [proposedChunkId, reason || null, rejectedBy || null]
   );
+
   if (rows.length === 0) {
-    throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
+    const { rows: exists } = await pool.query('SELECT status FROM chunks WHERE id = $1', [proposedChunkId]);
+    if (exists.length === 0) {
+      throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
+    }
+    // Throw LifecycleError for the actual invalid transition
+    const event = exists[0].status === 'under_review' ? 'VOTE_REJECT' : 'WITHDRAW';
+    transition(exists[0].status, event);
   }
 
   // Log activity
   await pool.query(
     `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
      VALUES ($1, 'chunk_retracted', 'chunk', $2, $3)`,
-    [rejectedBy, proposedChunkId, JSON.stringify({ reason: retractReason })]
+    [rejectedBy, proposedChunkId, JSON.stringify({ reason: rows[0].retract_reason })]
   );
 
   if (report && reason && rejectedBy) {
@@ -552,21 +556,22 @@ async function listPendingProposals({ page = 1, limit = 20 } = {}) {
 async function escalateToReview(chunkId, escalatedBy) {
   const pool = getPool();
 
-  const { rows: current } = await pool.query('SELECT status FROM chunks WHERE id = $1', [chunkId]);
-  if (current.length === 0) {
-    throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
-  }
-
-  transition(current[0].status, 'OBJECT'); // proposed → under_review
-
+  // Atomic: only escalate if currently proposed
   const { rows } = await pool.query(
     `UPDATE chunks SET status = 'under_review', under_review_at = now(), updated_at = now()
-     WHERE id = $1
+     WHERE id = $1 AND status = 'proposed'
      RETURNING *`,
     [chunkId]
   );
 
-  // Log activity
+  if (rows.length === 0) {
+    const { rows: exists } = await pool.query('SELECT status FROM chunks WHERE id = $1', [chunkId]);
+    if (exists.length === 0) {
+      throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
+    }
+    transition(exists[0].status, 'OBJECT'); // throws LifecycleError
+  }
+
   await pool.query(
     `INSERT INTO activity_log (account_id, action, target_type, target_id)
      VALUES ($1, 'chunk_escalated', 'chunk', $2)`,
@@ -579,29 +584,35 @@ async function escalateToReview(chunkId, escalatedBy) {
 /**
  * Resubmit a retracted chunk (retracted → proposed).
  */
+const MAX_RESUBMIT_COUNT = 3;
+
 async function resubmitChunk(chunkId, resubmittedBy) {
   const pool = getPool();
 
-  const { rows: current } = await pool.query('SELECT status, resubmit_count FROM chunks WHERE id = $1', [chunkId]);
-  if (current.length === 0) {
-    throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
-  }
-
-  transition(current[0].status, 'RESUBMIT'); // retracted → proposed
-
+  // Atomic: only resubmit if retracted and under max resubmit limit
   const { rows } = await pool.query(
     `UPDATE chunks SET status = 'proposed', retract_reason = NULL, updated_at = now(),
             resubmit_count = resubmit_count + 1
-     WHERE id = $1
+     WHERE id = $1 AND status = 'retracted' AND resubmit_count < $2
      RETURNING *`,
-    [chunkId]
+    [chunkId, MAX_RESUBMIT_COUNT]
   );
 
-  // Log activity
+  if (rows.length === 0) {
+    const { rows: exists } = await pool.query('SELECT status, resubmit_count FROM chunks WHERE id = $1', [chunkId]);
+    if (exists.length === 0) {
+      throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
+    }
+    if (exists[0].resubmit_count >= MAX_RESUBMIT_COUNT) {
+      throw Object.assign(new Error(`Maximum resubmission limit reached (${MAX_RESUBMIT_COUNT})`), { code: 'RESUBMIT_LIMIT' });
+    }
+    transition(exists[0].status, 'RESUBMIT'); // throws LifecycleError
+  }
+
   await pool.query(
     `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
      VALUES ($1, 'chunk_resubmitted', 'chunk', $2, $3)`,
-    [resubmittedBy, chunkId, JSON.stringify({ resubmitCount: current[0].resubmit_count + 1 })]
+    [resubmittedBy, chunkId, JSON.stringify({ resubmitCount: rows[0].resubmit_count })]
   );
 
   return rows[0];

@@ -584,7 +584,7 @@ async function reactivateSubAccount(subAccountId, parentId) {
  */
 async function incrementInteractionAndUpdateTier(accountId) {
   const pool = getPool();
-  const { calculateTier } = require('../../build/domain');
+  const { calculateTier } = require('../domain');
 
   // Increment interaction_count and fetch relevant fields
   const { rows } = await pool.query(
@@ -617,7 +617,7 @@ async function incrementInteractionAndUpdateTier(accountId) {
  */
 async function recalculateTier(accountId) {
   const pool = getPool();
-  const { calculateTier } = require('../../build/domain');
+  const { calculateTier } = require('../domain');
 
   const { rows } = await pool.query(
     'SELECT interaction_count, reputation_contribution, created_at, tier FROM accounts WHERE id = $1',
