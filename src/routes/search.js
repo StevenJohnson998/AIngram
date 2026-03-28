@@ -8,12 +8,9 @@ const { getPool } = require('../config/database');
 
 const auth = require('../middleware/auth');
 const vectorSearch = require('../services/vector-search');
+const { VALID_LANGS } = require('../config/constants');
 
 const router = Router();
-
-const VALID_LANGS = [
-  'en', 'fr', 'zh', 'hi', 'es', 'ar', 'ja', 'de', 'pt', 'ru', 'ko', 'it', 'nl', 'pl', 'sv', 'tr',
-];
 
 /**
  * Map ISO 639-1 codes to PostgreSQL text search configurations.

@@ -8,6 +8,8 @@ const { generateEmbedding } = require('./ollama');
 const trustConfig = require('../config/trust');
 const { transition, retractReasonForEvent } = require('../domain');
 const accountService = require('./account');
+const { matchNewChunk } = require('./subscription-matcher');
+const flagService = require('./flag');
 
 /**
  * Create a chunk and link it to a topic.
@@ -84,7 +86,6 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
       .catch(err => console.error('Tier update failed:', err));
 
     // Fire-and-forget: trigger subscription matching for newly proposed chunk
-    const { matchNewChunk } = require('./subscription-matcher');
     matchNewChunk(chunk.id, 'proposed')
       .catch(err => console.error('Subscription matching failed (proposed):', err));
 
@@ -221,31 +222,64 @@ async function addSource(chunkId, { sourceUrl, sourceDescription, addedBy }) {
  */
 async function getChunksByTopic(topicId, { status = 'active', page = 1, limit = 20 } = {}) {
   const pool = getPool();
-
-  const countResult = await pool.query(
-    `SELECT COUNT(*)::int AS total
-     FROM chunk_topics ct
-     JOIN chunks c ON c.id = ct.chunk_id
-     WHERE ct.topic_id = $1 AND c.status = $2`,
-    [topicId, status]
-  );
-  const total = countResult.rows[0].total;
-
   const offset = (page - 1) * limit;
-  const dataResult = await pool.query(
-    `SELECT c.*
-     FROM chunk_topics ct
-     JOIN chunks c ON c.id = ct.chunk_id
-     WHERE ct.topic_id = $1 AND c.status = $2
-     ORDER BY c.created_at DESC
-     LIMIT $3 OFFSET $4`,
-    [topicId, status, limit, offset]
-  );
+
+  const [countResult, dataResult] = await Promise.all([
+    pool.query(
+      `SELECT COUNT(*)::int AS total
+       FROM chunk_topics ct
+       JOIN chunks c ON c.id = ct.chunk_id
+       WHERE ct.topic_id = $1 AND c.status = $2`,
+      [topicId, status]
+    ),
+    pool.query(
+      `SELECT c.*
+       FROM chunk_topics ct
+       JOIN chunks c ON c.id = ct.chunk_id
+       WHERE ct.topic_id = $1 AND c.status = $2
+       ORDER BY c.created_at DESC
+       LIMIT $3 OFFSET $4`,
+      [topicId, status, limit, offset]
+    ),
+  ]);
+  const total = countResult.rows[0].total;
 
   return {
     data: dataResult.rows,
     pagination: { page, limit, total },
   };
+}
+
+/**
+ * Get chunks for a topic with sources included (single query, no N+1).
+ * Used for topic detail views.
+ */
+async function getChunksWithSourcesByTopic(topicId, { status = 'active', limit = 100 } = {}) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT c.*,
+            COALESCE(
+              json_agg(
+                json_build_object(
+                  'id', cs.id,
+                  'source_url', cs.source_url,
+                  'source_description', cs.source_description,
+                  'added_by', cs.added_by,
+                  'created_at', cs.created_at
+                )
+              ) FILTER (WHERE cs.id IS NOT NULL),
+              '[]'::json
+            ) AS sources
+     FROM chunk_topics ct
+     JOIN chunks c ON c.id = ct.chunk_id
+     LEFT JOIN chunk_sources cs ON cs.chunk_id = c.id
+     WHERE ct.topic_id = $1 AND c.status = $2
+     GROUP BY c.id
+     ORDER BY c.created_at DESC
+     LIMIT $3`,
+    [topicId, status, limit]
+  );
+  return rows;
 }
 
 /**
@@ -361,7 +395,6 @@ async function mergeChunk(proposedChunkId, mergedById) {
     await client.query('COMMIT');
 
     // Fire-and-forget: trigger subscription matching for newly active chunk
-    const { matchNewChunk } = require('./subscription-matcher');
     matchNewChunk(proposedChunkId, 'active')
       .catch(err => console.error('Subscription matching failed:', err));
 
@@ -408,7 +441,6 @@ async function rejectChunk(proposedChunkId, { reason, report, rejectedBy } = {})
   );
 
   if (report && reason && rejectedBy) {
-    const flagService = require('./flag');
     await flagService.createFlag({
       targetType: 'chunk',
       targetId: proposedChunkId,
@@ -461,30 +493,31 @@ async function getTopicHistory(topicId, { page = 1, limit = 20 } = {}) {
   const pool = getPool();
   const offset = (page - 1) * limit;
 
-  const countResult = await pool.query(
-    `SELECT COUNT(*)::int AS total
-     FROM chunk_topics ct
-     JOIN chunks c ON c.id = ct.chunk_id
-     WHERE ct.topic_id = $1`,
-    [topicId]
-  );
+  const [countResult, dataResult] = await Promise.all([
+    pool.query(
+      `SELECT COUNT(*)::int AS total
+       FROM chunk_topics ct
+       JOIN chunks c ON c.id = ct.chunk_id
+       WHERE ct.topic_id = $1`,
+      [topicId]
+    ),
+    pool.query(
+      `SELECT c.id AS "chunkId", c.version, c.status, c.parent_chunk_id AS "parentChunkId",
+              c.content, c.trust_score,
+              c.proposed_by, pa.name AS proposed_by_name,
+              c.merged_by, ma.name AS merged_by_name,
+              c.merged_at AS "mergedAt", c.created_at AS "createdAt"
+       FROM chunk_topics ct
+       JOIN chunks c ON c.id = ct.chunk_id
+       LEFT JOIN accounts pa ON pa.id = c.proposed_by
+       LEFT JOIN accounts ma ON ma.id = c.merged_by
+       WHERE ct.topic_id = $1
+       ORDER BY c.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [topicId, limit, offset]
+    ),
+  ]);
   const total = countResult.rows[0].total;
-
-  const dataResult = await pool.query(
-    `SELECT c.id AS "chunkId", c.version, c.status, c.parent_chunk_id AS "parentChunkId",
-            c.content, c.trust_score,
-            c.proposed_by, pa.name AS proposed_by_name,
-            c.merged_by, ma.name AS merged_by_name,
-            c.merged_at AS "mergedAt", c.created_at AS "createdAt"
-     FROM chunk_topics ct
-     JOIN chunks c ON c.id = ct.chunk_id
-     LEFT JOIN accounts pa ON pa.id = c.proposed_by
-     LEFT JOIN accounts ma ON ma.id = c.merged_by
-     WHERE ct.topic_id = $1
-     ORDER BY c.created_at DESC
-     LIMIT $2 OFFSET $3`,
-    [topicId, limit, offset]
-  );
 
   const data = dataResult.rows.map(row => ({
     chunkId: row.chunkId,
@@ -625,6 +658,7 @@ module.exports = {
   retractChunk,
   addSource,
   getChunksByTopic,
+  getChunksWithSourcesByTopic,
   proposeEdit,
   mergeChunk,
   rejectChunk,
