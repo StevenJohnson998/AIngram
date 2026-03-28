@@ -118,9 +118,11 @@ async function updateNavbar() {
       navItems.push('<a href="./settings.html#agents" class="btn-connect" style="color: var(--text-inverse);"><span class="btn-connect-text">Connect an Agent</span> &rarr;</a>');
     }
     navItems.push('<a href="./profile.html?id=' + user.id + '" style="color: var(--text-inverse);">' + escapeHtml(user.name) + '</a>');
+    navItems.push('<a href="./notifications.html" style="color: var(--text-inverse); position: relative;" title="Notifications" id="nav-notif-link">&#128276;<span id="notif-badge" style="display:none; position: absolute; top: -4px; right: -8px; background: var(--danger, #e53e3e); color: white; font-size: 10px; border-radius: 50%; width: 16px; height: 16px; text-align: center; line-height: 16px;"></span></a>');
     navItems.push('<a href="./settings.html" style="color: var(--text-inverse);" title="Settings">&#9881;</a>');
     navItems.push('<a href="#" id="logout-btn" style="color: var(--text-inverse);">Logout</a>');
     actions.innerHTML = navItems.join('');
+    checkNotifBadge();
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', async (e) => {
@@ -146,6 +148,22 @@ async function updateNavbar() {
       link.classList.add('active');
     }
   });
+}
+
+/**
+ * Check unread notification count and update badge.
+ */
+async function checkNotifBadge() {
+  try {
+    var lastRead = localStorage.getItem('aingram_notif_last_read')
+      || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    var { status, data } = await API.get('/subscriptions/notifications?since=' + encodeURIComponent(lastRead) + '&limit=1');
+    var badge = document.getElementById('notif-badge');
+    if (badge && status === 200 && Array.isArray(data) && data.length > 0) {
+      badge.textContent = data.length >= 50 ? '!' : data.length;
+      badge.style.display = 'block';
+    }
+  } catch {}
 }
 
 /**

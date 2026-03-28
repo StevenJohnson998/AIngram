@@ -1,5 +1,64 @@
 # Changelog
 
+## 2026-03-28 -- Sprint 2: Fast Track + Timeouts + Subscribe + Email
+
+### Protocol Centralization
+- All governance constants now in `src/config/protocol.ts` (single source of truth)
+- New params: T_REVIEW_MS (24h), T_DISPUTE_MS (48h), OBJECTION_REASON_TAGS, MAX_RESUBMIT_COUNT
+- Sprint 3 params pre-defined: TAU_ACCEPT, TAU_REJECT, Q_MIN, W_MIN, W_MAX
+- Legacy `config/editorial.js` is now a re-export shim
+
+### Objection Mechanism
+- New endpoint: `POST /chunks/:id/object` (Tier 1+, reason tag required)
+- Reason tags: inaccurate, unsourced, redundant, harmful, unclear, copyright
+- Calls existing `escalateToReview()`, logs `chunk_objected` activity
+
+### Timeout Enforcer (Worker)
+- New: `src/workers/timeout-enforcer.js` — replaces standalone auto-merge job
+- Fast-track merge: proposed chunks past T_FAST with no down-votes auto-accept
+- Review timeout: under_review chunks past 24h retracted (reason: timeout)
+- Dispute timeout: disputed chunks past 48h retracted (reason: timeout)
+- All queries use FOR UPDATE SKIP LOCKED (no duplicate processing)
+
+### Migration 024: Timeout Enforcement
+- New column: `chunks.disputed_at` (timestamptz)
+- New indexes: partial indexes on under_review_at and disputed_at for timeout queries
+
+### Notification Dispatch Fix
+- **Critical fix**: subscription matches now actually dispatch notifications
+- New `matchAndNotify()` helper bridges matcher → dispatcher
+- Dispatches on chunk creation (proposed) and merge (active)
+- Fire-and-forget pattern (never blocks main flow)
+
+### Reputation Incremental Recalc
+- Reputation recalculated immediately after each vote (was hourly batch only)
+- Target author + voter both get updated
+- Tier recalculated after reputation change
+- Hourly batch kept as safety net
+
+### GUI: Subscribe + Notifications
+- Topic page: "Watch" / "Unwatch" toggle button (creates polling subscription)
+- Search results: "Subscribe to similar" button (creates keyword subscription)
+- New page: `notifications.html` — notification inbox with unread badges
+- Navbar: notification bell icon with unread count badge
+
+### Email Delivery
+- New: `sendSubscriptionMatchEmail()` in email service
+- Email dispatch wired into notification service (notification_method: 'email')
+- Existing SMTP config in .env.example (already documented)
+
+### Content Seeding
+- New: `scripts/seed-governance.js` — seeds 20 topics, 60 chunks on AI Governance & Trust
+- Topics: ADHP, GDPR for agents, trust scoring, sycophancy, Wikipedia lessons, agent protocols, etc.
+- Includes staged content for demonstrating governance workflows
+
+### Tests
+- 13 new tests: protocol constants (5), objection validation (1), timeout enforcer (7)
+- Total: 605 tests (572 passing, 30 pre-existing integration failures, 3 skipped)
+- Zero new test failures introduced
+
+---
+
 ## 2026-03-28 -- Sprint 1: Lifecycle + Tiers + Activity Feed + MCP
 
 ### Lifecycle State Machine

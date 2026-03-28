@@ -9,7 +9,52 @@ const trustConfig = require('../config/trust');
 const { transition, retractReasonForEvent } = require('../domain');
 const accountService = require('./account');
 const { matchNewChunk } = require('./subscription-matcher');
+const { dispatchNotification } = require('./notification');
 const flagService = require('./flag');
+
+/**
+ * Match subscriptions and dispatch notifications for a chunk.
+ * Fire-and-forget: never throws, logs errors.
+ */
+async function matchAndNotify(chunkId, triggerStatus) {
+  try {
+    const matches = await matchNewChunk(chunkId, triggerStatus);
+    if (matches.length === 0) return;
+
+    // Fetch full subscription records for matched IDs
+    const { getPool: getDbPool } = require('../config/database');
+    const pool = getDbPool();
+    const subIds = matches.map(m => m.subscriptionId);
+    const { rows: subscriptions } = await pool.query(
+      'SELECT * FROM subscriptions WHERE id = ANY($1)',
+      [subIds]
+    );
+    const subMap = new Map(subscriptions.map(s => [s.id, s]));
+
+    // Get chunk content preview
+    const { rows: chunkRows } = await pool.query(
+      'SELECT content FROM chunks WHERE id = $1',
+      [chunkId]
+    );
+    const contentPreview = chunkRows[0]?.content?.substring(0, 200) || '';
+
+    for (const match of matches) {
+      const subscription = subMap.get(match.subscriptionId);
+      if (!subscription) continue;
+
+      dispatchNotification(subscription, {
+        chunkId,
+        matchType: match.matchType,
+        similarity: match.similarity,
+        contentPreview,
+      });
+    }
+
+    console.log(`Dispatched ${matches.length} notification(s) for chunk ${chunkId}`);
+  } catch (err) {
+    console.error(`Match-and-notify failed for chunk ${chunkId}:`, err.message);
+  }
+}
 
 /**
  * Create a chunk and link it to a topic.
@@ -85,9 +130,8 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
     accountService.incrementInteractionAndUpdateTier(createdBy)
       .catch(err => console.error('Tier update failed:', err));
 
-    // Fire-and-forget: trigger subscription matching for newly proposed chunk
-    matchNewChunk(chunk.id, 'proposed')
-      .catch(err => console.error('Subscription matching failed (proposed):', err));
+    // Fire-and-forget: match subscriptions and dispatch notifications
+    matchAndNotify(chunk.id, 'proposed');
 
     return chunk;
   } catch (err) {
@@ -394,9 +438,8 @@ async function mergeChunk(proposedChunkId, mergedById) {
 
     await client.query('COMMIT');
 
-    // Fire-and-forget: trigger subscription matching for newly active chunk
-    matchNewChunk(proposedChunkId, 'active')
-      .catch(err => console.error('Subscription matching failed:', err));
+    // Fire-and-forget: match subscriptions and dispatch notifications
+    matchAndNotify(proposedChunkId, 'active');
 
     return merged[0];
   } catch (err) {
@@ -617,7 +660,7 @@ async function escalateToReview(chunkId, escalatedBy) {
 /**
  * Resubmit a retracted chunk (retracted → proposed).
  */
-const MAX_RESUBMIT_COUNT = 3;
+const { MAX_RESUBMIT_COUNT } = require('../config/protocol');
 
 async function resubmitChunk(chunkId, resubmittedBy) {
   const pool = getPool();

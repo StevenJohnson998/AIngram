@@ -1,6 +1,6 @@
 /**
  * AIngram Worker Process
- * Runs background jobs: auto-merge, abuse detection, reputation recalculation.
+ * Runs background jobs: timeout enforcement, abuse detection, reputation recalculation.
  * Separate from the API process to avoid blocking the event loop.
  */
 
@@ -17,20 +17,20 @@ configurePool({
 const { validateEnv } = require('../config/env');
 validateEnv();
 
-const { checkAndAutoMerge } = require('../services/auto-merge');
+const { checkTimeouts } = require('./timeout-enforcer');
 const { runAllDetections } = require('../services/abuse-detection');
 const { recalculateAllBatched } = require('../services/reputation');
-const { AUTO_MERGE_CHECK_INTERVAL_MS } = require('../config/editorial');
+const { TIMEOUT_CHECK_MS } = require('../config/protocol');
 
-// Auto-merge: every 5 minutes (configurable)
-const autoMergeInterval = setInterval(checkAndAutoMerge, AUTO_MERGE_CHECK_INTERVAL_MS);
-console.log(`Worker: auto-merge job started (interval: ${AUTO_MERGE_CHECK_INTERVAL_MS}ms)`);
+// Timeout enforcer: every 5 minutes (fast-track merge + review/dispute timeouts)
+const timeoutInterval = setInterval(checkTimeouts, TIMEOUT_CHECK_MS);
+console.log(`Worker: timeout enforcer started (interval: ${TIMEOUT_CHECK_MS}ms)`);
 
 // Abuse detection: every 5 minutes
 const abuseInterval = setInterval(runAllDetections, 5 * 60 * 1000);
 console.log('Worker: abuse detection job started (interval: 5m)');
 
-// Reputation recalculation: every hour, batched
+// Reputation recalculation: every hour, batched (safety net — incremental recalc happens per-vote)
 const reputationInterval = setInterval(
   () => recalculateAllBatched({ batchSize: 50, pauseMs: 100 }),
   60 * 60 * 1000
@@ -56,7 +56,7 @@ server.listen(3001, () => {
 // Graceful shutdown
 async function shutdown() {
   console.log('Worker: shutting down...');
-  clearInterval(autoMergeInterval);
+  clearInterval(timeoutInterval);
   clearInterval(abuseInterval);
   clearInterval(reputationInterval);
   server.close();

@@ -114,6 +114,9 @@
       });
     });
 
+    var user = null;
+    getCurrentUser().then(function(u) { user = u; });
+
     async function doSearch(q, page, append) {
       currentQuery = q;
       currentPage = page;
@@ -169,6 +172,7 @@
                 '</div>' +
               '</div>' +
               '<p class="text-sm text-muted">' + escapeHtml(truncate(item.content, 250)) + '</p>' +
+              (user ? '<button class="btn btn-xs btn-outline mt-sm" onclick="subscribeToSimilar(\'' + escapeHtml(q) + '\')">Subscribe to similar</button>' : '') +
             '</div>';
           }).join('');
 
@@ -194,6 +198,24 @@
       if (!str) return '';
       if (str.length <= len) return str;
       return str.substring(0, len) + '...';
+    }
+
+    async function subscribeToSimilar(query) {
+      if (!user) { alert('Please log in first'); return; }
+      try {
+        var { status, data } = await API.post('/subscriptions', {
+          type: 'keyword',
+          keyword: query,
+          notificationMethod: 'polling',
+        });
+        if (status === 201) {
+          alert('Subscribed! You will see matches in your Notifications.');
+        } else if (data && data.error) {
+          alert(data.error.message || 'Subscription failed');
+        }
+      } catch (err) {
+        alert('Failed to create subscription');
+      }
     }
   </script>
 </body>

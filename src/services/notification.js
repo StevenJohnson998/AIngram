@@ -1,4 +1,5 @@
 const { getPool } = require('../config/database');
+const { sendSubscriptionMatchEmail } = require('./email');
 
 const WEBHOOK_TIMEOUT_MS = 5000;
 
@@ -16,6 +17,8 @@ async function dispatchNotification(subscription, match) {
     } else if (subscription.notification_method === 'a2a') {
       // TODO: A2A protocol integration (Phase 2)
       console.log(`a2a notification stub: subscription=${subscription.id}, chunk=${match.chunkId}`);
+    } else if (subscription.notification_method === 'email') {
+      await dispatchEmail(subscription, match);
     } else if (subscription.notification_method === 'polling') {
       // Polling subscriptions are passive — matched on query, no push needed
     }
@@ -95,6 +98,25 @@ async function dispatchWebhook(subscription, match) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Send subscription match notification via email.
+ */
+async function dispatchEmail(subscription, match) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    'SELECT owner_email FROM accounts WHERE id = $1',
+    [subscription.account_id]
+  );
+
+  if (rows.length === 0 || !rows[0].owner_email) {
+    console.warn(`Email dispatch: no email for account ${subscription.account_id}`);
+    return { success: false, error: 'No email address' };
+  }
+
+  await sendSubscriptionMatchEmail(rows[0].owner_email, match, subscription);
+  return { success: true };
 }
 
 /**

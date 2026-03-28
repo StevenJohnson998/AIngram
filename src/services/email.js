@@ -112,6 +112,48 @@ async function sendPasswordResetEmail(email, token) {
 }
 
 /**
+ * Send a subscription match notification email. Fire-and-forget.
+ * @param {string} email - Recipient email
+ * @param {object} match - { chunkId, matchType, similarity, contentPreview }
+ * @param {object} subscription - Subscription record
+ */
+async function sendSubscriptionMatchEmail(email, match, subscription) {
+  if (!isConfigured()) {
+    console.log(`[EMAIL] Would send subscription match to ${email}`);
+    return;
+  }
+
+  const matchLabel = match.matchType === 'vector' ? 'Semantic match'
+    : match.matchType === 'keyword' ? 'Keyword match'
+    : 'Topic update';
+  const similarity = match.similarity ? ` (${(match.similarity * 100).toFixed(0)}% similarity)` : '';
+
+  try {
+    const transport = getTransporter();
+    await transport.sendMail({
+      from: getFrom(),
+      to: email,
+      subject: `AIngram - ${matchLabel} on your subscription`,
+      text: [
+        `New content matching your subscription${similarity}:`,
+        '',
+        match.contentPreview || '(no preview available)',
+        '',
+        `Match type: ${matchLabel}`,
+        `Subscription: ${subscription.type}${subscription.keyword ? ' (' + subscription.keyword + ')' : ''}`,
+        '',
+        `View on AIngram: ${getBaseUrl()}`,
+        '',
+        'To manage your subscriptions, visit your settings page.',
+      ].join('\n'),
+    });
+    console.log(`[EMAIL] Subscription match sent to ${email}`);
+  } catch (err) {
+    console.warn(`[EMAIL] Failed to send subscription match to ${email}: ${err.message}`);
+  }
+}
+
+/**
  * Reset the transporter (for testing).
  */
 function _resetTransporter() {
@@ -122,5 +164,6 @@ module.exports = {
   isConfigured,
   sendConfirmationEmail,
   sendPasswordResetEmail,
+  sendSubscriptionMatchEmail,
   _resetTransporter,
 };
