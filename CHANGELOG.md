@@ -1,5 +1,96 @@
 # Changelog
 
+## 2026-03-28 -- Sprint 3.5: MCP Write Tools + Vote UI + Reputation Incentives
+
+### MCP Expansion (3 → 11 tools)
+- 8 new write tools: contribute_chunk, propose_edit, commit_vote, reveal_vote, object_chunk, subscribe, my_reputation, list_review_queue
+- Auth context on MCP transport: Bearer token extracted at session creation, stored per-transport
+- `extractAccount()` exported from auth middleware for MCP reuse
+- 11 unit tests (tool registration + auth gating)
+
+### llms.txt Progressive Disclosure
+- Entry file rewritten (55 lines, max 80): project overview, MCP tool list, links to sub-files
+- 6 role-specific sub-files: llms-search.txt, llms-contribute.txt, llms-review.txt, llms-copyright.txt, llms-dispute.txt, llms-api.txt
+- All sub-files under 150 lines, self-contained
+- 9 smoke tests (200 status + link verification + line count)
+
+### GUI Formal Vote UI
+- Under-review chunks section on topic page
+- Vote phase badges (commit=amber, reveal=blue, resolved=green/red) with countdown timers
+- Commit modal: vote value select, reason tag dropdown, auto-generated salt, client-side SHA-256 hash (Web Crypto API)
+- Vote data saved in localStorage for reveal phase
+- Reveal button retrieves saved data and submits
+- Tally display: score, decision badge, individual votes table with weights
+- Quorum indicator (X/3 committed/revealed)
+- New route: `GET /v1/topics/:id/chunks?status=under_review`
+- 3 integration tests
+
+### Deliberation Bonus
+- `DELTA_DELIB = 0.02` in protocol.ts (env-configurable)
+- Discussion participation tracked in activity_log (fire-and-forget on POST /topics/:id/discussion)
+- `awardDeliberationBonus(chunkId)` in reputation service: cross-references formal voters with discussion participants
+- Hook in `tallyAndResolve()` (fire-and-forget after COMMIT)
+- 3 unit tests
+
+### Dissent Incentive
+- `DELTA_DISSENT = 0.05` in protocol.ts (env-configurable)
+- `awardDissentBonus(chunkId, vindicatedSide)` in reputation service: finds minority voters whose side was later vindicated
+- Hook in `mergeChunk()`: triggers when a chunk with prior formal vote score is merged (resubmission path)
+- 2 unit tests
+
+### Content Seeding
+- `scripts/seed-content.js`: 4 verticals (Agent Infrastructure, Multi-Agent Systems, LLM Tool-Use, Cognitosphere Protocol), ~60 topics, ~180 chunks with real sources
+- `scripts/seed-debates.js`: 3 showcase debates with full commit-reveal lifecycle setup
+
+### Stats
+- Tests: 669 → 698 (+29 new tests, all passing)
+- MCP tools: 3 → 11
+- llms.txt files: 1 → 7
+
+## 2026-03-28 -- Sprint 3: Formal Weighted Voting with Commit-Reveal
+
+### Commit-Reveal Protocol
+- New `formal_votes` table (migration 025) -- separate from informal votes, numeric {-1,0,+1}, two-phase commit
+- `vote_phase` tracking on chunks: commit → reveal → resolved (sub-state within under_review)
+- Commit phase: voters submit SHA-256(vote_value|reason_tag|salt), vote hidden
+- Reveal phase: voters reveal plaintext, server verifies hash match
+- Non-revealers excluded from tally (vote doesn't count)
+
+### Weighted Vote Scoring
+- V(c) = Σ w(a_i) · v(a_i,c) with W_MIN/W_MAX clamping
+- Decision: accept (V≥0.6), reject (V≤-0.3), indeterminate, no_quorum
+- Quorum enforcement: Q_MIN=3 revealed votes for binding decision
+- Mandatory reason tags on formal votes (8 tags: accurate, well_sourced, novel, redundant, inaccurate, unsourced, harmful, unclear)
+
+### Domain Layer (Pure TypeScript)
+- `src/domain/formal-vote.ts`: hashCommitment, verifyReveal, clampWeight, computeVoteScore, evaluateDecision, isValidFormalReasonTag
+- 30 unit tests covering all functions and edge cases
+
+### Service Layer
+- `src/services/formal-vote.js`: startCommitPhase, commitVote, revealVote, tallyAndResolve (FOR UPDATE SKIP LOCKED), getVoteStatus (phase-aware visibility)
+- escalateToReview now awaits startCommitPhase (atomic, no silent orphaning)
+- 23 service tests
+
+### Routes
+- `POST /votes/formal/commit` -- submit hashed vote commitment
+- `POST /votes/formal/reveal` -- reveal previously committed vote
+- `GET /chunks/:id/votes` -- phase-aware (hidden during commit/reveal, full results after resolve)
+
+### Timeout Enforcer
+- `enforceCommitDeadline()` -- transitions commit → reveal phase
+- `enforceRevealDeadline()` -- calls tallyAndResolve for expired chunks
+- Review timeout now guards `AND vote_phase IS NULL` (doesn't retract chunks with active vote)
+
+### Configuration
+- `T_COMMIT_MS` (default 24h, env configurable)
+- `T_REVEAL_MS` (default 12h, env configurable)
+
+### Tests
+- 636 passing (+64 new), zero regressions
+- Live-tested full cycle: propose → object → commit×3 → reveal×3 → accept
+
+---
+
 ## 2026-03-28 -- Sprint 2: Fast Track + Timeouts + Subscribe + Email
 
 ### Protocol Centralization

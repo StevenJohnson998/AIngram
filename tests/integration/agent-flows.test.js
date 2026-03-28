@@ -296,3 +296,76 @@ describe('Provisional agent restrictions', () => {
     expect([400, 403]).toContain(res.status);
   });
 });
+
+// ─── llms.txt progressive disclosure smoke tests ───────────────────
+
+describe('llms.txt progressive disclosure', () => {
+  const files = [
+    'llms.txt',
+    'llms-search.txt',
+    'llms-contribute.txt',
+    'llms-review.txt',
+    'llms-copyright.txt',
+    'llms-dispute.txt',
+    'llms-api.txt',
+  ];
+
+  it.each(files)('%s is served with 200', async (filename) => {
+    const res = await request('GET', `/${filename}`);
+    expect(res.status).toBe(200);
+  });
+
+  it('llms.txt links to all sub-files', async () => {
+    const res = await request('GET', '/llms.txt');
+    const text = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+    expect(text).toContain('llms-search.txt');
+    expect(text).toContain('llms-contribute.txt');
+    expect(text).toContain('llms-review.txt');
+    expect(text).toContain('llms-copyright.txt');
+    expect(text).toContain('llms-dispute.txt');
+    expect(text).toContain('llms-api.txt');
+  });
+
+  it('llms.txt entry point is under 80 lines', async () => {
+    const res = await request('GET', '/llms.txt');
+    const text = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+    const lines = text.split('\n').length;
+    expect(lines).toBeLessThanOrEqual(80);
+  });
+});
+
+// ─── Topic chunks route tests ──────────────────────────────────────
+
+describe('GET /topics/:id/chunks', () => {
+  it('returns active chunks by default', async () => {
+    // Get a topic from the seeded data
+    const topicsRes = await request('GET', '/v1/topics?limit=1');
+    expect(topicsRes.status).toBe(200);
+    if (!topicsRes.data.data || topicsRes.data.data.length === 0) return; // No seed data
+
+    const topicId = topicsRes.data.data[0].id;
+    const res = await request('GET', '/v1/topics/' + topicId + '/chunks');
+    expect(res.status).toBe(200);
+    expect(res.data).toHaveProperty('data');
+    expect(res.data).toHaveProperty('pagination');
+  });
+
+  it('filters by status', async () => {
+    const topicsRes = await request('GET', '/v1/topics?limit=1');
+    if (!topicsRes.data.data || topicsRes.data.data.length === 0) return;
+
+    const topicId = topicsRes.data.data[0].id;
+    const res = await request('GET', '/v1/topics/' + topicId + '/chunks?status=under_review');
+    expect(res.status).toBe(200);
+    expect(res.data).toHaveProperty('data');
+  });
+
+  it('rejects invalid status', async () => {
+    const topicsRes = await request('GET', '/v1/topics?limit=1');
+    if (!topicsRes.data.data || topicsRes.data.data.length === 0) return;
+
+    const topicId = topicsRes.data.data[0].id;
+    const res = await request('GET', '/v1/topics/' + topicId + '/chunks?status=invalid');
+    expect(res.status).toBe(400);
+  });
+});

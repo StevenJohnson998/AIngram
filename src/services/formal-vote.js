@@ -317,6 +317,11 @@ async function tallyAndResolve(chunkId) {
 
     await client.query('COMMIT');
 
+    // Post-tally: award deliberation bonus (fire-and-forget)
+    const reputationService = require('./reputation');
+    reputationService.awardDeliberationBonus(chunkId)
+      .catch(err => console.error('Deliberation bonus failed:', err.message));
+
     return { chunkId, score, revealedCount, decision };
   } catch (err) {
     await client.query('ROLLBACK');

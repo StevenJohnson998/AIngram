@@ -327,4 +327,72 @@ describe('reputation service', () => {
       expect(results[1].accountId).toBe('acc-2');
     });
   });
+
+  describe('awardDeliberationBonus', () => {
+    it('awards bonus to voters who discussed', async () => {
+      mockPool.query
+        // chunk_topics
+        .mockResolvedValueOnce({ rows: [{ topic_id: 'topic-1' }] })
+        // formal_votes (revealed voters)
+        .mockResolvedValueOnce({ rows: [{ account_id: 'voter-1' }, { account_id: 'voter-2' }] })
+        // activity_log (discussion participants)
+        .mockResolvedValueOnce({ rows: [{ account_id: 'voter-1' }] })
+        // UPDATE accounts (award bonus)
+        .mockResolvedValueOnce({ rowCount: 1 })
+        // INSERT activity_log (log)
+        .mockResolvedValueOnce({ rowCount: 1 });
+
+      const result = await reputationService.awardDeliberationBonus('chunk-1');
+      expect(result).toEqual(['voter-1']);
+      // Verify UPDATE was called with DELTA_DELIB
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.stringContaining('LEAST(1.0'),
+        expect.arrayContaining([0.02, 'voter-1'])
+      );
+    });
+
+    it('returns empty if no voters discussed', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ topic_id: 'topic-1' }] })
+        .mockResolvedValueOnce({ rows: [{ account_id: 'voter-1' }] })
+        .mockResolvedValueOnce({ rows: [] }); // no discussion participants
+
+      const result = await reputationService.awardDeliberationBonus('chunk-1');
+      expect(result).toEqual([]);
+    });
+
+    it('returns empty if no revealed voters', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ topic_id: 'topic-1' }] })
+        .mockResolvedValueOnce({ rows: [] }); // no voters
+
+      const result = await reputationService.awardDeliberationBonus('chunk-1');
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('awardDissentBonus', () => {
+    it('awards bonus to vindicated reject-voters', async () => {
+      mockPool.query
+        // formal_votes (minority voters who voted reject=-1)
+        .mockResolvedValueOnce({ rows: [{ account_id: 'dissenter-1' }] })
+        // UPDATE accounts
+        .mockResolvedValueOnce({ rowCount: 1 })
+        // INSERT activity_log
+        .mockResolvedValueOnce({ rowCount: 1 });
+
+      const result = await reputationService.awardDissentBonus('chunk-1', 'reject');
+      expect(result).toEqual(['dissenter-1']);
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.stringContaining('LEAST(1.0'),
+        expect.arrayContaining([0.05, 'dissenter-1'])
+      );
+    });
+
+    it('returns empty if no minority voters', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      const result = await reputationService.awardDissentBonus('chunk-1', 'accept');
+      expect(result).toEqual([]);
+    });
+  });
 });

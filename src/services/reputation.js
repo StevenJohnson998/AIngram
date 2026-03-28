@@ -369,6 +369,97 @@ async function recalculateChunkTrust(chunkId) {
   return trustScore;
 }
 
+/**
+ * Award deliberation bonus to voters who participated in discussion before voting.
+ * Called after tallyAndResolve() — fire-and-forget.
+ */
+async function awardDeliberationBonus(chunkId) {
+  const pool = getPool();
+  const { DELTA_DELIB } = require('../../build/config/protocol');
+
+  // Get topic IDs for this chunk
+  const { rows: topicRows } = await pool.query(
+    'SELECT topic_id FROM chunk_topics WHERE chunk_id = $1',
+    [chunkId]
+  );
+  if (topicRows.length === 0) return [];
+
+  const topicIds = topicRows.map(r => r.topic_id);
+
+  // Get revealed voters for this chunk
+  const { rows: voters } = await pool.query(
+    'SELECT DISTINCT account_id FROM formal_votes WHERE chunk_id = $1 AND revealed_at IS NOT NULL',
+    [chunkId]
+  );
+  if (voters.length === 0) return [];
+
+  const voterIds = voters.map(v => v.account_id);
+
+  // Find voters who also posted in discussion on this topic
+  const { rows: participants } = await pool.query(
+    `SELECT DISTINCT account_id FROM activity_log
+     WHERE action = 'discussion_post' AND target_type = 'topic'
+       AND target_id = ANY($1) AND account_id = ANY($2)`,
+    [topicIds, voterIds]
+  );
+  if (participants.length === 0) return [];
+
+  const recipientIds = participants.map(p => p.account_id);
+
+  // Award bonus (capped at 1.0)
+  for (const accountId of recipientIds) {
+    await pool.query(
+      'UPDATE accounts SET reputation_contribution = LEAST(1.0, reputation_contribution + $1) WHERE id = $2',
+      [DELTA_DELIB, accountId]
+    );
+  }
+
+  // Log
+  await pool.query(
+    `INSERT INTO activity_log (action, target_type, target_id, metadata)
+     VALUES ('deliberation_bonus', 'chunk', $1, $2)`,
+    [chunkId, JSON.stringify({ recipients: recipientIds, bonus: DELTA_DELIB })]
+  );
+
+  return recipientIds;
+}
+
+/**
+ * Award dissent bonus to minority voters later vindicated.
+ * @param {string} chunkId - chunk that changed state
+ * @param {'accept'|'reject'} vindicatedSide - which side was right
+ */
+async function awardDissentBonus(chunkId, vindicatedSide) {
+  const pool = getPool();
+  const { DELTA_DISSENT } = require('../../build/config/protocol');
+
+  const targetVoteValue = vindicatedSide === 'reject' ? -1 : 1;
+
+  // Find minority voters whose vote matched the vindicated side
+  const { rows: minorityVoters } = await pool.query(
+    'SELECT DISTINCT account_id FROM formal_votes WHERE chunk_id = $1 AND vote_value = $2 AND revealed_at IS NOT NULL',
+    [chunkId, targetVoteValue]
+  );
+  if (minorityVoters.length === 0) return [];
+
+  const recipientIds = minorityVoters.map(v => v.account_id);
+
+  for (const accountId of recipientIds) {
+    await pool.query(
+      'UPDATE accounts SET reputation_contribution = LEAST(1.0, reputation_contribution + $1) WHERE id = $2',
+      [DELTA_DISSENT, accountId]
+    );
+  }
+
+  await pool.query(
+    `INSERT INTO activity_log (action, target_type, target_id, metadata)
+     VALUES ('dissent_bonus', 'chunk', $1, $2)`,
+    [chunkId, JSON.stringify({ recipients: recipientIds, side: vindicatedSide, bonus: DELTA_DISSENT })]
+  );
+
+  return recipientIds;
+}
+
 module.exports = {
   recalculateReputation,
   checkBadges,
@@ -376,4 +467,6 @@ module.exports = {
   recalculateAllBatched,
   getReputationDetails,
   recalculateChunkTrust,
+  awardDeliberationBonus,
+  awardDissentBonus,
 };

@@ -665,4 +665,28 @@ router.get(
   }
 );
 
+// GET /topics/:id/chunks — list chunks by status (for formal vote UI)
+const VALID_CHUNK_STATUSES = ['proposed', 'under_review', 'active', 'disputed', 'retracted', 'superseded'];
+
+router.get('/topics/:id/chunks', async (req, res) => {
+  try {
+    const status = req.query.status;
+    if (status && !VALID_CHUNK_STATUSES.includes(status)) {
+      return validationError(res, 'Invalid status. Must be one of: ' + VALID_CHUNK_STATUSES.join(', '));
+    }
+
+    const { page, limit } = parsePagination(req.query);
+    const result = await chunkService.getChunksByTopic(req.params.id, {
+      status: status || 'active',
+      page,
+      limit: Math.min(limit, 50),
+    });
+
+    return res.json(result);
+  } catch (err) {
+    console.error('Error listing topic chunks:', err);
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list chunks' } });
+  }
+});
+
 module.exports = router;

@@ -76,6 +76,14 @@ export const OBJECTION_REASON_TAGS = [
 
 export type ObjectionReason = typeof OBJECTION_REASON_TAGS[number];
 
+// --- Reputation Incentives ---
+
+/** Deliberation bonus — reputation reward for voters who discussed before voting */
+export const DELTA_DELIB = parseFloat(process.env.DELTA_DELIB || '') || 0.02;
+
+/** Dissent incentive — reputation reward for vindicated minority voters */
+export const DELTA_DISSENT = parseFloat(process.env.DELTA_DISSENT || '') || 0.05;
+
 // --- Legacy aliases (consumed by auto-merge.js, will be removed after Sprint 2) ---
 
 export const MERGE_TIMEOUT_LOW_SENSITIVITY_MS = T_FAST_LOW_MS;
