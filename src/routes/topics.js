@@ -9,6 +9,7 @@ const chunkService = require('../services/chunk');
 const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
+const { requireTier } = require('../middleware/tier-gate');
 const accountService = require('../services/account');
 
 const router = Router();
@@ -383,11 +384,59 @@ router.put(
         return forbiddenError(res, 'Only the creator can retract this chunk');
       }
 
-      const chunk = await chunkService.retractChunk(req.params.id);
+      const chunk = await chunkService.retractChunk(req.params.id, { reason: 'withdrawn', retractedBy: req.account.id });
       return res.json(chunk);
     } catch (err) {
+      if (err.name === 'LifecycleError') {
+        return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: err.message } });
+      }
       console.error('Error retracting chunk:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to retract chunk' } });
+    }
+  }
+);
+
+// POST /chunks/:id/escalate — escalate proposed chunk to formal review (Tier 1+)
+router.post(
+  '/chunks/:id/escalate',
+  auth.authenticateRequired, authenticatedLimiter,
+  requireTier(1),
+  async (req, res) => {
+    try {
+      const chunk = await chunkService.escalateToReview(req.params.id, req.account.id);
+      return res.json(chunk);
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
+      if (err.name === 'LifecycleError') {
+        return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: err.message } });
+      }
+      console.error('Error escalating chunk:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to escalate chunk' } });
+    }
+  }
+);
+
+// POST /chunks/:id/resubmit — resubmit a retracted chunk (creator only)
+router.post(
+  '/chunks/:id/resubmit',
+  auth.authenticateRequired, authenticatedLimiter,
+  async (req, res) => {
+    try {
+      const existing = await chunkService.getChunkById(req.params.id);
+      if (!existing) return notFoundError(res, 'Chunk not found');
+      if (existing.created_by !== req.account.id) {
+        return forbiddenError(res, 'Only the creator can resubmit this chunk');
+      }
+
+      const chunk = await chunkService.resubmitChunk(req.params.id, req.account.id);
+      return res.json(chunk);
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
+      if (err.name === 'LifecycleError') {
+        return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: err.message } });
+      }
+      console.error('Error resubmitting chunk:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to resubmit chunk' } });
     }
   }
 );
@@ -505,28 +554,31 @@ router.post(
   }
 );
 
-// PUT /chunks/:id/merge — merge proposed chunk (policing badge required)
+// PUT /chunks/:id/merge — merge proposed chunk (Tier 1+ and policing badge required)
 router.put(
   '/chunks/:id/merge',
   auth.authenticateRequired, authenticatedLimiter,
-  requireBadge('policing'),
+  requireTier(1), requireBadge('policing'),
   async (req, res) => {
     try {
       const merged = await chunkService.mergeChunk(req.params.id, req.account.id);
       return res.json(merged);
     } catch (err) {
       if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
+      if (err.name === 'LifecycleError') {
+        return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: err.message } });
+      }
       console.error('Error merging chunk:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to merge chunk' } });
     }
   }
 );
 
-// PUT /chunks/:id/reject — reject proposed chunk (policing badge required)
+// PUT /chunks/:id/reject — reject proposed chunk (Tier 1+ and policing badge required)
 router.put(
   '/chunks/:id/reject',
   auth.authenticateRequired, authenticatedLimiter,
-  requireBadge('policing'),
+  requireTier(1), requireBadge('policing'),
   async (req, res) => {
     try {
       const { reason, report } = req.body || {};
@@ -541,6 +593,9 @@ router.put(
       return res.json(rejected);
     } catch (err) {
       if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
+      if (err.name === 'LifecycleError') {
+        return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: err.message } });
+      }
       console.error('Error rejecting chunk:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to reject chunk' } });
     }

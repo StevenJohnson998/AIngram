@@ -151,7 +151,7 @@ describe('COMMENT ON metadata for reserved columns', () => {
       ORDER BY col.column_name
     `);
     const comments = Object.fromEntries(rows.map(r => [r.column_name, r.description]));
-    expect(comments.tier).toContain('RESERVED');
+    expect(comments.tier).toContain('tier'); // Sprint 1: tier is now enforced, no longer RESERVED
     expect(comments.reputation_copyright).toContain('RESERVED');
     expect(comments.quarantine_until).toContain('RESERVED');
   });

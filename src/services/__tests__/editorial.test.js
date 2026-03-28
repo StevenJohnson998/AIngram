@@ -15,6 +15,9 @@ jest.mock('../../config/trust', () => ({
 jest.mock('../ollama', () => ({
   generateEmbedding: jest.fn().mockResolvedValue(null),
 }));
+jest.mock('../account', () => ({
+  incrementInteractionAndUpdateTier: jest.fn().mockResolvedValue(0),
+}));
 
 const { getPool } = require('../../config/database');
 const chunkService = require('../chunk');
@@ -99,16 +102,20 @@ describe('editorial model', () => {
   describe('mergeChunk', () => {
     it('supersedes original and activates proposed', async () => {
       mockClient.query.mockResolvedValueOnce({}); // BEGIN
-      // Get proposed chunk
+      // Get proposed chunk (status IN proposed/under_review)
       mockClient.query.mockResolvedValueOnce({
         rows: [{ id: 'proposed-1', status: 'proposed', parent_chunk_id: 'original-1' }],
       });
+      // SELECT status of parent (for SUPERSEDE validation)
+      mockClient.query.mockResolvedValueOnce({ rows: [{ status: 'active' }] });
       // Supersede original
       mockClient.query.mockResolvedValueOnce({ rowCount: 1 });
       // Activate proposed
       mockClient.query.mockResolvedValueOnce({
         rows: [{ id: 'proposed-1', status: 'active', merged_by: 'mod-1' }],
       });
+      // INSERT activity_log
+      mockClient.query.mockResolvedValueOnce({});
       mockClient.query.mockResolvedValueOnce({}); // COMMIT
 
       const result = await chunkService.mergeChunk('proposed-1', 'mod-1');
@@ -117,32 +124,37 @@ describe('editorial model', () => {
       expect(result.merged_by).toBe('mod-1');
     });
 
-    it('throws NOT_FOUND if chunk not proposed', async () => {
+    it('throws NOT_FOUND if chunk not in proposed/under_review status', async () => {
       mockClient.query.mockResolvedValueOnce({}); // BEGIN
       mockClient.query.mockResolvedValueOnce({ rows: [] });
 
       await expect(
         chunkService.mergeChunk('nonexistent', 'mod-1')
-      ).rejects.toThrow('Proposed chunk not found');
+      ).rejects.toThrow('Chunk not found or not in proposed/under_review status');
     });
   });
 
   describe('rejectChunk', () => {
     it('sets proposed chunk to retracted', async () => {
+      // SELECT status
+      mockPool.query.mockResolvedValueOnce({ rows: [{ status: 'proposed' }] });
+      // UPDATE retract
       mockPool.query.mockResolvedValueOnce({
         rows: [{ id: 'proposed-1', status: 'retracted' }],
       });
+      // INSERT activity_log
+      mockPool.query.mockResolvedValueOnce({});
 
       const result = await chunkService.rejectChunk('proposed-1');
       expect(result.status).toBe('retracted');
     });
 
-    it('throws NOT_FOUND if not proposed', async () => {
-      mockPool.query.mockResolvedValueOnce({ rows: [] });
+    it('throws NOT_FOUND if chunk does not exist', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] }); // SELECT status
 
       await expect(
         chunkService.rejectChunk('nonexistent')
-      ).rejects.toThrow('Proposed chunk not found');
+      ).rejects.toThrow('Chunk not found');
     });
   });
 
@@ -195,6 +207,7 @@ describe('editorial model', () => {
         .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce({ rows: [{ id: 'chunk-1', trust_score: 5/6 }] })
         .mockResolvedValueOnce({}) // chunk_topics
+        .mockResolvedValueOnce({}) // activity_log
         .mockResolvedValueOnce({}); // COMMIT
 
       await chunkService.createChunk({
@@ -210,10 +223,11 @@ describe('editorial model', () => {
 
     it('creates chunk with trust 0.5 for non-elite', async () => {
       mockClient.query
-        .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce({ rows: [{ id: 'chunk-1', trust_score: 0 }] })
-        .mockResolvedValueOnce({})
-        .mockResolvedValueOnce({});
+        .mockResolvedValueOnce({}) // chunk_topics
+        .mockResolvedValueOnce({}) // activity_log
+        .mockResolvedValueOnce({}); // COMMIT
 
       await chunkService.createChunk({
         content: 'Regular content that is long enough',

@@ -13,6 +13,7 @@
     "verify-db": "node src/config/verify-db.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^16.4.7",
@@ -25,17 +26,32 @@
     "pg": "^8.13.1"
   },
   "jest": {
-    "testPathIgnorePatterns": ["/node_modules/", "e2e-"],
-    "roots": ["<rootDir>/src", "<rootDir>/tests"],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "e2e-"
+    ],
+    "roots": [
+      "<rootDir>/src",
+      "<rootDir>/tests"
+    ],
     "transform": {
-      "^.+\\.ts$": ["ts-jest", { "tsconfig": "tsconfig.json" }]
+      "^.+\\.ts$": [
+        "ts-jest",
+        {
+          "tsconfig": "tsconfig.json"
+        }
+      ]
     },
-    "moduleFileExtensions": ["ts", "js", "json"]
+    "moduleFileExtensions": [
+      "ts",
+      "js",
+      "json"
+    ]
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/jest": "^29.5.0",
     "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.0",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^18.19.0",
     "@types/pg": "^8.11.0",

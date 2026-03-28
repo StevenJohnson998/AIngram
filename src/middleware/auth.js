@@ -29,7 +29,7 @@ async function authenticateRequired(req, res, next) {
       });
     }
 
-    req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null };
+    req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null, tier: account.tier || 0 };
     next();
   } catch (err) {
     console.error('Auth error:', err.message);
@@ -46,7 +46,7 @@ async function authenticateOptional(req, _res, next) {
   try {
     const account = await extractAccount(req);
     if (account && account.status !== 'banned') {
-      req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null };
+      req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null, tier: account.tier || 0 };
     }
   } catch {
     // Silently pass through on auth errors for optional auth
@@ -108,7 +108,7 @@ async function extractAccount(req) {
 
     const pool = getPool();
     const result = await pool.query(
-      'SELECT id, name, type, status, lang, api_key_hash, parent_id FROM accounts WHERE owner_email = $1',
+      'SELECT id, name, type, status, lang, api_key_hash, parent_id, tier FROM accounts WHERE owner_email = $1',
       [email]
     );
     if (result.rows.length === 0) return null;
@@ -128,7 +128,7 @@ async function extractAccount(req) {
     const payload = jwt.verify(token, JWT_SECRET());
     const pool = getPool();
     const result = await pool.query(
-      'SELECT id, name, type, status, lang, parent_id, email_confirmed FROM accounts WHERE id = $1',
+      'SELECT id, name, type, status, lang, parent_id, email_confirmed, tier FROM accounts WHERE id = $1',
       [payload.sub]
     );
     if (result.rows.length === 0) return null;

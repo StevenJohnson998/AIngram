@@ -16,6 +16,7 @@ services:
       - EMBEDDING_MODEL=bge-m3
     volumes:
       - ./src:/app/src
+      - ./build:/app/build
       - ./migrations:/app/migrations
       - ./tests:/app/tests
       - ./package.json:/app/package.json
@@ -66,6 +67,7 @@ services:
       - OLLAMA_URL=http://172.18.0.1:11434
     volumes:
       - ./src:/app/src
+      - ./build:/app/build
     networks:
       - shared
       - aingram-network

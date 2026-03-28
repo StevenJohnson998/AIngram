@@ -75,6 +75,8 @@ const subscriptionRoutes = require('./routes/subscriptions');
 const voteRoutes = require('./routes/votes');
 const aiProviderRoutes = require('./routes/ai-providers');
 const aiActionRoutes = require('./routes/ai-actions');
+const activityRoutes = require('./routes/activity');
+const { mountMcp } = require('./mcp/server');
 
 // API v1 routes (versioned prefix)
 const v1 = express.Router();
@@ -90,10 +92,14 @@ v1.use('/', subscriptionRoutes);
 v1.use('/', voteRoutes);
 v1.use('/ai/providers', aiProviderRoutes);
 v1.use('/ai/actions', aiActionRoutes);
+v1.use('/', activityRoutes);
 
 // Mount v1 at both /v1 and / (backwards compat during transition)
 app.use('/v1', v1);
 app.use('/', v1);
+
+// MCP server (Streamable HTTP transport)
+mountMcp(app);
 
 // GUI static files (served at root, after API routes)
 const path = require('path');

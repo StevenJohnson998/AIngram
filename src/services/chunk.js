@@ -1,10 +1,13 @@
 /**
  * Chunk service — CRUD operations for atomic knowledge units.
+ * All state transitions enforced via domain/lifecycle.
  */
 
 const { getPool } = require('../config/database');
 const { generateEmbedding } = require('./ollama');
 const trustConfig = require('../config/trust');
+const { transition, retractReasonForEvent } = require('../../build/domain');
+const accountService = require('./account');
 
 /**
  * Create a chunk and link it to a topic.
@@ -52,8 +55,8 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
     await client.query('BEGIN');
 
     const { rows } = await client.query(
-      `INSERT INTO chunks (content, technical_detail, has_technical_detail, created_by, trust_score, title, subtitle, adhp)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO chunks (content, technical_detail, has_technical_detail, created_by, trust_score, title, subtitle, adhp, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'proposed')
        RETURNING *`,
       [content, technicalDetail || null, technicalDetail != null, createdBy, initialTrust, title, subtitle, adhp ? JSON.stringify(adhp) : null]
     );
@@ -67,7 +70,18 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
       [chunk.id, topicId]
     );
 
+    // Log activity
+    await client.query(
+      `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+       VALUES ($1, 'chunk_proposed', 'chunk', $2, $3)`,
+      [createdBy, chunk.id, JSON.stringify({ topicId })]
+    );
+
     await client.query('COMMIT');
+
+    // Fire-and-forget: update interaction count + tier
+    accountService.incrementInteractionAndUpdateTier(createdBy)
+      .catch(err => console.error('Tier update failed:', err));
 
     // Fire-and-forget: trigger subscription matching for newly proposed chunk
     const { matchNewChunk } = require('./subscription-matcher');
@@ -146,15 +160,35 @@ async function updateChunk(id, { content, technicalDetail }) {
 }
 
 /**
- * Retract a chunk (soft delete).
+ * Retract a chunk (soft delete) with lifecycle enforcement.
+ * @param {string} id - chunk ID
+ * @param {object} opts - { reason: 'withdrawn'|'timeout'|'admin'|'copyright', retractedBy?: string }
  */
-async function retractChunk(id) {
+async function retractChunk(id, { reason = 'withdrawn', retractedBy = null } = {}) {
   const pool = getPool();
+
+  // Get current status to validate transition
+  const { rows: current } = await pool.query('SELECT status FROM chunks WHERE id = $1', [id]);
+  if (current.length === 0) {
+    throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
+  }
+
+  // Determine lifecycle event based on reason
+  const event = reason === 'timeout' ? 'TIMEOUT' : 'WITHDRAW';
+  transition(current[0].status, event); // throws LifecycleError if invalid
+
   const { rows } = await pool.query(
-    `UPDATE chunks SET status = 'retracted', updated_at = now()
+    `UPDATE chunks SET status = 'retracted', retract_reason = $2, updated_at = now()
      WHERE id = $1
      RETURNING *`,
-    [id]
+    [id, reason]
+  );
+
+  // Log activity
+  await pool.query(
+    `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+     VALUES ($1, 'chunk_retracted', 'chunk', $2, $3)`,
+    [retractedBy, id, JSON.stringify({ reason })]
   );
 
   return rows[0] || null;
@@ -262,7 +296,8 @@ async function proposeEdit({ originalChunkId, content, technicalDetail, proposed
 }
 
 /**
- * Merge a proposed chunk: original → superseded, proposed → active.
+ * Merge a proposed/under_review chunk: original → superseded, chunk → active.
+ * Uses AUTO_MERGE event for proposed, VOTE_ACCEPT for under_review.
  */
 async function mergeChunk(proposedChunkId, mergedById) {
   const pool = getPool();
@@ -271,30 +306,49 @@ async function mergeChunk(proposedChunkId, mergedById) {
   try {
     await client.query('BEGIN');
 
-    // Get the proposed chunk
+    // Get the chunk (accept proposed or under_review)
     const { rows: propRows } = await client.query(
-      "SELECT * FROM chunks WHERE id = $1 AND status = 'proposed'",
+      "SELECT * FROM chunks WHERE id = $1 AND status IN ('proposed', 'under_review')",
       [proposedChunkId]
     );
     if (propRows.length === 0) {
-      throw Object.assign(new Error('Proposed chunk not found or not in proposed status'), { code: 'NOT_FOUND' });
+      throw Object.assign(new Error('Chunk not found or not in proposed/under_review status'), { code: 'NOT_FOUND' });
     }
     const proposed = propRows[0];
 
+    // Validate lifecycle transition
+    const event = proposed.status === 'proposed' ? 'AUTO_MERGE' : 'VOTE_ACCEPT';
+    transition(proposed.status, event);
+
     // Supersede the original
     if (proposed.parent_chunk_id) {
-      await client.query(
-        "UPDATE chunks SET status = 'superseded', updated_at = now() WHERE id = $1",
+      // Validate supersede transition on parent
+      const { rows: parentRows } = await client.query(
+        'SELECT status FROM chunks WHERE id = $1',
         [proposed.parent_chunk_id]
       );
+      if (parentRows.length > 0 && parentRows[0].status === 'active') {
+        transition('active', 'SUPERSEDE');
+        await client.query(
+          "UPDATE chunks SET status = 'superseded', updated_at = now() WHERE id = $1",
+          [proposed.parent_chunk_id]
+        );
+      }
     }
 
-    // Activate the proposed chunk
+    // Activate the chunk
     const { rows: merged } = await client.query(
       `UPDATE chunks SET status = 'active', merged_at = now(), merged_by = $1, updated_at = now()
        WHERE id = $2
        RETURNING *`,
       [mergedById, proposedChunkId]
+    );
+
+    // Log activity
+    await client.query(
+      `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+       VALUES ($1, 'chunk_merged', 'chunk', $2, $3)`,
+      [mergedById, proposedChunkId, JSON.stringify({ event })]
     );
 
     await client.query('COMMIT');
@@ -314,20 +368,41 @@ async function mergeChunk(proposedChunkId, mergedById) {
 }
 
 /**
- * Reject a proposed chunk.
+ * Reject a proposed/under_review chunk via vote or manual rejection.
  */
 async function rejectChunk(proposedChunkId, { reason, report, rejectedBy } = {}) {
   const pool = getPool();
+
+  // Get current status
+  const { rows: current } = await pool.query('SELECT status FROM chunks WHERE id = $1', [proposedChunkId]);
+  if (current.length === 0) {
+    throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
+  }
+
+  // Validate lifecycle: VOTE_REJECT from under_review, WITHDRAW from proposed
+  const event = current[0].status === 'under_review' ? 'VOTE_REJECT' : 'WITHDRAW';
+  transition(current[0].status, event); // throws if invalid
+  const retractReason = retractReasonForEvent(event) || 'rejected';
+
   const { rows } = await pool.query(
     `UPDATE chunks SET status = 'retracted', updated_at = now(),
-            reject_reason = $2, rejected_by = $3, rejected_at = now()
-     WHERE id = $1 AND status = 'proposed'
+            reject_reason = $2, rejected_by = $3, rejected_at = now(),
+            retract_reason = $4
+     WHERE id = $1
      RETURNING *`,
-    [proposedChunkId, reason || null, rejectedBy || null]
+    [proposedChunkId, reason || null, rejectedBy || null, retractReason]
   );
   if (rows.length === 0) {
-    throw Object.assign(new Error('Proposed chunk not found or not in proposed status'), { code: 'NOT_FOUND' });
+    throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
   }
+
+  // Log activity
+  await pool.query(
+    `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+     VALUES ($1, 'chunk_retracted', 'chunk', $2, $3)`,
+    [rejectedBy, proposedChunkId, JSON.stringify({ reason: retractReason })]
+  );
+
   if (report && reason && rejectedBy) {
     const flagService = require('./flag');
     await flagService.createFlag({
@@ -470,6 +545,68 @@ async function listPendingProposals({ page = 1, limit = 20 } = {}) {
   return { data: dataResult.rows, pagination: { page, limit, total } };
 }
 
+/**
+ * Escalate a proposed chunk to formal review (under_review).
+ * Triggered when an objection is filed by a Tier 1+ reviewer.
+ */
+async function escalateToReview(chunkId, escalatedBy) {
+  const pool = getPool();
+
+  const { rows: current } = await pool.query('SELECT status FROM chunks WHERE id = $1', [chunkId]);
+  if (current.length === 0) {
+    throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
+  }
+
+  transition(current[0].status, 'OBJECT'); // proposed → under_review
+
+  const { rows } = await pool.query(
+    `UPDATE chunks SET status = 'under_review', under_review_at = now(), updated_at = now()
+     WHERE id = $1
+     RETURNING *`,
+    [chunkId]
+  );
+
+  // Log activity
+  await pool.query(
+    `INSERT INTO activity_log (account_id, action, target_type, target_id)
+     VALUES ($1, 'chunk_escalated', 'chunk', $2)`,
+    [escalatedBy, chunkId]
+  );
+
+  return rows[0];
+}
+
+/**
+ * Resubmit a retracted chunk (retracted → proposed).
+ */
+async function resubmitChunk(chunkId, resubmittedBy) {
+  const pool = getPool();
+
+  const { rows: current } = await pool.query('SELECT status, resubmit_count FROM chunks WHERE id = $1', [chunkId]);
+  if (current.length === 0) {
+    throw Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' });
+  }
+
+  transition(current[0].status, 'RESUBMIT'); // retracted → proposed
+
+  const { rows } = await pool.query(
+    `UPDATE chunks SET status = 'proposed', retract_reason = NULL, updated_at = now(),
+            resubmit_count = resubmit_count + 1
+     WHERE id = $1
+     RETURNING *`,
+    [chunkId]
+  );
+
+  // Log activity
+  await pool.query(
+    `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+     VALUES ($1, 'chunk_resubmitted', 'chunk', $2, $3)`,
+    [resubmittedBy, chunkId, JSON.stringify({ resubmitCount: current[0].resubmit_count + 1 })]
+  );
+
+  return rows[0];
+}
+
 module.exports = {
   createChunk,
   getChunkById,
@@ -484,4 +621,6 @@ module.exports = {
   getTopicHistory,
   getProposedEdits,
   listPendingProposals,
+  escalateToReview,
+  resubmitChunk,
 };

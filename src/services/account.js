@@ -87,7 +87,7 @@ async function findByEmail(email) {
             reputation_contribution, reputation_policing,
             badge_contribution, badge_policing, badge_elite,
             probation_until, account_expires_at, first_contribution_at,
-            parent_id, autonomous, created_at, last_active_at
+            parent_id, autonomous, created_at, last_active_at, tier
      FROM accounts WHERE owner_email = $1 AND parent_id IS NULL`,
     [email]
   );
@@ -105,7 +105,7 @@ async function findById(id) {
             reputation_contribution, reputation_policing,
             badge_contribution, badge_policing, badge_elite,
             probation_until, account_expires_at, first_contribution_at,
-            parent_id, autonomous, created_at, last_active_at
+            parent_id, autonomous, created_at, last_active_at, tier
      FROM accounts WHERE id = $1`,
     [id]
   );
@@ -141,7 +141,7 @@ async function findByApiKeyPrefix(prefix) {
             reputation_contribution, reputation_policing,
             badge_contribution, badge_policing, badge_elite,
             probation_until, account_expires_at, first_contribution_at,
-            parent_id, autonomous, created_at, last_active_at
+            parent_id, autonomous, created_at, last_active_at, tier
      FROM accounts WHERE api_key_prefix = $1`,
     [prefix]
   );
@@ -578,6 +578,69 @@ async function reactivateSubAccount(subAccountId, parentId) {
   return result.rows[0];
 }
 
+/**
+ * Increment interaction count and recalculate tier.
+ * Called after votes, chunk contributions, reviews.
+ */
+async function incrementInteractionAndUpdateTier(accountId) {
+  const pool = getPool();
+  const { calculateTier } = require('../../build/domain');
+
+  // Increment interaction_count and fetch relevant fields
+  const { rows } = await pool.query(
+    `UPDATE accounts SET interaction_count = interaction_count + 1
+     WHERE id = $1
+     RETURNING interaction_count, reputation_contribution, created_at, tier`,
+    [accountId]
+  );
+  if (rows.length === 0) return null;
+
+  const account = rows[0];
+  const accountAgeDays = Math.floor((Date.now() - new Date(account.created_at).getTime()) / (1000 * 60 * 60 * 24));
+
+  const newTier = calculateTier({
+    interactionCount: account.interaction_count,
+    reputationContribution: account.reputation_contribution || 0,
+    accountAgeDays,
+  });
+
+  // Only update if tier changed
+  if (newTier !== account.tier) {
+    await pool.query('UPDATE accounts SET tier = $1 WHERE id = $2', [newTier, accountId]);
+  }
+
+  return newTier;
+}
+
+/**
+ * Recalculate tier for an account (e.g. after reputation change).
+ */
+async function recalculateTier(accountId) {
+  const pool = getPool();
+  const { calculateTier } = require('../../build/domain');
+
+  const { rows } = await pool.query(
+    'SELECT interaction_count, reputation_contribution, created_at, tier FROM accounts WHERE id = $1',
+    [accountId]
+  );
+  if (rows.length === 0) return null;
+
+  const account = rows[0];
+  const accountAgeDays = Math.floor((Date.now() - new Date(account.created_at).getTime()) / (1000 * 60 * 60 * 24));
+
+  const newTier = calculateTier({
+    interactionCount: account.interaction_count || 0,
+    reputationContribution: account.reputation_contribution || 0,
+    accountAgeDays,
+  });
+
+  if (newTier !== account.tier) {
+    await pool.query('UPDATE accounts SET tier = $1 WHERE id = $2', [newTier, accountId]);
+  }
+
+  return newTier;
+}
+
 module.exports = {
   createAccount,
   findByEmail,
@@ -601,4 +664,6 @@ module.exports = {
   deactivateSubAccount,
   updateSubAccount,
   reactivateSubAccount,
+  incrementInteractionAndUpdateTier,
+  recalculateTier,
 };
