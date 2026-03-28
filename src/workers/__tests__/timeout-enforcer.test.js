@@ -22,7 +22,7 @@ const mockPool = {
 
 getPool.mockReturnValue(mockPool);
 
-const { enforceFastTrack, enforceReviewTimeout, enforceDisputeTimeout, checkTimeouts } = require('../timeout-enforcer');
+const { enforceFastTrack, enforceCommitDeadline, enforceRevealDeadline, enforceReviewTimeout, enforceDisputeTimeout, checkTimeouts } = require('../timeout-enforcer');
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -142,14 +142,51 @@ describe('enforceDisputeTimeout', () => {
   });
 });
 
+describe('enforceCommitDeadline', () => {
+  it('transitions chunks from commit to reveal phase', async () => {
+    mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'chunk-c1' }] });
+
+    const count = await enforceCommitDeadline();
+    expect(count).toBe(1);
+
+    expect(mockPool.query).toHaveBeenCalledWith(
+      expect.stringContaining("vote_phase = 'reveal'"),
+      expect.any(Array)
+    );
+  });
+});
+
+describe('enforceRevealDeadline', () => {
+  it('resolves chunks past reveal deadline', async () => {
+    // SELECT chunks past deadline
+    mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'chunk-rv1' }] });
+
+    // tallyAndResolve internals (via mockClient transaction)
+    mockClient.query
+      .mockResolvedValueOnce({}) // BEGIN
+      .mockResolvedValueOnce({ rows: [{ id: 'chunk-rv1', status: 'under_review', vote_phase: 'reveal' }] }) // lock
+      .mockResolvedValueOnce({ rows: [{ vote_value: 1, weight: 1.0 }, { vote_value: 1, weight: 1.0 }, { vote_value: 1, weight: 1.0 }] }) // votes
+      .mockResolvedValueOnce({}) // combined UPDATE (vote_phase + status)
+      .mockResolvedValueOnce({}) // activity log
+      .mockResolvedValueOnce({}); // COMMIT
+
+    const count = await enforceRevealDeadline();
+    expect(count).toBe(1);
+  });
+});
+
 describe('checkTimeouts', () => {
-  it('runs all three enforcers', async () => {
+  it('runs all five enforcers', async () => {
     // Fast track: no candidates
     mockClient.query
       .mockResolvedValueOnce({}) // BEGIN
       .mockResolvedValueOnce({ rows: [] }) // SELECT
       .mockResolvedValueOnce({}); // COMMIT
 
+    // Commit deadline: none
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
+    // Reveal deadline: none
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
     // Review timeout: none
     mockPool.query.mockResolvedValueOnce({ rows: [] });
     // Dispute timeout: none
@@ -157,7 +194,7 @@ describe('checkTimeouts', () => {
 
     await checkTimeouts();
 
-    // Should have attempted all three checks without error
+    // Should have attempted all five checks without error
     expect(mockClient.query).toHaveBeenCalled();
     expect(mockPool.query).toHaveBeenCalled();
   });

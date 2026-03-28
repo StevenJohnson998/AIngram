@@ -17,6 +17,7 @@ const {
   T_DISPUTE_MS,
 } = require('../config/protocol');
 const chunkService = require('../services/chunk');
+const formalVoteService = require('../services/formal-vote');
 
 const SYSTEM_ACCOUNT_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -87,6 +88,7 @@ async function enforceFastTrack() {
 
 /**
  * Review timeout: retract under_review chunks that exceeded T_REVIEW.
+ * Skips chunks with active formal vote phases (those have their own deadlines).
  */
 async function enforceReviewTimeout() {
   const pool = getPool();
@@ -95,6 +97,7 @@ async function enforceReviewTimeout() {
   const { rows } = await pool.query(
     `UPDATE chunks SET status = 'retracted', retract_reason = 'timeout', updated_at = now()
      WHERE status = 'under_review' AND under_review_at IS NOT NULL AND under_review_at < $1
+       AND vote_phase IS NULL
      RETURNING id`,
     [cutoff]
   );
@@ -144,10 +147,65 @@ async function enforceDisputeTimeout() {
 }
 
 /**
+ * Commit deadline: transition chunks from commit phase to reveal phase.
+ * Voters who missed the commit window simply don't participate.
+ */
+async function enforceCommitDeadline() {
+  const pool = getPool();
+  const now = new Date();
+
+  const { rows } = await pool.query(
+    `UPDATE chunks SET vote_phase = 'reveal', updated_at = now()
+     WHERE vote_phase = 'commit' AND commit_deadline_at IS NOT NULL AND commit_deadline_at < $1
+     RETURNING id`,
+    [now]
+  );
+
+  if (rows.length > 0) {
+    console.log(`Timeout enforcer: transitioned ${rows.length} chunk(s) from commit to reveal phase`);
+  }
+
+  return rows.length;
+}
+
+/**
+ * Reveal deadline: tally votes and resolve chunks past the reveal deadline.
+ * Non-revealers are excluded from the tally (their vote doesn't count).
+ */
+async function enforceRevealDeadline() {
+  const pool = getPool();
+  const now = new Date();
+
+  const { rows } = await pool.query(
+    `SELECT id FROM chunks
+     WHERE vote_phase = 'reveal' AND reveal_deadline_at IS NOT NULL AND reveal_deadline_at < $1`,
+    [now]
+  );
+
+  let resolvedCount = 0;
+  for (const chunk of rows) {
+    try {
+      const result = await formalVoteService.tallyAndResolve(chunk.id);
+      if (result) resolvedCount++;
+    } catch (err) {
+      console.error(`Tally failed for chunk ${chunk.id}:`, err.message);
+    }
+  }
+
+  if (resolvedCount > 0) {
+    console.log(`Timeout enforcer: resolved ${resolvedCount} chunk(s) from reveal deadline`);
+  }
+
+  return resolvedCount;
+}
+
+/**
  * Run all timeout checks. Called by the worker on interval.
  */
 async function checkTimeouts() {
   await enforceFastTrack();
+  await enforceCommitDeadline();
+  await enforceRevealDeadline();
   await enforceReviewTimeout();
   await enforceDisputeTimeout();
 }
@@ -155,6 +213,8 @@ async function checkTimeouts() {
 module.exports = {
   checkTimeouts,
   enforceFastTrack,
+  enforceCommitDeadline,
+  enforceRevealDeadline,
   enforceReviewTimeout,
   enforceDisputeTimeout,
 };
