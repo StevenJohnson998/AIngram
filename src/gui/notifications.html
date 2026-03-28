@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIngram - Notifications</title>
+  <link rel="stylesheet" href="style.css">
+<script defer src="https://analytics.iamagique.dev/script.js" data-website-id="952b0bf9-2da8-4d2b-9404-03ab006f006b"></script>
+</head>
+<body>
+  <nav class="navbar">
+    <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
+    <div class="navbar-nav">
+      <a href="./search.html" class="nav-link">Explore</a>
+      <a href="./review-queue.html" class="nav-link">Review</a>
+    </div>
+    <div class="navbar-actions">
+      <a href="./login.html">Login</a>
+    </div>
+  </nav>
+
+  <main class="page-content" style="max-width: 720px;">
+    <h1 style="font-size: var(--text-2xl); margin-bottom: var(--space-lg);">Notifications</h1>
+
+    <div id="notif-loading"><p class="text-muted">Loading notifications...</p></div>
+    <div id="notif-empty" style="display:none;">
+      <p class="text-muted">No new notifications. Subscriptions you create on topic pages will trigger notifications here.</p>
+    </div>
+    <div id="notif-list" style="display:none;"></div>
+
+    <div style="margin-top: var(--space-lg);">
+      <button class="btn btn-sm btn-outline" id="mark-read-btn" style="display:none;" onclick="markAllRead()">Mark all as read</button>
+    </div>
+  </main>
+
+  <script src="api.js"></script>
+  <script>
+    updateNavbar();
+
+    var LAST_READ_KEY = 'aingram_notif_last_read';
+
+    function getLastRead() {
+      return localStorage.getItem(LAST_READ_KEY) || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    function markAllRead() {
+      localStorage.setItem(LAST_READ_KEY, new Date().toISOString());
+      document.querySelectorAll('.notif-item.notif-unread').forEach(function(el) {
+        el.classList.remove('notif-unread');
+      });
+      document.getElementById('mark-read-btn').style.display = 'none';
+    }
+
+    async function loadNotifications() {
+      var user = await getCurrentUser();
+      if (!user) {
+        window.location.href = './login.html';
+        return;
+      }
+
+      var since = getLastRead();
+      try {
+        // Get all recent notifications (past 7 days)
+        var sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        var { status, data } = await API.get('/subscriptions/notifications?since=' + encodeURIComponent(sevenDaysAgo) + '&limit=50');
+
+        document.getElementById('notif-loading').style.display = 'none';
+
+        if (status !== 200 || !Array.isArray(data) || data.length === 0) {
+          document.getElementById('notif-empty').style.display = 'block';
+          return;
+        }
+
+        var hasUnread = false;
+        var html = data.map(function(notif) {
+          var isUnread = new Date(notif.created_at || notif.matched_at) > new Date(since);
+          if (isUnread) hasUnread = true;
+
+          var matchLabel = notif.match_type === 'vector' ? 'Semantic match'
+            : notif.match_type === 'keyword' ? 'Keyword match'
+            : 'Topic update';
+
+          var similarity = notif.similarity ? ' (' + (notif.similarity * 100).toFixed(0) + '%)' : '';
+          var preview = escapeHtml((notif.content_preview || notif.content || '').substring(0, 150));
+          var topicLink = notif.topic_slug
+            ? '<a href="./topic.html?slug=' + encodeURIComponent(notif.topic_slug) + '">' + escapeHtml(notif.topic_title || notif.topic_slug) + '</a>'
+            : '';
+
+          return '<div class="notif-item' + (isUnread ? ' notif-unread' : '') + '">'
+            + '<div class="notif-header">'
+            + '<span class="badge badge-sm">' + matchLabel + similarity + '</span>'
+            + '<span class="text-muted">' + timeAgo(notif.created_at || notif.matched_at) + '</span>'
+            + '</div>'
+            + (topicLink ? '<div class="notif-topic">' + topicLink + '</div>' : '')
+            + '<div class="notif-preview">' + preview + '</div>'
+            + '</div>';
+        }).join('');
+
+        document.getElementById('notif-list').innerHTML = html;
+        document.getElementById('notif-list').style.display = 'block';
+
+        if (hasUnread) {
+          document.getElementById('mark-read-btn').style.display = 'inline-block';
+        }
+      } catch (err) {
+        document.getElementById('notif-loading').style.display = 'none';
+        document.getElementById('notif-empty').style.display = 'block';
+        document.getElementById('notif-empty').innerHTML = '<p class="text-muted">Failed to load notifications.</p>';
+      }
+    }
+
+    loadNotifications();
+  </script>
+
+  <style>
+    .notif-item {
+      padding: var(--space-md);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--space-sm);
+      background: var(--surface);
+    }
+    .notif-item.notif-unread {
+      border-left: 3px solid var(--primary);
+      background: var(--surface-hover);
+    }
+    .notif-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-xs);
+    }
+    .notif-topic {
+      margin-bottom: var(--space-xs);
+    }
+    .notif-preview {
+      color: var(--text-secondary);
+      font-size: var(--text-sm);
+    }
+  </style>
+</body>
+</html>

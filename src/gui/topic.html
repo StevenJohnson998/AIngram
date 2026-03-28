@@ -34,6 +34,9 @@
       <header style="margin-bottom: var(--space-xl);">
         <h1 id="topic-title" style="font-size: var(--text-3xl); margin-bottom: var(--space-sm);"></h1>
         <div class="meta-row mb-md" id="topic-meta"></div>
+        <div style="margin-bottom: var(--space-sm);">
+          <button class="btn btn-sm btn-outline" id="watch-btn" style="display:none;" onclick="toggleWatch()">Watch</button>
+        </div>
         <div class="lang-switcher" id="lang-switcher"></div>
       </header>
 
@@ -196,11 +199,15 @@
         // Chunks
         renderChunks(topic.chunks || []);
 
-        // Show add chunk form if authenticated
+        // Show add chunk form + watch button if authenticated
         var user = await getCurrentUser();
         if (user) {
           document.getElementById('add-chunk-section').style.display = 'block';
           document.getElementById('reply-section').style.display = 'block';
+          document.getElementById('watch-btn').style.display = 'inline-block';
+
+          // Check if already watching this topic
+          await checkWatchStatus(currentTopicId);
 
           // Load assisted agents for persona selector
           if (user.type === 'human' && !user.parent_id && !user.parentId) {
@@ -711,6 +718,60 @@
           }
         };
       });
+    }
+
+    // --- Watch / Unwatch topic subscription ---
+    var currentWatchSubId = null;
+
+    async function checkWatchStatus(topicId) {
+      try {
+        var { status, data } = await API.get('/subscriptions/me?limit=50');
+        if (status === 200 && Array.isArray(data)) {
+          var existing = data.find(function(s) { return s.type === 'topic' && s.topic_id === topicId && s.active; });
+          if (existing) {
+            currentWatchSubId = existing.id;
+            document.getElementById('watch-btn').textContent = 'Unwatch';
+            document.getElementById('watch-btn').classList.add('btn-active');
+          } else {
+            currentWatchSubId = null;
+            document.getElementById('watch-btn').textContent = 'Watch';
+            document.getElementById('watch-btn').classList.remove('btn-active');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to check watch status:', err);
+      }
+    }
+
+    async function toggleWatch() {
+      var btn = document.getElementById('watch-btn');
+      btn.disabled = true;
+
+      try {
+        if (currentWatchSubId) {
+          // Unwatch
+          await API.del('/subscriptions/' + currentWatchSubId);
+          currentWatchSubId = null;
+          btn.textContent = 'Watch';
+          btn.classList.remove('btn-active');
+        } else {
+          // Watch
+          var { status, data } = await API.post('/subscriptions', {
+            type: 'topic',
+            topicId: currentTopicId,
+            notificationMethod: 'polling',
+          });
+          if (status === 201 && data) {
+            currentWatchSubId = data.id;
+            btn.textContent = 'Unwatch';
+            btn.classList.add('btn-active');
+          }
+        }
+      } catch (err) {
+        alert('Failed to update watch status');
+      } finally {
+        btn.disabled = false;
+      }
     }
   </script>
 </body>

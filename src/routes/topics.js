@@ -13,6 +13,8 @@ const { requireTier } = require('../middleware/tier-gate');
 const { validationError, notFoundError, forbiddenError } = require('../utils/http-errors');
 const { parsePagination } = require('../utils/pagination');
 const { VALID_LANGS } = require('../config/constants');
+const { getPool } = require('../config/database');
+const { OBJECTION_REASON_TAGS } = require('../config/protocol');
 
 const router = Router();
 
@@ -377,6 +379,40 @@ router.post(
       }
       console.error('Error escalating chunk:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to escalate chunk' } });
+    }
+  }
+);
+
+// POST /chunks/:id/object — file objection against a proposed chunk (Tier 1+)
+router.post(
+  '/chunks/:id/object',
+  auth.authenticateRequired, authenticatedLimiter,
+  requireTier(1),
+  async (req, res) => {
+    const { reason } = req.body || {};
+
+    if (!reason || !OBJECTION_REASON_TAGS.includes(reason)) {
+      return validationError(res, `Reason must be one of: ${OBJECTION_REASON_TAGS.join(', ')}`);
+    }
+
+    try {
+      const chunk = await chunkService.escalateToReview(req.params.id, req.account.id);
+
+      // Log the objection with reason metadata
+      await getPool().query(
+        `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+         VALUES ($1, 'chunk_objected', 'chunk', $2, $3)`,
+        [req.account.id, req.params.id, JSON.stringify({ reason })]
+      );
+
+      return res.json(chunk);
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
+      if (err.name === 'LifecycleError') {
+        return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: err.message } });
+      }
+      console.error('Error objecting to chunk:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to file objection' } });
     }
   }
 );

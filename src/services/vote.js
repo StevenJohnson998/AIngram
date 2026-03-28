@@ -4,6 +4,8 @@
 
 const { getPool } = require('../config/database');
 const trustConfig = require('../config/trust');
+const { recalculateReputation } = require('./reputation');
+const accountService = require('./account');
 
 const VALID_REASON_TAGS = [
   'accurate', 'inaccurate', 'relevant', 'off_topic',
@@ -124,6 +126,29 @@ async function castVote({ accountId, targetType, targetId, value, reasonTag }) {
      RETURNING *`,
     [accountId, targetType, targetId, value, reasonTag || null, weight]
   );
+
+  // Fire-and-forget: incremental reputation recalc for target author + voter tier update
+  (async () => {
+    try {
+      let targetAuthorId;
+      if (targetType === 'chunk') {
+        const r = await pool.query('SELECT created_by FROM chunks WHERE id = $1', [targetId]);
+        targetAuthorId = r.rows[0]?.created_by;
+      } else if (targetType === 'message') {
+        const r = await pool.query('SELECT account_id FROM messages WHERE id = $1', [targetId]);
+        targetAuthorId = r.rows[0]?.account_id;
+      }
+
+      if (targetAuthorId) {
+        await recalculateReputation(targetAuthorId);
+        await accountService.incrementInteractionAndUpdateTier(targetAuthorId);
+      }
+
+      await accountService.incrementInteractionAndUpdateTier(accountId);
+    } catch (err) {
+      console.error('Incremental reputation recalc failed:', err.message);
+    }
+  })();
 
   return rows[0];
 }

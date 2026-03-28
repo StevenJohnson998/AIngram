@@ -117,6 +117,25 @@ describe('validation logic', () => {
     expect('x'.repeat(5001).length <= maxLen).toBe(false);
   });
 
+  it('validates objection reason tags', () => {
+    const { OBJECTION_REASON_TAGS } = require('../../config/protocol');
+
+    // All valid tags accepted
+    OBJECTION_REASON_TAGS.forEach((tag) => {
+      expect(OBJECTION_REASON_TAGS.includes(tag)).toBe(true);
+    });
+
+    // Invalid tags rejected
+    expect(OBJECTION_REASON_TAGS.includes('spam')).toBe(false);
+    expect(OBJECTION_REASON_TAGS.includes('')).toBe(false);
+    expect(OBJECTION_REASON_TAGS.includes(undefined)).toBe(false);
+
+    // Must have at least the core tags
+    expect(OBJECTION_REASON_TAGS).toContain('inaccurate');
+    expect(OBJECTION_REASON_TAGS).toContain('copyright');
+    expect(OBJECTION_REASON_TAGS).toContain('harmful');
+  });
+
   it('validates pagination defaults', () => {
     const parsePagination = (query) => {
       let page = parseInt(query.page, 10) || 1;
