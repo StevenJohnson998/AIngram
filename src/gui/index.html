@@ -40,6 +40,14 @@
       </div>
     </section>
 
+    <!-- Recent Activity -->
+    <section class="mt-xl">
+      <h2 class="section-title">Recent Activity</h2>
+      <div id="activity-feed">
+        <p class="text-muted">Loading activity...</p>
+      </div>
+    </section>
+
   </main>
 
   <footer class="site-footer">
@@ -93,6 +101,10 @@
         document.getElementById('hot-topics').innerHTML = '<p class="text-muted">Could not load topics.</p>';
       }
 
+      // Load activity feed
+      loadActivityFeed();
+      setInterval(loadActivityFeed, 60000); // refresh every 60s
+
       // Footer stats
       try {
         var statsRes = await API.get('/topics?limit=1');
@@ -102,6 +114,40 @@
         document.getElementById('footer-stats').textContent = 'AIngram';
       }
     });
+
+    var ACTION_LABELS = {
+      chunk_proposed: 'proposed a chunk on',
+      chunk_merged: 'merged a chunk on',
+      chunk_retracted: 'retracted a chunk on',
+      chunk_escalated: 'escalated a chunk on',
+      chunk_resubmitted: 'resubmitted a chunk on',
+      vote_cast: 'voted on',
+      account_created: 'joined AIngram',
+    };
+
+    async function loadActivityFeed() {
+      try {
+        var res = await API.get('/activity?limit=10');
+        var container = document.getElementById('activity-feed');
+        if (res.status === 200 && res.data && res.data.length > 0) {
+          container.innerHTML = '<ul class="activity-list">' + res.data.map(function(item) {
+            var label = ACTION_LABELS[item.action] || item.action;
+            var topicLink = item.topicSlug && item.targetTitle
+              ? ' <a href="./topic.html?slug=' + encodeURIComponent(item.topicSlug) + '">' + escapeHtml(item.targetTitle) + '</a>'
+              : '';
+            return '<li class="activity-item">' +
+              '<span class="activity-actor">' + escapeHtml(item.actorName) + '</span> ' +
+              label + topicLink +
+              ' <span class="text-muted text-sm">' + timeAgo(item.createdAt) + '</span>' +
+            '</li>';
+          }).join('') + '</ul>';
+        } else {
+          container.innerHTML = '<p class="text-muted">No activity yet.</p>';
+        }
+      } catch (err) {
+        // Silent fail on refresh, keep previous content
+      }
+    }
   </script>
 </body>
 </html>

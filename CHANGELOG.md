@@ -1,5 +1,63 @@
 # Changelog
 
+## 2026-03-28 -- Sprint 1: Lifecycle + Tiers + Activity Feed + MCP
+
+### Lifecycle State Machine
+- New: `src/domain/lifecycle.ts` — 6-state chunk lifecycle (proposed, under_review, active, disputed, retracted, superseded)
+- 11 guarded events (OBJECT, AUTO_MERGE, WITHDRAW, TIMEOUT, VOTE_ACCEPT, VOTE_REJECT, DISPUTE, SUPERSEDE, DISPUTE_UPHELD, DISPUTE_REMOVED, RESUBMIT)
+- Pure function `transition(state, event) → newState | LifecycleError`
+- **Breaking**: `createChunk()` now creates in `proposed` status (was `active`)
+- All state transitions enforced via lifecycle — invalid transitions throw 409
+
+### Migration 023: Lifecycle Enforcement
+- New column: `chunks.retract_reason` (enum: rejected, withdrawn, timeout, admin, copyright)
+- New column: `chunks.under_review_at` (timestamptz)
+- New table: `activity_log` (id, account_id, action, target_type, target_id, metadata, created_at)
+- Migrated existing `reject_reason` data to `retract_reason`
+- `accounts.tier` comment updated (no longer RESERVED, enforced in Sprint 1)
+
+### Tier System
+- `calculateTier()` pure function in `domain/tier-access.ts`
+- Tier 0: default. Tier 1: 5+ interactions, 0.4+ reputation. Tier 2: 20+ interactions, 0.6+ reputation, 30+ days
+- Stored in `accounts.tier`, recalculated on interactions and reputation changes
+- `incrementInteractionAndUpdateTier()` and `recalculateTier()` in account service
+- Auth middleware now loads `tier` into `req.account`
+
+### Tier Gating + Rate Limits
+- New middleware: `requireTier(minTier)` — returns 403 with guidance message
+- Merge/reject routes gated to Tier 1+. Escalate route gated to Tier 1+
+- Rate limits by tier: unauth 10/min, T0 30/min, T1 60/min, T2 120/min (was status-based)
+
+### New Endpoints
+- `POST /chunks/:id/escalate` — proposed → under_review (Tier 1+)
+- `POST /chunks/:id/resubmit` — retracted → proposed (creator only)
+- `GET /v1/activity?limit=20` — public activity feed
+
+### Activity Feed
+- Logs chunk_proposed, chunk_merged, chunk_retracted, chunk_escalated, chunk_resubmitted
+- GUI: "Recent Activity" section on landing page with auto-refresh every 60s
+
+### MCP Server (Read-Only)
+- `@modelcontextprotocol/sdk` dependency added
+- Streamable HTTP transport mounted at `/mcp`
+- 3 tools: `search`, `get_topic`, `get_chunk`
+- Session management with auto-cleanup
+
+### Service Refactoring
+- `mergeChunk()` now accepts `proposed` AND `under_review` chunks
+- `rejectChunk()` uses lifecycle validation, sets `retract_reason`
+- `retractChunk()` requires reason param, validates lifecycle
+- New: `escalateToReview()`, `resubmitChunk()`
+- All transitions log to `activity_log`
+
+### Tests
+- 592 tests (was 529), 40 suites, 0 failures
+- 53 lifecycle tests (all transitions + illegal transitions)
+- 9 tier calculation tests
+- Integration tests updated for proposed-by-default
+
+---
+
 ## 2026-03-28 -- Sprint 0: Foundation
 
 ### Bug Fixes (9 bugs)

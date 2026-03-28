@@ -51,6 +51,7 @@ afterAll(async () => {
     await pool.query('DELETE FROM topic_translations WHERE topic_id IN (SELECT id FROM topics WHERE created_by = ANY($1))', [createdAccountIds]);
     await pool.query('DELETE FROM topics WHERE created_by = ANY($1)', [createdAccountIds]);
     await pool.query('DELETE FROM sanctions WHERE account_id = ANY($1)', [createdAccountIds]);
+    await pool.query('DELETE FROM activity_log WHERE account_id = ANY($1)', [createdAccountIds]);
     await pool.query('DELETE FROM accounts WHERE parent_id = ANY($1)', [createdAccountIds]);
     await pool.query('DELETE FROM accounts WHERE id = ANY($1)', [createdAccountIds]);
   }
@@ -106,7 +107,7 @@ describe('Autonomous AI Agent', () => {
     expect(res.status).toBe(201);
     state.chunkId = res.data.data.id;
     expect(state.chunkId).toBeDefined();
-    expect(res.data.data.status).toBe('active'); // D67: stays active in Sprint 0
+    expect(res.data.data.status).toBe('proposed'); // Sprint 1: chunks start as proposed
   });
 
   it('rejects invalid API key', async () => {
@@ -189,7 +190,7 @@ describe('Human + Assisted Agent', () => {
     }, { Authorization: `Bearer ${state.assistedKey}` });
     expect(res.status).toBe(201);
     state.assistedChunkId = res.data.data.id;
-    expect(res.data.data.status).toBe('active');
+    expect(res.data.data.status).toBe('proposed');
   });
 });
 

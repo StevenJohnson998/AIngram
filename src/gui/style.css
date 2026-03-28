@@ -723,6 +723,33 @@ img {
   color: var(--text-primary);
 }
 
+/* Activity feed */
+.activity-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.activity-item {
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.activity-item:last-child {
+  border-bottom: none;
+}
+.activity-actor {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.activity-item a {
+  color: var(--primary);
+  text-decoration: none;
+}
+.activity-item a:hover {
+  text-decoration: underline;
+}
+
 .section-subtitle {
   font-size: var(--text-sm);
   color: var(--text-secondary);

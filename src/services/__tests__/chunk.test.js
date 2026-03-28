@@ -10,6 +10,9 @@ jest.mock('../../config/trust', () => ({
 jest.mock('../ollama', () => ({
   generateEmbedding: jest.fn().mockResolvedValue(null),
 }));
+jest.mock('../account', () => ({
+  incrementInteractionAndUpdateTier: jest.fn().mockResolvedValue(0),
+}));
 
 const { getPool } = require('../../config/database');
 const chunkService = require('../chunk');
@@ -49,6 +52,7 @@ describe('chunk service', () => {
         .mockResolvedValueOnce() // BEGIN
         .mockResolvedValueOnce({ rows: [chunk] }) // INSERT chunk
         .mockResolvedValueOnce() // INSERT chunk_topics
+        .mockResolvedValueOnce() // INSERT activity_log
         .mockResolvedValueOnce(); // COMMIT
 
       const result = await chunkService.createChunk({
@@ -76,8 +80,9 @@ describe('chunk service', () => {
       mockClient.query
         .mockResolvedValueOnce() // BEGIN
         .mockResolvedValueOnce({ rows: [chunk] })
-        .mockResolvedValueOnce()
-        .mockResolvedValueOnce();
+        .mockResolvedValueOnce() // chunk_topics
+        .mockResolvedValueOnce() // activity_log
+        .mockResolvedValueOnce(); // COMMIT
 
       await chunkService.createChunk({
         content: 'Some test content here',
@@ -175,23 +180,31 @@ describe('chunk service', () => {
   });
 
   describe('retractChunk', () => {
-    it('sets status to retracted', async () => {
+    it('sets status to retracted with reason', async () => {
       const retracted = { id: 'chunk-1', status: 'retracted' };
-      mockPool.query.mockResolvedValue({ rows: [retracted] });
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ status: 'proposed' }] }) // SELECT status
+        .mockResolvedValueOnce({ rows: [retracted] }) // UPDATE
+        .mockResolvedValueOnce(); // INSERT activity_log
 
-      const result = await chunkService.retractChunk('chunk-1');
+      const result = await chunkService.retractChunk('chunk-1', { reason: 'withdrawn', retractedBy: 'account-1' });
       expect(result.status).toBe('retracted');
-      expect(mockPool.query).toHaveBeenCalledWith(
-        expect.stringContaining("status = 'retracted'"),
-        ['chunk-1']
-      );
     });
 
-    it('returns null when not found', async () => {
-      mockPool.query.mockResolvedValue({ rows: [] });
+    it('throws NOT_FOUND when chunk does not exist', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] }); // SELECT status
 
-      const result = await chunkService.retractChunk('nonexistent');
-      expect(result).toBeNull();
+      await expect(
+        chunkService.retractChunk('nonexistent', { reason: 'withdrawn' })
+      ).rejects.toThrow('Chunk not found');
+    });
+
+    it('throws LifecycleError when transition is invalid', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [{ status: 'active' }] }); // SELECT status — active cannot WITHDRAW
+
+      await expect(
+        chunkService.retractChunk('chunk-1', { reason: 'withdrawn' })
+      ).rejects.toThrow('Invalid transition');
     });
   });
 

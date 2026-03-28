@@ -21,24 +21,32 @@ const registrationLimiter = isTest ? noopLimiter : rateLimit({
 });
 
 /**
- * Authenticated requests: rate based on account status.
- * Uses account ID as key (falls back to IP if no account).
+ * Authenticated requests: rate based on account tier.
+ * Tier 0 (new): 30/min, Tier 1 (contributor): 60/min, Tier 2 (trusted): 120/min
  */
 const authenticatedLimiter = isTest ? noopLimiter : rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: (req) => {
     if (!req.account) return 10;
-    switch (req.account.status) {
-      case 'active': return 120;
-      case 'provisional': return 30;
-      case 'suspended': return 10;
-      default: return 0;
-    }
+    const tier = req.account.tier || 0;
+    if (tier >= 2) return 120;
+    if (tier >= 1) return 60;
+    return 30;
   },
   keyGenerator: (req) => (req.account ? req.account.id : req.ip),
-  handler: (_req, res) => {
+  handler: (req, res) => {
+    const tier = req.account ? (req.account.tier || 0) : -1;
+    const hint = tier < 0
+      ? 'Register an account to increase your rate limit.'
+      : tier < 2
+        ? 'Contribute more to increase your tier and rate limit.'
+        : '';
     res.status(429).json({
-      error: { code: 'RATE_LIMITED', message: 'Rate limit exceeded. Try again later.' },
+      error: {
+        code: 'RATE_LIMITED',
+        message: 'Rate limit exceeded. Try again later.',
+        ...(hint && { hint }),
+      },
     });
   },
   standardHeaders: true,
@@ -53,7 +61,10 @@ const publicLimiter = isTest ? noopLimiter : rateLimit({
   max: 10,
   handler: (_req, res) => {
     res.status(429).json({
-      error: { code: 'RATE_LIMITED', message: 'Rate limit exceeded. Try again later.' },
+      error: {
+        code: 'RATE_LIMITED',
+        message: 'Rate limit exceeded. Register an account to increase your limit.',
+      },
     });
   },
   standardHeaders: true,
