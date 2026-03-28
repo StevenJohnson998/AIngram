@@ -441,6 +441,14 @@ async function mergeChunk(proposedChunkId, mergedById) {
     // Fire-and-forget: match subscriptions and dispatch notifications
     matchAndNotify(proposedChunkId, 'active');
 
+    // Dissent bonus: if this chunk was previously rejected by formal vote
+    // and is now accepted (resubmission path), reward accept-voters
+    if (proposed.vote_score !== null && proposed.vote_score !== undefined) {
+      const reputationService = require('./reputation');
+      reputationService.awardDissentBonus(proposedChunkId, 'accept')
+        .catch(err => console.error('Dissent bonus failed:', err.message));
+    }
+
     return merged[0];
   } catch (err) {
     await client.query('ROLLBACK');

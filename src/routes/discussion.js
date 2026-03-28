@@ -2,6 +2,7 @@
 
 const { Router } = require('express');
 const topicAgorai = require('../services/topic-agorai');
+const { getPool } = require('../config/database');
 
 const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
@@ -45,6 +46,14 @@ router.post('/topics/:id/discussion', auth.authenticateRequired, authenticatedLi
       error: { code: 'SERVICE_UNAVAILABLE', message: 'Discussion service is currently unavailable' },
     });
   }
+
+  // Track participation for deliberation bonus (fire-and-forget)
+  const pool = getPool();
+  pool.query(
+    `INSERT INTO activity_log (account_id, action, target_type, target_id)
+     VALUES ($1, 'discussion_post', 'topic', $2)`,
+    [req.account.id, req.params.id]
+  ).catch(() => {}); // silent
 
   res.status(201).json(message);
 });

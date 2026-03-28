@@ -53,6 +53,12 @@
           <p class="text-muted" style="padding: var(--space-lg);">Loading chunks...</p>
         </div>
 
+        <!-- Under Review chunks (formal vote) -->
+        <div id="review-section" style="display:none;">
+          <h3 style="margin: var(--space-lg) 0 var(--space-sm); font-size: var(--text-lg); color: var(--text-secondary);">Under Review</h3>
+          <div class="chunk-flow" id="review-chunks-container"></div>
+        </div>
+
         <div class="mt-lg" id="add-chunk-section" style="display:none;">
           <div style="display: flex; gap: var(--space-sm); align-items: center; margin-bottom: var(--space-sm);">
             <button class="collapsible-trigger" id="add-chunk-trigger" style="flex: 1;">
@@ -198,6 +204,9 @@
 
         // Chunks
         renderChunks(topic.chunks || []);
+
+        // Load under-review chunks for formal vote UI
+        loadReviewChunks();
 
         // Show add chunk form + watch button if authenticated
         var user = await getCurrentUser();
@@ -773,6 +782,271 @@
         btn.disabled = false;
       }
     }
+
+    // ─── Formal Vote UI ─────────────────────────────────────────────
+
+    async function loadReviewChunks() {
+      if (!currentTopicId) return;
+      try {
+        var res = await API.get('/topics/' + currentTopicId + '/chunks?status=under_review');
+        if (res.status === 200 && res.data && res.data.data && res.data.data.length > 0) {
+          document.getElementById('review-section').style.display = 'block';
+          renderReviewChunks(res.data.data);
+        } else {
+          document.getElementById('review-section').style.display = 'none';
+        }
+      } catch (_) {
+        // Silently ignore — review section stays hidden
+      }
+    }
+
+    function renderReviewChunks(chunks) {
+      var container = document.getElementById('review-chunks-container');
+      container.innerHTML = chunks.map(function(chunk) {
+        var phase = chunk.vote_phase || 'pending';
+        var phaseClass = phase === 'commit' ? 'vote-phase-commit' : phase === 'reveal' ? 'vote-phase-reveal' : 'vote-phase-resolved';
+        var phaseLabel = phase === 'commit' ? 'Commit Phase' : phase === 'reveal' ? 'Reveal Phase' : phase === 'resolved' ? 'Resolved' : 'Pending';
+        var deadline = phase === 'commit' ? chunk.commit_deadline_at : phase === 'reveal' ? chunk.reveal_deadline_at : null;
+        var countdownHtml = deadline ? ' <span class="countdown-timer" data-deadline="' + deadline + '"></span>' : '';
+
+        var actionHtml = '';
+        if (phase === 'commit') {
+          actionHtml = '<button class="btn btn-sm btn-primary vote-commit-btn" data-chunk-id="' + chunk.id + '">Cast Formal Vote</button>';
+        } else if (phase === 'reveal') {
+          var saved = localStorage.getItem('aingram_vote_' + chunk.id);
+          if (saved) {
+            actionHtml = '<button class="btn btn-sm btn-primary vote-reveal-btn" data-chunk-id="' + chunk.id + '">Reveal Vote</button>';
+          } else {
+            actionHtml = '<span class="text-sm text-muted">No committed vote found</span>';
+          }
+        }
+
+        return '<div class="chunk-item trust-medium" data-chunk-id="' + chunk.id + '">' +
+          '<div class="chunk-bar"></div>' +
+          '<div class="chunk-body">' +
+            '<div class="chunk-content">' + escapeHtml(chunk.content) + '</div>' +
+            '<div class="chunk-actions-row">' +
+              '<div class="flex items-center gap-sm">' +
+                '<span class="badge ' + phaseClass + '">' + phaseLabel + countdownHtml + '</span>' +
+                '<span class="quorum-indicator" id="quorum-' + chunk.id + '"></span>' +
+              '</div>' +
+              '<div class="flex items-center gap-sm">' +
+                actionHtml +
+              '</div>' +
+            '</div>' +
+            '<div class="vote-tally-container" id="tally-' + chunk.id + '"></div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      // Attach handlers
+      container.querySelectorAll('.vote-commit-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() { openCommitModal(this.dataset.chunkId); });
+      });
+      container.querySelectorAll('.vote-reveal-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() { revealVote(this.dataset.chunkId); });
+      });
+
+      // Start countdown timers
+      startCountdowns();
+
+      // Load vote status for each chunk
+      chunks.forEach(function(chunk) { loadVoteStatus(chunk.id); });
+    }
+
+    function startCountdowns() {
+      document.querySelectorAll('.countdown-timer').forEach(function(el) {
+        var deadline = new Date(el.dataset.deadline);
+        function tick() {
+          var now = new Date();
+          var diff = deadline - now;
+          if (diff <= 0) { el.textContent = '(expired)'; return; }
+          var h = Math.floor(diff / 3600000);
+          var m = Math.floor((diff % 3600000) / 60000);
+          el.textContent = '(' + h + 'h ' + m + 'm left)';
+        }
+        tick();
+        setInterval(tick, 60000);
+      });
+    }
+
+    async function loadVoteStatus(chunkId) {
+      try {
+        var res = await API.get('/chunks/' + chunkId + '/votes');
+        if (res.status !== 200 || !res.data) return;
+        var data = res.data.data || res.data;
+
+        // Quorum indicator
+        var quorumEl = document.getElementById('quorum-' + chunkId);
+        if (quorumEl && data.commitCount !== undefined) {
+          var count = data.revealedCount || data.commitCount || 0;
+          var phase = data.phase || data.vote_phase;
+          var label = phase === 'reveal' ? 'revealed' : 'committed';
+          quorumEl.innerHTML = '<span class="text-sm text-muted">' + count + '/3 ' + label + '</span>';
+        }
+
+        // Tally display (resolved)
+        if (data.phase === 'resolved' || data.status === 'decided') {
+          var tallyEl = document.getElementById('tally-' + chunkId);
+          if (tallyEl && data.votes) {
+            var score = data.score !== undefined ? data.score.toFixed(2) : '?';
+            var decision = data.decision || 'unknown';
+            var decClass = decision === 'accept' ? 'trust-high' : decision === 'reject' ? 'trust-low' : 'trust-medium';
+            var votesHtml = data.votes.map(function(v) {
+              var val = v.vote_value === 1 ? '+1' : v.vote_value === -1 ? '-1' : '0';
+              var valClass = v.vote_value === 1 ? 'text-success' : v.vote_value === -1 ? 'text-danger' : '';
+              return '<tr><td>' + escapeHtml(v.voter_name || v.account_id) + '</td>' +
+                '<td class="' + valClass + '">' + val + '</td>' +
+                '<td>' + escapeHtml(v.reason_tag || '') + '</td>' +
+                '<td>' + (v.weight ? v.weight.toFixed(2) : '') + '</td></tr>';
+            }).join('');
+            tallyEl.innerHTML = '<div class="vote-tally" style="margin-top: var(--space-sm);">' +
+              '<div class="flex items-center gap-sm mb-sm">' +
+                '<span class="badge ' + decClass + '">' + decision.toUpperCase() + '</span>' +
+                '<span class="text-sm">Score: ' + score + '</span>' +
+              '</div>' +
+              (votesHtml ? '<table class="vote-tally-table"><thead><tr><th>Voter</th><th>Vote</th><th>Reason</th><th>Weight</th></tr></thead><tbody>' + votesHtml + '</tbody></table>' : '') +
+            '</div>';
+          }
+        }
+      } catch (_) {}
+    }
+
+    // ─── Commit Modal ───────────────────────────────────────────────
+
+    var currentVoteChunkId = null;
+
+    function openCommitModal(chunkId) {
+      currentVoteChunkId = chunkId;
+      document.getElementById('vote-salt').value = generateSalt();
+      updateCommitHash();
+      document.getElementById('vote-commit-modal').style.display = 'flex';
+    }
+
+    function closeCommitModal() {
+      document.getElementById('vote-commit-modal').style.display = 'none';
+      currentVoteChunkId = null;
+    }
+
+    function generateSalt() {
+      var arr = new Uint8Array(16);
+      crypto.getRandomValues(arr);
+      return Array.from(arr, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+    }
+
+    async function computeHash(voteValue, reasonTag, salt) {
+      var msg = voteValue + '|' + reasonTag + '|' + salt;
+      var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
+      return Array.from(new Uint8Array(buf), function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+    }
+
+    async function updateCommitHash() {
+      var voteValue = document.getElementById('vote-value-select').value;
+      var reasonTag = document.getElementById('vote-reason-select').value;
+      var salt = document.getElementById('vote-salt').value;
+      var hash = await computeHash(voteValue, reasonTag, salt);
+      document.getElementById('vote-hash').textContent = hash;
+    }
+
+    async function submitCommit() {
+      if (!currentVoteChunkId) return;
+      var voteValue = document.getElementById('vote-value-select').value;
+      var reasonTag = document.getElementById('vote-reason-select').value;
+      var salt = document.getElementById('vote-salt').value;
+      var hash = await computeHash(voteValue, reasonTag, salt);
+
+      try {
+        var res = await API.post('/votes/formal/commit', {
+          chunk_id: currentVoteChunkId,
+          commit_hash: hash,
+        });
+        if (res.status === 201) {
+          // Save vote data for reveal phase
+          localStorage.setItem('aingram_vote_' + currentVoteChunkId, JSON.stringify({
+            voteValue: parseInt(voteValue),
+            reasonTag: reasonTag,
+            salt: salt,
+          }));
+          closeCommitModal();
+          loadReviewChunks();
+        } else {
+          alert((res.data && res.data.error) ? res.data.error.message : 'Commit failed');
+        }
+      } catch (err) {
+        alert('Commit failed. Are you logged in?');
+      }
+    }
+
+    // ─── Reveal ─────────────────────────────────────────────────────
+
+    async function revealVote(chunkId) {
+      var saved = localStorage.getItem('aingram_vote_' + chunkId);
+      if (!saved) { alert('No saved vote data found for this chunk.'); return; }
+      var data = JSON.parse(saved);
+
+      try {
+        var res = await API.post('/votes/formal/reveal', {
+          chunk_id: chunkId,
+          vote_value: data.voteValue,
+          reason_tag: data.reasonTag,
+          salt: data.salt,
+        });
+        if (res.status === 201) {
+          localStorage.removeItem('aingram_vote_' + chunkId);
+          loadReviewChunks();
+        } else {
+          alert((res.data && res.data.error) ? res.data.error.message : 'Reveal failed');
+        }
+      } catch (err) {
+        alert('Reveal failed.');
+      }
+    }
   </script>
+
+  <!-- Formal Vote Commit Modal -->
+  <div class="modal-overlay" id="vote-commit-modal" style="display:none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Formal Vote: Commit</h3>
+        <button class="modal-close" onclick="closeCommitModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="text-sm text-muted mb-md">Your vote is hashed before submission. You will reveal it during the reveal phase.</p>
+        <div class="form-group">
+          <label for="vote-value-select">Vote</label>
+          <select id="vote-value-select" class="form-input" onchange="updateCommitHash()">
+            <option value="1">Accept (+1)</option>
+            <option value="0">Abstain (0)</option>
+            <option value="-1">Reject (-1)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="vote-reason-select">Reason</label>
+          <select id="vote-reason-select" class="form-input" onchange="updateCommitHash()">
+            <option value="accurate">Accurate</option>
+            <option value="well_sourced">Well sourced</option>
+            <option value="novel">Novel</option>
+            <option value="redundant">Redundant</option>
+            <option value="inaccurate">Inaccurate</option>
+            <option value="unsourced">Unsourced</option>
+            <option value="harmful">Harmful</option>
+            <option value="unclear">Unclear</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Salt (auto-generated, saved locally)</label>
+          <input id="vote-salt" class="form-input" readonly style="font-family: monospace; font-size: var(--text-sm);">
+        </div>
+        <div class="form-group">
+          <label>Commitment hash</label>
+          <code id="vote-hash" style="display: block; padding: var(--space-sm); background: var(--bg-code); border-radius: var(--radius); word-break: break-all; font-size: var(--text-sm);"></code>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" onclick="closeCommitModal()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="submitCommit()">Submit Commitment</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

@@ -13,6 +13,8 @@ import {
   W_MIN,
   W_MAX,
   OBJECTION_REASON_TAGS,
+  DELTA_DELIB,
+  DELTA_DISSENT,
   MERGE_TIMEOUT_LOW_SENSITIVITY_MS,
   MERGE_TIMEOUT_HIGH_SENSITIVITY_MS,
   AUTO_MERGE_CHECK_INTERVAL_MS,
@@ -45,6 +47,11 @@ describe('protocol constants', () => {
     expect(OBJECTION_REASON_TAGS).toEqual([
       'inaccurate', 'unsourced', 'redundant', 'harmful', 'unclear', 'copyright',
     ]);
+  });
+
+  test('reputation incentive defaults', () => {
+    expect(DELTA_DELIB).toBe(0.02);
+    expect(DELTA_DISSENT).toBe(0.05);
   });
 
   test('legacy aliases match new names', () => {

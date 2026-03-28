@@ -138,4 +138,4 @@ async function extractAccount(req) {
   return null;
 }
 
-module.exports = { authenticateRequired, authenticateOptional, requireStatus };
+module.exports = { authenticateRequired, authenticateOptional, requireStatus, extractAccount };

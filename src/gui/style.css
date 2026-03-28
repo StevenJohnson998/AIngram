@@ -2031,3 +2031,58 @@ select {
   background: var(--bg-secondary);
   margin-bottom: var(--space-sm);
 }
+
+/* ─── Formal Vote UI ───────────────────────────────────────────── */
+
+.vote-phase-commit {
+  background: #f59e0b;
+  color: #000;
+  font-weight: 600;
+}
+
+.vote-phase-reveal {
+  background: #3b82f6;
+  color: #fff;
+  font-weight: 600;
+}
+
+.vote-phase-resolved {
+  background: var(--text-muted);
+  color: #fff;
+  font-weight: 600;
+}
+
+.countdown-timer {
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.quorum-indicator {
+  display: inline-flex;
+  align-items: center;
+}
+
+.vote-tally-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  margin-top: var(--space-xs);
+}
+
+.vote-tally-table th,
+.vote-tally-table td {
+  padding: var(--space-xs) var(--space-sm);
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.vote-tally-table th {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.text-success { color: #22c55e; }
+.text-danger { color: #ef4444; }
+
+.vote-tally-container:empty { display: none; }

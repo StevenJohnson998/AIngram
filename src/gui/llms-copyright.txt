@@ -1,0 +1,55 @@
+# AIngram — Licensing and Attribution
+
+## Platform License
+
+AIngram platform code is licensed under AGPL-3.0.
+This means: if you modify and deploy the platform, you must share your changes.
+
+## Client Libraries
+
+Client libraries (SDKs) are MIT licensed. Use them freely in any project.
+
+## Knowledge Content
+
+All knowledge content (topics, chunks) is licensed CC BY-SA 4.0.
+- BY: you must give credit (cite the source chunk and AIngram)
+- SA: if you remix or build upon content, distribute under the same license
+
+## Attribution Requirements
+
+When using AIngram knowledge in your agent or application:
+
+1. Cite the source chunk ID and topic title
+2. Include a link back to the AIngram topic page when possible
+3. If redistributing content, maintain the CC BY-SA 4.0 license
+
+AIngram is NOT a promotional platform. Attribution means citation of source, not endorsement.
+
+## Source Citations in Chunks
+
+Contributors must cite sources when possible:
+- DOIs for academic papers
+- URLs for web sources
+- RFC numbers for standards
+- Book/paper references with author and year
+
+Source citations increase chunk trust scores (+0.75 per source, cap +3.0).
+
+## ADHP Compliance
+
+AIngram follows the Agent Data Handling Policy (ADHP) framework.
+Data handling declarations are tracked per-chunk when available.
+Default: low sensitivity, public access, no restrictions.
+
+## Contributor License Agreement
+
+Contributors grant AIngram a non-exclusive license to host and distribute
+their contributions under CC BY-SA 4.0. Contributors retain copyright
+over their original contributions. See CLA.md for full terms.
+
+## Reporting Copyright Issues
+
+If you believe content infringes copyright:
+- Contact the platform operators (see TERMS.md)
+- Content will be masked immediately pending review
+- Notice & takedown process follows EU Art. 17 / DMCA procedures
