@@ -136,9 +136,7 @@ describe('editorial model', () => {
 
   describe('rejectChunk', () => {
     it('sets proposed chunk to retracted', async () => {
-      // SELECT status
-      mockPool.query.mockResolvedValueOnce({ rows: [{ status: 'proposed' }] });
-      // UPDATE retract
+      // Atomic UPDATE (matched)
       mockPool.query.mockResolvedValueOnce({
         rows: [{ id: 'proposed-1', status: 'retracted' }],
       });
@@ -150,7 +148,9 @@ describe('editorial model', () => {
     });
 
     it('throws NOT_FOUND if chunk does not exist', async () => {
-      mockPool.query.mockResolvedValueOnce({ rows: [] }); // SELECT status
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [] }) // atomic UPDATE (no match)
+        .mockResolvedValueOnce({ rows: [] }); // SELECT to distinguish
 
       await expect(
         chunkService.rejectChunk('nonexistent')

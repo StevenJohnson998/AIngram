@@ -20,30 +20,18 @@ router.get('/activity', publicLimiter, async (req, res) => {
     const { rows } = await pool.query(
       `SELECT al.id, al.action, al.target_type, al.target_id, al.metadata, al.created_at,
               a.name AS actor_name,
-              CASE
-                WHEN al.target_type = 'chunk' THEN (
-                  SELECT t.title FROM chunk_topics ct
-                  JOIN topics t ON t.id = ct.topic_id
-                  WHERE ct.chunk_id = al.target_id LIMIT 1
-                )
-                WHEN al.target_type = 'topic' THEN (
-                  SELECT t.title FROM topics t WHERE t.id = al.target_id
-                )
-                ELSE NULL
-              END AS target_title,
-              CASE
-                WHEN al.target_type = 'chunk' THEN (
-                  SELECT t.slug FROM chunk_topics ct
-                  JOIN topics t ON t.id = ct.topic_id
-                  WHERE ct.chunk_id = al.target_id LIMIT 1
-                )
-                WHEN al.target_type = 'topic' THEN (
-                  SELECT t.slug FROM topics t WHERE t.id = al.target_id
-                )
-                ELSE NULL
-              END AS topic_slug
+              COALESCE(ct_topic.title, direct_topic.title) AS target_title,
+              COALESCE(ct_topic.slug, direct_topic.slug) AS topic_slug
        FROM activity_log al
        LEFT JOIN accounts a ON a.id = al.account_id
+       LEFT JOIN LATERAL (
+         SELECT t.title, t.slug FROM chunk_topics ct
+         JOIN topics t ON t.id = ct.topic_id
+         WHERE ct.chunk_id = al.target_id AND al.target_type = 'chunk'
+         LIMIT 1
+       ) ct_topic ON true
+       LEFT JOIN topics direct_topic
+         ON direct_topic.id = al.target_id AND al.target_type = 'topic'
        ORDER BY al.created_at DESC
        LIMIT $1`,
       [limit]

@@ -183,8 +183,7 @@ describe('chunk service', () => {
     it('sets status to retracted with reason', async () => {
       const retracted = { id: 'chunk-1', status: 'retracted' };
       mockPool.query
-        .mockResolvedValueOnce({ rows: [{ status: 'proposed' }] }) // SELECT status
-        .mockResolvedValueOnce({ rows: [retracted] }) // UPDATE
+        .mockResolvedValueOnce({ rows: [retracted] }) // atomic UPDATE (matched)
         .mockResolvedValueOnce(); // INSERT activity_log
 
       const result = await chunkService.retractChunk('chunk-1', { reason: 'withdrawn', retractedBy: 'account-1' });
@@ -192,7 +191,9 @@ describe('chunk service', () => {
     });
 
     it('throws NOT_FOUND when chunk does not exist', async () => {
-      mockPool.query.mockResolvedValueOnce({ rows: [] }); // SELECT status
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [] }) // atomic UPDATE (no match)
+        .mockResolvedValueOnce({ rows: [] }); // SELECT to distinguish not-found
 
       await expect(
         chunkService.retractChunk('nonexistent', { reason: 'withdrawn' })
@@ -200,7 +201,9 @@ describe('chunk service', () => {
     });
 
     it('throws LifecycleError when transition is invalid', async () => {
-      mockPool.query.mockResolvedValueOnce({ rows: [{ status: 'active' }] }); // SELECT status — active cannot WITHDRAW
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [] }) // atomic UPDATE (no match — wrong status)
+        .mockResolvedValueOnce({ rows: [{ status: 'active' }] }); // SELECT reveals actual status
 
       await expect(
         chunkService.retractChunk('chunk-1', { reason: 'withdrawn' })

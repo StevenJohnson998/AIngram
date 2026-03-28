@@ -48,14 +48,17 @@ function createMcpServer() {
           // Text-only fallback
           const pool = getPool();
           const { rows } = await pool.query(
-            `SELECT DISTINCT ON (c.id) c.id, c.content, c.trust_score, c.status,
-                    t.title AS topic_title, t.slug AS topic_slug
-             FROM chunks c
-             JOIN chunk_topics ct ON ct.chunk_id = c.id
-             JOIN topics t ON t.id = ct.topic_id
-             WHERE c.status = 'active'
-               AND to_tsvector('english', c.content) @@ plainto_tsquery('english', $1)
-             ORDER BY c.id, c.trust_score DESC
+            `SELECT * FROM (
+               SELECT DISTINCT ON (c.id) c.id, c.content, c.trust_score, c.status,
+                      t.title AS topic_title, t.slug AS topic_slug,
+                      ts_rank(to_tsvector('english', c.content), plainto_tsquery('english', $1)) AS rank
+               FROM chunks c
+               JOIN chunk_topics ct ON ct.chunk_id = c.id
+               JOIN topics t ON t.id = ct.topic_id
+               WHERE c.status = 'active'
+                 AND to_tsvector('english', c.content) @@ plainto_tsquery('english', $1)
+               ORDER BY c.id, c.trust_score DESC
+             ) sub ORDER BY sub.rank DESC, sub.trust_score DESC
              LIMIT $2`,
             [query, maxResults]
           );
@@ -207,11 +210,24 @@ function createMcpServer() {
  * GET /mcp — SSE endpoint for server-initiated messages
  * DELETE /mcp — session termination
  */
+const MAX_MCP_SESSIONS = 200;
+const MCP_SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
 function mountMcp(app) {
   const server = createMcpServer();
 
-  // Track active transports by session ID
-  const transports = new Map();
+  // Track active transports by session ID with last-activity timestamp
+  const transports = new Map(); // sessionId → { transport, lastActivity }
+
+  // Sweep stale sessions every 5 minutes
+  setInterval(() => {
+    const now = Date.now();
+    for (const [id, entry] of transports) {
+      if (now - entry.lastActivity > MCP_SESSION_TTL_MS) {
+        transports.delete(id);
+      }
+    }
+  }, 5 * 60 * 1000).unref();
 
   app.post('/mcp', async (req, res) => {
     try {
@@ -219,8 +235,13 @@ function mountMcp(app) {
       let transport;
 
       if (sessionId && transports.has(sessionId)) {
-        transport = transports.get(sessionId);
+        const entry = transports.get(sessionId);
+        entry.lastActivity = Date.now();
+        transport = entry.transport;
       } else {
+        if (transports.size >= MAX_MCP_SESSIONS) {
+          return res.status(503).json({ error: 'Too many active MCP sessions. Try again later.' });
+        }
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: undefined, // auto-generate
         });
@@ -230,7 +251,7 @@ function mountMcp(app) {
           }
         };
         await server.connect(transport);
-        transports.set(transport.sessionId, transport);
+        transports.set(transport.sessionId, { transport, lastActivity: Date.now() });
       }
 
       await transport.handleRequest(req, res, req.body);
@@ -244,18 +265,19 @@ function mountMcp(app) {
 
   app.get('/mcp', async (req, res) => {
     const sessionId = req.headers['mcp-session-id'];
-    const transport = sessionId && transports.get(sessionId);
-    if (!transport) {
+    const entry = sessionId && transports.get(sessionId);
+    if (!entry) {
       return res.status(400).json({ error: 'No active session. Send an initialize request first.' });
     }
-    await transport.handleRequest(req, res);
+    entry.lastActivity = Date.now();
+    await entry.transport.handleRequest(req, res);
   });
 
   app.delete('/mcp', async (req, res) => {
     const sessionId = req.headers['mcp-session-id'];
-    const transport = sessionId && transports.get(sessionId);
-    if (transport) {
-      await transport.handleRequest(req, res);
+    const entry = sessionId && transports.get(sessionId);
+    if (entry) {
+      await entry.transport.handleRequest(req, res);
       transports.delete(sessionId);
     } else {
       res.status(200).end();
