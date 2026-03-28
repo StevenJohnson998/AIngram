@@ -16,23 +16,29 @@ const SYSTEM_ACCOUNT_ID = '00000000-0000-0000-0000-000000000000';
 
 async function checkAndAutoMerge() {
   const pool = getPool();
+  const client = await pool.connect();
 
   try {
+    await client.query('BEGIN');
+
     // Find proposed chunks older than the low-sensitivity timeout
-    // (we check sensitivity per-topic below)
+    // FOR UPDATE OF c SKIP LOCKED: lock only chunk rows, skip if already being processed
     const minAge = Math.min(MERGE_TIMEOUT_LOW_SENSITIVITY_MS, MERGE_TIMEOUT_HIGH_SENSITIVITY_MS);
     const cutoff = new Date(Date.now() - minAge);
 
-    const { rows: candidates } = await pool.query(
+    const { rows: candidates } = await client.query(
       `SELECT c.id, c.created_at, c.parent_chunk_id,
               t.sensitivity
        FROM chunks c
        JOIN chunk_topics ct ON ct.chunk_id = c.id
        JOIN topics t ON t.id = ct.topic_id
        WHERE c.status = 'proposed' AND c.created_at < $1
-       ORDER BY c.created_at ASC`,
+       ORDER BY c.created_at ASC
+       FOR UPDATE OF c SKIP LOCKED`,
       [cutoff]
     );
+
+    await client.query('COMMIT');
 
     let mergedCount = 0;
 
@@ -55,11 +61,12 @@ async function checkAndAutoMerge() {
 
       if (voteRows[0].down_count > 0) continue; // Community is debating
 
-      // Auto-merge
+      // Auto-merge (NOT_FOUND = benign race condition, another worker already merged it)
       try {
         await chunkService.mergeChunk(candidate.id, SYSTEM_ACCOUNT_ID);
         mergedCount++;
       } catch (err) {
+        if (err.code === 'NOT_FOUND') continue;
         console.error(`Auto-merge failed for chunk ${candidate.id}:`, err.message);
       }
     }
@@ -68,7 +75,10 @@ async function checkAndAutoMerge() {
       console.log(`Auto-merge: merged ${mergedCount} proposed chunk(s)`);
     }
   } catch (err) {
+    try { await client.query('ROLLBACK'); } catch {}
     console.error('Auto-merge check error:', err.message);
+  } finally {
+    client.release();
   }
 }
 

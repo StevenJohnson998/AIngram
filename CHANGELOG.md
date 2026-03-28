@@ -1,5 +1,60 @@
 # Changelog
 
+## 2026-03-28 -- Sprint 0: Foundation
+
+### Bug Fixes (9 bugs)
+- **Bug 1**: Added `'chunk'` to `VALID_TARGET_TYPES` in vote service. Chunk votes now work. Fixed reasonTag validation for chunks (CONTENT_REASON_TAGS, not POLICING).
+- **Bug 2**: Fixed abuse-detection SQL — `v.topic_id` didn't exist on votes table. Now uses LATERAL JOIN through messages + chunk_topics. Added flag idempotence to prevent duplicate flags on repeated worker runs.
+- **Bug 3**: Wrapped `createSanction` in a DB transaction (BEGIN/COMMIT/ROLLBACK). `cascadeBanIfNeeded` now receives the transaction client. `postBanAudit` stays outside transaction (fire-and-forget).
+- **Bug 4**: Added `recalculateAllBatched()` — batches of 50 with 100ms pauses. Old unbatched version preserved for admin use.
+- **Bug 5**: Applied `authenticatedLimiter` to all POST/PUT/DELETE routes (33 routes across 10 files). Ordering: auth → rate-limit → handler.
+- **Bug 6**: Added `statement_timeout: 30000` to DB pool. Added `configurePool()` for worker process injection. Worker uses max=5, statement_timeout=60s.
+- **Bug 7**: Fixed `DUPLICATE_SIMILARITY_THRESHOLD` bare variable → `trustConfig.DUPLICATE_SIMILARITY_THRESHOLD`. Duplicate detection was silently disabled.
+- **Bug 8**: Refactored `dispatchResult` to use `chunkService.createChunk()` instead of raw SQL. Handles draft multi-chunk arrays. Best-effort error collection for partial failures.
+- **Bug 9**: Migration 022 expands `chunks.status` CHECK to 6 states (added `under_review`), `votes.target_type` CHECK to include `chunk` (dynamic constraint name lookup via PL/pgSQL).
+
+### Migration 022: Protocol-Ready
+- New columns: `chunks.hidden`, `chunks.dispute_count`, `chunks.resubmit_count`, `chunks.confidentiality`
+- New columns: `accounts.tier`, `accounts.interaction_count`, `accounts.reputation_copyright`, `accounts.quarantine_until`
+- All reserved columns have `COMMENT ON` metadata
+
+### Worker Separation
+- New: `src/workers/index.js` — separate Docker service for background jobs
+- Jobs: auto-merge (5min), abuse detection (5min), reputation recalc (1h batched)
+- Health check on :3001. Graceful SIGTERM shutdown.
+- Auto-merge uses `FOR UPDATE OF c SKIP LOCKED` for idempotence
+- API process no longer runs background jobs
+
+### TypeScript Setup (Incremental)
+- tsconfig.json with strict mode, allowJs, outDir=build
+- Multi-stage Dockerfile: builder compiles TS, production runs from compiled JS
+- Dockerfile.test: includes devDeps for test container
+- Jest configured with ts-jest for .ts test files
+- `config/protocol.ts` stub: centralized protocol constants for Sprint 2
+
+### Domain Extraction
+- New: `src/domain/escalation.ts` — sanction type determination
+- New: `src/domain/vote-weight.ts` — vote weight calculation
+- New: `src/domain/merge-rules.ts` — auto-merge eligibility
+- New: `src/domain/tier-access.ts` — tier-based access control (Sprint 1 prep)
+- All pure functions, zero I/O, tested without mocks
+
+### GUI
+- Added badge styles for `under_review` (amber) and `disputed` (red) in History tab
+- Added `retracted` badge style
+
+### Test Infrastructure
+- 512 tests (38 suites), up from 423
+- New: DB contract tests (13 tests) — real PostgreSQL, verify CHECK constraints, defaults, COMMENT ON metadata
+- New: test helpers — `asAutonomous()`, `asAssisted()`, `asHuman()` header builders
+- Domain tests: 18 pure function tests (escalation, vote-weight, merge-rules, tier-access)
+
+### Design Decisions
+- **D67**: Keep `createChunk` → status='active' in Sprint 0 (GUI not ready for 'proposed' lifecycle)
+- **D68**: Build step `tsc` in Dockerfile, no ts-node at runtime
+- **D69**: PL/pgSQL DO block for votes constraint (auto-generated name)
+- **D70**: `configurePool()` injection for worker pool settings
+
 ## 2026-03-20 -- GitHub Public Release
 
 ### Standalone Docker Compose

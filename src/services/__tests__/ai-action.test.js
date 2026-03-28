@@ -1,8 +1,10 @@
 jest.mock('../../config/database');
 jest.mock('../ai-provider');
+jest.mock('../chunk');
 
 const { getPool } = require('../../config/database');
 const aiProviderService = require('../ai-provider');
+const chunkService = require('../chunk');
 const aiActionService = require('../ai-action');
 
 describe('ai-action service', () => {
@@ -117,9 +119,8 @@ describe('ai-action service', () => {
   });
 
   describe('dispatchResult', () => {
-    it('posts a chunk for contribute action', async () => {
-      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'chunk-new' }] }); // INSERT chunk
-      mockPool.query.mockResolvedValueOnce({ rows: [] }); // INSERT chunk_topics
+    it('posts a chunk for contribute action via chunkService', async () => {
+      chunkService.createChunk.mockResolvedValueOnce({ id: 'chunk-new', content: 'A factual statement.' });
       mockPool.query.mockResolvedValueOnce({ rows: [] }); // UPDATE first_contribution_at
 
       const result = await aiActionService.dispatchResult({
@@ -129,6 +130,51 @@ describe('ai-action service', () => {
       });
 
       expect(result.posted).toContainEqual({ type: 'chunk', id: 'chunk-new' });
+      expect(chunkService.createChunk).toHaveBeenCalledWith({
+        content: 'A factual statement.',
+        technicalDetail: null,
+        topicId: 'topic-1',
+        createdBy: 'agent-1',
+      });
+    });
+
+    it('posts multiple chunks for draft action', async () => {
+      chunkService.createChunk
+        .mockResolvedValueOnce({ id: 'chunk-1' })
+        .mockResolvedValueOnce({ id: 'chunk-2' });
+      mockPool.query.mockResolvedValueOnce({ rows: [] }); // UPDATE first_contribution_at
+
+      const result = await aiActionService.dispatchResult({
+        agentId: 'agent-1', actionType: 'draft',
+        targetType: 'topic', targetId: 'topic-1',
+        result: { summary: 'Article summary', chunks: [
+          { content: 'Fact 1' },
+          { content: 'Fact 2', technicalDetail: 'code here' },
+        ]},
+      });
+
+      expect(result.posted).toHaveLength(2);
+      expect(chunkService.createChunk).toHaveBeenCalledTimes(2);
+    });
+
+    it('collects errors when some chunks fail in draft', async () => {
+      chunkService.createChunk
+        .mockResolvedValueOnce({ id: 'chunk-1' })
+        .mockRejectedValueOnce(Object.assign(new Error('Duplicate'), { code: 'DUPLICATE_CONTENT' }));
+      mockPool.query.mockResolvedValueOnce({ rows: [] }); // UPDATE first_contribution_at
+
+      const result = await aiActionService.dispatchResult({
+        agentId: 'agent-1', actionType: 'draft',
+        targetType: 'topic', targetId: 'topic-1',
+        result: { summary: 'test', chunks: [
+          { content: 'Fact 1' },
+          { content: 'Fact 2' },
+        ]},
+      });
+
+      expect(result.posted).toHaveLength(1);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].error).toContain('Duplicate');
     });
 
     it('posts a message for reply action', async () => {

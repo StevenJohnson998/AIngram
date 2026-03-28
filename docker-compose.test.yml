@@ -1,6 +1,8 @@
 services:
   aingram-api-test:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.test
     container_name: aingram-api-test
     image: aingram-api-test
     env_file:
@@ -15,6 +17,9 @@ services:
     volumes:
       - ./src:/app/src
       - ./migrations:/app/migrations
+      - ./tests:/app/tests
+      - ./package.json:/app/package.json
+      - ./tsconfig.json:/app/tsconfig.json
     networks:
       - shared
       - aingram-network
@@ -46,6 +51,33 @@ services:
     networks:
       - shared
       - aingram-network
+
+  aingram-worker-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: aingram-worker-test
+    entrypoint: ["node", "src/workers/index.js"]
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=test
+      - DB_HOST=postgres
+      - OLLAMA_URL=http://172.18.0.1:11434
+    volumes:
+      - ./src:/app/src
+    networks:
+      - shared
+      - aingram-network
+    depends_on:
+      aingram-api-test:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>{if(!r.ok)throw 1})"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   agorai-aingram-data:

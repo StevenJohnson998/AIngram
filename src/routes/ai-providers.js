@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const aiProviderService = require('../services/ai-provider');
 const { authenticateRequired } = require('../middleware/auth');
+const { authenticatedLimiter } = require('../middleware/rate-limit');
 
 const router = Router();
 
@@ -20,7 +21,7 @@ router.get('/types', (_req, res) => {
 /**
  * POST /ai/providers — create a new AI provider config
  */
-router.post('/', authenticateRequired, async (req, res) => {
+router.post('/', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
     if (req.account.type !== 'human' || req.account.parentId) {
       return res.status(403).json({
@@ -88,7 +89,7 @@ router.get('/', authenticateRequired, async (req, res) => {
 /**
  * PUT /ai/providers/:id — update a provider
  */
-router.put('/:id', authenticateRequired, async (req, res) => {
+router.put('/:id', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
     if (req.body.providerType && !VALID_PROVIDER_TYPES.includes(req.body.providerType)) {
       return res.status(400).json({
@@ -124,7 +125,7 @@ router.put('/:id', authenticateRequired, async (req, res) => {
 /**
  * DELETE /ai/providers/:id — delete a provider
  */
-router.delete('/:id', authenticateRequired, async (req, res) => {
+router.delete('/:id', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
     const deleted = await aiProviderService.deleteProvider(req.params.id, req.account.id);
     if (!deleted) {

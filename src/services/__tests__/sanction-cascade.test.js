@@ -6,35 +6,39 @@ const sanctionService = require('../sanction');
 
 describe('sanction cascade', () => {
   let mockPool;
+  let mockClient;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockPool = { query: jest.fn() };
+    mockClient = {
+      query: jest.fn(),
+      release: jest.fn(),
+    };
+    mockPool = {
+      query: jest.fn(),
+      connect: jest.fn().mockResolvedValue(mockClient),
+    };
     getPool.mockReturnValue(mockPool);
   });
 
   it('cascades ban to parent + siblings on grave violation by sub-account', async () => {
-    // Count prior minor sanctions
-    mockPool.query.mockResolvedValueOnce({ rows: [{ count: 0 }] });
-    // INSERT sanction
-    mockPool.query.mockResolvedValueOnce({
-      rows: [{ id: 's-1', type: 'ban', severity: 'grave', account_id: 'child-1' }],
-    });
-    // Ban the account
-    mockPool.query.mockResolvedValueOnce({ rowCount: 1 });
+    mockClient.query
+      .mockResolvedValueOnce({}) // BEGIN
+      .mockResolvedValueOnce({ rows: [{ count: 0 }] }) // prior count
+      .mockResolvedValueOnce({
+        rows: [{ id: 's-1', type: 'ban', severity: 'grave', account_id: 'child-1' }],
+      }) // INSERT sanction
+      .mockResolvedValueOnce({ rowCount: 1 }) // ban account
+      // cascadeBanIfNeeded (runs on client, inside transaction):
+      .mockResolvedValueOnce({ rows: [{ id: 'child-1', parent_id: 'parent-1' }] }) // lookup account
+      .mockResolvedValueOnce({ rowCount: 3 }) // ban parent + all children
+      .mockResolvedValueOnce({ rowCount: 2 }) // insert cascade sanction records
+      .mockResolvedValueOnce({}); // COMMIT
 
-    // cascadeBanIfNeeded: lookup account
-    mockPool.query.mockResolvedValueOnce({
-      rows: [{ id: 'child-1', parent_id: 'parent-1' }],
-    });
-    // cascade: ban parent + all children
-    mockPool.query.mockResolvedValueOnce({ rowCount: 3 });
-    // cascade: insert sanction records
-    mockPool.query.mockResolvedValueOnce({ rowCount: 2 });
-
-    // postBanAudit: messages + chunks
-    mockPool.query.mockResolvedValueOnce({ rowCount: 0 });
-    mockPool.query.mockResolvedValueOnce({ rowCount: 0 });
+    // postBanAudit (runs on pool, after commit)
+    mockPool.query
+      .mockResolvedValueOnce({ rowCount: 0 }) // messages
+      .mockResolvedValueOnce({ rowCount: 0 }); // chunks
 
     const result = await sanctionService.createSanction({
       accountId: 'child-1',
@@ -45,27 +49,30 @@ describe('sanction cascade', () => {
 
     expect(result.type).toBe('ban');
 
-    // Verify cascade ban was called
-    const cascadeBanCall = mockPool.query.mock.calls[4]; // 5th call: UPDATE accounts SET status='banned'
+    // Verify cascade ban was called on client (inside transaction)
+    const cascadeBanCall = mockClient.query.mock.calls[5]; // 6th call: UPDATE accounts SET status='banned'
     expect(cascadeBanCall[0]).toContain("status = 'banned'");
     expect(cascadeBanCall[1]).toContain('parent-1');
+
+    expect(mockClient.release).toHaveBeenCalled();
   });
 
   it('does not cascade for root account ban', async () => {
-    mockPool.query.mockResolvedValueOnce({ rows: [{ count: 0 }] }); // prior
-    mockPool.query.mockResolvedValueOnce({
-      rows: [{ id: 's-2', type: 'ban', severity: 'grave', account_id: 'root-1' }],
-    });
-    mockPool.query.mockResolvedValueOnce({ rowCount: 1 }); // ban account
-
-    // cascadeBanIfNeeded: lookup account -> no parent
-    mockPool.query.mockResolvedValueOnce({
-      rows: [{ id: 'root-1', parent_id: null }],
-    });
+    mockClient.query
+      .mockResolvedValueOnce({}) // BEGIN
+      .mockResolvedValueOnce({ rows: [{ count: 0 }] }) // prior
+      .mockResolvedValueOnce({
+        rows: [{ id: 's-2', type: 'ban', severity: 'grave', account_id: 'root-1' }],
+      }) // INSERT sanction
+      .mockResolvedValueOnce({ rowCount: 1 }) // ban account
+      // cascadeBanIfNeeded: lookup account -> no parent
+      .mockResolvedValueOnce({ rows: [{ id: 'root-1', parent_id: null }] })
+      .mockResolvedValueOnce({}); // COMMIT
 
     // postBanAudit
-    mockPool.query.mockResolvedValueOnce({ rowCount: 0 });
-    mockPool.query.mockResolvedValueOnce({ rowCount: 0 });
+    mockPool.query
+      .mockResolvedValueOnce({ rowCount: 0 })
+      .mockResolvedValueOnce({ rowCount: 0 });
 
     const result = await sanctionService.createSanction({
       accountId: 'root-1',
@@ -75,7 +82,8 @@ describe('sanction cascade', () => {
     });
 
     expect(result.type).toBe('ban');
-    // Only 6 calls total (no cascade queries)
-    expect(mockPool.query).toHaveBeenCalledTimes(6);
+    // 6 client calls: BEGIN, prior, insert, ban, cascade lookup, COMMIT
+    expect(mockClient.query).toHaveBeenCalledTimes(6);
+    expect(mockClient.release).toHaveBeenCalled();
   });
 });

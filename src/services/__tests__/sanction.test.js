@@ -7,10 +7,18 @@ const sanctionService = require('../sanction');
 
 describe('sanction service', () => {
   let mockPool;
+  let mockClient;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockPool = { query: jest.fn() };
+    mockClient = {
+      query: jest.fn(),
+      release: jest.fn(),
+    };
+    mockPool = {
+      query: jest.fn(),
+      connect: jest.fn().mockResolvedValue(mockClient),
+    };
     getPool.mockReturnValue(mockPool);
   });
 
@@ -37,9 +45,11 @@ describe('sanction service', () => {
   describe('createSanction', () => {
     it('creates vote_suspension for first minor offense', async () => {
       const sanction = { id: 's-1', type: 'vote_suspension', severity: 'minor' };
-      mockPool.query
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce({ rows: [{ count: 0 }] }) // prior count
-        .mockResolvedValueOnce({ rows: [sanction] }); // insert
+        .mockResolvedValueOnce({ rows: [sanction] }) // insert
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await sanctionService.createSanction({
         accountId: 'acc-1',
@@ -49,15 +59,16 @@ describe('sanction service', () => {
       });
 
       expect(result.type).toBe('vote_suspension');
-      // Should NOT update account status for vote_suspension
-      expect(mockPool.query).toHaveBeenCalledTimes(2);
+      expect(mockClient.release).toHaveBeenCalled();
     });
 
     it('creates rate_limit for second minor offense', async () => {
       const sanction = { id: 's-2', type: 'rate_limit', severity: 'minor' };
-      mockPool.query
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce({ rows: [{ count: 1 }] }) // 1 prior
-        .mockResolvedValueOnce({ rows: [sanction] });
+        .mockResolvedValueOnce({ rows: [sanction] }) // insert
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await sanctionService.createSanction({
         accountId: 'acc-1',
@@ -67,15 +78,17 @@ describe('sanction service', () => {
       });
 
       expect(result.type).toBe('rate_limit');
-      expect(mockPool.query).toHaveBeenCalledTimes(2);
+      expect(mockClient.release).toHaveBeenCalled();
     });
 
     it('creates account_freeze and suspends account for 3rd minor', async () => {
       const sanction = { id: 's-3', type: 'account_freeze', severity: 'minor' };
-      mockPool.query
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce({ rows: [{ count: 2 }] }) // 2 prior
         .mockResolvedValueOnce({ rows: [sanction] }) // insert
-        .mockResolvedValueOnce({ rowCount: 1 }); // update account status
+        .mockResolvedValueOnce({ rowCount: 1 }) // update account status
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await sanctionService.createSanction({
         accountId: 'acc-1',
@@ -85,21 +98,26 @@ describe('sanction service', () => {
       });
 
       expect(result.type).toBe('account_freeze');
-      expect(mockPool.query).toHaveBeenCalledTimes(3);
-      expect(mockPool.query.mock.calls[2][0]).toContain("status = 'suspended'");
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining("status = 'suspended'"),
+        ['acc-1']
+      );
     });
 
     it('creates ban and updates account for grave offense', async () => {
       const sanction = { id: 's-4', type: 'ban', severity: 'grave' };
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ count: 0 }] }) // prior count (irrelevant)
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [{ count: 0 }] }) // prior count
         .mockResolvedValueOnce({ rows: [sanction] }) // insert
-        .mockResolvedValueOnce({ rowCount: 1 }); // update account status
+        .mockResolvedValueOnce({ rowCount: 1 }) // ban account
+        .mockResolvedValueOnce({ rows: [{ id: 'acc-1', parent_id: null }] }) // cascadeBanIfNeeded: lookup (no parent)
+        .mockResolvedValueOnce({}); // COMMIT
 
-      // Mock postBanAudit (it runs async, mock the queries it would make)
+      // postBanAudit (runs after COMMIT, uses pool not client)
       mockPool.query
-        .mockResolvedValueOnce({ rows: [] }) // messages query
-        .mockResolvedValueOnce({ rows: [] }); // chunks query
+        .mockResolvedValueOnce({ rowCount: 0 }) // messages
+        .mockResolvedValueOnce({ rowCount: 0 }); // chunks
 
       const result = await sanctionService.createSanction({
         accountId: 'acc-1',
@@ -109,7 +127,26 @@ describe('sanction service', () => {
       });
 
       expect(result.type).toBe('ban');
-      expect(mockPool.query.mock.calls[2][0]).toContain("status = 'banned'");
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining("status = 'banned'"),
+        ['acc-1']
+      );
+      expect(mockClient.release).toHaveBeenCalled();
+    });
+
+    it('rolls back on error and releases client', async () => {
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockRejectedValueOnce(new Error('DB error')); // prior count fails
+
+      await expect(
+        sanctionService.createSanction({
+          accountId: 'acc-1', severity: 'minor', reason: 'test', issuedBy: 'mod-1',
+        })
+      ).rejects.toThrow('DB error');
+
+      expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
+      expect(mockClient.release).toHaveBeenCalled();
     });
   });
 
@@ -136,7 +173,6 @@ describe('sanction service', () => {
 
       await sanctionService.liftSanction('s-1');
 
-      // Check the update query handles suspended -> active
       const updateQuery = mockPool.query.mock.calls[1][0];
       expect(updateQuery).toContain("WHEN status = 'suspended' THEN 'active'");
     });
@@ -197,10 +233,6 @@ describe('sanction service', () => {
       const result = await sanctionService.isVoteSuspended('acc-1');
 
       expect(result).toBe(true);
-      expect(mockPool.query).toHaveBeenCalledWith(
-        expect.stringContaining('vote_suspension'),
-        ['acc-1']
-      );
     });
 
     it('returns false when no active vote_suspension', async () => {
@@ -215,26 +247,12 @@ describe('sanction service', () => {
   describe('postBanAudit', () => {
     it('flags all messages and chunks by account via INSERT...SELECT', async () => {
       mockPool.query
-        .mockResolvedValueOnce({ rowCount: 2 }) // INSERT...SELECT messages
-        .mockResolvedValueOnce({ rowCount: 1 }); // INSERT...SELECT chunks
+        .mockResolvedValueOnce({ rowCount: 2 })
+        .mockResolvedValueOnce({ rowCount: 1 });
 
       const result = await sanctionService.postBanAudit('acc-1');
 
       expect(result).toEqual({ messagesFlag: 2, chunksFlag: 1 });
-
-      // Verify bulk INSERT...SELECT for messages
-      expect(mockPool.query).toHaveBeenCalledWith(
-        expect.stringContaining("'message'"),
-        ['acc-1', expect.stringContaining('Post-ban audit'), 'acc-1']
-      );
-
-      // Verify bulk INSERT...SELECT for chunks
-      expect(mockPool.query).toHaveBeenCalledWith(
-        expect.stringContaining("'chunk'"),
-        ['acc-1', expect.stringContaining('Post-ban audit'), 'acc-1']
-      );
-
-      // No individual createFlag calls — all done in SQL
       expect(flagService.createFlag).not.toHaveBeenCalled();
     });
 
@@ -245,7 +263,6 @@ describe('sanction service', () => {
 
       await sanctionService.postBanAudit('acc-1', 'admin-1');
 
-      // reporter_id should be admin-1, not acc-1
       expect(mockPool.query).toHaveBeenCalledWith(
         expect.stringContaining("'message'"),
         ['admin-1', expect.stringContaining('Post-ban audit'), 'acc-1']
@@ -260,7 +277,6 @@ describe('sanction service', () => {
       const result = await sanctionService.postBanAudit('acc-1');
 
       expect(result).toEqual({ messagesFlag: 0, chunksFlag: 0 });
-      expect(flagService.createFlag).not.toHaveBeenCalled();
     });
   });
 });

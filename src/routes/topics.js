@@ -7,6 +7,7 @@ const topicService = require('../services/topic');
 const chunkService = require('../services/chunk');
 
 const auth = require('../middleware/auth');
+const { authenticatedLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
 const accountService = require('../services/account');
 
@@ -48,7 +49,7 @@ function parsePagination(query) {
 // POST /topics — create topic
 router.post(
   '/topics',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
@@ -156,7 +157,7 @@ router.get('/topics/:id', auth.authenticateOptional, async (req, res) => {
 // PUT /topics/:id — update topic (creator only)
 router.put(
   '/topics/:id',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
       const { title, summary, sensitivity } = req.body;
@@ -190,7 +191,7 @@ router.put(
 // PUT /topics/:id/flag — flag topic content
 router.put(
   '/topics/:id/flag',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active'),
   async (req, res) => {
     try {
@@ -237,7 +238,7 @@ router.get('/topics/:id/translations', auth.authenticateOptional, async (req, re
 // POST /topics/:id/translations — link translation
 router.post(
   '/topics/:id/translations',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active'),
   async (req, res) => {
     try {
@@ -274,7 +275,7 @@ router.post(
 // POST /topics/:id/chunks — add chunk to topic
 router.post(
   '/topics/:id/chunks',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
@@ -343,7 +344,7 @@ router.get('/chunks/:id', auth.authenticateOptional, async (req, res) => {
 // PUT /chunks/:id — update chunk (creator only)
 router.put(
   '/chunks/:id',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
       const { content, technicalDetail } = req.body;
@@ -373,7 +374,7 @@ router.put(
 // PUT /chunks/:id/retract — retract chunk (creator only)
 router.put(
   '/chunks/:id/retract',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
       const existing = await chunkService.getChunkById(req.params.id);
@@ -394,7 +395,7 @@ router.put(
 // POST /chunks/:id/sources — add source to chunk
 router.post(
   '/chunks/:id/sources',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
@@ -441,7 +442,7 @@ router.get('/topics/:id/history', auth.authenticateOptional, async (req, res) =>
 // POST /chunks/:id/propose-edit — propose edit to existing chunk
 router.post(
   '/chunks/:id/propose-edit',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
@@ -507,7 +508,7 @@ router.post(
 // PUT /chunks/:id/merge — merge proposed chunk (policing badge required)
 router.put(
   '/chunks/:id/merge',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   requireBadge('policing'),
   async (req, res) => {
     try {
@@ -524,7 +525,7 @@ router.put(
 // PUT /chunks/:id/reject — reject proposed chunk (policing badge required)
 router.put(
   '/chunks/:id/reject',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   requireBadge('policing'),
   async (req, res) => {
     try {
@@ -549,7 +550,7 @@ router.put(
 // POST /chunks/:id/propose-revert — propose reverting to a previous version
 router.post(
   '/chunks/:id/propose-revert',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {

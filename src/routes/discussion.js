@@ -4,6 +4,7 @@ const { Router } = require('express');
 const topicAgorai = require('../services/topic-agorai');
 
 const auth = require('../middleware/auth');
+const { authenticatedLimiter } = require('../middleware/rate-limit');
 
 const router = Router();
 
@@ -23,7 +24,7 @@ router.get('/topics/:id/discussion', async (req, res) => {
  * POST /topics/:id/discussion
  * Auth required — posts a message to the topic's Agorai conversation.
  */
-router.post('/topics/:id/discussion', auth.authenticateRequired, async (req, res) => {
+router.post('/topics/:id/discussion', auth.authenticateRequired, authenticatedLimiter, async (req, res) => {
   const { content, level } = req.body || {};
 
   if (!content || typeof content !== 'string' || content.trim().length === 0) {

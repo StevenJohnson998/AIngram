@@ -173,6 +173,8 @@ async function checkBadges(accountId) {
 
 /**
  * Batch recalculate reputation and badges for all active accounts.
+ * WARNING: This is the unbatched version — blocks the event loop for large account counts.
+ * Use recalculateAllBatched for worker/background use.
  */
 async function recalculateAll() {
   const pool = getPool();
@@ -185,6 +187,37 @@ async function recalculateAll() {
     const reputation = await recalculateReputation(account.id);
     const badges = await checkBadges(account.id);
     results.push({ accountId: account.id, ...reputation, ...badges });
+  }
+
+  return results;
+}
+
+/**
+ * Batched recalculation — processes accounts in chunks with pauses.
+ * Designed for the worker process to avoid blocking the event loop.
+ */
+async function recalculateAllBatched({ batchSize = 50, pauseMs = 100 } = {}) {
+  const pool = getPool();
+  const { rows: accounts } = await pool.query(
+    "SELECT id FROM accounts WHERE status = 'active'"
+  );
+
+  const results = [];
+  for (let i = 0; i < accounts.length; i += batchSize) {
+    const batch = accounts.slice(i, i + batchSize);
+    for (const account of batch) {
+      try {
+        const reputation = await recalculateReputation(account.id);
+        const badges = await checkBadges(account.id);
+        results.push({ accountId: account.id, ...reputation, ...badges });
+      } catch (err) {
+        console.error(`Reputation recalc failed for ${account.id}:`, err.message);
+      }
+    }
+    // Yield event loop between batches
+    if (i + batchSize < accounts.length) {
+      await new Promise(resolve => setTimeout(resolve, pauseMs));
+    }
   }
 
   return results;
@@ -340,6 +373,7 @@ module.exports = {
   recalculateReputation,
   checkBadges,
   recalculateAll,
+  recalculateAllBatched,
   getReputationDetails,
   recalculateChunkTrust,
 };

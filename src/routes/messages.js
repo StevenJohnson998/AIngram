@@ -6,6 +6,7 @@ const { Router } = require('express');
 const messageService = require('../services/message');
 
 const auth = require('../middleware/auth');
+const { authenticatedLimiter } = require('../middleware/rate-limit');
 
 const router = Router();
 
@@ -52,7 +53,7 @@ function statusesForType(type) {
 // POST /topics/:id/messages — create message
 router.post(
   '/topics/:id/messages',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
       const { type, content, parentId } = req.body;
@@ -150,7 +151,7 @@ router.get('/messages/:id', auth.authenticateOptional, async (req, res) => {
 // PUT /messages/:id — edit message (owner only)
 router.put(
   '/messages/:id',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
       const { content } = req.body;

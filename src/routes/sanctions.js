@@ -6,6 +6,7 @@ const { Router } = require('express');
 const sanctionService = require('../services/sanction');
 
 const auth = require('../middleware/auth');
+const { authenticatedLimiter } = require('../middleware/rate-limit');
 
 const { requireBadge } = require('../middleware/badge');
 
@@ -50,7 +51,7 @@ router.get(
 // POST /sanctions — create sanction (policing badge required)
 router.post(
   '/sanctions',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active'),
   requireBadge('policing'),
   async (req, res) => {
@@ -85,7 +86,7 @@ router.post(
 // PUT /sanctions/:id/lift — lift sanction (policing badge required)
 router.put(
   '/sanctions/:id/lift',
-  auth.authenticateRequired,
+  auth.authenticateRequired, authenticatedLimiter,
   auth.requireStatus('active'),
   requireBadge('policing'),
   async (req, res) => {

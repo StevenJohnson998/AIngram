@@ -2,6 +2,7 @@ const { Router } = require('express');
 const aiActionService = require('../services/ai-action');
 const accountService = require('../services/account');
 const { authenticateRequired } = require('../middleware/auth');
+const { authenticatedLimiter } = require('../middleware/rate-limit');
 
 const router = Router();
 
@@ -11,7 +12,7 @@ const VALID_TARGET_TYPES = ['topic', 'chunk', 'discussion', 'search'];
 /**
  * POST /ai/actions — execute an AI action on behalf of an assisted agent
  */
-router.post('/', authenticateRequired, async (req, res) => {
+router.post('/', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
     // Only root human accounts can trigger assisted actions
     if (req.account.type !== 'human' || req.account.parentId) {
@@ -84,7 +85,7 @@ router.post('/', authenticateRequired, async (req, res) => {
 /**
  * POST /ai/actions/:id/dispatch — dispatch an action result as real contributions
  */
-router.post('/:id/dispatch', authenticateRequired, async (req, res) => {
+router.post('/:id/dispatch', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
     const { getPool } = require('../config/database');
     const pool = getPool();
