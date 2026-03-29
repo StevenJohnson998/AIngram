@@ -10,6 +10,8 @@ const env = validateEnv();
 const app = express();
 
 // Security headers (allow inline scripts for GUI pages)
+// upgrade-insecure-requests disabled: Caddy handles HTTPS termination,
+// the app only sees HTTP internally. The directive would break internal requests.
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -18,6 +20,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:"],
       connectSrc: ["'self'", "https://analytics.iamagique.dev"],
+      upgradeInsecureRequests: null,
     },
   },
 }));
