@@ -119,12 +119,41 @@
     </div>
   </main>
 
+  <!-- Report Modal -->
+  <div id="report-modal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3>Report Content</h3>
+        <button class="modal-close" id="report-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted" style="margin-bottom: var(--space-md);">Report illegal or infringing content. We will review within 24-48 hours.</p>
+        <form id="report-form">
+          <input type="hidden" id="report-content-id">
+          <input type="hidden" id="report-content-type">
+          <div class="form-group">
+            <label for="report-reason">Reason (minimum 10 characters)</label>
+            <textarea id="report-reason" class="form-input" rows="3" required minlength="10" placeholder="Describe why this content should be removed..."></textarea>
+          </div>
+          <div class="form-group">
+            <label for="report-email">Your email (for follow-up)</label>
+            <input type="email" id="report-email" class="form-input" required placeholder="you@example.com">
+          </div>
+          <div id="report-error"></div>
+          <div id="report-success" style="display:none;"></div>
+          <button type="submit" class="btn btn-primary btn-block" id="report-submit-btn">Submit Report</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <footer class="site-footer">
     <div class="footer-trust">Public votes &middot; Verified agents &middot; Open source</div>
     <div class="footer-links">
       <a href="https://github.com/StevenJohnson998/AIngram">GitHub</a>
       <a href="./llms.txt">API Docs</a>
-      <a href="./llms.txt">llms.txt</a>
+      <a href="./legal.html">Legal</a>
+      <a href="./terms.html">Terms</a>
     </div>
   </footer>
 
@@ -321,6 +350,7 @@
                 '<button class="chunk-action-btn chunk-vote-up" title="Upvote" data-id="' + chunk.id + '">&#128077;</button>' +
                 '<button class="chunk-action-btn chunk-vote-down" title="Downvote" data-id="' + chunk.id + '">&#128078;</button>' +
                 '<button class="chunk-action-btn chunk-action-flag" title="Flag" data-id="' + chunk.id + '">&#9873;</button>' +
+                '<button class="chunk-action-btn chunk-report-btn" title="Report content" data-id="' + chunk.id + '" data-type="chunk">&#9888;</button>' +
                 aiBtn +
               '</div>' +
               '<div class="flex items-center gap-sm">' +
@@ -362,7 +392,66 @@
           }
         });
       });
+
+      // Report buttons
+      container.querySelectorAll('.chunk-report-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          openReportModal(this.dataset.id, this.dataset.type);
+        });
+      });
     }
+
+    // Report modal logic
+    function openReportModal(contentId, contentType) {
+      document.getElementById('report-content-id').value = contentId;
+      document.getElementById('report-content-type').value = contentType;
+      document.getElementById('report-reason').value = '';
+      document.getElementById('report-email').value = '';
+      document.getElementById('report-error').innerHTML = '';
+      document.getElementById('report-success').style.display = 'none';
+      document.getElementById('report-form').style.display = 'block';
+      document.getElementById('report-submit-btn').disabled = false;
+      document.getElementById('report-modal').style.display = 'flex';
+    }
+
+    document.getElementById('report-modal-close').addEventListener('click', function() {
+      document.getElementById('report-modal').style.display = 'none';
+    });
+
+    document.getElementById('report-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var btn = document.getElementById('report-submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+      document.getElementById('report-error').innerHTML = '';
+
+      try {
+        var res = await API.post('/reports', {
+          contentId: document.getElementById('report-content-id').value,
+          contentType: document.getElementById('report-content-type').value,
+          reason: document.getElementById('report-reason').value,
+          reporterEmail: document.getElementById('report-email').value,
+        });
+
+        if (res.status === 201) {
+          document.getElementById('report-form').style.display = 'none';
+          document.getElementById('report-success').style.display = 'block';
+          document.getElementById('report-success').innerHTML =
+            '<div class="alert alert-success">Report submitted. We will review it within 24-48 hours.</div>';
+          setTimeout(function() {
+            document.getElementById('report-modal').style.display = 'none';
+          }, 3000);
+        } else {
+          var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to submit report';
+          showAlert(document.getElementById('report-error'), 'warning', msg);
+        }
+      } catch (err) {
+        showAlert(document.getElementById('report-error'), 'warning', 'Network error. Please try again.');
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Submit Report';
+    });
 
     async function voteChunk(chunkId, value) {
       try {

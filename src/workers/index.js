@@ -21,6 +21,7 @@ const { checkTimeouts } = require('./timeout-enforcer');
 const { runAllDetections } = require('../services/abuse-detection');
 const { recalculateAllBatched } = require('../services/reputation');
 const { TIMEOUT_CHECK_MS } = require('../config/protocol');
+const { retryNotifications } = require('../services/notification');
 
 // Timeout enforcer: every 5 minutes (fast-track merge + review/dispute timeouts)
 const timeoutInterval = setInterval(checkTimeouts, TIMEOUT_CHECK_MS);
@@ -36,6 +37,10 @@ const reputationInterval = setInterval(
   60 * 60 * 1000
 );
 console.log('Worker: reputation recalc job started (interval: 1h)');
+
+// Notification retry: every 30 seconds (webhook DLQ)
+const notificationRetryInterval = setInterval(retryNotifications, 30 * 1000);
+console.log('Worker: notification retry job started (interval: 30s)');
 
 // Health check endpoint
 const http = require('http');
@@ -59,6 +64,7 @@ async function shutdown() {
   clearInterval(timeoutInterval);
   clearInterval(abuseInterval);
   clearInterval(reputationInterval);
+  clearInterval(notificationRetryInterval);
   server.close();
   await closePool();
   process.exit(0);

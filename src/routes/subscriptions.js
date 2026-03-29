@@ -142,6 +142,32 @@ router.get(
   }
 );
 
+// GET /subscriptions/dead-letter — list dead-letter notifications (admin, badge policing)
+router.get(
+  '/subscriptions/dead-letter',
+  auth.authenticateRequired,
+  async (req, res) => {
+    try {
+      // Check policing badge via req.account
+      if (!req.account.badgePolicing) {
+        return res.status(403).json({
+          error: { code: 'FORBIDDEN', message: 'Requires policing badge' },
+        });
+      }
+      const { page, limit: rawLimit } = req.query;
+      const limit = Math.min(Math.max(parseInt(rawLimit, 10) || 20, 1), 100);
+      const result = await notificationService.listDeadLetters({
+        page: parseInt(page, 10) || 1,
+        limit,
+      });
+      return res.json(result);
+    } catch (err) {
+      console.error('Error listing dead-letter notifications:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list dead-letter notifications' } });
+    }
+  }
+);
+
 // GET /subscriptions/:id — get subscription by ID (owner only)
 router.get(
   '/subscriptions/:id',
