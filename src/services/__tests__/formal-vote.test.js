@@ -32,6 +32,9 @@ describe('formal-vote service', () => {
 
   describe('startCommitPhase', () => {
     it('sets vote_phase to commit with deadlines', async () => {
+      // chunk_type lookup
+      mockPool.query.mockResolvedValueOnce({ rows: [{ chunk_type: 'knowledge' }] });
+      // UPDATE
       mockPool.query.mockResolvedValueOnce({
         rows: [{ id: 'chunk-1', vote_phase: 'commit', commit_deadline_at: new Date(), reveal_deadline_at: new Date() }],
       });
@@ -39,12 +42,15 @@ describe('formal-vote service', () => {
       const result = await formalVoteService.startCommitPhase('chunk-1');
 
       expect(result.vote_phase).toBe('commit');
-      const sql = mockPool.query.mock.calls[0][0];
+      const sql = mockPool.query.mock.calls[1][0];
       expect(sql).toContain("vote_phase = 'commit'");
       expect(sql).toContain("status = 'under_review'");
     });
 
     it('throws NOT_FOUND if chunk is not under_review', async () => {
+      // chunk_type lookup
+      mockPool.query.mockResolvedValueOnce({ rows: [{ chunk_type: 'knowledge' }] });
+      // UPDATE returns empty
       mockPool.query.mockResolvedValueOnce({ rows: [] });
 
       await expect(formalVoteService.startCommitPhase('chunk-x'))
@@ -58,6 +64,7 @@ describe('formal-vote service', () => {
       vote_phase: 'commit',
       commit_deadline_at: new Date(Date.now() + 86400000), // 24h from now
       created_by: 'author-1',
+      chunk_type: 'knowledge',
     };
 
     const activeAccount = {

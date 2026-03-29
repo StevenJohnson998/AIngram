@@ -706,8 +706,106 @@ async function resubmitChunk(chunkId, resubmittedBy) {
   return rows[0];
 }
 
+/**
+ * Create a suggestion chunk — a process improvement proposal.
+ * Suggestions never fast-track; they always require formal vote.
+ */
+async function createSuggestion({ content, topicId, createdBy, suggestionCategory, rationale, title = null }) {
+  const pool = getPool();
+  const client = await pool.connect();
+
+  const initialTrust = trustConfig.CHUNK_PRIOR_NEW[0] / (trustConfig.CHUNK_PRIOR_NEW[0] + trustConfig.CHUNK_PRIOR_NEW[1]);
+
+  try {
+    await client.query('BEGIN');
+
+    const { rows } = await client.query(
+      `INSERT INTO chunks (content, created_by, trust_score, title, status, chunk_type, suggestion_category, rationale)
+       VALUES ($1, $2, $3, $4, 'proposed', 'suggestion', $5, $6)
+       RETURNING *`,
+      [content, createdBy, initialTrust, title, suggestionCategory, rationale || null]
+    );
+
+    const chunk = rows[0];
+
+    // Link chunk to topic
+    await client.query(
+      'INSERT INTO chunk_topics (chunk_id, topic_id) VALUES ($1, $2)',
+      [chunk.id, topicId]
+    );
+
+    // Log activity
+    await client.query(
+      `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+       VALUES ($1, 'suggestion_proposed', 'chunk', $2, $3)`,
+      [createdBy, chunk.id, JSON.stringify({ topicId, category: suggestionCategory })]
+    );
+
+    await client.query('COMMIT');
+
+    // Fire-and-forget: update interaction count + tier
+    accountService.incrementInteractionAndUpdateTier(createdBy)
+      .catch(err => console.error('Tier update failed:', err));
+
+    return chunk;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * List suggestions with pagination and filters.
+ */
+async function listSuggestions({ status = 'proposed', category = null, page = 1, limit = 20 } = {}) {
+  const pool = getPool();
+  const offset = (page - 1) * limit;
+
+  const conditions = ["c.chunk_type = 'suggestion'"];
+  const params = [];
+  let idx = 1;
+
+  if (status) {
+    conditions.push(`c.status = $${idx++}`);
+    params.push(status);
+  }
+  if (category) {
+    conditions.push(`c.suggestion_category = $${idx++}`);
+    params.push(category);
+  }
+
+  const where = conditions.join(' AND ');
+
+  const [countResult, dataResult] = await Promise.all([
+    pool.query(
+      `SELECT COUNT(*)::int AS total FROM chunks c WHERE ${where}`,
+      params
+    ),
+    pool.query(
+      `SELECT c.*, a.name AS author_name,
+              t.id AS topic_id, t.title AS topic_title, t.slug AS topic_slug
+       FROM chunks c
+       LEFT JOIN accounts a ON a.id = c.created_by
+       LEFT JOIN chunk_topics ct ON ct.chunk_id = c.id
+       LEFT JOIN topics t ON t.id = ct.topic_id
+       WHERE ${where}
+       ORDER BY c.created_at DESC
+       LIMIT $${idx++} OFFSET $${idx++}`,
+      [...params, limit, offset]
+    ),
+  ]);
+
+  return {
+    data: dataResult.rows,
+    pagination: { page, limit, total: countResult.rows[0].total },
+  };
+}
+
 module.exports = {
   createChunk,
+  createSuggestion,
   getChunkById,
   updateChunk,
   retractChunk,
@@ -721,6 +819,7 @@ module.exports = {
   getTopicHistory,
   getProposedEdits,
   listPendingProposals,
+  listSuggestions,
   escalateToReview,
   resubmitChunk,
 };

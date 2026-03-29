@@ -196,6 +196,7 @@ router.post(
       if (err.code === 'FORBIDDEN') return forbiddenError(res, err.message);
       if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
       if (err.code === 'WEIGHT_TOO_LOW') return res.status(403).json({ error: { code: err.code, message: err.message } });
+      if (err.code === 'TIER_TOO_LOW') return res.status(403).json({ error: { code: err.code, message: err.message } });
       console.error('Error committing formal vote:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to commit vote' } });
     }

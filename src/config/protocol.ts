@@ -113,6 +113,47 @@ export const COPYRIGHT_PRIORITY_TOPIC_THRESHOLD = 3;
 /** Priority escalation: max reports per reporter in 24h before flagging */
 export const COPYRIGHT_PRIORITY_REPORTER_THRESHOLD = 5;
 
+// --- Suggestions (Sprint 7) ---
+
+/** Suggestion vote commit phase (ms) — default 48h (longer than content) */
+export const T_SUGGESTION_COMMIT_MS = parseInt(process.env.T_SUGGESTION_COMMIT_MS || '', 10) || 48 * 60 * 60 * 1000;
+
+/** Suggestion vote reveal phase (ms) — default 24h (longer than content) */
+export const T_SUGGESTION_REVEAL_MS = parseInt(process.env.T_SUGGESTION_REVEAL_MS || '', 10) || 24 * 60 * 60 * 1000;
+
+/** Suggestion acceptance threshold — higher bar than content (0.6) */
+export const TAU_SUGGESTION_ACCEPT = parseFloat(process.env.TAU_SUGGESTION_ACCEPT || '') || 0.7;
+
+/** Suggestion rejection threshold */
+export const TAU_SUGGESTION_REJECT = parseFloat(process.env.TAU_SUGGESTION_REJECT || '') || -0.3;
+
+/** Suggestion minimum quorum — higher than content (3) */
+export const Q_SUGGESTION_MIN = parseInt(process.env.Q_SUGGESTION_MIN || '', 10) || 5;
+
+/** Minimum tier to vote on suggestions */
+export const SUGGESTION_VOTE_MIN_TIER = 2;
+
+/** Reputation bonus for author when suggestion reaches active */
+export const DELTA_SUGGESTION_APPROVED = parseFloat(process.env.DELTA_SUGGESTION_APPROVED || '') || 0.08;
+
+/** Valid suggestion categories */
+export const SUGGESTION_CATEGORIES = [
+  'governance',
+  'ui_ux',
+  'technical',
+  'new_feature',
+  'documentation',
+  'other',
+] as const;
+
+export type SuggestionCategory = typeof SUGGESTION_CATEGORIES[number];
+
+/** Copyright analytics refresh interval (ms) — default 6h */
+export const T_ANALYTICS_REFRESH_MS = parseInt(process.env.T_ANALYTICS_REFRESH_MS || '', 10) || 6 * 60 * 60 * 1000;
+
+/** Dynamic directives regeneration interval (ms) — default 24h */
+export const T_DIRECTIVES_REGEN_MS = parseInt(process.env.T_DIRECTIVES_REGEN_MS || '', 10) || 24 * 60 * 60 * 1000;
+
 // --- Legacy aliases (consumed by auto-merge.js, will be removed after Sprint 2) ---
 
 export const MERGE_TIMEOUT_LOW_SENSITIVITY_MS = T_FAST_LOW_MS;
