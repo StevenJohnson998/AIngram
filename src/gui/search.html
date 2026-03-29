@@ -124,11 +124,13 @@
       var type = document.getElementById('filter-type').value;
       var lang = document.getElementById('filter-lang').value;
 
-      document.getElementById('results-loading').style.display = 'block';
-      document.getElementById('results-empty').style.display = 'none';
+      var loadingEl = document.getElementById('results-loading');
+      var emptyEl = document.getElementById('results-empty');
+      if (loadingEl) loadingEl.style.display = 'block';
+      if (emptyEl) emptyEl.style.display = 'none';
       if (!append) {
-        document.getElementById('results-container').innerHTML = '';
-        document.getElementById('results-container').appendChild(document.getElementById('results-loading') || createEl());
+        var container = document.getElementById('results-container');
+        container.innerHTML = '<p class="text-muted" id="results-loading">Searching...</p><p class="text-muted" id="results-empty" style="display:none;">No results found.</p>';
       }
 
       var url = '/search?q=' + encodeURIComponent(q) + '&type=' + type + '&page=' + page + '&limit=20';
