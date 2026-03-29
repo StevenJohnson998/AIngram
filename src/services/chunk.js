@@ -273,14 +273,14 @@ async function getChunksByTopic(topicId, { status = 'active', page = 1, limit = 
       `SELECT COUNT(*)::int AS total
        FROM chunk_topics ct
        JOIN chunks c ON c.id = ct.chunk_id
-       WHERE ct.topic_id = $1 AND c.status = $2`,
+       WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false`,
       [topicId, status]
     ),
     pool.query(
       `SELECT c.*
        FROM chunk_topics ct
        JOIN chunks c ON c.id = ct.chunk_id
-       WHERE ct.topic_id = $1 AND c.status = $2
+       WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false
        ORDER BY c.created_at DESC
        LIMIT $3 OFFSET $4`,
       [topicId, status, limit, offset]
@@ -317,7 +317,7 @@ async function getChunksWithSourcesByTopic(topicId, { status = 'active', limit =
      FROM chunk_topics ct
      JOIN chunks c ON c.id = ct.chunk_id
      LEFT JOIN chunk_sources cs ON cs.chunk_id = c.id
-     WHERE ct.topic_id = $1 AND c.status = $2
+     WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false
      GROUP BY c.id
      ORDER BY c.created_at DESC
      LIMIT $3`,

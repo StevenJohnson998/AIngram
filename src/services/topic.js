@@ -32,7 +32,7 @@ async function getTopicById(id) {
     `SELECT t.*,
             (SELECT COUNT(*) FROM chunk_topics ct
              JOIN chunks c ON c.id = ct.chunk_id
-             WHERE ct.topic_id = t.id AND c.status = 'active')::int AS chunk_count
+             WHERE ct.topic_id = t.id AND c.status = 'active' AND c.hidden = false)::int AS chunk_count
      FROM topics t
      WHERE t.id = $1`,
     [id]
@@ -50,7 +50,7 @@ async function getTopicBySlug(slug, lang) {
     `SELECT t.*,
             (SELECT COUNT(*) FROM chunk_topics ct
              JOIN chunks c ON c.id = ct.chunk_id
-             WHERE ct.topic_id = t.id AND c.status = 'active')::int AS chunk_count
+             WHERE ct.topic_id = t.id AND c.status = 'active' AND c.hidden = false)::int AS chunk_count
      FROM topics t
      WHERE t.slug = $1 AND t.lang = $2`,
     [slug, lang]

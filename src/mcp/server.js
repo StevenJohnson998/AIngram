@@ -90,7 +90,7 @@ function createMcpServer(getSessionAccount) {
                FROM chunks c
                JOIN chunk_topics ct ON ct.chunk_id = c.id
                JOIN topics t ON t.id = ct.topic_id
-               WHERE c.status = 'active'
+               WHERE c.status = 'active' AND c.hidden = false
                  AND to_tsvector('english', c.content) @@ plainto_tsquery('english', $1)
                ORDER BY c.id, c.trust_score DESC
              ) sub ORDER BY sub.rank DESC, sub.trust_score DESC
@@ -178,7 +178,7 @@ function createMcpServer(getSessionAccount) {
     async ({ chunkId }) => {
       try {
         const chunk = await chunkService.getChunkById(chunkId);
-        if (!chunk) {
+        if (!chunk || chunk.hidden) {
           return mcpError(Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' }));
         }
 

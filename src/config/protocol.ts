@@ -84,6 +84,35 @@ export const DELTA_DELIB = parseFloat(process.env.DELTA_DELIB || '') || 0.02;
 /** Dissent incentive — reputation reward for vindicated minority voters */
 export const DELTA_DISSENT = parseFloat(process.env.DELTA_DISSENT || '') || 0.05;
 
+// --- Takedown ---
+
+/** Counter-notice legal delay before auto-restoration (ms) — default 14 days (EU Art. 17 simplified) */
+export const T_COUNTER_NOTICE_DELAY_MS = parseInt(process.env.T_COUNTER_NOTICE_DELAY_MS || '', 10) || 14 * 24 * 60 * 60 * 1000;
+
+/** Counter-notice restoration check interval (ms) — default 1h */
+export const T_RESTORATION_CHECK_MS = parseInt(process.env.T_RESTORATION_CHECK_INTERVAL_MS || '', 10) || 60 * 60 * 1000;
+
+/** Copyright review deadline (ms) — pending reports auto-hide chunk after this delay — default 24h */
+export const T_COPYRIGHT_REVIEW_DEADLINE_MS = parseInt(process.env.T_COPYRIGHT_REVIEW_DEADLINE_MS || '', 10) || 24 * 60 * 60 * 1000;
+
+/** Minimum reputation_copyright required for immediate (fast-track) takedown */
+export const MIN_REP_COPYRIGHT_FAST_TAKEDOWN = parseFloat(process.env.MIN_REP_COPYRIGHT_FAST_TAKEDOWN || '') || 0.8;
+
+/** Reporter suspension threshold: false positive rate (0-1) on 10+ resolved reports */
+export const REPORTER_SUSPENSION_FP_THRESHOLD = 0.6;
+
+/** Minimum resolved reports before suspension can trigger */
+export const REPORTER_SUSPENSION_MIN_REPORTS = 10;
+
+/** Reporter suspension duration (ms) — default 30 days */
+export const REPORTER_SUSPENSION_DURATION_MS = parseInt(process.env.REPORTER_SUSPENSION_DURATION_MS || '', 10) || 30 * 24 * 60 * 60 * 1000;
+
+/** Priority escalation: max reports per topic in 48h before flagging as high priority */
+export const COPYRIGHT_PRIORITY_TOPIC_THRESHOLD = 3;
+
+/** Priority escalation: max reports per reporter in 24h before flagging */
+export const COPYRIGHT_PRIORITY_REPORTER_THRESHOLD = 5;
+
 // --- Legacy aliases (consumed by auto-merge.js, will be removed after Sprint 2) ---
 
 export const MERGE_TIMEOUT_LOW_SENSITIVITY_MS = T_FAST_LOW_MS;

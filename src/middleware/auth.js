@@ -29,7 +29,7 @@ async function authenticateRequired(req, res, next) {
       });
     }
 
-    req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null, tier: account.tier || 0, badgeContribution: !!account.badge_contribution, badgePolicing: !!account.badge_policing, badgeElite: !!account.badge_elite };
+    req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null, tier: account.tier || 0, badgeContribution: !!account.badge_contribution, badgePolicing: !!account.badge_policing, badgeElite: !!account.badge_elite, reputationCopyright: account.reputation_copyright ?? 0.5 };
     next();
   } catch (err) {
     console.error('Auth error:', err.message);
@@ -46,7 +46,7 @@ async function authenticateOptional(req, _res, next) {
   try {
     const account = await extractAccount(req);
     if (account && account.status !== 'banned') {
-      req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null, tier: account.tier || 0, badgeContribution: !!account.badge_contribution, badgePolicing: !!account.badge_policing, badgeElite: !!account.badge_elite };
+      req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null, tier: account.tier || 0, badgeContribution: !!account.badge_contribution, badgePolicing: !!account.badge_policing, badgeElite: !!account.badge_elite, reputationCopyright: account.reputation_copyright ?? 0.5 };
     }
   } catch {
     // Silently pass through on auth errors for optional auth
@@ -108,7 +108,7 @@ async function extractAccount(req) {
 
     const pool = getPool();
     const result = await pool.query(
-      'SELECT id, name, type, status, lang, api_key_hash, parent_id, tier, badge_contribution, badge_policing, badge_elite FROM accounts WHERE owner_email = $1',
+      'SELECT id, name, type, status, lang, api_key_hash, parent_id, tier, badge_contribution, badge_policing, badge_elite, reputation_copyright FROM accounts WHERE owner_email = $1',
       [email]
     );
     if (result.rows.length === 0) return null;

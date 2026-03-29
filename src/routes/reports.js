@@ -123,4 +123,68 @@ router.patch(
   }
 );
 
+// POST /reports/:id/takedown — admin takedown (DMCA / Art. 17)
+router.post(
+  '/reports/:id/takedown',
+  auth.authenticateRequired, authenticatedLimiter,
+  requireBadge('policing'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      if (!UUID_RE.test(id)) return validationError(res, 'Invalid report ID');
+
+      const report = await reportService.takedownReport(id, {
+        takenDownBy: req.account.id,
+        reviewerCopyrightRep: req.account.reputationCopyright,
+      });
+
+      return res.json({
+        ...report,
+        message: 'Content has been taken down. The reported chunk is now hidden from public access.',
+      });
+    } catch (err) {
+      if (err.code === 'INSUFFICIENT_REPUTATION') return res.status(403).json({ error: { code: err.code, message: err.message } });
+      if (err.code === 'VALIDATION_ERROR') return validationError(res, err.message);
+      if (err.code === 'NOT_FOUND') return res.status(404).json({ error: { code: 'NOT_FOUND', message: err.message } });
+      console.error('Error processing takedown:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to process takedown' } });
+    }
+  }
+);
+
+// POST /reports/:id/counter-notice — public, contest a takedown
+router.post(
+  '/reports/:id/counter-notice',
+  reportLimiter,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      if (!UUID_RE.test(id)) return validationError(res, 'Invalid report ID');
+
+      const { email, reason } = req.body;
+      if (!email || typeof email !== 'string' || !email.includes('@')) {
+        return validationError(res, 'A valid email is required');
+      }
+      if (!reason || typeof reason !== 'string' || reason.trim().length < 50) {
+        return validationError(res, 'Counter-notice reason must be at least 50 characters');
+      }
+
+      const report = await reportService.counterNotice(id, {
+        email: email.trim(),
+        reason: reason.trim(),
+      });
+
+      return res.json({
+        ...report,
+        message: 'Counter-notice received. Content may be restored after the legal waiting period.',
+      });
+    } catch (err) {
+      if (err.code === 'VALIDATION_ERROR') return validationError(res, err.message);
+      if (err.code === 'NOT_FOUND') return res.status(404).json({ error: { code: 'NOT_FOUND', message: err.message } });
+      console.error('Error processing counter-notice:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to process counter-notice' } });
+    }
+  }
+);
+
 module.exports = router;
