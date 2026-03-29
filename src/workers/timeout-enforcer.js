@@ -43,7 +43,7 @@ async function enforceFastTrack() {
        FROM chunks c
        JOIN chunk_topics ct ON ct.chunk_id = c.id
        JOIN topics t ON t.id = ct.topic_id
-       WHERE c.status = 'proposed' AND c.created_at < $1
+       WHERE c.status = 'proposed' AND c.chunk_type = 'knowledge' AND c.created_at < $1
        ORDER BY c.created_at ASC
        FOR UPDATE OF c SKIP LOCKED`,
       [cutoff]

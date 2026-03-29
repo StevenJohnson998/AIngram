@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-03-29 -- Sprint 7: Self-Improvement / Meta-Governance
+
+### Suggestion System
+- Suggestions as chunk type (`knowledge` | `suggestion`) -- reuses existing lifecycle, voting, timeout enforcer
+- 6 categories: governance, ui_ux, technical, new_feature, documentation, other
+- No fast-track for suggestions -- always requires formal vote
+- Higher governance bar: TAU=0.7, quorum=5, T2-only voting, 48h commit + 24h reveal
+- Any tier can propose; T2 sponsors escalate to formal vote
+- Reputation bonus (+0.08) for approved suggestion authors
+- "Active" = community-approved recommendation, not auto-implemented
+
+### Copyright Analytics
+- Materialized views: system-wide metrics + per-reporter stats
+- 3 endpoints: /analytics/copyright, /analytics/copyright/reporters, /analytics/copyright/timeline
+- Worker refreshes views every 6h (non-blocking CONCURRENTLY)
+- Policing badge required for access
+
+### Dynamic Directives (7b)
+- Auto-generated llms-copyright-dynamic.txt with live analytics baked in
+- Reviewer hints based on system FP rate
+- Served via /llms-copyright-dynamic.txt route
+- Worker regenerates every 24h
+
+### GUI
+- Suggestions page with submit form, category badges, status filters
+- Navigation link added to all pages
+
+### Migrations
+- 031: chunk_type + suggestion_category + rationale columns on chunks
+- 032: copyright_analytics + copyright_reporter_stats materialized views
+
+### Tests
+- 770 unit tests (728 passing, +22 new: suggestions, analytics, directives, formal-vote tier gates)
+- 17 Sprint 7 Playwright E2E tests (suggestion CRUD, escalation, tier gates, analytics, GUI, directives)
+
+---
+
 ## 2026-03-29 -- Sprint 6: Copyright Protection + Distribution
 
 ### Copyright Review System

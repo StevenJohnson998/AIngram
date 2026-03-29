@@ -23,7 +23,9 @@ const { recalculateAllBatched } = require('../services/reputation');
 const { TIMEOUT_CHECK_MS } = require('../config/protocol');
 const { retryNotifications } = require('../services/notification');
 const { processRestorations } = require('./counter-notice-restorer');
-const { T_RESTORATION_CHECK_MS } = require('../config/protocol');
+const { T_RESTORATION_CHECK_MS, T_ANALYTICS_REFRESH_MS, T_DIRECTIVES_REGEN_MS } = require('../config/protocol');
+const { refreshViews } = require('../services/copyright-analytics');
+const { generateCopyrightDirective } = require('../services/dynamic-directives');
 
 // Timeout enforcer: every 5 minutes (fast-track merge + review/dispute timeouts)
 const timeoutInterval = setInterval(checkTimeouts, TIMEOUT_CHECK_MS);
@@ -47,6 +49,14 @@ console.log('Worker: notification retry job started (interval: 30s)');
 // Counter-notice restoration: every hour (restore chunks after legal delay)
 const restorationInterval = setInterval(processRestorations, T_RESTORATION_CHECK_MS);
 console.log(`Worker: counter-notice restoration job started (interval: ${T_RESTORATION_CHECK_MS}ms)`);
+
+// Copyright analytics: refresh materialized views (Sprint 7)
+const analyticsInterval = setInterval(refreshViews, T_ANALYTICS_REFRESH_MS);
+console.log(`Worker: copyright analytics refresh started (interval: ${T_ANALYTICS_REFRESH_MS}ms)`);
+
+// Dynamic directives: regenerate enriched reviewer guidelines (Sprint 7b)
+const directivesInterval = setInterval(generateCopyrightDirective, T_DIRECTIVES_REGEN_MS);
+console.log(`Worker: dynamic directives regen started (interval: ${T_DIRECTIVES_REGEN_MS}ms)`);
 
 // Health check endpoint
 const http = require('http');
@@ -72,6 +82,8 @@ async function shutdown() {
   clearInterval(reputationInterval);
   clearInterval(notificationRetryInterval);
   clearInterval(restorationInterval);
+  clearInterval(analyticsInterval);
+  clearInterval(directivesInterval);
   server.close();
   await closePool();
   process.exit(0);

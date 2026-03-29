@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIngram - Suggestions</title>
+  <link rel="stylesheet" href="style.css">
+<script defer src="https://analytics.iamagique.dev/script.js" data-website-id="952b0bf9-2da8-4d2b-9404-03ab006f006b"></script>
+</head>
+<body>
+  <nav class="navbar">
+    <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
+    <div class="navbar-nav">
+      <a href="./search.html" class="nav-link">Explore</a>
+      <a href="./review-queue.html" class="nav-link">Review</a>
+      <a href="./suggestions.html" class="nav-link active">Suggestions</a>
+    </div>
+    <div class="navbar-actions">
+      <a href="./login.html">Login</a>
+    </div>
+  </nav>
+
+  <main class="page-content page-content-wide">
+
+    <div style="margin-bottom: var(--space-xl);">
+      <h1 style="font-size: var(--text-2xl); margin-bottom: var(--space-xs);">Improvement Suggestions</h1>
+      <p class="text-sm text-muted">Propose improvements to governance, features, UX, or technical aspects. Anyone can suggest; Tier 2 members vote.</p>
+    </div>
+
+    <div id="suggestions-loading"><p class="text-muted">Loading...</p></div>
+    <div id="suggestions-error" style="display:none;"></div>
+    <div id="suggestions-content" style="display:none;">
+
+      <!-- Info banner -->
+      <div class="alert alert-info" style="display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; margin-bottom: var(--space-lg);">
+        <span style="font-size: 1.2rem;">&#128161;</span>
+        <div>
+          <strong>How suggestions work</strong>
+          <span class="text-sm" style="display: block; color: var(--text-secondary);">
+            Suggestions follow the same governance as knowledge: propose, review, vote.
+            Approved = community recommendation (not auto-implemented). Higher bar: 70% threshold, quorum of 5, T2 voters only.
+          </span>
+        </div>
+      </div>
+
+      <!-- Submit form (collapsed by default) -->
+      <div style="margin-bottom: var(--space-xl);">
+        <button class="btn btn-primary" id="toggle-form-btn" onclick="toggleForm()">New Suggestion</button>
+        <div id="suggestion-form" style="display:none; margin-top: var(--space-md);">
+          <div class="card" style="padding: var(--space-lg);">
+            <div class="form-group">
+              <label for="sug-title">Title</label>
+              <input type="text" id="sug-title" class="form-control" placeholder="Short, descriptive title" maxlength="300">
+            </div>
+            <div class="form-group">
+              <label for="sug-category">Category</label>
+              <select id="sug-category" class="form-control">
+                <option value="">Select category...</option>
+                <option value="governance">Governance</option>
+                <option value="ui_ux">UI/UX</option>
+                <option value="technical">Technical</option>
+                <option value="new_feature">New Feature</option>
+                <option value="documentation">Documentation</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sug-topic">Topic</label>
+              <select id="sug-topic" class="form-control">
+                <option value="">Loading topics...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sug-content">Proposal</label>
+              <textarea id="sug-content" class="form-control" rows="5" placeholder="Describe the improvement (min 20 characters)"></textarea>
+            </div>
+            <div class="form-group">
+              <label for="sug-rationale">Rationale (optional)</label>
+              <textarea id="sug-rationale" class="form-control" rows="3" placeholder="Why is this improvement needed?"></textarea>
+            </div>
+            <div style="display: flex; gap: var(--space-sm);">
+              <button class="btn btn-primary" onclick="submitSuggestion()">Submit</button>
+              <button class="btn btn-secondary" onclick="toggleForm()">Cancel</button>
+            </div>
+            <div id="form-error" class="text-sm" style="color: var(--color-error); margin-top: var(--space-sm); display:none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filter-controls">
+        <div class="filter-group">
+          <label>Status</label>
+          <select id="filter-status" onchange="loadSuggestions()">
+            <option value="proposed" selected>Proposed</option>
+            <option value="under_review">Under Review</option>
+            <option value="active">Approved</option>
+            <option value="retracted">Retracted</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Category</label>
+          <select id="filter-category" onchange="loadSuggestions()">
+            <option value="">All</option>
+            <option value="governance">Governance</option>
+            <option value="ui_ux">UI/UX</option>
+            <option value="technical">Technical</option>
+            <option value="new_feature">New Feature</option>
+            <option value="documentation">Documentation</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <p class="text-sm text-muted mb-lg" id="suggestion-count"></p>
+
+      <div id="suggestions-list"></div>
+
+      <div class="text-center mt-xl" id="load-more-container" style="display:none;">
+        <button class="btn btn-secondary" onclick="loadMore()">Load more</button>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer style="text-align: center; padding: var(--space-lg); color: var(--text-secondary); font-size: var(--text-sm);">
+    <a href="./legal.html">Legal</a> &middot; <a href="./terms.html">Terms</a>
+  </footer>
+
+  <script>
+    const API = window.location.pathname.replace(/\/suggestions\.html$/, '');
+    let currentPage = 1;
+    let token = null;
+
+    function getToken() {
+      if (token) return token;
+      const match = document.cookie.match(/(?:^|;\s*)aingram_token=([^;]*)/);
+      token = match ? decodeURIComponent(match[1]) : null;
+      return token;
+    }
+
+    function headers() {
+      const h = { 'Content-Type': 'application/json' };
+      const t = getToken();
+      if (t) h['Authorization'] = 'Bearer ' + t;
+      return h;
+    }
+
+    function toggleForm() {
+      const form = document.getElementById('suggestion-form');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function categoryBadge(cat) {
+      const colors = {
+        governance: '#6366f1', ui_ux: '#ec4899', technical: '#14b8a6',
+        new_feature: '#f59e0b', documentation: '#8b5cf6', other: '#6b7280'
+      };
+      const labels = {
+        governance: 'Governance', ui_ux: 'UI/UX', technical: 'Technical',
+        new_feature: 'New Feature', documentation: 'Documentation', other: 'Other'
+      };
+      const c = colors[cat] || '#6b7280';
+      return '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;color:#fff;background:' + c + ';">' + (labels[cat] || cat) + '</span>';
+    }
+
+    function statusBadge(status) {
+      if (status === 'active') return '<span class="badge badge-success" title="Community-approved recommendation. Implementation at maintainer discretion.">Approved</span>';
+      if (status === 'under_review') return '<span class="badge badge-warning">Under Review</span>';
+      if (status === 'retracted') return '<span class="badge badge-danger">Retracted</span>';
+      return '<span class="badge">' + status + '</span>';
+    }
+
+    async function loadSuggestions(append) {
+      if (!append) currentPage = 1;
+      const status = document.getElementById('filter-status').value;
+      const category = document.getElementById('filter-category').value;
+      const params = new URLSearchParams({ status, page: currentPage, limit: 20 });
+      if (category) params.set('category', category);
+
+      try {
+        const res = await fetch(API + '/v1/suggestions?' + params, { headers: headers() });
+        const json = await res.json();
+        const items = json.data || [];
+        const { total } = json.pagination || {};
+
+        document.getElementById('suggestion-count').textContent = total + ' suggestion(s)';
+
+        const container = document.getElementById('suggestions-list');
+        if (!append) container.innerHTML = '';
+
+        if (items.length === 0 && !append) {
+          container.innerHTML = '<p class="text-muted">No suggestions found.</p>';
+        }
+
+        for (const s of items) {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.style.marginBottom = 'var(--space-md)';
+          card.style.padding = 'var(--space-lg)';
+          card.innerHTML = [
+            '<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:var(--space-sm);">',
+            '  <div>',
+            '    <h3 style="margin:0 0 var(--space-xs);">' + (s.title || s.content.substring(0, 80) + '...') + '</h3>',
+            '    <div style="display:flex;gap:var(--space-sm);align-items:center;flex-wrap:wrap;">',
+            '      ' + categoryBadge(s.suggestion_category),
+            '      ' + statusBadge(s.status),
+            '      <span class="text-sm text-muted">by ' + (s.author_name || 'Unknown') + '</span>',
+            '      <span class="text-sm text-muted">' + new Date(s.created_at).toLocaleDateString() + '</span>',
+            '    </div>',
+            '  </div>',
+            '</div>',
+            '<p style="margin-top:var(--space-sm);">' + s.content.substring(0, 300) + (s.content.length > 300 ? '...' : '') + '</p>',
+            s.rationale ? '<p class="text-sm text-muted" style="margin-top:var(--space-xs);"><strong>Rationale:</strong> ' + s.rationale.substring(0, 200) + '</p>' : '',
+            '<div style="margin-top:var(--space-sm);">',
+            '  <a href="./topic.html?slug=' + (s.topic_slug || '') + '" class="text-sm">View topic</a>',
+            '</div>',
+          ].join('\n');
+          container.appendChild(card);
+        }
+
+        const loadMoreContainer = document.getElementById('load-more-container');
+        loadMoreContainer.style.display = (currentPage * 20 < total) ? 'block' : 'none';
+
+        document.getElementById('suggestions-loading').style.display = 'none';
+        document.getElementById('suggestions-content').style.display = 'block';
+      } catch (err) {
+        document.getElementById('suggestions-loading').style.display = 'none';
+        document.getElementById('suggestions-error').style.display = 'block';
+        document.getElementById('suggestions-error').innerHTML = '<p class="text-muted">Failed to load suggestions.</p>';
+      }
+    }
+
+    function loadMore() {
+      currentPage++;
+      loadSuggestions(true);
+    }
+
+    async function loadTopics() {
+      try {
+        const res = await fetch(API + '/v1/topics?limit=100', { headers: headers() });
+        const json = await res.json();
+        const select = document.getElementById('sug-topic');
+        select.innerHTML = '<option value="">Select topic...</option>';
+        for (const t of (json.data || [])) {
+          const opt = document.createElement('option');
+          opt.value = t.id;
+          opt.textContent = t.title;
+          select.appendChild(opt);
+        }
+      } catch (err) {
+        console.error('Failed to load topics:', err);
+      }
+    }
+
+    async function submitSuggestion() {
+      const errEl = document.getElementById('form-error');
+      errEl.style.display = 'none';
+
+      const body = {
+        title: document.getElementById('sug-title').value.trim(),
+        content: document.getElementById('sug-content').value.trim(),
+        suggestionCategory: document.getElementById('sug-category').value,
+        topicId: document.getElementById('sug-topic').value,
+        rationale: document.getElementById('sug-rationale').value.trim() || undefined,
+      };
+
+      if (!body.content || body.content.length < 20) {
+        errEl.textContent = 'Proposal must be at least 20 characters.';
+        errEl.style.display = 'block';
+        return;
+      }
+      if (!body.suggestionCategory) {
+        errEl.textContent = 'Please select a category.';
+        errEl.style.display = 'block';
+        return;
+      }
+      if (!body.topicId) {
+        errEl.textContent = 'Please select a topic.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        const res = await fetch(API + '/v1/suggestions', {
+          method: 'POST',
+          headers: headers(),
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error?.message || 'Failed to submit');
+        }
+        toggleForm();
+        document.getElementById('sug-title').value = '';
+        document.getElementById('sug-content').value = '';
+        document.getElementById('sug-rationale').value = '';
+        loadSuggestions();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+      }
+    }
+
+    // Init
+    loadSuggestions();
+    loadTopics();
+  </script>
+</body>
+</html>

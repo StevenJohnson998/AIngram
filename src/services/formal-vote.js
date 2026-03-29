@@ -26,6 +26,13 @@ const {
   W_MIN,
   W_MAX,
   NEW_ACCOUNT_DAYS,
+  T_SUGGESTION_COMMIT_MS,
+  T_SUGGESTION_REVEAL_MS,
+  TAU_SUGGESTION_ACCEPT,
+  TAU_SUGGESTION_REJECT,
+  Q_SUGGESTION_MIN,
+  SUGGESTION_VOTE_MIN_TIER,
+  DELTA_SUGGESTION_APPROVED,
 } = require('../../build/config/protocol');
 
 /**
@@ -35,8 +42,16 @@ const {
 async function startCommitPhase(chunkId) {
   const pool = getPool();
 
-  const commitDeadline = new Date(Date.now() + T_COMMIT_MS);
-  const revealDeadline = new Date(commitDeadline.getTime() + T_REVEAL_MS);
+  // Use longer timers for suggestion chunks
+  const { rows: typeRows } = await pool.query(
+    'SELECT chunk_type FROM chunks WHERE id = $1', [chunkId]
+  );
+  const isSuggestion = typeRows[0]?.chunk_type === 'suggestion';
+  const commitMs = isSuggestion ? T_SUGGESTION_COMMIT_MS : T_COMMIT_MS;
+  const revealMs = isSuggestion ? T_SUGGESTION_REVEAL_MS : T_REVEAL_MS;
+
+  const commitDeadline = new Date(Date.now() + commitMs);
+  const revealDeadline = new Date(commitDeadline.getTime() + revealMs);
 
   const { rows } = await pool.query(
     `UPDATE chunks
@@ -68,7 +83,7 @@ async function commitVote({ accountId, chunkId, commitHash }) {
 
   // Validate chunk is in commit phase
   const { rows: chunkRows } = await pool.query(
-    `SELECT id, vote_phase, commit_deadline_at, created_by
+    `SELECT id, vote_phase, commit_deadline_at, created_by, chunk_type
      FROM chunks WHERE id = $1`,
     [chunkId]
   );
@@ -115,6 +130,19 @@ async function commitVote({ accountId, chunkId, commitHash }) {
       new Error('Cannot vote before making a first contribution'),
       { code: 'VOTE_LOCKED' }
     );
+  }
+
+  // Suggestion chunks require higher tier to vote
+  if (chunk.chunk_type === 'suggestion') {
+    const { rows: tierRows } = await pool.query(
+      'SELECT tier FROM accounts WHERE id = $1', [accountId]
+    );
+    if ((tierRows[0]?.tier || 0) < SUGGESTION_VOTE_MIN_TIER) {
+      throw Object.assign(
+        new Error(`Voting on suggestions requires Tier ${SUGGESTION_VOTE_MIN_TIER}+`),
+        { code: 'TIER_TOO_LOW' }
+      );
+    }
   }
 
   // Compute weight and reject if too low (before clamping)
@@ -255,7 +283,7 @@ async function tallyAndResolve(chunkId) {
 
     // Lock the chunk row to prevent concurrent tally
     const { rows: chunkRows } = await client.query(
-      `SELECT id, status, vote_phase FROM chunks
+      `SELECT id, status, vote_phase, chunk_type FROM chunks
        WHERE id = $1 AND vote_phase IN ('reveal', 'commit')
        FOR UPDATE SKIP LOCKED`,
       [chunkId]
@@ -280,7 +308,11 @@ async function tallyAndResolve(chunkId) {
     }));
 
     const score = computeVoteScore(weightedVotes);
-    const decision = evaluateDecision(score, revealedCount, Q_MIN, TAU_ACCEPT, TAU_REJECT);
+    const isSuggestionChunk = chunkRows[0].chunk_type === 'suggestion';
+    const qMin = isSuggestionChunk ? Q_SUGGESTION_MIN : Q_MIN;
+    const tauAccept = isSuggestionChunk ? TAU_SUGGESTION_ACCEPT : TAU_ACCEPT;
+    const tauReject = isSuggestionChunk ? TAU_SUGGESTION_REJECT : TAU_REJECT;
+    const decision = evaluateDecision(score, revealedCount, qMin, tauAccept, tauReject);
 
     // Single UPDATE per decision branch (combined vote_phase + status transition)
     if (decision === 'accept') {
@@ -322,6 +354,26 @@ async function tallyAndResolve(chunkId) {
     reputationService.awardDeliberationBonus(chunkId)
       .catch(err => console.error('Deliberation bonus failed:', err.message));
 
+    // Suggestion approved: award reputation bonus to author
+    if (isSuggestionChunk && decision === 'accept') {
+      (async () => {
+        try {
+          const { rows: authorRows } = await pool.query(
+            'SELECT created_by FROM chunks WHERE id = $1', [chunkId]
+          );
+          if (authorRows[0]?.created_by) {
+            await pool.query(
+              `UPDATE accounts SET reputation_contribution = LEAST(1.0, reputation_contribution + $2)
+               WHERE id = $1`,
+              [authorRows[0].created_by, DELTA_SUGGESTION_APPROVED]
+            );
+          }
+        } catch (err) {
+          console.error('Suggestion approval bonus failed:', err.message);
+        }
+      })();
+    }
+
     return { chunkId, score, revealedCount, decision };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -339,7 +391,7 @@ async function getVoteStatus(chunkId, requestingAccountId) {
   const pool = getPool();
 
   const { rows: chunkRows } = await pool.query(
-    `SELECT id, status, vote_phase, commit_deadline_at, reveal_deadline_at, vote_score
+    `SELECT id, status, vote_phase, commit_deadline_at, reveal_deadline_at, vote_score, chunk_type
      FROM chunks WHERE id = $1`,
     [chunkId]
   );
@@ -415,7 +467,13 @@ async function getVoteStatus(chunkId, requestingAccountId) {
   );
 
   const score = chunk.vote_score;
-  const decision = evaluateDecision(score, revealed_count, Q_MIN, TAU_ACCEPT, TAU_REJECT);
+  const isSug = chunk.chunk_type === 'suggestion';
+  const decision = evaluateDecision(
+    score, revealed_count,
+    isSug ? Q_SUGGESTION_MIN : Q_MIN,
+    isSug ? TAU_SUGGESTION_ACCEPT : TAU_ACCEPT,
+    isSug ? TAU_SUGGESTION_REJECT : TAU_REJECT
+  );
 
   return {
     phase: 'resolved',

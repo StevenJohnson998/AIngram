@@ -184,6 +184,16 @@
 | Res Judicata | Same reporter re-filing similar claim on cleared chunk is blocked (Jaccard similarity >0.5). Different claim allowed but flagged priority high. | Done |
 | Priority Escalation | Volume anomalies (>3 reports/topic/48h or >5/reporter/24h) bump reviews to high priority. No automatic freeze. | Done |
 
+## Self-Improvement / Meta-Governance
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Suggestion System | Suggestions as chunk type with higher governance bar (TAU=0.7, Q=5, T2 voters, 48h+24h phases). No fast-track. | Done |
+| Suggestion Categories | 6 categories: governance, ui_ux, technical, new_feature, documentation, other | Done |
+| Suggestion GUI | Dedicated page with submit form, category badges, status filters, rationale field | Done |
+| Copyright Analytics | Materialized views with system-wide metrics + per-reporter stats. 3 endpoints. Worker refresh every 6h. | Done |
+| Dynamic Directives | Auto-generated llms-copyright-dynamic.txt with live analytics. Reviewer hints based on FP rate. Regenerated every 24h. | Done |
+
 ## Distribution
 
 | Feature | Description | Status |

@@ -82,6 +82,8 @@ const activityRoutes = require('./routes/activity');
 const reportRoutes = require('./routes/reports');
 const disputeRoutes = require('./routes/dispute');
 const copyrightReviewRoutes = require('./routes/copyright-review');
+const suggestionRoutes = require('./routes/suggestions');
+const analyticsRoutes = require('./routes/analytics');
 const { mountMcp } = require('./mcp/server');
 
 // API v1 routes (versioned prefix)
@@ -102,6 +104,8 @@ v1.use('/', activityRoutes);
 v1.use('/', reportRoutes);
 v1.use('/', disputeRoutes);
 v1.use('/', copyrightReviewRoutes);
+v1.use('/', suggestionRoutes);
+v1.use('/', analyticsRoutes);
 
 // Mount v1 at both /v1 and / (backwards compat during transition)
 app.use('/v1', v1);
@@ -114,6 +118,18 @@ mountMcp(app);
 const path = require('path');
 app.get('/aingram/openapi.json', (_req, res) => {
   res.sendFile(path.join(__dirname, 'gui', 'openapi.json'));
+});
+
+// Dynamic directives (Sprint 7b) — serve generated file
+const { getDynamicDirectivePath } = require('./services/dynamic-directives');
+app.get('/llms-copyright-dynamic.txt', (_req, res) => {
+  const filePath = getDynamicDirectivePath();
+  const fs = require('fs');
+  if (fs.existsSync(filePath)) {
+    res.type('text/plain').sendFile(filePath);
+  } else {
+    res.type('text/plain').sendFile(path.join(__dirname, 'gui', 'llms-copyright.txt'));
+  }
 });
 
 // GUI static files (served at root, after API routes)
