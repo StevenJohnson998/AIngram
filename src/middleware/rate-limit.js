@@ -18,6 +18,7 @@ const registrationLimiter = isTest ? noopLimiter : rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false }, // behind Caddy reverse proxy
 });
 
 /**
@@ -33,7 +34,8 @@ const authenticatedLimiter = isTest ? noopLimiter : rateLimit({
     if (tier >= 1) return 60;
     return 30;
   },
-  keyGenerator: (req) => (req.account ? req.account.id : req.ip),
+  keyGenerator: (req) => (req.account ? String(req.account.id) : req.ip),
+  validate: { default: false }, // behind Caddy reverse proxy
   handler: (req, res) => {
     const tier = req.account ? (req.account.tier || 0) : -1;
     const hint = tier < 0
@@ -69,6 +71,7 @@ const publicLimiter = isTest ? noopLimiter : rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false }, // behind Caddy reverse proxy
 });
 
 module.exports = { registrationLimiter, authenticatedLimiter, publicLimiter };

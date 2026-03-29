@@ -11,7 +11,11 @@ agorai.config.json
 
 # Environment
 .env
+.env.prod
 !.env.example
+
+# Production config (contains secrets)
+agorai.config.prod.json
 
 # Dependencies
 node_modules/
