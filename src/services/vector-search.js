@@ -48,6 +48,7 @@ async function searchByVector(embedding, { limit = 20, minSimilarity = 0.5 } = {
             1 - (embedding <=> $1::vector) as similarity
      FROM chunks
      WHERE embedding IS NOT NULL
+       AND hidden = false
        AND 1 - (embedding <=> $1::vector) >= $2
      ORDER BY embedding <=> $1::vector
      LIMIT $3`,
@@ -88,7 +89,8 @@ async function searchByText(query, { limit = 20, langs = ['en'] } = {}) {
             created_by, valid_as_of, created_at, updated_at,
             ${rankExpr} as rank
      FROM chunks
-     WHERE ${matchCondition}
+     WHERE hidden = false
+       AND ${matchCondition}
      ORDER BY rank DESC
      LIMIT $2`,
     [query, limit]

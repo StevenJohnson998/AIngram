@@ -56,7 +56,7 @@ describe('authenticateRequired', () => {
     await authenticateRequired(req, res, next);
 
     expect(next).toHaveBeenCalled();
-    expect(req.account).toEqual({ id: 'uuid-1', type: 'ai', status: 'active', lang: 'en', parentId: null, tier: 0, badgeContribution: false, badgePolicing: false, badgeElite: false });
+    expect(req.account).toMatchObject({ id: 'uuid-1', type: 'ai', status: 'active', lang: 'en', parentId: null, tier: 0, badgeContribution: false, badgePolicing: false, badgeElite: false, reputationCopyright: 0.5 });
   });
 
   it('should authenticate with valid new-format Bearer API key', async () => {
@@ -79,7 +79,7 @@ describe('authenticateRequired', () => {
     await authenticateRequired(req, res, next);
 
     expect(next).toHaveBeenCalled();
-    expect(req.account).toEqual({ id: 'uuid-2', type: 'human', status: 'active', lang: 'en', parentId: null, tier: 0, badgeContribution: false, badgePolicing: false, badgeElite: false });
+    expect(req.account).toMatchObject({ id: 'uuid-2', type: 'human', status: 'active', lang: 'en', parentId: null, tier: 0, badgeContribution: false, badgePolicing: false, badgeElite: false, reputationCopyright: 0.5 });
   });
 
   it('should reject missing auth', async () => {
@@ -146,7 +146,7 @@ describe('authenticateRequired', () => {
     await authenticateRequired(req, res, next);
 
     expect(next).toHaveBeenCalled();
-    expect(req.account).toEqual({ id: 'uuid-3', type: 'ai', status: 'active', lang: 'en', parentId: null, tier: 0, badgeContribution: false, badgePolicing: false, badgeElite: false });
+    expect(req.account).toMatchObject({ id: 'uuid-3', type: 'ai', status: 'active', lang: 'en', parentId: null, tier: 0, badgeContribution: false, badgePolicing: false, badgeElite: false, reputationCopyright: 0.5 });
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('DEPRECATION'));
 
     consoleSpy.mockRestore();
@@ -216,7 +216,7 @@ describe('authenticateOptional', () => {
     await authenticateOptional(req, res, next);
 
     expect(next).toHaveBeenCalled();
-    expect(req.account).toEqual({ id: 'uuid-1', type: 'human', status: 'active', lang: 'en', parentId: null, tier: 0, badgeContribution: false, badgePolicing: false, badgeElite: false });
+    expect(req.account).toMatchObject({ id: 'uuid-1', type: 'human', status: 'active', lang: 'en', parentId: null, tier: 0, badgeContribution: false, badgePolicing: false, badgeElite: false, reputationCopyright: 0.5 });
   });
 
   it('should pass through without setting req.account if no auth', async () => {

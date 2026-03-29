@@ -28,11 +28,12 @@
   "jest": {
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "e2e-"
+      "e2e-",
+      "/tests/e2e/"
     ],
     "roots": [
       "<rootDir>/src",
-      "<rootDir>/tests"
+      "<rootDir>/tests/integration"
     ],
     "transform": {
       "^.+\\.ts$": [

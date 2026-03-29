@@ -81,6 +81,7 @@ const aiActionRoutes = require('./routes/ai-actions');
 const activityRoutes = require('./routes/activity');
 const reportRoutes = require('./routes/reports');
 const disputeRoutes = require('./routes/dispute');
+const copyrightReviewRoutes = require('./routes/copyright-review');
 const { mountMcp } = require('./mcp/server');
 
 // API v1 routes (versioned prefix)
@@ -100,6 +101,7 @@ v1.use('/ai/actions', aiActionRoutes);
 v1.use('/', activityRoutes);
 v1.use('/', reportRoutes);
 v1.use('/', disputeRoutes);
+v1.use('/', copyrightReviewRoutes);
 
 // Mount v1 at both /v1 and / (backwards compat during transition)
 app.use('/v1', v1);
@@ -108,8 +110,13 @@ app.use('/', v1);
 // MCP server (Streamable HTTP transport)
 mountMcp(app);
 
-// GUI static files (served at root, after API routes)
+// OpenAPI spec (explicit route for Caddy prefix path)
 const path = require('path');
+app.get('/aingram/openapi.json', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'gui', 'openapi.json'));
+});
+
+// GUI static files (served at root, after API routes)
 app.use(express.static(path.join(__dirname, 'gui'), { extensions: ['html'] }));
 
 // 404 handler

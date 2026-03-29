@@ -15,9 +15,11 @@ const {
   T_FAST_HIGH_MS,
   T_REVIEW_MS,
   T_DISPUTE_MS,
+  T_COPYRIGHT_REVIEW_DEADLINE_MS,
 } = require('../config/protocol');
 const chunkService = require('../services/chunk');
 const formalVoteService = require('../services/formal-vote');
+const reportService = require('../services/report');
 
 const SYSTEM_ACCOUNT_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -200,6 +202,45 @@ async function enforceRevealDeadline() {
 }
 
 /**
+ * Copyright review deadline: auto-hide chunks from pending copyright reports
+ * that have not been reviewed within T_COPYRIGHT_REVIEW_DEADLINE_MS.
+ * Review-first approach: content stays visible while review is pending,
+ * but auto-hides if no reviewer acts within the deadline.
+ */
+async function enforceCopyrightReviewDeadline() {
+  const pool = getPool();
+  const cutoff = new Date(Date.now() - T_COPYRIGHT_REVIEW_DEADLINE_MS);
+
+  // Find pending copyright reports (on chunks) older than the deadline
+  const { rows } = await pool.query(
+    `SELECT r.id FROM reports r
+     WHERE r.status = 'pending'
+       AND r.content_type = 'chunk'
+       AND r.reason ILIKE '%copyright%'
+       AND r.created_at < $1
+     ORDER BY r.created_at ASC
+     LIMIT 50`,
+    [cutoff]
+  );
+
+  let hiddenCount = 0;
+  for (const report of rows) {
+    try {
+      const result = await reportService.autoHideFromReport(report.id);
+      if (result) hiddenCount++;
+    } catch (err) {
+      console.error(`Copyright auto-hide failed for report ${report.id}:`, err.message);
+    }
+  }
+
+  if (hiddenCount > 0) {
+    console.log(`Timeout enforcer: auto-hidden ${hiddenCount} chunk(s) from copyright review deadline`);
+  }
+
+  return hiddenCount;
+}
+
+/**
  * Run all timeout checks. Called by the worker on interval.
  */
 async function checkTimeouts() {
@@ -208,6 +249,7 @@ async function checkTimeouts() {
   await enforceRevealDeadline();
   await enforceReviewTimeout();
   await enforceDisputeTimeout();
+  await enforceCopyrightReviewDeadline();
 }
 
 module.exports = {
@@ -217,4 +259,5 @@ module.exports = {
   enforceRevealDeadline,
   enforceReviewTimeout,
   enforceDisputeTimeout,
+  enforceCopyrightReviewDeadline,
 };

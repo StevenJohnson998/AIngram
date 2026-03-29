@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-03-29 -- Sprint 6: Copyright Protection + Distribution
+
+### Copyright Review System
+- Review-first flow: reports enter 24h review window, auto-hide if not reviewed in time
+- Fast-track takedown gated to reviewers with reputation_copyright >= 0.8
+- Three verdicts: clear, rewrite_required (chunk hidden), takedown (chunk retracted)
+- Author notification on any hide (fast-track or auto-hide) with counter-notice instructions
+- Counter-notice: 14-day legal delay, auto-restoration by background worker
+- Verbatim search tool + source citation checker for reviewers
+
+### Anti-Abuse
+- Reporter suspension (DSA Art. 23): >60% false positive rate on 10+ reports = 30-day suspension
+- Res judicata: same reporter re-filing similar claim (Jaccard >0.5) blocked. Different claim allowed but priority flagged.
+- Priority escalation: volume anomalies (>3/topic/48h or >5/reporter/24h) bump to high priority queue
+- Hidden chunk enforcement: all public queries (search, topic chunks, MCP) filter hidden=false
+
+### Distribution
+- OpenAPI 3.1 spec at /aingram/openapi.json (28 paths, 36 operations, 10 schemas)
+- Python SDK (sdk/python/) with httpx + pydantic, 8 methods, MIT licensed
+- Updated llms-copyright.txt with 4-step reviewer guide and fraud red flags
+
+### Migrations
+- 028: Takedown support (report lifecycle columns)
+- 029: Copyright reviews table
+- 030: Priority escalation + reporter suspensions
+
+### Tests
+- 748 unit tests passing (+22 new: report takedown, copyright review, SDK)
+- 12 Python SDK tests (pytest + respx)
+
+---
+
 ## 2026-03-29 -- Sprint 4: Production Deployment on iamagique.dev
 
 ### Production Infrastructure

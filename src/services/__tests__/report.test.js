@@ -1,4 +1,8 @@
 jest.mock('../../config/database');
+jest.mock('../../config/protocol', () => ({
+  T_COUNTER_NOTICE_DELAY_MS: 14 * 24 * 60 * 60 * 1000,
+  MIN_REP_COPYRIGHT_FAST_TAKEDOWN: 0.8,
+}));
 
 const { getPool } = require('../../config/database');
 const reportService = require('../report');
@@ -134,6 +138,194 @@ describe('report service', () => {
       await expect(
         reportService.resolveReport('r1', { status: 'resolved', resolvedBy: 'admin-1' })
       ).rejects.toThrow('not found or already resolved');
+    });
+  });
+
+  describe('takedownReport', () => {
+    it('takes down a chunk report when reviewer has high copyright rep', async () => {
+      const report = {
+        id: 'r1',
+        content_id: 'chunk-1',
+        content_type: 'chunk',
+        status: 'taken_down',
+        reason: 'Copyright infringement',
+      };
+
+      // UPDATE reports → taken_down
+      mockPool.query.mockResolvedValueOnce({ rows: [report] });
+      // UPDATE chunks hidden=true
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      // SELECT chunk author
+      mockPool.query.mockResolvedValueOnce({ rows: [{ created_by: 'author-1' }] });
+      // INSERT activity_log (public)
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      // INSERT activity_log (author notification)
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+      const result = await reportService.takedownReport('r1', {
+        takenDownBy: 'admin-1',
+        reviewerCopyrightRep: 0.9,
+      });
+
+      expect(result.status).toBe('taken_down');
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.stringContaining('hidden = true'),
+        ['chunk-1']
+      );
+    });
+
+    it('rejects fast-track takedown when reviewer copyright rep too low', async () => {
+      await expect(
+        reportService.takedownReport('r1', {
+          takenDownBy: 'admin-1',
+          reviewerCopyrightRep: 0.5,
+        })
+      ).rejects.toThrow('reputation_copyright >= 0.8');
+    });
+
+    it('rejects takedown on non-chunk report', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ status: 'pending', content_type: 'topic' }] });
+
+      await expect(
+        reportService.takedownReport('r1', { takenDownBy: 'admin-1', reviewerCopyrightRep: 0.9 })
+      ).rejects.toThrow('only applies to chunk reports');
+    });
+
+    it('rejects takedown on already resolved report', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ status: 'resolved', content_type: 'chunk' }] });
+
+      await expect(
+        reportService.takedownReport('r1', { takenDownBy: 'admin-1', reviewerCopyrightRep: 0.9 })
+      ).rejects.toThrow('cannot be taken down');
+    });
+
+    it('returns NOT_FOUND for non-existent report', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+      await expect(
+        reportService.takedownReport('r1', { takenDownBy: 'admin-1', reviewerCopyrightRep: 0.9 })
+      ).rejects.toThrow('Report not found');
+    });
+  });
+
+  describe('autoHideFromReport', () => {
+    it('auto-hides chunk and notifies author when review deadline exceeded', async () => {
+      const report = { id: 'r1', content_id: 'chunk-1', reason: 'Potential copyright' };
+
+      // UPDATE reports → taken_down
+      mockPool.query.mockResolvedValueOnce({ rows: [report] });
+      // UPDATE chunks hidden=true
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      // SELECT chunk author
+      mockPool.query.mockResolvedValueOnce({ rows: [{ created_by: 'author-1' }] });
+      // INSERT activity_log (public)
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      // INSERT activity_log (author notification)
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+      const result = await reportService.autoHideFromReport('r1');
+      expect(result).not.toBeNull();
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.stringContaining('copyright_notice_received'),
+        expect.arrayContaining(['author-1'])
+      );
+    });
+
+    it('returns null when report not in pending state', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      const result = await reportService.autoHideFromReport('r1');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('counterNotice', () => {
+    it('files a counter-notice on a taken-down report', async () => {
+      const report = {
+        id: 'r1',
+        status: 'counter_noticed',
+        counter_notice_email: 'author@example.com',
+        restoration_eligible_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+
+      mockPool.query.mockResolvedValueOnce({ rows: [report] });
+
+      const result = await reportService.counterNotice('r1', {
+        email: 'author@example.com',
+        reason: 'I am the original author and this content is my own work, published under CC BY-SA.',
+      });
+
+      expect(result.status).toBe('counter_noticed');
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.stringContaining('counter_noticed'),
+        expect.arrayContaining(['author@example.com'])
+      );
+    });
+
+    it('rejects counter-notice with short reason', async () => {
+      await expect(
+        reportService.counterNotice('r1', { email: 'a@b.com', reason: 'Too short' })
+      ).rejects.toThrow('at least 50 characters');
+    });
+
+    it('rejects counter-notice on non-taken-down report', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ status: 'pending' }] });
+
+      await expect(
+        reportService.counterNotice('r1', {
+          email: 'a@b.com',
+          reason: 'I am the original author and this content is my own work, published under CC BY-SA license.',
+        })
+      ).rejects.toThrow('only applies to taken-down reports');
+    });
+  });
+
+  describe('restoreAfterCounterNotice', () => {
+    it('restores a chunk after counter-notice delay', async () => {
+      const report = {
+        id: 'r1',
+        content_id: 'chunk-1',
+        status: 'restored',
+        restored_at: new Date().toISOString(),
+      };
+
+      // UPDATE reports → restored
+      mockPool.query.mockResolvedValueOnce({ rows: [report] });
+      // UPDATE chunks hidden=false
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      // INSERT activity_log
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+      const result = await reportService.restoreAfterCounterNotice('r1', { restoredBy: 'admin-1' });
+
+      expect(result.status).toBe('restored');
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.stringContaining('hidden = false'),
+        ['chunk-1']
+      );
+    });
+
+    it('rejects restoration before delay has elapsed', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ status: 'counter_noticed', restoration_eligible_at: new Date(Date.now() + 86400000) }],
+      });
+
+      await expect(
+        reportService.restoreAfterCounterNotice('r1', { restoredBy: 'admin-1' })
+      ).rejects.toThrow('delay has not elapsed');
+    });
+
+    it('rejects restoration on non-counter-noticed report', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ status: 'pending' }] });
+
+      await expect(
+        reportService.restoreAfterCounterNotice('r1', { restoredBy: 'admin-1' })
+      ).rejects.toThrow('not in counter_noticed status');
     });
   });
 });

@@ -141,7 +141,7 @@ async function findByApiKeyPrefix(prefix) {
             reputation_contribution, reputation_policing,
             badge_contribution, badge_policing, badge_elite,
             probation_until, account_expires_at, first_contribution_at,
-            parent_id, autonomous, created_at, last_active_at, tier
+            parent_id, autonomous, created_at, last_active_at, tier, reputation_copyright
      FROM accounts WHERE api_key_prefix = $1`,
     [prefix]
   );

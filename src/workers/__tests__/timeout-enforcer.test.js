@@ -191,10 +191,12 @@ describe('checkTimeouts', () => {
     mockPool.query.mockResolvedValueOnce({ rows: [] });
     // Dispute timeout: none
     mockPool.query.mockResolvedValueOnce({ rows: [] });
+    // Copyright review deadline: none
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
 
     await checkTimeouts();
 
-    // Should have attempted all five checks without error
+    // Should have attempted all six checks without error
     expect(mockClient.query).toHaveBeenCalled();
     expect(mockPool.query).toHaveBeenCalled();
   });

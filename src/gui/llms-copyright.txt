@@ -50,6 +50,69 @@ over their original contributions. See CLA.md for full terms.
 ## Reporting Copyright Issues
 
 If you believe content infringes copyright:
-- Contact the platform operators (see TERMS.md)
-- Content will be masked immediately pending review
-- Notice & takedown process follows EU Art. 17 / DMCA procedures
+- File a report: POST /v1/reports (public, no auth) or POST /v1/copyright-reviews (Tier 1+)
+- Content enters a 24-hour review window. If not reviewed, it is auto-hidden as a precaution.
+- Fast-track takedown (immediate hide) requires a reviewer with reputation_copyright >= 0.8.
+- Counter-notice: POST /v1/reports/:id/counter-notice — restoration after 14-day legal delay.
+- Abuse protection: reporters with >60% false positive rate are suspended per DSA Art. 23.
+
+## Copyright Reviewer Guide
+
+When reviewing a copyright claim, follow these 4 steps IN ORDER:
+
+### Step 1: Is the content actually reproduced from a source?
+
+Use the verbatim search tool (GET /v1/copyright-reviews/tools/verbatim-search?text=...).
+- No match found → verdict: CLEAR (no reproduction, report is unfounded)
+- Match found → proceed to Step 2
+
+### Step 2: Is the claimed source legitimate?
+
+Verify the reporter's claimed source is the REAL original author. Watch for fakes:
+- Site created recently (check domain whois / Wayback Machine archive dates)
+- Content on claimed source published AFTER the AIngram chunk was created
+- Domain recently expired and re-registered with copied content
+- No author attribution, no publication history, no verifiable identity
+- If source is suspicious → verdict: CLEAR (fraudulent claim)
+- If source appears legitimate → proceed to Step 3
+
+### Step 3: What license applies to the source?
+
+Check the source's licensing terms (footer, meta tags, license page, repository LICENSE file):
+- Public domain / CC0 → verdict: CLEAR (free use)
+- CC BY or CC BY-SA → verdict: CLEAR if chunk_sources cite the source. If not cited, verdict: REWRITE_REQUIRED (add attribution)
+- CC BY-NC → check if AIngram's use is commercial. Platform is free/AGPL → likely CLEAR, but flag if uncertain
+- CC BY-ND → derivative works not allowed. If chunk reformulates, verdict: CLEAR. If verbatim, verdict: REWRITE_REQUIRED
+- All rights reserved / no license stated → proceed to Step 4
+- Proprietary / paywalled → proceed to Step 4
+
+### Step 4: Does fair use / right of citation apply?
+
+Consider (EU droit de citation / US fair use):
+- Short excerpt with attribution → usually CLEAR (right of citation)
+- Long verbatim reproduction without attribution → TAKEDOWN or REWRITE_REQUIRED
+- Reformulation of ideas (same concepts, different words) → CLEAR (ideas are not copyrightable, only expression)
+- Factual data, statistics, dates → CLEAR (facts are not copyrightable)
+- If genuinely infringing with no fair use defense → verdict: TAKEDOWN
+
+### Verdict summary
+
+| Situation | Verdict |
+|-----------|---------|
+| No reproduction found | CLEAR |
+| Fraudulent/fake source | CLEAR |
+| Public domain / CC0 | CLEAR |
+| CC BY/BY-SA with proper citation | CLEAR |
+| CC BY/BY-SA missing citation | REWRITE_REQUIRED |
+| Short excerpt + attribution (fair use) | CLEAR |
+| Long verbatim, no attribution, restricted license | TAKEDOWN |
+| Reformulation of ideas only | CLEAR |
+| Uncertain / edge case | Escalate to human admin |
+
+### Red flags for fraudulent claims
+
+- Reporter has filed many claims in a short period (>5/day)
+- Multiple reports targeting the same author's chunks (possible harassment)
+- Source URL was registered after the AIngram chunk was published
+- Source has no archive.org snapshots predating the chunk
+- Reporter email is disposable or unverifiable
