@@ -2,6 +2,12 @@ const { getPool } = require('../config/database');
 const { sendSubscriptionMatchEmail } = require('./email');
 
 const WEBHOOK_TIMEOUT_MS = 5000;
+const MAX_NOTIFS_PER_MIN = 10;
+const THROTTLE_WINDOW_MS = 60 * 1000;
+const RETRY_BACKOFFS_MS = [1000, 10000, 60000]; // 1s, 10s, 60s
+
+// In-memory throttle tracker: accountId -> { count, windowStart }
+const throttleMap = new Map();
 
 /**
  * Dispatch a notification for a subscription match.
@@ -12,8 +18,20 @@ const WEBHOOK_TIMEOUT_MS = 5000;
  */
 async function dispatchNotification(subscription, match) {
   try {
+    // Throttle check: max MAX_NOTIFS_PER_MIN per subscriber per minute
+    if (isThrottled(subscription.account_id)) {
+      // Queue for digest instead of immediate dispatch
+      await enqueueNotification(subscription.id, match, 'throttled');
+      return;
+    }
+    incrementThrottle(subscription.account_id);
+
     if (subscription.notification_method === 'webhook') {
-      await dispatchWebhook(subscription, match);
+      const result = await dispatchWebhook(subscription, match);
+      if (!result.success) {
+        // Enqueue for retry on failure
+        await enqueueNotification(subscription.id, match, result.error || 'webhook_failed');
+      }
     } else if (subscription.notification_method === 'a2a') {
       // TODO: A2A protocol integration (Phase 2)
       console.log(`a2a notification stub: subscription=${subscription.id}, chunk=${match.chunkId}`);
@@ -25,6 +43,141 @@ async function dispatchNotification(subscription, match) {
   } catch (err) {
     console.error(`Notification dispatch error for subscription ${subscription.id}:`, err.message);
   }
+}
+
+/**
+ * Throttle helpers — in-memory, resets on restart (acceptable).
+ */
+function isThrottled(accountId) {
+  const entry = throttleMap.get(accountId);
+  if (!entry) return false;
+  if (Date.now() - entry.windowStart > THROTTLE_WINDOW_MS) {
+    throttleMap.delete(accountId);
+    return false;
+  }
+  return entry.count >= MAX_NOTIFS_PER_MIN;
+}
+
+function incrementThrottle(accountId) {
+  const entry = throttleMap.get(accountId);
+  const now = Date.now();
+  if (!entry || now - entry.windowStart > THROTTLE_WINDOW_MS) {
+    throttleMap.set(accountId, { count: 1, windowStart: now });
+  } else {
+    entry.count++;
+  }
+}
+
+/**
+ * Enqueue a failed/throttled notification for retry.
+ */
+async function enqueueNotification(subscriptionId, match, error) {
+  try {
+    const pool = getPool();
+    const nextRetry = new Date(Date.now() + RETRY_BACKOFFS_MS[0]);
+    await pool.query(
+      `INSERT INTO notification_queue (subscription_id, payload, next_retry_at, last_error, status)
+       VALUES ($1, $2, $3, $4, 'pending')`,
+      [subscriptionId, JSON.stringify(match), nextRetry, error]
+    );
+  } catch (err) {
+    console.error(`Failed to enqueue notification for subscription ${subscriptionId}:`, err.message);
+  }
+}
+
+/**
+ * Retry pending notifications (called by worker).
+ * Picks up to 50 pending items, retries webhook, applies exponential backoff.
+ */
+async function retryNotifications() {
+  const pool = getPool();
+
+  const { rows: pending } = await pool.query(
+    `SELECT nq.*, s.webhook_url, s.account_id, s.notification_method
+     FROM notification_queue nq
+     JOIN subscriptions s ON s.id = nq.subscription_id
+     WHERE nq.status IN ('pending', 'retrying')
+       AND nq.next_retry_at <= now()
+     ORDER BY nq.next_retry_at ASC
+     LIMIT 50
+     FOR UPDATE OF nq SKIP LOCKED`
+  );
+
+  let delivered = 0;
+  let deadLettered = 0;
+
+  for (const item of pending) {
+    const match = item.payload;
+    const subscription = {
+      id: item.subscription_id,
+      webhook_url: item.webhook_url,
+      account_id: item.account_id,
+      notification_method: item.notification_method,
+    };
+
+    const result = await dispatchWebhook(subscription, match);
+
+    if (result.success) {
+      await pool.query(
+        `UPDATE notification_queue SET status = 'delivered', delivered_at = now()
+         WHERE id = $1`,
+        [item.id]
+      );
+      delivered++;
+    } else {
+      const newAttempts = item.attempts + 1;
+      if (newAttempts >= item.max_attempts) {
+        await pool.query(
+          `UPDATE notification_queue SET status = 'dead_letter', attempts = $2, last_error = $3
+           WHERE id = $1`,
+          [item.id, newAttempts, result.error || 'max_attempts_reached']
+        );
+        deadLettered++;
+      } else {
+        const backoff = RETRY_BACKOFFS_MS[Math.min(newAttempts, RETRY_BACKOFFS_MS.length - 1)];
+        const nextRetry = new Date(Date.now() + backoff);
+        await pool.query(
+          `UPDATE notification_queue SET status = 'retrying', attempts = $2, next_retry_at = $3, last_error = $4
+           WHERE id = $1`,
+          [item.id, newAttempts, nextRetry, result.error || 'retry']
+        );
+      }
+    }
+  }
+
+  if (delivered > 0 || deadLettered > 0) {
+    console.log(`Notification retry: ${delivered} delivered, ${deadLettered} dead-lettered`);
+  }
+
+  return { delivered, deadLettered, processed: pending.length };
+}
+
+/**
+ * List dead-letter notifications (admin).
+ */
+async function listDeadLetters({ page = 1, limit = 20 } = {}) {
+  const pool = getPool();
+  const offset = (page - 1) * limit;
+
+  const countResult = await pool.query(
+    "SELECT COUNT(*)::int AS total FROM notification_queue WHERE status = 'dead_letter'"
+  );
+  const total = countResult.rows[0].total;
+
+  const dataResult = await pool.query(
+    `SELECT nq.*, s.webhook_url
+     FROM notification_queue nq
+     JOIN subscriptions s ON s.id = nq.subscription_id
+     WHERE nq.status = 'dead_letter'
+     ORDER BY nq.created_at DESC
+     LIMIT $1 OFFSET $2`,
+    [limit, offset]
+  );
+
+  return {
+    data: dataResult.rows,
+    pagination: { page, limit, total },
+  };
 }
 
 /**
@@ -258,4 +411,14 @@ async function getPendingNotifications(accountId, { since, limit = 20 } = {}) {
   };
 }
 
-module.exports = { dispatchNotification, dispatchWebhook, getPendingNotifications };
+module.exports = {
+  dispatchNotification,
+  dispatchWebhook,
+  getPendingNotifications,
+  retryNotifications,
+  listDeadLetters,
+  enqueueNotification,
+  // Exposed for testing
+  _throttleMap: throttleMap,
+  MAX_NOTIFS_PER_MIN,
+};
