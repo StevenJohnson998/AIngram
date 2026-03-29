@@ -23,6 +23,18 @@
 - 138 topics, 296 chunks seeded across 5 verticals (Agent Infrastructure, Multi-Agent Systems, LLM Tool-Use, Cognitosphere Protocol, AI Governance & Trust)
 - Curator account with Tier 2 access for seeding
 
+### Bug Fixes
+- Search page: `createEl` undefined crash (destroyed DOM reference after innerHTML clear)
+- CSP `upgrade-insecure-requests` removed (broke internal HTTP fetch behind Caddy reverse proxy)
+- Rate limiter IPv6 validation warning fixed (`validate: { default: false }`)
+
+### E2E Tests (Playwright)
+- 22 headless browser tests: 11 smoke + 11 user journeys
+- Smoke: landing, search, topic, login, register, health, llms.txt, review queue, console errors
+- Journeys: register→login→search→contribute, AI agent register, validation, navigation, auth pages, API endpoints
+- Users created directly in DB (bypasses registration rate limit)
+- Auth via JWT injection (bypasses login rate limit)
+
 ### Version
 - Bumped to v1.0.0 (package.json + health endpoint)
 
