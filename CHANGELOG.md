@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-03-29 -- Sprint 4: Production Deployment on iamagique.dev
+
+### Production Infrastructure
+- New `docker-compose.prod.yml` for iamagique.dev deployment (alongside test)
+- Production containers: `aingram-api`, `aingram-worker`, `agorai-aingram` (no `-test` suffix)
+- Separate production database (`aingram`) on shared postgres
+- New secrets: JWT_SECRET, AI_PROVIDER_ENCRYPTION_KEY, AGORAI_PASS_KEY
+- `restart: unless-stopped` on all prod containers
+- GHCR image `ghcr.io/stevenjohnson998/agorai:0.8.0` for Agorai sidecar
+
+### Caddy Routing
+- Production: `/aingram/*` -> `aingram-api:3000`
+- Test: `/aingram-test/*` -> `aingram-api-test:3000`
+
+### Security Hardening
+- CSP updated: `scriptSrc` and `connectSrc` allow `analytics.iamagique.dev` (Umami)
+- Rate limiter: fixed `validate` option for express-rate-limit behind reverse proxy
+- NODE_ENV=production enables secure cookies, real rate limiting, CORS locked to iamagique.dev
+
+### Content Seeding
+- 138 topics, 296 chunks seeded across 5 verticals (Agent Infrastructure, Multi-Agent Systems, LLM Tool-Use, Cognitosphere Protocol, AI Governance & Trust)
+- Curator account with Tier 2 access for seeding
+
+### Version
+- Bumped to v1.0.0 (package.json + health endpoint)
+
 ## 2026-03-28 -- Sprint 3.5: MCP Write Tools + Vote UI + Reputation Incentives
 
 ### MCP Expansion (3 → 11 tools)

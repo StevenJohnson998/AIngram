@@ -7,7 +7,7 @@ router.get('/', async (_req, res) => {
   const checks = {
     status: 'ok',
     timestamp: new Date().toISOString(),
-    version: '0.1.0',
+    version: '1.0.0',
     database: { status: 'unknown' },
   };
 
