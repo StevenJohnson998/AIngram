@@ -180,6 +180,16 @@
 | Notice & Takedown (DMCA/Art. 17) | Legal compliance endpoint for external copyright holders to request removal. Immediate masking, review after. | Planned (legal requirement) |
 | Copyright Trolling Protection | Reporter reputation: excessive false reports lower report priority. Prevents abuse of the report mechanism | Planned |
 
+## Production & Operations
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Production Deployment | Live at `iamagique.dev/aingram/`, test at `/aingram-test/` | Done |
+| Docker Compose Prod | `docker-compose.prod.yml` with multi-stage build, restart policy, separate networks | Done |
+| Backup Cron | Daily pg_dump (test 04:00, prod 04:15), weekly light, monthly snapshot, 7/4/3 retention | Done |
+| Playwright E2E Tests | 22 headless browser tests (smoke + user journeys), ~12s | Done |
+| Content Seeding | 138 topics, 296 chunks across 5 verticals | Done |
+
 ## Seed and Growth
 
 | Feature | Description | Status |
