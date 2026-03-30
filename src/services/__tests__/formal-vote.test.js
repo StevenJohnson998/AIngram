@@ -284,7 +284,7 @@ describe('formal-vote service', () => {
       expect(result.revealedCount).toBe(3);
 
       const updateSql = mockClient.query.mock.calls[3][0];
-      expect(updateSql).toContain("status = 'active'");
+      expect(updateSql).toContain("status = 'published'");
       expect(updateSql).toContain("vote_phase = 'resolved'");
     });
 
@@ -402,7 +402,7 @@ describe('formal-vote service', () => {
     it('returns full results when resolved', async () => {
       mockPool.query
         .mockResolvedValueOnce({
-          rows: [{ id: 'chunk-1', status: 'active', vote_phase: 'resolved', commit_deadline_at: new Date(), reveal_deadline_at: new Date(), vote_score: 2.5 }],
+          rows: [{ id: 'chunk-1', status: 'published', vote_phase: 'resolved', commit_deadline_at: new Date(), reveal_deadline_at: new Date(), vote_score: 2.5 }],
         })
         .mockResolvedValueOnce({ rows: [{ commit_count: 3, revealed_count: 3 }] })
         // No my-vote query when requestingAccountId is null

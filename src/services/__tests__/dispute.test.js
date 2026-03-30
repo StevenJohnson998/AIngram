@@ -21,7 +21,7 @@ describe('dispute service', () => {
   });
 
   describe('fileDispute', () => {
-    it('transitions active chunk to disputed', async () => {
+    it('transitions published chunk to disputed', async () => {
       const chunk = { id: 'c1', status: 'disputed', disputed_at: new Date().toISOString() };
       // UPDATE (atomic transition)
       mockPool.query.mockResolvedValueOnce({ rows: [chunk] });
@@ -41,8 +41,8 @@ describe('dispute service', () => {
       );
     });
 
-    it('rejects dispute on non-active chunk', async () => {
-      // UPDATE returns nothing (not in active state)
+    it('rejects dispute on non-published chunk', async () => {
+      // UPDATE returns nothing (not in published state)
       mockPool.query.mockResolvedValueOnce({ rows: [] });
       // SELECT for error message
       mockPool.query.mockResolvedValueOnce({ rows: [{ status: 'proposed' }] });
@@ -92,8 +92,8 @@ describe('dispute service', () => {
   });
 
   describe('resolveDispute', () => {
-    it('upholds dispute (disputed -> active)', async () => {
-      const chunk = { id: 'c1', status: 'active' };
+    it('upholds dispute (disputed -> published)', async () => {
+      const chunk = { id: 'c1', status: 'published' };
       mockPool.query.mockResolvedValueOnce({ rows: [chunk] });
       mockPool.query.mockResolvedValueOnce({ rows: [] });
 
@@ -102,9 +102,9 @@ describe('dispute service', () => {
         verdict: 'upheld',
       });
 
-      expect(result.status).toBe('active');
+      expect(result.status).toBe('published');
       expect(mockPool.query).toHaveBeenCalledWith(
-        expect.stringContaining("SET status = 'active'"),
+        expect.stringContaining("SET status = 'published'"),
         ['c1']
       );
     });

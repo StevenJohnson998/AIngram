@@ -24,7 +24,7 @@ describe('copyright-review service', () => {
       const review = { id: 'cr-1', chunk_id: 'chunk-1', status: 'pending', priority: 'normal' };
 
       // 1. chunk exists
-      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'chunk-1', status: 'active' }] });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'chunk-1', status: 'published' }] });
       // 2. suspension check
       mockPool.query.mockResolvedValueOnce({ rows: [] });
       // 3. no existing pending review

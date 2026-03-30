@@ -44,7 +44,7 @@ describe('auto-merge', () => {
     // pool.query: down-vote check
     mockPool.query.mockResolvedValueOnce({ rows: [{ down_count: 0 }] });
 
-    chunkService.mergeChunk.mockResolvedValueOnce({ id: 'proposed-1', status: 'active' });
+    chunkService.mergeChunk.mockResolvedValueOnce({ id: 'proposed-1', status: 'published' });
 
     await checkAndAutoMerge();
 

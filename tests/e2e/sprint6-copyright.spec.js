@@ -61,7 +61,7 @@ function createChunkInDB(topicId, authorId) {
   const raw = execSync(
     `docker exec ${DB_CONTAINER} psql -U admin -d ${DB_NAME} -t -A -c "
       INSERT INTO chunks (content, created_by, trust_score, status)
-      VALUES ('E2E test chunk for copyright testing. Created at ${new Date().toISOString()}. This content has enough length to pass validation.', '${authorId}', 0.5, 'active')
+      VALUES ('E2E test chunk for copyright testing. Created at ${new Date().toISOString()}. This content has enough length to pass validation.', '${authorId}', 0.5, 'published')
       RETURNING id;"`,
     { encoding: 'utf-8' }
   );
@@ -416,7 +416,7 @@ test.describe('Sprint 6: Hidden chunks filtered from public', () => {
     );
 
     // Fetch topic chunks
-    const res = await request.get(BASE + `/v1/topics/${topicId}/chunks?status=active&limit=100`);
+    const res = await request.get(BASE + `/v1/topics/${topicId}/chunks?status=published&limit=100`);
     expect(res.status()).toBe(200);
     const body = await res.json();
     const chunkIds = body.data.map(c => c.id);

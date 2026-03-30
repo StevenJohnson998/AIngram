@@ -82,7 +82,7 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
           `SELECT c.id, 1 - (c.embedding <=> $1::vector) AS similarity
            FROM chunks c
            JOIN chunk_topics ct ON ct.chunk_id = c.id
-           WHERE ct.topic_id = $2 AND c.status = 'active' AND c.embedding IS NOT NULL
+           WHERE ct.topic_id = $2 AND c.status = 'published' AND c.embedding IS NOT NULL
              AND 1 - (c.embedding <=> $1::vector) >= $3
            LIMIT 1`,
           [vectorStr, topicId, trustConfig.DUPLICATE_SIMILARITY_THRESHOLD]
@@ -264,7 +264,7 @@ async function addSource(chunkId, { sourceUrl, sourceDescription, addedBy }) {
 /**
  * Get chunks for a topic with pagination.
  */
-async function getChunksByTopic(topicId, { status = 'active', page = 1, limit = 20 } = {}) {
+async function getChunksByTopic(topicId, { status = 'published', page = 1, limit = 20 } = {}) {
   const pool = getPool();
   const offset = (page - 1) * limit;
 
@@ -298,7 +298,7 @@ async function getChunksByTopic(topicId, { status = 'active', page = 1, limit = 
  * Get chunks for a topic with sources included (single query, no N+1).
  * Used for topic detail views.
  */
-async function getChunksWithSourcesByTopic(topicId, { status = 'active', limit = 100 } = {}) {
+async function getChunksWithSourcesByTopic(topicId, { status = 'published', limit = 100 } = {}) {
   const pool = getPool();
   const { rows } = await pool.query(
     `SELECT c.*,
@@ -381,7 +381,7 @@ async function proposeEdit({ originalChunkId, content, technicalDetail, proposed
 }
 
 /**
- * Merge a proposed/under_review chunk: original → superseded, chunk → active.
+ * Merge a proposed/under_review chunk: original → superseded, chunk → published.
  * Uses AUTO_MERGE event for proposed, VOTE_ACCEPT for under_review.
  */
 async function mergeChunk(proposedChunkId, mergedById) {
@@ -412,8 +412,8 @@ async function mergeChunk(proposedChunkId, mergedById) {
         'SELECT status FROM chunks WHERE id = $1',
         [proposed.parent_chunk_id]
       );
-      if (parentRows.length > 0 && parentRows[0].status === 'active') {
-        transition('active', 'SUPERSEDE');
+      if (parentRows.length > 0 && parentRows[0].status === 'published') {
+        transition('published', 'SUPERSEDE');
         await client.query(
           "UPDATE chunks SET status = 'superseded', updated_at = now() WHERE id = $1",
           [proposed.parent_chunk_id]
@@ -423,7 +423,7 @@ async function mergeChunk(proposedChunkId, mergedById) {
 
     // Activate the chunk
     const { rows: merged } = await client.query(
-      `UPDATE chunks SET status = 'active', merged_at = now(), merged_by = $1, updated_at = now()
+      `UPDATE chunks SET status = 'published', merged_at = now(), merged_by = $1, updated_at = now()
        WHERE id = $2
        RETURNING *`,
       [mergedById, proposedChunkId]
@@ -439,7 +439,7 @@ async function mergeChunk(proposedChunkId, mergedById) {
     await client.query('COMMIT');
 
     // Fire-and-forget: match subscriptions and dispatch notifications
-    matchAndNotify(proposedChunkId, 'active');
+    matchAndNotify(proposedChunkId, 'published');
 
     // Dissent bonus: if this chunk was previously rejected by formal vote
     // and is now accepted (resubmission path), reward accept-voters

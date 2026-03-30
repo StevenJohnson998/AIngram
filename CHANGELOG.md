@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-03-30 -- Sprint 8: Reviewer Tooling + Housekeeping
+
+### Rename: active → published
+- Chunk lifecycle status `active` renamed to `published` across entire codebase
+- Resolves naming ambiguity with `accounts.status='active'`, `subscriptions.active` boolean
+- Migration 033: updates rows, CHECK constraint, and column default
+- ~55 code occurrences + ~36 test assertions updated
+
+### MCP suggest_improvement (12th tool)
+- New write tool: propose process improvements via MCP
+- Calls existing createSuggestion() -- same governance flow as GUI
+- Params: topicId, content, suggestionCategory, title, rationale
+
+### Hot Topics
+- `GET /analytics/hot-topics` -- most active topics by activity count (7-day window, configurable)
+- Public endpoint (no auth required), params: days (max 90), limit (max 50)
+- New GUI page with ranked table, time-ago display, links to topics
+- Navigation link added to all 16 pages
+
+### Reviewer Source Tools (Wayback + License)
+- `checkSources()` now enriches each citation with Wayback Machine archive status
+- Queries archive.org API (5s timeout, graceful failure)
+- License auto-detection: parses `<link rel="license">`, dc.rights meta, CC URLs, body text patterns
+- Detects: MIT, Apache-2.0, GPL, AGPL, CC BY/BY-SA/BY-NC/BY-ND, CC0, BSD, MPL
+- Non-HTML sources skipped; DOIs get Wayback check but no license detection
+
+### Housekeeping
+- Fixed 39 pre-existing test failures (integration tests hitting wrong host/port)
+- Integration tests now use dotenv + Docker container IPs instead of hardcoded localhost
+
+### Tests
+- 784 tests (781 passed, 3 skipped) -- up from 770
+- +10 source tools tests, +3 hot topics tests, +1 MCP auth test
+
+### Migration
+- 033: rename_active_to_published (DROP/ADD CHECK, UPDATE rows, ALTER DEFAULT)
+
 ## 2026-03-29 -- Sprint 7: Self-Improvement / Meta-Governance
 
 ### Suggestion System

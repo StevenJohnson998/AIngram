@@ -318,7 +318,7 @@ async function tallyAndResolve(chunkId) {
     if (decision === 'accept') {
       await client.query(
         `UPDATE chunks SET vote_phase = 'resolved', vote_score = $2,
-                status = 'active', merged_at = now(), updated_at = now()
+                status = 'published', merged_at = now(), updated_at = now()
          WHERE id = $1`,
         [chunkId, score]
       );

@@ -107,12 +107,12 @@ describe('editorial model', () => {
         rows: [{ id: 'proposed-1', status: 'proposed', parent_chunk_id: 'original-1' }],
       });
       // SELECT status of parent (for SUPERSEDE validation)
-      mockClient.query.mockResolvedValueOnce({ rows: [{ status: 'active' }] });
+      mockClient.query.mockResolvedValueOnce({ rows: [{ status: 'published' }] });
       // Supersede original
       mockClient.query.mockResolvedValueOnce({ rowCount: 1 });
       // Activate proposed
       mockClient.query.mockResolvedValueOnce({
-        rows: [{ id: 'proposed-1', status: 'active', merged_by: 'mod-1' }],
+        rows: [{ id: 'proposed-1', status: 'published', merged_by: 'mod-1' }],
       });
       // INSERT activity_log
       mockClient.query.mockResolvedValueOnce({});
@@ -120,7 +120,7 @@ describe('editorial model', () => {
 
       const result = await chunkService.mergeChunk('proposed-1', 'mod-1');
 
-      expect(result.status).toBe('active');
+      expect(result.status).toBe('published');
       expect(result.merged_by).toBe('mod-1');
     });
 
@@ -165,7 +165,7 @@ describe('editorial model', () => {
         .mockResolvedValueOnce({
           rows: [
             {
-              chunkId: 'c-1', version: 2, status: 'active', parentChunkId: 'c-0',
+              chunkId: 'c-1', version: 2, status: 'published', parentChunkId: 'c-0',
               content: 'v2 content', trust_score: 0.5,
               proposed_by: 'user-1', proposed_by_name: 'Agent1',
               merged_by: 'mod-1', merged_by_name: 'Moderator',

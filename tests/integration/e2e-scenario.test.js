@@ -658,7 +658,7 @@ describe('E2E Integration Scenario', () => {
         rows: [{
           id: CHUNK_ID,
           content: 'Machine learning is a subset of artificial intelligence.',
-          status: 'active',
+          status: 'published',
           rank: 0.5,
           topic_id: TOPIC_ID,
           topic_title: 'Machine Learning Basics',

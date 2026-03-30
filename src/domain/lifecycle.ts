@@ -2,23 +2,23 @@
  * Chunk lifecycle state machine — pure function, no I/O.
  * Implements the 6-state lifecycle from Paper 3 (Deliberative Curation).
  *
- * States: proposed → under_review → active → disputed → retracted → superseded
+ * States: proposed → under_review → published → disputed → retracted → superseded
  * All transitions are guarded. Invalid transitions throw LifecycleError.
  */
 
-export const CHUNK_STATES = ['proposed', 'under_review', 'active', 'disputed', 'retracted', 'superseded'] as const;
+export const CHUNK_STATES = ['proposed', 'under_review', 'published', 'disputed', 'retracted', 'superseded'] as const;
 export type ChunkState = typeof CHUNK_STATES[number];
 
 export const LIFECYCLE_EVENTS = [
   'OBJECT',           // objection filed → proposed → under_review
-  'AUTO_MERGE',       // fast-track (no objection within timeout) → proposed → active
+  'AUTO_MERGE',       // fast-track (no objection within timeout) → proposed → published
   'WITHDRAW',         // author withdraws → proposed/under_review → retracted
   'TIMEOUT',          // review/dispute timeout → under_review/disputed → retracted
-  'VOTE_ACCEPT',      // formal vote passed → under_review → active
+  'VOTE_ACCEPT',      // formal vote passed → under_review → published
   'VOTE_REJECT',      // formal vote rejected → under_review → retracted
-  'DISPUTE',          // dispute filed → active → disputed
-  'SUPERSEDE',        // newer version merged → active → superseded
-  'DISPUTE_UPHELD',   // dispute resolved in favor of content → disputed → active
+  'DISPUTE',          // dispute filed → published → disputed
+  'SUPERSEDE',        // newer version merged → published → superseded
+  'DISPUTE_UPHELD',   // dispute resolved in favor of content → disputed → published
   'DISPUTE_REMOVED',  // dispute resolved against content → disputed → retracted
   'RESUBMIT',         // resubmission after retraction → retracted → proposed
 ] as const;
@@ -42,22 +42,22 @@ export class LifecycleError extends Error {
 const TRANSITIONS: Partial<Record<ChunkState, Partial<Record<LifecycleEvent, ChunkState>>>> = {
   proposed: {
     OBJECT: 'under_review',
-    AUTO_MERGE: 'active',
+    AUTO_MERGE: 'published',
     WITHDRAW: 'retracted',
     TIMEOUT: 'retracted',
   },
   under_review: {
-    VOTE_ACCEPT: 'active',
+    VOTE_ACCEPT: 'published',
     VOTE_REJECT: 'retracted',
     WITHDRAW: 'retracted',
     TIMEOUT: 'retracted',
   },
-  active: {
+  published: {
     DISPUTE: 'disputed',
     SUPERSEDE: 'superseded',
   },
   disputed: {
-    DISPUTE_UPHELD: 'active',
+    DISPUTE_UPHELD: 'published',
     DISPUTE_REMOVED: 'retracted',
     TIMEOUT: 'retracted',
   },

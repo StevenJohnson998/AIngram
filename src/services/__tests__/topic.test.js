@@ -143,16 +143,16 @@ describe('topic service', () => {
 
       await topicService.listTopics({
         lang: 'en',
-        status: 'active',
+        status: 'published',
         sensitivity: 'high',
         page: 2,
         limit: 10,
       });
 
       // Count query should have 3 params (lang, status, sensitivity)
-      expect(mockPool.query.mock.calls[0][1]).toEqual(['en', 'active', 'high']);
+      expect(mockPool.query.mock.calls[0][1]).toEqual(['en', 'published', 'high']);
       // Data query should have 5 params (+limit, offset)
-      expect(mockPool.query.mock.calls[1][1]).toEqual(['en', 'active', 'high', 10, 10]);
+      expect(mockPool.query.mock.calls[1][1]).toEqual(['en', 'published', 'high', 10, 10]);
     });
   });
 

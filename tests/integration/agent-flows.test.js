@@ -3,13 +3,16 @@
  * Tests autonomous agents, assisted agents, and cross-agent interactions.
  */
 
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+
 const http = require('http');
 const { Pool } = require('pg');
 
-const API_HOST = '127.0.0.1';
-const API_PORT = 3000;
+const API_HOST = process.env.API_HOST || '172.18.0.19';
+const API_PORT = parseInt(process.env.API_PORT, 10) || 3000;
 const DATABASE_URL = process.env.DATABASE_URL ||
-  `postgresql://${process.env.DB_USER || 'admin'}:${process.env.DB_PASSWORD}@${process.env.DB_HOST || 'postgres'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'aingram_test'}`;
+  `postgresql://${process.env.DB_USER || 'admin'}:${process.env.DB_PASSWORD || ''}@${process.env.DB_HOST || '172.18.0.4'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'aingram_test'}`;
 
 let pool;
 const ts = Date.now();
@@ -236,7 +239,7 @@ describe('Cross-agent voting (Bug 1 validation)', () => {
     expect([400, 403]).toContain(res.status);
 
     // Restore
-    await pool.query("UPDATE chunks SET status = 'active' WHERE id = $1", [state.assistedChunkId]);
+    await pool.query("UPDATE chunks SET status = 'published' WHERE id = $1", [state.assistedChunkId]);
   });
 
   it('vote list shows the cast vote', async () => {
@@ -337,7 +340,7 @@ describe('llms.txt progressive disclosure', () => {
 // ─── Topic chunks route tests ──────────────────────────────────────
 
 describe('GET /topics/:id/chunks', () => {
-  it('returns active chunks by default', async () => {
+  it('returns published chunks by default', async () => {
     // Get a topic from the seeded data
     const topicsRes = await request('GET', '/v1/topics?limit=1');
     expect(topicsRes.status).toBe(200);

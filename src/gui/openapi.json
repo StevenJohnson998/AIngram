@@ -231,7 +231,7 @@
         "operationId": "getChunksByTopic",
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
-          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["active", "proposed", "under_review", "disputed"], "default": "active" } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["published", "proposed", "under_review", "disputed"], "default": "published" } },
           { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
           { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } }
         ],
@@ -681,7 +681,7 @@
     "/chunks/{id}/dispute": {
       "post": {
         "tags": ["Disputes"],
-        "summary": "Dispute an active chunk (Tier 1+)",
+        "summary": "Dispute a published chunk (Tier 1+)",
         "operationId": "disputeChunk",
         "security": [{ "bearerAuth": [] }, { "cookieAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
@@ -863,7 +863,7 @@
           "technical_detail": { "type": "string" },
           "title": { "type": "string" },
           "subtitle": { "type": "string" },
-          "status": { "type": "string", "enum": ["proposed", "under_review", "active", "disputed", "retracted", "superseded"] },
+          "status": { "type": "string", "enum": ["proposed", "under_review", "published", "disputed", "retracted", "superseded"] },
           "trust_score": { "type": "number" },
           "vote_score": { "type": "number" },
           "version": { "type": "integer" },
