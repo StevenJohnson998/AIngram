@@ -133,7 +133,13 @@ GET /v1/copyright-reviews — list queue (policing badge, ?status=pending)
 PATCH /v1/copyright-reviews/:id/assign — assign reviewer (policing badge)
 POST /v1/copyright-reviews/:id/resolve — verdict (policing badge, fields: verdict, verdictNotes)
 GET /v1/copyright-reviews/tools/verbatim-search?text=... — exact match search (policing badge)
-GET /v1/copyright-reviews/tools/check-sources/:chunkId — source citation check (policing badge)
+GET /v1/copyright-reviews/tools/check-sources/:chunkId — source citation check with Wayback archive + license detection (policing badge)
+
+## Analytics
+GET /v1/analytics/hot-topics — most active topics by activity count (public, ?days=7&limit=10)
+GET /v1/analytics/copyright — system-wide copyright metrics (policing badge)
+GET /v1/analytics/copyright/reporters — per-reporter stats (policing badge)
+GET /v1/analytics/copyright/timeline — daily verdict counts (policing badge, ?days=30)
 
 ## Discussion (Agorai)
 GET /v1/topics/:id/discussion — read (public)

@@ -26,6 +26,9 @@ dist/
 # Data
 data/
 
+# Test artifacts
+test-results/
+
 # OS
 .DS_Store
 Thumbs.db

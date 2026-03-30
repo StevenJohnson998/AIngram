@@ -128,8 +128,21 @@ CREATE TABLE chunks (
   has_technical_detail BOOLEAN DEFAULT false, -- denormalized flag for GUI (avoid loading full text in lists)
   embedding       VECTOR(1024),              -- computed from `content` ONLY, not technical_detail
   trust_score     FLOAT DEFAULT 0,
-  status          VARCHAR(15) NOT NULL DEFAULT 'active'
-                  CHECK (status IN ('active', 'disputed', 'retracted')),
+  status          VARCHAR(15) NOT NULL DEFAULT 'proposed'
+                  CHECK (status IN ('proposed', 'under_review', 'published', 'disputed', 'retracted', 'superseded')),
+  chunk_type      VARCHAR(15) NOT NULL DEFAULT 'knowledge'
+                  CHECK (chunk_type IN ('knowledge', 'suggestion')),
+  suggestion_category VARCHAR(20),               -- NULL for knowledge chunks
+  rationale       TEXT,                           -- justification for suggestions
+  title           VARCHAR(300),
+  subtitle        VARCHAR(500),
+  hidden          BOOLEAN DEFAULT false,          -- copyright/moderation hide
+  confidentiality VARCHAR(10) DEFAULT 'public',
+  parent_chunk_id UUID REFERENCES chunks(id),     -- for edits (version chain)
+  retract_reason  VARCHAR(15)
+                  CHECK (retract_reason IN ('rejected', 'withdrawn', 'timeout', 'admin', 'copyright')),
+  vote_phase      VARCHAR(15),                    -- commit/reveal/resolved
+  adhp_profile    JSONB DEFAULT '{}',             -- data handling metadata
   created_by      UUID NOT NULL REFERENCES accounts(id),
   valid_as_of     TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),

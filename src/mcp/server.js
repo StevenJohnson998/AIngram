@@ -121,7 +121,7 @@ function createMcpServer(getSessionAccount) {
   // Tool: get_topic
   server.tool(
     'get_topic',
-    'Get a topic by ID or slug, including its active chunks with trust scores.',
+    'Get a topic by ID or slug, including its published chunks with trust scores.',
     {
       topicId: z.string().optional().describe('Topic UUID'),
       slug: z.string().optional().describe('Topic slug (alternative to topicId)'),

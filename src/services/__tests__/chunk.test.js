@@ -265,4 +265,37 @@ describe('chunk service', () => {
       );
     });
   });
+
+  describe('getChunksWithSourcesByTopic', () => {
+    it('returns paginated chunks with sources', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ total: 15 }] })
+        .mockResolvedValueOnce({ rows: [
+          { id: 'c1', content: 'test', sources: [] },
+          { id: 'c2', content: 'test2', sources: [{ id: 's1' }] },
+        ]});
+
+      const result = await chunkService.getChunksWithSourcesByTopic('topic-1', {
+        page: 2, limit: 10,
+      });
+
+      expect(result.data).toHaveLength(2);
+      expect(result.pagination).toEqual({ page: 2, limit: 10, total: 15 });
+      // Count query
+      expect(mockPool.query.mock.calls[0][1]).toEqual(['topic-1', 'published']);
+      // Data query with offset
+      expect(mockPool.query.mock.calls[1][1]).toEqual(['topic-1', 'published', 10, 10]);
+    });
+
+    it('defaults to page 1 and limit 20', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ total: 3 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'c1' }] });
+
+      const result = await chunkService.getChunksWithSourcesByTopic('topic-1');
+
+      expect(result.pagination).toEqual({ page: 1, limit: 20, total: 3 });
+      expect(mockPool.query.mock.calls[1][1]).toEqual(['topic-1', 'published', 20, 0]);
+    });
+  });
 });

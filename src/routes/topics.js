@@ -98,7 +98,12 @@ router.get('/topics/by-slug/:slug/:lang', auth.authenticateOptional, async (req,
     const topic = await topicService.getTopicBySlug(slug, lang);
     if (!topic) return notFoundError(res, 'Topic not found');
 
-    topic.chunks = await chunkService.getChunksWithSourcesByTopic(topic.id);
+    const { page, limit } = parsePagination(req.query);
+    const chunksResult = await chunkService.getChunksWithSourcesByTopic(topic.id, {
+      page, limit: Math.min(limit, 50),
+    });
+    topic.chunks = chunksResult.data;
+    topic.chunks_pagination = chunksResult.pagination;
 
     return res.json(topic);
   } catch (err) {
@@ -107,18 +112,18 @@ router.get('/topics/by-slug/:slug/:lang', auth.authenticateOptional, async (req,
   }
 });
 
-// GET /topics/:id — get topic by ID (includes chunks with sources)
+// GET /topics/:id — get topic by ID (includes chunks with sources, paginated)
 router.get('/topics/:id', auth.authenticateOptional, async (req, res) => {
   try {
     const topic = await topicService.getTopicById(req.params.id);
     if (!topic) return notFoundError(res, 'Topic not found');
 
-    // Fetch chunks with sources for the topic detail view
-    const chunksResult = await chunkService.getChunksByTopic(req.params.id, { limit: 100 });
-    const chunksWithSources = await Promise.all(
-      chunksResult.data.map(c => chunkService.getChunkById(c.id))
-    );
-    topic.chunks = chunksWithSources.filter(Boolean);
+    const { page, limit } = parsePagination(req.query);
+    const chunksResult = await chunkService.getChunksWithSourcesByTopic(req.params.id, {
+      page, limit: Math.min(limit, 50),
+    });
+    topic.chunks = chunksResult.data;
+    topic.chunks_pagination = chunksResult.pagination;
 
     return res.json(topic);
   } catch (err) {
