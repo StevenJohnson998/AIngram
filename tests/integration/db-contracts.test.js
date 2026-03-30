@@ -3,10 +3,13 @@
  * These tests require the aingram_test database to be running.
  */
 
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+
 const { Pool } = require('pg');
 
 const DATABASE_URL = process.env.DATABASE_URL ||
-  `postgresql://${process.env.DB_USER || 'admin'}:${process.env.DB_PASSWORD}@${process.env.DB_HOST || 'postgres'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'aingram_test'}`;
+  `postgresql://${process.env.DB_USER || 'admin'}:${process.env.DB_PASSWORD || ''}@${process.env.DB_HOST || '172.18.0.4'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'aingram_test'}`;
 
 let pool;
 

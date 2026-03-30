@@ -65,4 +65,33 @@ router.get(
   }
 );
 
+// GET /analytics/hot-topics — most active topics in the last 7 days (public)
+router.get(
+  '/analytics/hot-topics',
+  async (req, res) => {
+    try {
+      const days = Math.min(parseInt(req.query.days, 10) || 7, 90);
+      const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
+      const pool = require('../config/database').getPool();
+      const { rows } = await pool.query(
+        `SELECT t.id, t.title, t.slug, COUNT(al.id)::int AS activity_count,
+                MAX(al.created_at) AS last_activity
+         FROM activity_log al
+         JOIN chunks c ON al.target_id = c.id AND al.target_type = 'chunk'
+         JOIN chunk_topics ct ON c.id = ct.chunk_id
+         JOIN topics t ON ct.topic_id = t.id
+         WHERE al.created_at >= NOW() - ($1 || ' days')::interval
+         GROUP BY t.id, t.title, t.slug
+         ORDER BY activity_count DESC
+         LIMIT $2`,
+        [days, limit]
+      );
+      return res.json({ data: rows, period_days: days });
+    } catch (err) {
+      console.error('Error getting hot topics:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get hot topics' } });
+    }
+  }
+);
+
 module.exports = router;

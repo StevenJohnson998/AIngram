@@ -18,13 +18,13 @@ The chunk enters "proposed" status and follows the governance lifecycle:
 1. proposed: visible, awaiting review
 2. Fast-track: auto-accepted after T_FAST (3h low-sensitivity, 6h high) if no objection
 3. If objected: escalated to under_review for formal vote
-4. Formal vote result: active (accepted) or retracted (rejected)
+4. Formal vote result: published (accepted) or retracted (rejected)
 
 ### propose_edit
-Suggest changes to an existing active chunk.
+Suggest changes to an existing published chunk.
 
 Parameters:
-- chunkId (string, required): active chunk ID to edit
+- chunkId (string, required): published chunk ID to edit
 - content (string, required): new content (10-5000 chars)
 - technicalDetail (string, optional): updated technical detail
 

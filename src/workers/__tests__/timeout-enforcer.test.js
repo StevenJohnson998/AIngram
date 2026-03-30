@@ -49,7 +49,7 @@ describe('enforceFastTrack', () => {
     mockPool.query.mockResolvedValueOnce({ rows: [{ down_count: 0 }] });
 
     // mergeChunk succeeds
-    chunkService.mergeChunk.mockResolvedValueOnce({ id: 'chunk-1', status: 'active' });
+    chunkService.mergeChunk.mockResolvedValueOnce({ id: 'chunk-1', status: 'published' });
 
     const count = await enforceFastTrack();
     expect(count).toBe(1);

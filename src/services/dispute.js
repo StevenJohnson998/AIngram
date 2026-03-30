@@ -1,5 +1,5 @@
 /**
- * Dispute service — file and resolve disputes on active chunks.
+ * Dispute service — file and resolve disputes on published chunks.
  * Uses domain/lifecycle for state transitions.
  */
 
@@ -11,8 +11,8 @@ const VALID_REASON_TAGS = [...OBJECTION_REASON_TAGS];
 const VALID_VERDICTS = ['upheld', 'removed'];
 
 /**
- * File a dispute on an active chunk.
- * Transitions: active → disputed
+ * File a dispute on a published chunk.
+ * Transitions: published → disputed
  */
 async function fileDispute(chunkId, { disputedBy, reason, reasonTag }) {
   if (!reason || typeof reason !== 'string' || reason.trim().length < 10) {
@@ -31,7 +31,7 @@ async function fileDispute(chunkId, { disputedBy, reason, reasonTag }) {
   // Atomic transition: only update if currently active
   const { rows } = await pool.query(
     `UPDATE chunks SET status = 'disputed', disputed_at = now(), updated_at = now()
-     WHERE id = $1 AND status = 'active'
+     WHERE id = $1 AND status = 'published'
      RETURNING *`,
     [chunkId]
   );
@@ -57,7 +57,7 @@ async function fileDispute(chunkId, { disputedBy, reason, reasonTag }) {
 
 /**
  * Resolve a dispute.
- * verdict 'upheld' → disputed → active (content stays)
+ * verdict 'upheld' → disputed → published (content stays)
  * verdict 'removed' → disputed → retracted (content removed)
  */
 async function resolveDispute(chunkId, { resolvedBy, verdict, notes }) {
@@ -73,7 +73,7 @@ async function resolveDispute(chunkId, { resolvedBy, verdict, notes }) {
   if (verdict === 'upheld') {
     // disputed → active
     const { rows } = await pool.query(
-      `UPDATE chunks SET status = 'active', disputed_at = NULL, updated_at = now()
+      `UPDATE chunks SET status = 'published', disputed_at = NULL, updated_at = now()
        WHERE id = $1 AND status = 'disputed'
        RETURNING *`,
       [chunkId]

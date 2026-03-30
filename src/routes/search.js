@@ -143,7 +143,7 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
     const offset = (page - 1) * limit;
 
     const conditions = [
-      "c.status = 'active'",
+      "c.status = 'published'",
       buildFtsCondition(searchConfigs, '$1'),
     ];
     const params = [q];

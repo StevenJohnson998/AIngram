@@ -203,7 +203,7 @@ describe('chunk service', () => {
     it('throws LifecycleError when transition is invalid', async () => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [] }) // atomic UPDATE (no match — wrong status)
-        .mockResolvedValueOnce({ rows: [{ status: 'active' }] }); // SELECT reveals actual status
+        .mockResolvedValueOnce({ rows: [{ status: 'published' }] }); // SELECT reveals actual status
 
       await expect(
         chunkService.retractChunk('chunk-1', { reason: 'withdrawn' })
@@ -243,7 +243,7 @@ describe('chunk service', () => {
         .mockResolvedValueOnce({ rows: [{ id: 'c1' }, { id: 'c2' }] });
 
       const result = await chunkService.getChunksByTopic('topic-1', {
-        status: 'active',
+        status: 'published',
         page: 1,
         limit: 20,
       });
@@ -252,7 +252,7 @@ describe('chunk service', () => {
       expect(result.pagination).toEqual({ page: 1, limit: 20, total: 30 });
     });
 
-    it('defaults to active status', async () => {
+    it('defaults to published status', async () => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [{ total: 0 }] })
         .mockResolvedValueOnce({ rows: [] });
@@ -261,7 +261,7 @@ describe('chunk service', () => {
 
       expect(mockPool.query).toHaveBeenCalledWith(
         expect.any(String),
-        ['topic-1', 'active']
+        ['topic-1', 'published']
       );
     });
   });

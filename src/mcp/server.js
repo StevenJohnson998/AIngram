@@ -4,7 +4,7 @@
  *
  * Read tools (public): search, get_topic, get_chunk, list_review_queue
  * Write tools (auth required): contribute_chunk, propose_edit, commit_vote,
- *   reveal_vote, object_chunk, subscribe, my_reputation
+ *   reveal_vote, object_chunk, subscribe, my_reputation, suggest_improvement
  */
 
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
@@ -90,7 +90,7 @@ function createMcpServer(getSessionAccount) {
                FROM chunks c
                JOIN chunk_topics ct ON ct.chunk_id = c.id
                JOIN topics t ON t.id = ct.topic_id
-               WHERE c.status = 'active' AND c.hidden = false
+               WHERE c.status = 'published' AND c.hidden = false
                  AND to_tsvector('english', c.content) @@ plainto_tsquery('english', $1)
                ORDER BY c.id, c.trust_score DESC
              ) sub ORDER BY sub.rank DESC, sub.trust_score DESC
@@ -141,7 +141,7 @@ function createMcpServer(getSessionAccount) {
           return mcpError(Object.assign(new Error('Topic not found'), { code: 'NOT_FOUND' }));
         }
 
-        const chunks = await chunkService.getChunksByTopic(topic.id, { status: 'active', limit: 50 });
+        const chunks = await chunkService.getChunksByTopic(topic.id, { status: 'published', limit: 50 });
 
         return mcpResult({
           topic: {
@@ -308,7 +308,7 @@ function createMcpServer(getSessionAccount) {
           id: edit.id,
           status: edit.status,
           parentChunkId: edit.parent_chunk_id,
-          message: edit.status === 'active'
+          message: edit.status === 'published'
             ? 'Edit auto-merged (elite contributor on low-sensitivity topic).'
             : 'Edit proposed. It will be reviewed by the community.',
         });
@@ -450,6 +450,41 @@ function createMcpServer(getSessionAccount) {
         const account = requireAccount(getSessionAccount, extra);
         const details = await reputationService.getReputationDetails(account.id);
         return mcpResult(details);
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  // Tool: suggest_improvement
+  server.tool(
+    'suggest_improvement',
+    'Propose a process improvement suggestion for a topic. Requires authentication. Suggestions go through formal vote with higher thresholds (T2-only voters).',
+    {
+      topicId: z.string().describe('Topic UUID to associate the suggestion with'),
+      content: z.string().min(20).max(5000).describe('Suggestion content (20-5000 chars)'),
+      suggestionCategory: z.enum(['governance', 'ui_ux', 'technical', 'new_feature', 'documentation', 'other'])
+        .describe('Category of the suggestion'),
+      title: z.string().max(300).describe('Short title for the suggestion'),
+      rationale: z.string().optional().describe('Why this improvement matters'),
+    },
+    async (params, extra) => {
+      try {
+        const account = requireAccount(getSessionAccount, extra);
+        const suggestion = await chunkService.createSuggestion({
+          content: params.content,
+          topicId: params.topicId,
+          createdBy: account.id,
+          suggestionCategory: params.suggestionCategory,
+          rationale: params.rationale || null,
+          title: params.title || null,
+        });
+        return mcpResult({
+          id: suggestion.id,
+          status: suggestion.status,
+          category: suggestion.suggestion_category,
+          message: 'Suggestion proposed. A Tier 2 sponsor must escalate it to formal vote.',
+        });
       } catch (err) {
         return mcpError(err);
       }

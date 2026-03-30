@@ -350,7 +350,7 @@ async function verbatimSearch(text, { minLength = 30, limit = 20 } = {}) {
             POSITION(LOWER($1) IN LOWER(c.content)) AS match_position
      FROM chunks c
      WHERE LOWER(c.content) LIKE '%' || LOWER($1) || '%'
-       AND c.status IN ('active', 'proposed', 'under_review')
+       AND c.status IN ('published', 'proposed', 'under_review')
        AND c.hidden = false
      ORDER BY c.created_at DESC
      LIMIT $2`,
@@ -361,8 +361,144 @@ async function verbatimSearch(text, { minLength = 30, limit = 20 } = {}) {
 }
 
 /**
+ * Check Wayback Machine for an archived snapshot of a URL.
+ * Returns { available, url, timestamp } or defaults on failure.
+ */
+async function checkWayback(url) {
+  const params = new URLSearchParams({ url });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const response = await fetch(
+      `https://web.archive.org/wayback/available?${params}`,
+      { signal: controller.signal }
+    );
+    const data = await response.json();
+    const snapshot = data.archived_snapshots?.closest;
+    return {
+      available: !!snapshot?.available,
+      url: snapshot?.url || null,
+      timestamp: snapshot?.timestamp || null,
+    };
+  } catch {
+    return { available: false, url: null, timestamp: null };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Detect license from an HTML page by inspecting meta tags and body text.
+ * Returns { license, licenseUrl } or nulls on failure.
+ */
+async function detectLicense(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    // HEAD first to check content type
+    const headRes = await fetch(url, { method: 'HEAD', signal: controller.signal, redirect: 'follow' });
+    const contentType = headRes.headers.get('content-type') || '';
+    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+      return { license: null, licenseUrl: null };
+    }
+
+    // GET with size limit
+    clearTimeout(timeout);
+    const controller2 = new AbortController();
+    const timeout2 = setTimeout(() => controller2.abort(), 5000);
+    try {
+      const getRes = await fetch(url, { signal: controller2.signal, redirect: 'follow' });
+      const reader = getRes.body.getReader();
+      const chunks = [];
+      let totalBytes = 0;
+      const MAX_BYTES = 512 * 1024; // 500KB
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        totalBytes += value.length;
+        chunks.push(value);
+        if (totalBytes >= MAX_BYTES) break;
+      }
+      reader.cancel();
+
+      const html = Buffer.concat(chunks).toString('utf-8');
+      return parseLicenseFromHtml(html);
+    } finally {
+      clearTimeout(timeout2);
+    }
+  } catch {
+    return { license: null, licenseUrl: null };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Parse license indicators from HTML content.
+ */
+function parseLicenseFromHtml(html) {
+  // <link rel="license" href="...">
+  const linkMatch = html.match(/<link[^>]+rel=["']license["'][^>]+href=["']([^"']+)["']/i)
+    || html.match(/<link[^>]+href=["']([^"']+)["'][^>]+rel=["']license["']/i);
+  if (linkMatch) {
+    const licenseUrl = linkMatch[1];
+    return { license: identifyLicense(licenseUrl), licenseUrl };
+  }
+
+  // <meta name="dc.rights" content="...">
+  const dcMatch = html.match(/<meta[^>]+name=["']dc\.rights["'][^>]+content=["']([^"']+)["']/i);
+  if (dcMatch) {
+    return { license: dcMatch[1], licenseUrl: null };
+  }
+
+  // Creative Commons URL in body
+  const ccUrlMatch = html.match(/https?:\/\/creativecommons\.org\/licenses\/([a-z-]+\/[\d.]+)/i);
+  if (ccUrlMatch) {
+    return { license: `CC ${ccUrlMatch[1].split('/')[0].toUpperCase()}`, licenseUrl: ccUrlMatch[0] };
+  }
+
+  // Common license text patterns
+  const patterns = [
+    { re: /MIT License/i, name: 'MIT' },
+    { re: /Apache License,?\s*Version\s*2/i, name: 'Apache-2.0' },
+    { re: /GNU General Public License/i, name: 'GPL' },
+    { re: /GNU Affero General Public License/i, name: 'AGPL' },
+    { re: /BSD \d-Clause License/i, name: 'BSD' },
+    { re: /Mozilla Public License/i, name: 'MPL' },
+    { re: /Creative Commons Attribution[-\s]ShareAlike/i, name: 'CC BY-SA' },
+    { re: /Creative Commons Attribution[-\s]NonCommercial/i, name: 'CC BY-NC' },
+    { re: /Creative Commons Attribution/i, name: 'CC BY' },
+    { re: /CC0|Public Domain/i, name: 'CC0 / Public Domain' },
+  ];
+  for (const { re, name } of patterns) {
+    if (re.test(html)) return { license: name, licenseUrl: null };
+  }
+
+  return { license: null, licenseUrl: null };
+}
+
+/**
+ * Identify a license from a URL string.
+ */
+function identifyLicense(url) {
+  if (/creativecommons\.org\/licenses\/by-sa/i.test(url)) return 'CC BY-SA';
+  if (/creativecommons\.org\/licenses\/by-nc/i.test(url)) return 'CC BY-NC';
+  if (/creativecommons\.org\/licenses\/by-nd/i.test(url)) return 'CC BY-ND';
+  if (/creativecommons\.org\/licenses\/by/i.test(url)) return 'CC BY';
+  if (/creativecommons\.org\/publicdomain/i.test(url)) return 'CC0 / Public Domain';
+  if (/opensource\.org\/licenses\/MIT/i.test(url)) return 'MIT';
+  if (/opensource\.org\/licenses\/Apache/i.test(url)) return 'Apache-2.0';
+  if (/gnu\.org\/licenses\/gpl/i.test(url)) return 'GPL';
+  if (/gnu\.org\/licenses\/agpl/i.test(url)) return 'AGPL';
+  return url;
+}
+
+/**
  * Check source resolvability for a chunk's citations.
- * Returns each source with its resolution status.
+ * Returns each source with its resolution status, Wayback archive info, and detected license.
  */
 async function checkSources(chunkId) {
   const pool = getPool();
@@ -390,6 +526,14 @@ async function checkSources(chunkId) {
         result.type = 'url';
       }
       result.status = 'cited';
+
+      // Wayback Machine archive check
+      result.wayback = await checkWayback(source.source_url);
+
+      // License detection (HTML pages only)
+      if (result.type === 'url') {
+        result.license = await detectLicense(source.source_url);
+      }
     } else {
       result.type = 'description_only';
       result.status = 'unverifiable';

@@ -234,7 +234,7 @@ async function run() {
 
   res = await request('PUT', `/chunks/${proposedChunkId}/merge`, null, policingKey);
   assert(res.status === 200, `Merge: ${res.status}`);
-  assert(res.data.status === 'active', `Merged status: ${res.data.status}`);
+  assert(res.data.status === 'published', `Merged status: ${res.data.status}`);
 
   // === Test 7: Proposals list reflects changes ===
   console.log('\n-- Test 7: List after actions --');

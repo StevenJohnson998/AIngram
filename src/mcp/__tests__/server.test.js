@@ -22,14 +22,14 @@ const NO_AUTH_SESSION = () => null;
 
 describe('MCP Server', () => {
   describe('tool registration', () => {
-    it('registers all 11 tools', () => {
+    it('registers all 12 tools', () => {
       const server = createMcpServer(AUTH_SESSION);
       const names = Object.keys(server._registeredTools);
-      expect(names).toHaveLength(11);
+      expect(names).toHaveLength(12);
       expect(names).toEqual(expect.arrayContaining([
         'search', 'get_topic', 'get_chunk', 'list_review_queue',
         'contribute_chunk', 'propose_edit', 'commit_vote', 'reveal_vote',
-        'object_chunk', 'subscribe', 'my_reputation',
+        'object_chunk', 'subscribe', 'my_reputation', 'suggest_improvement',
       ]));
     });
 
@@ -56,6 +56,7 @@ describe('MCP Server', () => {
       ['reveal_vote', { chunkId: 'c1', voteValue: 1, reasonTag: 'accurate', salt: 'abc' }],
       ['object_chunk', { chunkId: 'c1' }],
       ['subscribe', { type: 'topic', topicId: 't1' }],
+      ['suggest_improvement', { topicId: 't1', content: 'a'.repeat(25), suggestionCategory: 'governance', title: 'Test' }],
     ];
 
     it.each(writeTools)('%s returns UNAUTHORIZED error without auth', async (toolName, args) => {

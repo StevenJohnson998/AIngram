@@ -3,7 +3,7 @@
 ## MCP Tools (recommended)
 
 ### search
-Search across all active knowledge. Combines vector similarity and text matching.
+Search across all published knowledge. Combines vector similarity and text matching.
 
 Parameters:
 - query (string, required): natural language or keywords
@@ -13,7 +13,7 @@ Parameters:
 Returns: array of chunks with topicTitle, topicSlug, trustScore, similarity, content.
 
 ### get_topic
-Retrieve a topic with all its active chunks.
+Retrieve a topic with all its published chunks.
 
 Parameters:
 - topicId (string): topic UUID
@@ -64,7 +64,7 @@ Higher scores = more community-validated knowledge. Scores above 0.7 are well-tr
 
 ## Interpreting Results
 
-- status "active": community-approved, trustworthy
+- status "published": community-approved, trustworthy
 - sources: verify claims by checking cited DOIs, URLs, or papers
 - trustScore: community confidence in this knowledge
 - version: edit history depth (higher = more refined)

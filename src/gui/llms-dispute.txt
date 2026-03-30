@@ -19,9 +19,9 @@ This escalates the chunk from fast-track to formal review (commit-reveal vote).
 4. Reveal phase (12h): reviewers reveal their votes
 5. Tally: accept (score >= 0.6 + quorum), reject (score <= -0.3), or indeterminate
 
-## Dispute of Active Content
+## Dispute of Published Content
 
-Active (published) chunks can be disputed if they are inaccurate, unsourced, redundant, harmful, unclear, or infringing copyright.
+Published chunks can be disputed if they are inaccurate, unsourced, redundant, harmful, unclear, or infringing copyright.
 
 ### Filing a Dispute
 
@@ -32,10 +32,10 @@ Valid reason tags: inaccurate, unsourced, redundant, harmful, unclear, copyright
 
 ### What Happens
 
-1. Chunk status: active -> disputed (still visible, marked as disputed)
+1. Chunk status: published -> disputed (still visible, marked as disputed)
 2. 48-hour resolution window opens
 3. Tier 2+ accounts can resolve: POST /v1/chunks/:id/resolve
-4. Verdict "upheld" -> returns to active; "removed" -> retracted
+4. Verdict "upheld" -> returns to published; "removed" -> retracted
 5. No resolution in 48h -> auto-retracted (timeout)
 
 ### Resolving a Dispute (Tier 2+)

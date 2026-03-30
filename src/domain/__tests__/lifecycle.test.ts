@@ -6,8 +6,8 @@ describe('lifecycle state machine', () => {
     it('OBJECT → under_review', () => {
       expect(transition('proposed', 'OBJECT')).toBe('under_review');
     });
-    it('AUTO_MERGE → active', () => {
-      expect(transition('proposed', 'AUTO_MERGE')).toBe('active');
+    it('AUTO_MERGE → published', () => {
+      expect(transition('proposed', 'AUTO_MERGE')).toBe('published');
     });
     it('WITHDRAW → retracted', () => {
       expect(transition('proposed', 'WITHDRAW')).toBe('retracted');
@@ -18,8 +18,8 @@ describe('lifecycle state machine', () => {
   });
 
   describe('valid transitions from under_review', () => {
-    it('VOTE_ACCEPT → active', () => {
-      expect(transition('under_review', 'VOTE_ACCEPT')).toBe('active');
+    it('VOTE_ACCEPT → published', () => {
+      expect(transition('under_review', 'VOTE_ACCEPT')).toBe('published');
     });
     it('VOTE_REJECT → retracted', () => {
       expect(transition('under_review', 'VOTE_REJECT')).toBe('retracted');
@@ -32,18 +32,18 @@ describe('lifecycle state machine', () => {
     });
   });
 
-  describe('valid transitions from active', () => {
+  describe('valid transitions from published', () => {
     it('DISPUTE → disputed', () => {
-      expect(transition('active', 'DISPUTE')).toBe('disputed');
+      expect(transition('published', 'DISPUTE')).toBe('disputed');
     });
     it('SUPERSEDE → superseded', () => {
-      expect(transition('active', 'SUPERSEDE')).toBe('superseded');
+      expect(transition('published', 'SUPERSEDE')).toBe('superseded');
     });
   });
 
   describe('valid transitions from disputed', () => {
-    it('DISPUTE_UPHELD → active', () => {
-      expect(transition('disputed', 'DISPUTE_UPHELD')).toBe('active');
+    it('DISPUTE_UPHELD → published', () => {
+      expect(transition('disputed', 'DISPUTE_UPHELD')).toBe('published');
     });
     it('DISPUTE_REMOVED → retracted', () => {
       expect(transition('disputed', 'DISPUTE_REMOVED')).toBe('retracted');
@@ -81,10 +81,10 @@ describe('lifecycle state machine', () => {
       ['under_review', 'OBJECT'],
       ['under_review', 'DISPUTE'],
       ['under_review', 'RESUBMIT'],
-      ['active', 'AUTO_MERGE'],
-      ['active', 'VOTE_ACCEPT'],
-      ['active', 'WITHDRAW'],
-      ['active', 'RESUBMIT'],
+      ['published', 'AUTO_MERGE'],
+      ['published', 'VOTE_ACCEPT'],
+      ['published', 'WITHDRAW'],
+      ['published', 'RESUBMIT'],
       ['disputed', 'AUTO_MERGE'],
       ['disputed', 'VOTE_ACCEPT'],
       ['disputed', 'WITHDRAW'],
@@ -103,14 +103,14 @@ describe('lifecycle state machine', () => {
   describe('canTransition', () => {
     it('returns true for valid transitions', () => {
       expect(canTransition('proposed', 'AUTO_MERGE')).toBe(true);
-      expect(canTransition('active', 'DISPUTE')).toBe(true);
+      expect(canTransition('published', 'DISPUTE')).toBe(true);
       expect(canTransition('retracted', 'RESUBMIT')).toBe(true);
     });
 
     it('returns false for invalid transitions', () => {
       expect(canTransition('proposed', 'VOTE_ACCEPT')).toBe(false);
       expect(canTransition('superseded', 'RESUBMIT')).toBe(false);
-      expect(canTransition('active', 'AUTO_MERGE')).toBe(false);
+      expect(canTransition('published', 'AUTO_MERGE')).toBe(false);
     });
   });
 

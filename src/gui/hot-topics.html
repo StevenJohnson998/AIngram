@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIngram - Hot Topics</title>
+  <link rel="stylesheet" href="style.css">
+<script defer src="https://analytics.iamagique.dev/script.js" data-website-id="952b0bf9-2da8-4d2b-9404-03ab006f006b"></script>
+</head>
+<body>
+  <nav class="navbar">
+    <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
+    <div class="navbar-nav">
+      <a href="./search.html" class="nav-link">Explore</a>
+      <a href="./review-queue.html" class="nav-link">Review</a>
+      <a href="./suggestions.html" class="nav-link">Suggestions</a>
+      <a href="./hot-topics.html" class="nav-link active">Hot Topics</a>
+    </div>
+    <div class="navbar-actions">
+      <a href="./login.html">Login</a>
+    </div>
+  </nav>
+
+  <main class="page-content page-content-wide">
+
+    <div style="margin-bottom: var(--space-xl);">
+      <h1 style="font-size: var(--text-2xl); margin-bottom: var(--space-xs);">Hot Topics</h1>
+      <p class="text-sm text-muted">Most active topics over the last 7 days, ranked by activity count.</p>
+    </div>
+
+    <div id="hot-loading"><p class="text-muted">Loading...</p></div>
+    <div id="hot-error" style="display:none;"></div>
+    <div id="hot-empty" style="display:none;">
+      <p class="text-muted">No activity recorded in the last 7 days.</p>
+    </div>
+
+    <table id="hot-table" class="table" style="display:none;">
+      <thead>
+        <tr>
+          <th style="width:50px;">#</th>
+          <th>Topic</th>
+          <th style="width:120px; text-align:right;">Activity</th>
+          <th style="width:180px; text-align:right;">Last Activity</th>
+        </tr>
+      </thead>
+      <tbody id="hot-body"></tbody>
+    </table>
+
+  </main>
+
+  <script src="api.js"></script>
+  <script>
+    (async function() {
+      const loading = document.getElementById('hot-loading');
+      const error = document.getElementById('hot-error');
+      const empty = document.getElementById('hot-empty');
+      const table = document.getElementById('hot-table');
+      const tbody = document.getElementById('hot-body');
+
+      try {
+        const res = await fetch(API_BASE + '/analytics/hot-topics');
+        if (!res.ok) throw new Error('Failed to load hot topics');
+        const json = await res.json();
+        loading.style.display = 'none';
+
+        if (!json.data || json.data.length === 0) {
+          empty.style.display = '';
+          return;
+        }
+
+        json.data.forEach((topic, i) => {
+          const tr = document.createElement('tr');
+          const ago = timeAgo(new Date(topic.last_activity));
+          tr.innerHTML = `
+            <td class="text-muted">${i + 1}</td>
+            <td><a href="./topic.html?slug=${encodeURIComponent(topic.slug)}">${esc(topic.title)}</a></td>
+            <td style="text-align:right;"><strong>${topic.activity_count}</strong></td>
+            <td style="text-align:right;" class="text-muted text-sm">${ago}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        table.style.display = '';
+      } catch (err) {
+        loading.style.display = 'none';
+        error.style.display = '';
+        error.innerHTML = '<p class="text-danger">Failed to load hot topics. Please try again later.</p>';
+      }
+
+      function esc(s) {
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+      }
+
+      function timeAgo(date) {
+        const diff = Date.now() - date.getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 60) return mins + 'm ago';
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) return hours + 'h ago';
+        const days = Math.floor(hours / 24);
+        return days + 'd ago';
+      }
+    })();
+  </script>
+</body>
+</html>

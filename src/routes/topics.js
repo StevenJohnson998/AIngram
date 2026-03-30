@@ -504,8 +504,8 @@ router.post(
 
       const existing = await chunkService.getChunkById(req.params.id);
       if (!existing) return notFoundError(res, 'Chunk not found');
-      if (existing.status !== 'active') {
-        return validationError(res, 'Can only propose edits to active chunks');
+      if (existing.status !== 'published') {
+        return validationError(res, 'Can only propose edits to published chunks');
       }
 
       // Find the topic for this chunk
@@ -666,7 +666,7 @@ router.get(
 );
 
 // GET /topics/:id/chunks — list chunks by status (for formal vote UI)
-const VALID_CHUNK_STATUSES = ['proposed', 'under_review', 'active', 'disputed', 'retracted', 'superseded'];
+const VALID_CHUNK_STATUSES = ['proposed', 'under_review', 'published', 'disputed', 'retracted', 'superseded'];
 
 router.get('/topics/:id/chunks', async (req, res) => {
   try {
@@ -677,7 +677,7 @@ router.get('/topics/:id/chunks', async (req, res) => {
 
     const { page, limit } = parsePagination(req.query);
     const result = await chunkService.getChunksByTopic(req.params.id, {
-      status: status || 'active',
+      status: status || 'published',
       page,
       limit: Math.min(limit, 50),
     });

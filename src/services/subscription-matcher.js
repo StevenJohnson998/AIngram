@@ -77,10 +77,10 @@ async function filterByAdhp(chunkAdhp, matches) {
  * Then applies ADHP policy filtering if the chunk has an ADHP profile.
  *
  * @param {string} chunkId - UUID of the newly embedded chunk
- * @param {'active'|'proposed'} triggerStatus - chunk status that triggered the match
+ * @param {'published'|'proposed'} triggerStatus - chunk status that triggered the match
  * @returns {Array<{subscriptionId, accountId, matchType: 'vector'|'keyword'|'topic', similarity?}>}
  */
-async function matchNewChunk(chunkId, triggerStatus = 'active') {
+async function matchNewChunk(chunkId, triggerStatus = 'published') {
   const pool = getPool();
 
   // 1. Get chunk data: embedding, content, adhp, and associated topic IDs
@@ -106,7 +106,7 @@ async function matchNewChunk(chunkId, triggerStatus = 'active') {
   // Determine which trigger_status values to match
   const triggerFilter = triggerStatus === 'proposed'
     ? ['proposed', 'both']
-    : ['active', 'both'];
+    : ['published', 'both'];
 
   const matches = [];
 

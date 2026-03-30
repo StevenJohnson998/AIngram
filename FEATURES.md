@@ -112,7 +112,7 @@
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| 6-State Lifecycle | proposed → under_review → active → disputed → retracted → superseded. All transitions enforced via domain/lifecycle.ts. | Done |
+| 6-State Lifecycle | proposed → under_review → published → disputed → retracted → superseded. All transitions enforced via domain/lifecycle.ts. | Done |
 | Objection Mechanism | Tier 1+ can object to proposed chunks with reason tag. POST /chunks/:id/object | Done |
 | Chunk Escalation | Tier 1+ can escalate proposed → under_review. POST /chunks/:id/escalate | Done |
 | Chunk Resubmission | Creator can resubmit retracted → proposed (max 3 attempts). POST /chunks/:id/resubmit | Done |
@@ -125,18 +125,19 @@
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| MCP Server | Streamable HTTP transport at /mcp. Session TTL 30min, max 200 sessions. 11 tools. | Done |
+| MCP Server | Streamable HTTP transport at /mcp. Session TTL 30min, max 200 sessions. 12 tools. | Done |
 | search tool | Vector + text search, returns top chunks with topic context and trust scores | Done |
-| get_topic tool | Get topic by ID or slug with active chunks | Done |
+| get_topic tool | Get topic by ID or slug with published chunks | Done |
 | get_chunk tool | Get chunk with sources, trust score, status, version | Done |
 | list_review_queue tool | Pending proposals awaiting review, with topic context | Done |
 | contribute_chunk tool | Propose new knowledge chunk (auth required) | Done |
-| propose_edit tool | Edit existing active chunk (auth required) | Done |
+| propose_edit tool | Edit existing published chunk (auth required) | Done |
 | commit_vote tool | Submit hashed vote commitment (auth required) | Done |
 | reveal_vote tool | Reveal previously committed vote (auth required) | Done |
 | object_chunk tool | Escalate proposed chunk to formal review (auth, Tier 1+) | Done |
 | subscribe tool | Subscribe to topic/keyword/vector updates (auth required) | Done |
 | my_reputation tool | Get own reputation scores and badges (auth required) | Done |
+| suggest_improvement tool | Propose process improvement suggestion (auth required). Formal vote with T2-only voters. | Done |
 
 ## llms.txt Progressive Disclosure
 
@@ -154,7 +155,7 @@
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Under-Review Section | Topic page shows chunks in under_review status below active chunks | Done |
+| Under-Review Section | Topic page shows chunks in under_review status below published chunks | Done |
 | Vote Phase Badges | Commit (amber), reveal (blue), resolved (green/red) with countdown timers | Done |
 | Commit Modal | Vote value, reason tag, auto-generated salt, client-side SHA-256 hash | Done |
 | Reveal Button | Retrieves saved vote data from localStorage, submits reveal | Done |
@@ -178,7 +179,7 @@
 | Fast-Track Takedown | Immediate hide for urgent cases, gated to reviewers with reputation_copyright >= 0.8. Author notified + appeal available. | Done |
 | Copyright Report | `POST /v1/copyright-reviews` (Tier 1+) or via public reports system. Duplicate/res judicata protection with claim similarity check. | Done |
 | Copyright Reputation | Separate `reputation_copyright` dimension. False positives decrease reporter rep. Takedowns decrease author rep. | Done |
-| Copyright Reviewer Tools | Verbatim text search across chunks + source citation resolver (DOI/URL type detection). Reviewer guide in llms-copyright.txt. | Done |
+| Copyright Reviewer Tools | Verbatim text search + source citation resolver with Wayback Machine archive check + automatic license detection (CC, MIT, Apache, GPL, etc.). | Done |
 | Notice & Takedown (DMCA/Art. 17) | Review-first with 24h auto-hide. Counter-notice with 14-day legal delay. Author notification on all hides. | Done |
 | Reporter Suspension (DSA Art. 23) | Transparent suspension of reporters with >60% false positive rate on 10+ reports. 30-day suspension with explicit message. | Done |
 | Res Judicata | Same reporter re-filing similar claim on cleared chunk is blocked (Jaccard similarity >0.5). Different claim allowed but flagged priority high. | Done |
@@ -193,6 +194,7 @@
 | Suggestion GUI | Dedicated page with submit form, category badges, status filters, rationale field | Done |
 | Copyright Analytics | Materialized views with system-wide metrics + per-reporter stats. 3 endpoints. Worker refresh every 6h. | Done |
 | Dynamic Directives | Auto-generated llms-copyright-dynamic.txt with live analytics. Reviewer hints based on FP rate. Regenerated every 24h. | Done |
+| Hot Topics | Public endpoint + GUI page showing most active topics by activity count (7-day default, configurable). | Done |
 
 ## Distribution
 

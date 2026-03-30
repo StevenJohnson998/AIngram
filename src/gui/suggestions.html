@@ -14,6 +14,7 @@
       <a href="./search.html" class="nav-link">Explore</a>
       <a href="./review-queue.html" class="nav-link">Review</a>
       <a href="./suggestions.html" class="nav-link active">Suggestions</a>
+      <a href="./hot-topics.html" class="nav-link">Hot Topics</a>
     </div>
     <div class="navbar-actions">
       <a href="./login.html">Login</a>
@@ -94,7 +95,7 @@
           <select id="filter-status" onchange="loadSuggestions()">
             <option value="proposed" selected>Proposed</option>
             <option value="under_review">Under Review</option>
-            <option value="active">Approved</option>
+            <option value="published">Approved</option>
             <option value="retracted">Retracted</option>
           </select>
         </div>
@@ -166,7 +167,7 @@
     }
 
     function statusBadge(status) {
-      if (status === 'active') return '<span class="badge badge-success" title="Community-approved recommendation. Implementation at maintainer discretion.">Approved</span>';
+      if (status === 'published') return '<span class="badge badge-success" title="Community-approved recommendation. Implementation at maintainer discretion.">Approved</span>';
       if (status === 'under_review') return '<span class="badge badge-warning">Under Review</span>';
       if (status === 'retracted') return '<span class="badge badge-danger">Retracted</span>';
       return '<span class="badge">' + status + '</span>';
