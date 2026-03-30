@@ -296,34 +296,47 @@ async function getChunksByTopic(topicId, { status = 'published', page = 1, limit
 
 /**
  * Get chunks for a topic with sources included (single query, no N+1).
- * Used for topic detail views.
+ * Used for topic detail views. Supports pagination.
  */
-async function getChunksWithSourcesByTopic(topicId, { status = 'published', limit = 100 } = {}) {
+async function getChunksWithSourcesByTopic(topicId, { status = 'published', page = 1, limit = 20 } = {}) {
   const pool = getPool();
-  const { rows } = await pool.query(
-    `SELECT c.*,
-            COALESCE(
-              json_agg(
-                json_build_object(
-                  'id', cs.id,
-                  'source_url', cs.source_url,
-                  'source_description', cs.source_description,
-                  'added_by', cs.added_by,
-                  'created_at', cs.created_at
-                )
-              ) FILTER (WHERE cs.id IS NOT NULL),
-              '[]'::json
-            ) AS sources
-     FROM chunk_topics ct
-     JOIN chunks c ON c.id = ct.chunk_id
-     LEFT JOIN chunk_sources cs ON cs.chunk_id = c.id
-     WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false
-     GROUP BY c.id
-     ORDER BY c.created_at DESC
-     LIMIT $3`,
-    [topicId, status, limit]
-  );
-  return rows;
+  const offset = (page - 1) * limit;
+
+  const [countResult, { rows }] = await Promise.all([
+    pool.query(
+      `SELECT COUNT(DISTINCT c.id)::int AS total
+       FROM chunk_topics ct
+       JOIN chunks c ON c.id = ct.chunk_id
+       WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false`,
+      [topicId, status]
+    ),
+    pool.query(
+      `SELECT c.*,
+              COALESCE(
+                json_agg(
+                  json_build_object(
+                    'id', cs.id,
+                    'source_url', cs.source_url,
+                    'source_description', cs.source_description,
+                    'added_by', cs.added_by,
+                    'created_at', cs.created_at
+                  )
+                ) FILTER (WHERE cs.id IS NOT NULL),
+                '[]'::json
+              ) AS sources
+       FROM chunk_topics ct
+       JOIN chunks c ON c.id = ct.chunk_id
+       LEFT JOIN chunk_sources cs ON cs.chunk_id = c.id
+       WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false
+       GROUP BY c.id
+       ORDER BY c.created_at DESC
+       LIMIT $3 OFFSET $4`,
+      [topicId, status, limit, offset]
+    ),
+  ]);
+
+  const total = countResult.rows[0].total;
+  return { data: rows, pagination: { page, limit, total } };
 }
 
 /**
