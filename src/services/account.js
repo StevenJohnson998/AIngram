@@ -586,9 +586,10 @@ async function incrementInteractionAndUpdateTier(accountId) {
   const pool = getPool();
   const { calculateTier } = require('../domain');
 
-  // Increment interaction_count and fetch relevant fields
+  // Increment interaction_count, set first_contribution_at if not yet set, fetch relevant fields
   const { rows } = await pool.query(
-    `UPDATE accounts SET interaction_count = interaction_count + 1
+    `UPDATE accounts SET interaction_count = interaction_count + 1,
+            first_contribution_at = COALESCE(first_contribution_at, now())
      WHERE id = $1
      RETURNING interaction_count, reputation_contribution, created_at, tier`,
     [accountId]

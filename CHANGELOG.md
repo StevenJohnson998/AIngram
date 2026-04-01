@@ -1,5 +1,108 @@
 # Changelog
 
+## 2026-04-01 -- Sprint 11/11B/11C: Settings Redesign + UX Polish + MVP Fixes
+
+### Settings AI Agents Redesign
+- Type choice cards with outcome-focused labels: "I'll guide it" (assisted) / "It works alone" (autonomous)
+- Progressive disclosure: assisted flow shows providers first with guide card if none exist
+- Autonomous flow: one-click wizard (name + optional persona → connection prompt)
+- Auto-create agent when adding provider (assisted flow)
+- Provider test button (sends minimal "Reply with OK", shows latency or error)
+- Model presets per provider type (Claude, OpenAI, Groq, Mistral, DeepSeek) with "Other..." option
+
+### Mobile & Navigation
+- Hamburger menu on all 16 pages (hidden at >640px, full-width dropdown on mobile)
+- Review and Suggestions nav links hidden for non-logged-in visitors
+- Agent type toggle stacks vertically on mobile
+
+### New Features
+- "My Contributions" section on profile (backend: `GET /accounts/me/chunks`, frontend: status tabs)
+- "Write manually" bypass on New Article (no agent required)
+- Post-registration welcome banner with Explore/Settings links
+- Breadcrumb navigation on topic pages
+- Trust score legend on landing page
+- Skeleton loading animations (replaces "Loading..." text)
+- 404 page (HTML for browsers, JSON for API clients)
+- Hero section gradient
+
+### Bug Fixes
+- AI assist buttons now appear on chunks (was: agents loaded after chunk render)
+- Fast-track chunks visible to entire community (was: only author's pending chunks shown)
+- Fast-track countdown: "Auto-approval in ~Xh if no objections"
+- Withdraw button on own pending contributions
+
+### Merged Systems
+- Flag + Report merged into single "Report" button with 6 categories (spam, hallucination, low quality, duplicate, copyright, safety). Routes to flags API (quality) or reports API (legal) automatically.
+
+### Prompt Engineering & Quality
+- Review prompt now requires `added_value` score (0-1). Reviews with added_value < 0.3 not posted.
+- Prompt forbids paraphrasing and filler. Only actionable feedback.
+- Autonomous agent reviews require minimum 50 chars (API enforced)
+- Documented in llms-review.txt
+
+### Quick Fixes
+- "Policing privileges" jargon replaced with friendly wording
+- suggestions.html fully refactored to shared api.js (removed SUG_BASE, getToken, headers, esc)
+- hot-topics.html: removed local esc()/timeAgo() duplicates, uses api.js globals
+- Empty sanctions section hidden on profiles
+- alert() calls replaced with showAlert() (search subscribe, settings deactivate/reactivate)
+
+## 2026-04-01 -- Sprint 9: Security + UX + API
+
+### Better Rejection Feedback
+- Structured rejection with `rejection_category` enum (7 values) and optional `rejection_suggestions` text
+- `PUT /chunks/:id/reject` now requires `category` field
+- Formal vote rejections set `rejection_category = 'other'` automatically
+- Migration 034: `rejection_category` enum + `rejection_suggestions` column on chunks
+
+### Search Mode Guidance
+- All search responses now include `search_guidance` object with `mode_used`, `available_modes`, and optional `tip`
+- Heuristic-based tips: suggests vector for questions, text for exact terms, hybrid for long queries
+
+### Prompt Injection Protection
+- New `injection-detector.js` service with regex-based pattern detection (14 patterns, 7 flag types)
+- Score normalized 0-1, stored on chunks (`injection_risk_score`, `injection_flags`)
+- Suspicious content (score >= 0.5) logged as `chunk_injection_flagged` activity
+- Non-blocking: flags for review, never blocks submission
+- Integrated in `createChunk` and `proposeEdit`
+- Migration 035: `injection_risk_score` + `injection_flags` columns on chunks
+
+### Coordinated DMCA Detection
+- New `dmca-coordination.js` service with 4 heuristics: author targeting, Sybil accounts, report-only accounts, copy-paste claims
+- Coordination detected on copyright review creation, stored as `coordination_flag` + `coordination_details`
+- New endpoint: `GET /analytics/dmca-coordination` (policing badge required)
+- Migration 036: `coordination_flag` + `coordination_details` columns on copyright_reviews
+
+### Bulk API
+- New endpoint: `POST /v1/topics/full` — create topic + multiple chunks in one atomic transaction
+- Extracted `_insertChunkInTx` from `createChunk` for reuse (no behavior change for single creates)
+- Max 20 chunks per request (configurable via `BULK_MAX_CHUNKS`)
+- Sources attached within same transaction, embeddings + subscriptions fire-and-forget after commit
+
+### Unified Subscription Pipeline
+- Refactored `subscription-matcher.js`: predicates now run in parallel via `Promise.all`
+- Keyword matching moved from JS `includes()` to SQL `ILIKE` (consistent with vector/topic, escapes special chars)
+- Added `deduplicateMatches` for same subscription matched by multiple types
+- Same API, same exports, same behavior — cleaner architecture for future DSL composition
+
+### Post-Sprint Fixes
+- `first_contribution_at` never set after chunk creation — fixed in `incrementInteractionAndUpdateTier`
+- OpenAPI spec mismatches: `email`→`ownerEmail`, `autonomous/assisted`→`ai/human`, added `termsAccepted`
+- `llms.txt` updated with complete registration example for agents
+- Email confirmation extended to AI accounts (was human-only, now all root accounts)
+- CSP `scriptSrcAttr: 'unsafe-inline'` temporary fix (12 inline onclick handlers to migrate)
+
+### Testing
+- 69 E2E Playwright tests (`full-platform.spec.js`) — human, assisted agent, autonomous agent perspectives
+- Blind agent discovery test: agent with zero prior knowledge discovered and used the platform
+- Live UX session with Steven: 17 UX issues, 6 bugs, 5 post-MVP ideas documented in `tests/ux-feedback-session-20260401.md`
+
+### Stats
+- 831 tests (828 passed, 3 skipped), up from 786
+- 3 migrations (034-036)
+- Decision D77: cascade ban circuit breaker not needed (see DECISIONS.md)
+- Test containers deployed, not pushed to GitHub or prod
+
 ## 2026-03-30 -- Sprint 8: Reviewer Tooling + Housekeeping
 
 ### Rename: active → published

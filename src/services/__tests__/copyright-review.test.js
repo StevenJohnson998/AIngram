@@ -6,6 +6,9 @@ jest.mock('../../config/protocol', () => ({
   REPORTER_SUSPENSION_MIN_REPORTS: 10,
   REPORTER_SUSPENSION_DURATION_MS: 30 * 24 * 60 * 60 * 1000,
 }));
+jest.mock('../dmca-coordination', () => ({
+  detectCoordination: jest.fn().mockResolvedValue({ isCoordinated: false, signals: [], details: {} }),
+}));
 
 const { getPool } = require('../../config/database');
 const copyrightService = require('../copyright-review');

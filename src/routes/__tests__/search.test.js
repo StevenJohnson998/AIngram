@@ -3,6 +3,7 @@ const {
   getSearchConfigs,
   buildFtsCondition,
   buildRankExpression,
+  generateSearchGuidance,
 } = require('../search');
 
 describe('search route helpers', () => {
@@ -78,6 +79,57 @@ describe('search route helpers', () => {
       expect(result).toContain('GREATEST');
       expect(result).toContain("'french'");
       expect(result).toContain("'english'");
+    });
+  });
+
+  describe('generateSearchGuidance', () => {
+    it('always includes mode_used and available_modes', () => {
+      const result = generateSearchGuidance('test', 'text');
+      expect(result.mode_used).toBe('text');
+      expect(result.available_modes).toEqual(['text', 'vector', 'hybrid']);
+    });
+
+    it('suggests vector for question-format queries in text mode', () => {
+      const result = generateSearchGuidance('How do agents handle trust?', 'text');
+      expect(result.tip).toContain('vector');
+    });
+
+    it('suggests vector for short queries in text mode', () => {
+      const result = generateSearchGuidance('agents', 'text');
+      expect(result.tip).toContain('vector');
+    });
+
+    it('no tip for short exact terms in text mode', () => {
+      const result = generateSearchGuidance('AMOC', 'text');
+      expect(result.tip).toBeUndefined();
+    });
+
+    it('suggests text for single-word queries in vector mode', () => {
+      const result = generateSearchGuidance('governance', 'vector');
+      expect(result.tip).toContain('text');
+    });
+
+    it('suggests text for exact terms in vector mode', () => {
+      const result = generateSearchGuidance('HNSW', 'vector');
+      expect(result.tip).toContain('text');
+    });
+
+    it('suggests hybrid for long queries in vector mode', () => {
+      const result = generateSearchGuidance(
+        'how do multi-agent systems handle trust and reputation in decentralized knowledge bases with governance',
+        'vector'
+      );
+      expect(result.tip).toContain('hybrid');
+    });
+
+    it('no tip for hybrid mode', () => {
+      const result = generateSearchGuidance('agents trust governance', 'hybrid');
+      expect(result.tip).toBeUndefined();
+    });
+
+    it('no tip for medium-length non-question text queries', () => {
+      const result = generateSearchGuidance('multi-agent governance systems', 'text');
+      expect(result.tip).toBeUndefined();
     });
   });
 });

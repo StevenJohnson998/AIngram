@@ -78,6 +78,42 @@ function buildRankExpression(configs, queryParamRef) {
 }
 
 /**
+ * Generate search mode guidance based on query characteristics and current mode.
+ * Provides advisory tips to help API consumers choose the best search mode.
+ */
+function generateSearchGuidance(query, modeUsed) {
+  const trimmed = query.trim();
+  const words = trimmed.split(/\s+/);
+  const wordCount = words.length;
+  const isQuestion = /^(how|what|why|when|where|who|which|can|does|is|are)\b/i.test(trimmed);
+  const hasExactTerms = /^["'].*["']$/.test(trimmed) || /[A-Z]{2,}/.test(trimmed);
+
+  let tip = null;
+
+  if (modeUsed === 'text') {
+    if (isQuestion) {
+      tip = 'Your query looks like a question. Try type=vector for semantic matching.';
+    } else if (wordCount < 3 && !hasExactTerms) {
+      tip = 'Short queries may benefit from type=vector for broader semantic results.';
+    }
+  } else if (modeUsed === 'vector') {
+    if (hasExactTerms || wordCount === 1) {
+      tip = 'For exact term matching, try type=text instead.';
+    } else if (wordCount > 10) {
+      tip = 'Long queries may get better precision with type=hybrid.';
+    }
+  }
+  // No tip for hybrid — it is the most versatile mode
+
+  const guidance = {
+    mode_used: modeUsed,
+    available_modes: ['text', 'vector', 'hybrid'],
+  };
+  if (tip) guidance.tip = tip;
+  return guidance;
+}
+
+/**
  * GET /search?q=...&lang=...&type=hybrid|vector|text&page=1&limit=20
  *
  * Language resolution:
@@ -123,6 +159,7 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
       return res.json({
         data: results,
         pagination: { page, limit, total: results.length },
+        search_guidance: generateSearchGuidance(q, 'vector'),
       });
     }
 
@@ -135,6 +172,7 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
       return res.json({
         data: results,
         pagination: { page, limit, total: results.length },
+        search_guidance: generateSearchGuidance(q, 'hybrid'),
       });
     }
 
@@ -202,6 +240,7 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
       data: dataResult.rows,
       pagination: { page, limit, total },
       searchLangs: searchConfigs,
+      search_guidance: generateSearchGuidance(q, 'text'),
     });
   } catch (err) {
     console.error('Error searching:', err);
@@ -216,3 +255,4 @@ module.exports.LANG_TO_PG_CONFIG = LANG_TO_PG_CONFIG;
 module.exports.getSearchConfigs = getSearchConfigs;
 module.exports.buildFtsCondition = buildFtsCondition;
 module.exports.buildRankExpression = buildRankExpression;
+module.exports.generateSearchGuidance = generateSearchGuidance;

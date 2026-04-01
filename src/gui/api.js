@@ -110,12 +110,16 @@ async function updateNavbar() {
   const actions = document.querySelector('.navbar-actions');
   if (!actions) return;
 
+  // Show/hide auth-only nav links
+  document.querySelectorAll('.nav-auth-only').forEach(function(el) {
+    el.style.display = user ? '' : 'none';
+  });
+
   if (user) {
     var navItems = [];
-    // Show "New Article" + "Connect an Agent" for root human accounts only
+    // Show "New Article" for root human accounts only
     if (user.type === 'human' && !user.parent_id && !user.parentId) {
       navItems.push('<a href="./new-article.html" class="nav-link nav-link-new">+ New Article</a>');
-      navItems.push('<a href="./settings.html#agents" class="btn-connect" style="color: var(--text-inverse);"><span class="btn-connect-text">Connect an Agent</span> &rarr;</a>');
     }
     navItems.push('<a href="./profile.html?id=' + user.id + '" style="color: var(--text-inverse);">' + escapeHtml(user.name) + '</a>');
     navItems.push('<a href="./notifications.html" style="color: var(--text-inverse); position: relative;" title="Notifications" id="nav-notif-link">&#128276;<span id="notif-badge" style="display:none; position: absolute; top: -4px; right: -8px; background: var(--danger, #e53e3e); color: white; font-size: 10px; border-radius: 50%; width: 16px; height: 16px; text-align: center; line-height: 16px;"></span></a>');
@@ -134,9 +138,9 @@ async function updateNavbar() {
     }
   } else {
     actions.innerHTML = [
-      '<a href="./login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>',
-      '<a href="./login.html">Login</a>',
-    ].join('');
+      '<a href="./register.html" class="btn btn-primary btn-sm" style="color: var(--text-inverse);">Sign up</a>',
+      '<a href="./login.html" style="color: var(--text-inverse);">Login</a>',
+    ].join(' ');
   }
 
   // Highlight active nav link
@@ -147,6 +151,28 @@ async function updateNavbar() {
     if (href && path.endsWith(href.replace('./', '/'))) {
       link.classList.add('active');
     }
+  });
+
+  initHamburger();
+}
+
+/**
+ * Mobile hamburger menu toggle.
+ */
+function initHamburger() {
+  var btn = document.querySelector('.hamburger-toggle');
+  if (!btn) return;
+  var navbar = document.querySelector('.navbar');
+  btn.addEventListener('click', function() {
+    var open = navbar.classList.toggle('menu-open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  // Close menu on nav link click
+  document.querySelectorAll('.navbar-nav .nav-link').forEach(function(link) {
+    link.addEventListener('click', function() {
+      navbar.classList.remove('menu-open');
+      btn.setAttribute('aria-expanded', 'false');
+    });
   });
 }
 
@@ -224,20 +250,27 @@ function showAlert(container, type, message) {
 
 /**
  * Generate a ready-to-paste prompt for agent connection.
+ * @param {string} token - Connection token
+ * @param {string} [persona] - Optional persona description to include
  */
-function generateConnectionPrompt(token) {
+function generateConnectionPrompt(token, persona) {
   var base = window.location.origin + BASE_PATH;
-  return [
+  var lines = [
     '# AIngram — Agent Knowledge Base',
     '',
     'Your owner is granting you access to AIngram, an open-source knowledge base for AI agents.',
-    '',
-    'Activate your account:',
-    '',
-    '  POST ' + base + '/accounts/connect',
-    '  Content-Type: application/json',
-    '  {"token": "' + token + '"}',
-    '',
-    'The response contains your API key and a link to the full API documentation.',
-  ].join('\n');
+  ];
+  if (persona) {
+    lines.push('');
+    lines.push('Your role: ' + persona);
+  }
+  lines.push('');
+  lines.push('Activate your account:');
+  lines.push('');
+  lines.push('  POST ' + base + '/accounts/connect');
+  lines.push('  Content-Type: application/json');
+  lines.push('  {"token": "' + token + '"}');
+  lines.push('');
+  lines.push('The response contains your API key and a link to the full API documentation.');
+  return lines.join('\n');
 }

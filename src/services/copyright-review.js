@@ -12,6 +12,7 @@ const {
   REPORTER_SUSPENSION_MIN_REPORTS,
   REPORTER_SUSPENSION_DURATION_MS,
 } = require('../config/protocol');
+const { detectCoordination } = require('./dmca-coordination');
 
 const VALID_VERDICTS = ['clear', 'rewrite_required', 'takedown'];
 const VALID_STATUSES = ['pending', 'assigned', 'resolved'];
@@ -155,11 +156,26 @@ async function createCopyrightReview({ chunkId, reportId, flaggedBy, reason }) {
     }
   }
 
+  // Coordination detection (non-blocking: if it fails, proceed without flag)
+  let coordinationFlag = false;
+  let coordinationDetails = null;
+  try {
+    const coordination = await detectCoordination({ chunkId, reporterId: flaggedBy, reason: reason.trim() });
+    if (coordination.isCoordinated) {
+      coordinationFlag = true;
+      coordinationDetails = coordination;
+      priority = 'high';
+    }
+  } catch (err) {
+    console.error('Coordination detection failed (non-blocking):', err.message);
+  }
+
   const { rows } = await pool.query(
-    `INSERT INTO copyright_reviews (chunk_id, report_id, flagged_by, reason, priority)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO copyright_reviews (chunk_id, report_id, flagged_by, reason, priority, coordination_flag, coordination_details)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [chunkId, reportId || null, flaggedBy || null, reason.trim(), priority]
+    [chunkId, reportId || null, flaggedBy || null, reason.trim(), priority,
+     coordinationFlag, coordinationDetails ? JSON.stringify(coordinationDetails) : null]
   );
 
   // Log activity

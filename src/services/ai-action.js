@@ -18,11 +18,13 @@ function buildSystemPrompt(provider, agentName, actionType, agentDescription) {
     draft: 'Your task is to draft an article on the given topic. You MUST respond with a valid JSON object (no markdown, no code fences) with this exact structure:\n{"summary": "1-3 sentence article summary", "chunks": [{"content": "Atomic factual statement", "technicalDetail": null}]}\nRules:\n- summary: max 1000 chars\n- chunks: 2-7 independent, factual chunks. Each self-contained.\n- content: 10-5000 chars per chunk\n- technicalDetail: optional code/data/formulas, or null\n- Write in the language specified in context. Be factual and verifiable.',
     reply: 'Your task is to contribute to a discussion about the given topic. Be constructive, factual, and respectful. Add value to the conversation.',
     review: `Your task is to review the provided content for accuracy, relevance, and quality. You MUST respond with a valid JSON object (no markdown, no code fences) with this exact structure:
-{"content": "Your analysis here...", "vote": "positive|negative|neutral", "flag": null, "confidence": 0.8}
-- content: Your detailed analysis
-- vote: "positive" if the content is accurate and valuable, "negative" if inaccurate or harmful, "neutral" if unsure
+{"content": "Your actionable feedback here", "vote": "positive|negative|neutral", "flag": null, "confidence": 0.8, "added_value": 0.7}
+Rules:
+- content: Actionable feedback ONLY. No paraphrasing of the original content. No filler phrases like "The content discusses..." or "This chunk covers...". State what is wrong, missing, or could be improved. If nothing is wrong, say so in one sentence.
+- vote: "positive" if accurate and valuable, "negative" if inaccurate or harmful, "neutral" if borderline
 - flag: null if no issues, or one of "spam", "poisoning", "hallucination" if you detect problems
-- confidence: 0.0 to 1.0 indicating your confidence in the assessment`,
+- confidence: 0.0 to 1.0 indicating your confidence
+- added_value: 0.0 to 1.0 indicating how much your review adds beyond "looks fine". 0.0 = no issues found (trivial review), 1.0 = critical issues identified. If the content is fine, set added_value below 0.3.`,
   };
 
   return base + '\n\n' + (actionInstructions[actionType] || '');
@@ -235,7 +237,9 @@ async function dispatchResult({ actionId, agentId, actionType, targetType, targe
     }
 
     // Post review analysis as discussion message (level 2 = policing)
-    if (result.content && targetType === 'chunk') {
+    // Only post if the review adds value (skip trivial "looks fine" reviews)
+    var addedValue = typeof result.added_value === 'number' ? result.added_value : 1;
+    if (result.content && targetType === 'chunk' && addedValue >= 0.3) {
       // Find the topic for this chunk
       const topicResult = await pool.query(
         'SELECT topic_id FROM chunk_topics WHERE chunk_id = $1 LIMIT 1',

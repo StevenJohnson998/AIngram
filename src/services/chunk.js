@@ -11,6 +11,7 @@ const accountService = require('./account');
 const { matchNewChunk } = require('./subscription-matcher');
 const { dispatchNotification } = require('./notification');
 const flagService = require('./flag');
+const { analyzeContent } = require('./injection-detector');
 
 /**
  * Match subscriptions and dispatch notifications for a chunk.
@@ -57,6 +58,44 @@ async function matchAndNotify(chunkId, triggerStatus) {
 }
 
 /**
+ * Insert a chunk within an existing transaction (reusable for single and bulk creation).
+ * Does NOT handle BEGIN/COMMIT — caller manages the transaction.
+ * @returns {object} The inserted chunk row
+ */
+async function _insertChunkInTx(client, { content, technicalDetail, createdBy, topicId, initialTrust, title, subtitle, adhp, injectionResult }) {
+  const { rows } = await client.query(
+    `INSERT INTO chunks (content, technical_detail, has_technical_detail, created_by, trust_score, title, subtitle, adhp, status,
+                         injection_risk_score, injection_flags)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'proposed', $9, $10)
+     RETURNING *`,
+    [content, technicalDetail || null, technicalDetail != null, createdBy, initialTrust, title || null, subtitle || null,
+     adhp ? JSON.stringify(adhp) : null,
+     injectionResult ? injectionResult.score : 0,
+     injectionResult && injectionResult.flags.length > 0 ? injectionResult.flags : null]
+  );
+
+  const chunk = rows[0];
+
+  await client.query(
+    'INSERT INTO chunk_topics (chunk_id, topic_id) VALUES ($1, $2)',
+    [chunk.id, topicId]
+  );
+
+  const activityMeta = { topicId };
+  if (injectionResult && injectionResult.suspicious) {
+    activityMeta.injection_risk = injectionResult.score;
+    activityMeta.injection_flags = injectionResult.flags;
+  }
+  await client.query(
+    `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+     VALUES ($1, $2, 'chunk', $3, $4)`,
+    [createdBy, injectionResult && injectionResult.suspicious ? 'chunk_injection_flagged' : 'chunk_proposed', chunk.id, JSON.stringify(activityMeta)]
+  );
+
+  return chunk;
+}
+
+/**
  * Create a chunk and link it to a topic.
  * Initial trust_score uses Beta prior: α/(α+β) based on contributor tier.
  */
@@ -99,30 +138,14 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
       // Embedding or DB unavailable — skip duplicate check, allow creation
     }
 
+    // Prompt injection detection (non-blocking, advisory only)
+    const injectionResult = analyzeContent(content);
+
     await client.query('BEGIN');
 
-    const { rows } = await client.query(
-      `INSERT INTO chunks (content, technical_detail, has_technical_detail, created_by, trust_score, title, subtitle, adhp, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'proposed')
-       RETURNING *`,
-      [content, technicalDetail || null, technicalDetail != null, createdBy, initialTrust, title, subtitle, adhp ? JSON.stringify(adhp) : null]
-    );
-
-    const chunk = rows[0];
-
-    // Link chunk to topic
-    await client.query(
-      `INSERT INTO chunk_topics (chunk_id, topic_id)
-       VALUES ($1, $2)`,
-      [chunk.id, topicId]
-    );
-
-    // Log activity
-    await client.query(
-      `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
-       VALUES ($1, 'chunk_proposed', 'chunk', $2, $3)`,
-      [createdBy, chunk.id, JSON.stringify({ topicId })]
-    );
+    const chunk = await _insertChunkInTx(client, {
+      content, technicalDetail, createdBy, topicId, initialTrust, title, subtitle, adhp, injectionResult,
+    });
 
     await client.query('COMMIT');
 
@@ -347,6 +370,9 @@ async function proposeEdit({ originalChunkId, content, technicalDetail, proposed
   const pool = getPool();
   const client = await pool.connect();
 
+  // Prompt injection detection (non-blocking, advisory only)
+  const injectionResult = analyzeContent(content);
+
   try {
     await client.query('BEGIN');
 
@@ -367,10 +393,12 @@ async function proposeEdit({ originalChunkId, content, technicalDetail, proposed
 
     const { rows } = await client.query(
       `INSERT INTO chunks (content, technical_detail, has_technical_detail, created_by, proposed_by,
-                           status, version, parent_chunk_id, trust_score)
-       VALUES ($1, $2, $3, $4, $4, 'proposed', $5, $6, $7)
+                           status, version, parent_chunk_id, trust_score,
+                           injection_risk_score, injection_flags)
+       VALUES ($1, $2, $3, $4, $4, 'proposed', $5, $6, $7, $8, $9)
        RETURNING *`,
-      [content, technicalDetail || null, technicalDetail != null, proposedBy, newVersion, originalChunkId, initialTrust]
+      [content, technicalDetail || null, technicalDetail != null, proposedBy, newVersion, originalChunkId, initialTrust,
+       injectionResult.score, injectionResult.flags.length > 0 ? injectionResult.flags : null]
     );
 
     const chunk = rows[0];
@@ -474,17 +502,18 @@ async function mergeChunk(proposedChunkId, mergedById) {
 /**
  * Reject a proposed/under_review chunk via vote or manual rejection.
  */
-async function rejectChunk(proposedChunkId, { reason, report, rejectedBy } = {}) {
+async function rejectChunk(proposedChunkId, { reason, report, rejectedBy, category, suggestions } = {}) {
   const pool = getPool();
 
   // Atomic: reject only if in proposed or under_review (avoids TOCTOU)
   const { rows } = await pool.query(
     `UPDATE chunks SET status = 'retracted', updated_at = now(),
             reject_reason = $2, rejected_by = $3, rejected_at = now(),
+            rejection_category = $4, rejection_suggestions = $5,
             retract_reason = CASE WHEN status = 'under_review' THEN 'rejected' ELSE 'withdrawn' END
      WHERE id = $1 AND status IN ('proposed', 'under_review')
      RETURNING *`,
-    [proposedChunkId, reason || null, rejectedBy || null]
+    [proposedChunkId, reason || null, rejectedBy || null, category || null, suggestions || null]
   );
 
   if (rows.length === 0) {
@@ -816,9 +845,53 @@ async function listSuggestions({ status = 'proposed', category = null, page = 1,
   };
 }
 
+/**
+ * Get chunks by account (for "My Contributions" view).
+ */
+async function getChunksByAccount(accountId, { status, page = 1, limit = 20 } = {}) {
+  const pool = getPool();
+  const offset = (page - 1) * limit;
+
+  const conditions = ['c.proposed_by = $1'];
+  const params = [accountId];
+  let paramIdx = 2;
+
+  if (status) {
+    conditions.push('c.status = $' + paramIdx);
+    params.push(status);
+    paramIdx++;
+  }
+
+  const where = conditions.join(' AND ');
+
+  const countResult = await pool.query(
+    `SELECT COUNT(*)::int AS total FROM chunks c WHERE ${where}`,
+    params
+  );
+
+  const dataResult = await pool.query(
+    `SELECT c.id, c.content, c.status, c.chunk_type, c.trust_score,
+            c.created_at, c.updated_at,
+            t.id AS topic_id, t.title AS topic_title, t.slug AS topic_slug
+     FROM chunks c
+     LEFT JOIN chunk_topics ct ON ct.chunk_id = c.id
+     LEFT JOIN topics t ON t.id = ct.topic_id
+     WHERE ${where}
+     ORDER BY c.created_at DESC
+     LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+    [...params, limit, offset]
+  );
+
+  return {
+    data: dataResult.rows,
+    pagination: { page, limit, total: countResult.rows[0].total },
+  };
+}
+
 module.exports = {
   createChunk,
   createSuggestion,
+  _insertChunkInTx,
   getChunkById,
   updateChunk,
   retractChunk,
@@ -835,4 +908,5 @@ module.exports = {
   listSuggestions,
   escalateToReview,
   resubmitChunk,
+  getChunksByAccount,
 };

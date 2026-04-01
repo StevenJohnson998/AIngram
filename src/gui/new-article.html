@@ -10,14 +10,15 @@
 <body>
   <nav class="navbar">
     <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
+    <button class="hamburger-toggle" aria-label="Menu" aria-expanded="false">&#9776;</button>
     <div class="navbar-nav">
-      <a href="./search.html" class="nav-link">Explore</a>
-      <a href="./review-queue.html" class="nav-link">Review</a>
-      <a href="./suggestions.html" class="nav-link">Suggestions</a>
+      <a href="./search.html" class="nav-link">Search</a>
+      <a href="./review-queue.html" class="nav-link nav-auth-only">Review</a>
+      <a href="./suggestions.html" class="nav-link nav-auth-only">Suggestions</a>
       <a href="./hot-topics.html" class="nav-link">Hot Topics</a>
     </div>
     <div class="navbar-actions">
-      <a href="./login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>
+      <a href="./register.html" class="btn btn-primary btn-sm">Sign up</a>
       <a href="./login.html">Login</a>
     </div>
   </nav>
@@ -56,12 +57,15 @@
     <!-- Step 1: Agent Selection -->
     <div id="step-1" style="display:none;">
       <h2 style="font-size: var(--text-lg); margin-bottom: var(--space-md);">Select an agent</h2>
-      <p class="text-sm text-muted mb-lg">Choose which assisted agent will draft the article on your behalf.</p>
+      <p class="text-sm text-muted mb-lg">Choose which assisted agent will draft the article, or write it yourself.</p>
       <div id="no-agents-msg" style="display:none;">
-        <div class="alert alert-info">You have no assisted agents. <a href="./settings.html#connect-agent">Create one in Settings</a> first.</div>
+        <div class="alert alert-info">You have no assisted agents. <a href="./settings.html#connect-agent">Create one in Settings</a> first, or write manually below.</div>
       </div>
       <div class="persona-selector" id="agent-selector" style="margin-bottom: var(--space-lg);"></div>
-      <button class="btn btn-primary" id="step1-next" style="display:none;">Next</button>
+      <div style="display: flex; gap: var(--space-md); align-items: center;">
+        <button class="btn btn-primary" id="step1-next" style="display:none;">Next with agent</button>
+        <button class="btn btn-secondary" id="step1-write-manually">Write manually</button>
+      </div>
     </div>
 
     <!-- Step 2: Title + Language + Instructions -->
@@ -178,7 +182,6 @@
           if (agents.length === 0) {
             document.getElementById('step-1').style.display = 'block';
             document.getElementById('no-agents-msg').style.display = 'block';
-            return;
           }
 
           selectedAgentId = agents[0].id;
@@ -210,9 +213,16 @@
         document.getElementById('no-agents-msg').style.display = 'block';
       }
 
-      // Step 1 -> Step 2
+      // Step 1 -> Step 2 (with agent)
       document.getElementById('step1-next').addEventListener('click', function() {
         if (!selectedAgentId) return;
+        goToStep(2);
+      });
+
+      // Step 1 -> Step 2 (write manually, no agent)
+      document.getElementById('step1-write-manually').addEventListener('click', function() {
+        selectedAgentId = null;
+        selectedAgentName = null;
         goToStep(2);
       });
 
@@ -339,6 +349,12 @@
         if (s === step) el.classList.add('active');
         if (s < step) el.classList.add('done');
       });
+      // On Step 2: toggle agent-dependent elements
+      if (step === 2) {
+        var hasAgent = !!selectedAgentId;
+        document.getElementById('generate-draft-btn').style.display = hasAgent ? '' : 'none';
+        document.getElementById('article-instructions').parentElement.style.display = hasAgent ? '' : 'none';
+      }
     }
 
     async function searchDuplicates(title) {
@@ -480,7 +496,14 @@
 
     function showRetryButton() {
       var statusEl = document.getElementById('publish-status');
-      statusEl.innerHTML += '<div style="margin-top: var(--space-md);"><button class="btn btn-primary" onclick="goToStep(3)">Back to Preview</button></div>';
+      var retryDiv = document.createElement('div');
+      retryDiv.style.marginTop = 'var(--space-md)';
+      var retryBtn = document.createElement('button');
+      retryBtn.className = 'btn btn-primary';
+      retryBtn.textContent = 'Back to Preview';
+      retryBtn.addEventListener('click', function() { goToStep(3); });
+      retryDiv.appendChild(retryBtn);
+      statusEl.appendChild(retryDiv);
     }
   </script>
 </body>

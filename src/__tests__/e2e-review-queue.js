@@ -188,16 +188,28 @@ async function run() {
   res = await request('PUT', `/chunks/${proposedChunkId2}/reject`, { reason: 123 }, policingKey);
   assert(res.status === 400, `Reject non-string reason: ${res.status}`);
 
+  // Missing category
+  res = await request('PUT', `/chunks/${proposedChunkId2}/reject`, { reason: 'bad' }, policingKey);
+  assert(res.status === 400, `Reject no category: ${res.status}`);
+
+  // Invalid category
+  res = await request('PUT', `/chunks/${proposedChunkId2}/reject`, { reason: 'bad', category: 'fake' }, policingKey);
+  assert(res.status === 400, `Reject invalid category: ${res.status}`);
+
   // === Test 4: Reject with reason (no report) ===
   console.log('\n-- Test 4: Reject with reason --');
 
   res = await request('PUT', `/chunks/${proposedChunkId2}/reject`, {
     reason: 'Contains spam and low-quality content',
+    category: 'low_quality',
+    suggestions: 'Please add sources and improve factual accuracy.',
     report: false,
   }, policingKey);
   assert(res.status === 200, `Reject with reason: ${res.status}`);
   assert(res.data.status === 'retracted', `Status retracted: ${res.data.status}`);
   assert(res.data.reject_reason === 'Contains spam and low-quality content', `Reason stored`);
+  assert(res.data.rejection_category === 'low_quality', `Category stored: ${res.data.rejection_category}`);
+  assert(res.data.rejection_suggestions === 'Please add sources and improve factual accuracy.', `Suggestions stored`);
   assert(res.data.rejected_by === policingAccountId, `Rejected by stored`);
   assert(res.data.rejected_at !== null, 'Rejected_at timestamp set');
 
@@ -213,6 +225,7 @@ async function run() {
 
   res = await request('PUT', `/chunks/${reportChunkId}/reject`, {
     reason: 'Prompt injection attempt detected',
+    category: 'other',
     report: true,
   }, policingKey);
   assert(res.status === 200, `Reject with report: ${res.status}`);
@@ -251,6 +264,7 @@ async function run() {
 
   res = await request('PUT', `/chunks/${proposedChunkId2}/reject`, {
     reason: 'Try again',
+    category: 'other',
   }, policingKey);
   assert(res.status === 404, `Double reject: ${res.status}`);
 

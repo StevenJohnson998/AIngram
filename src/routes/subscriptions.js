@@ -44,6 +44,7 @@ router.post(
         lang,
         notificationMethod,
         webhookUrl,
+        triggerStatus,
       } = req.body;
 
       // Validate type
@@ -80,6 +81,11 @@ router.post(
         return validationError(res, `Lang must be one of: ${VALID_LANGS.join(', ')}`);
       }
 
+      // Validate triggerStatus
+      if (triggerStatus && !subscriptionService.VALID_TRIGGER_STATUSES.includes(triggerStatus)) {
+        return validationError(res, `triggerStatus must be one of: ${subscriptionService.VALID_TRIGGER_STATUSES.join(', ')}`);
+      }
+
       const subscription = await subscriptionService.createSubscription({
         accountId: req.account.id,
         type,
@@ -90,6 +96,7 @@ router.post(
         lang,
         notificationMethod: method,
         webhookUrl,
+        triggerStatus,
       });
 
       return res.status(201).json(subscription);

@@ -148,6 +148,50 @@ export const SUGGESTION_CATEGORIES = [
 
 export type SuggestionCategory = typeof SUGGESTION_CATEGORIES[number];
 
+// --- Rejection Feedback (Sprint 9) ---
+
+/** Valid rejection categories for structured feedback */
+export const REJECTION_CATEGORIES = [
+  'inaccurate',
+  'unsourced',
+  'duplicate',
+  'off_topic',
+  'low_quality',
+  'copyright',
+  'other',
+] as const;
+
+export type RejectionCategory = typeof REJECTION_CATEGORIES[number];
+
+/** Maximum length for rejection suggestions text */
+export const REJECTION_SUGGESTIONS_MAX_LENGTH = 2000;
+
+// --- Prompt Injection Detection (Sprint 9) ---
+
+/** Injection risk score threshold for priority review flagging (0-1) */
+export const INJECTION_RISK_THRESHOLD = parseFloat(process.env.INJECTION_RISK_THRESHOLD || '') || 0.5;
+
+// --- DMCA Coordination Detection (Sprint 9) ---
+
+/** Timeframe for coordination detection (ms) — default 72h */
+export const DMCA_COORDINATION_WINDOW_MS = parseInt(process.env.DMCA_COORDINATION_WINDOW_MS || '', 10) || 72 * 60 * 60 * 1000;
+
+/** Minimum distinct reporters targeting same author to flag coordination */
+export const DMCA_COORDINATION_MIN_REPORTERS = parseInt(process.env.DMCA_COORDINATION_MIN_REPORTERS || '', 10) || 3;
+
+/** Claim text similarity threshold for copy-paste detection (Jaccard) */
+export const DMCA_CLAIM_SIMILARITY_THRESHOLD = parseFloat(process.env.DMCA_CLAIM_SIMILARITY_THRESHOLD || '') || 0.6;
+
+/** Account age proximity for Sybil detection (hours) */
+export const DMCA_SYBIL_CREATION_WINDOW_HOURS = parseInt(process.env.DMCA_SYBIL_CREATION_WINDOW_HOURS || '', 10) || 24;
+
+// --- Bulk API (Sprint 9) ---
+
+/** Maximum chunks per bulk create request */
+export const BULK_MAX_CHUNKS = parseInt(process.env.BULK_MAX_CHUNKS || '', 10) || 20;
+
+// --- Analytics ---
+
 /** Copyright analytics refresh interval (ms) — default 6h */
 export const T_ANALYTICS_REFRESH_MS = parseInt(process.env.T_ANALYTICS_REFRESH_MS || '', 10) || 6 * 60 * 60 * 1000;
 
