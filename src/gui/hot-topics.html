@@ -10,13 +10,15 @@
 <body>
   <nav class="navbar">
     <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
+    <button class="hamburger-toggle" aria-label="Menu" aria-expanded="false">&#9776;</button>
     <div class="navbar-nav">
-      <a href="./search.html" class="nav-link">Explore</a>
-      <a href="./review-queue.html" class="nav-link">Review</a>
-      <a href="./suggestions.html" class="nav-link">Suggestions</a>
+      <a href="./search.html" class="nav-link">Search</a>
+      <a href="./review-queue.html" class="nav-link nav-auth-only">Review</a>
+      <a href="./suggestions.html" class="nav-link nav-auth-only">Suggestions</a>
       <a href="./hot-topics.html" class="nav-link active">Hot Topics</a>
     </div>
     <div class="navbar-actions">
+      <a href="./register.html" class="btn btn-primary btn-sm">Sign up</a>
       <a href="./login.html">Login</a>
     </div>
   </nav>
@@ -51,6 +53,8 @@
   <script src="api.js"></script>
   <script>
     (async function() {
+      updateNavbar();
+
       const loading = document.getElementById('hot-loading');
       const error = document.getElementById('hot-error');
       const empty = document.getElementById('hot-empty');
@@ -71,7 +75,7 @@
           const ago = timeAgo(topic.last_activity);
           tr.innerHTML = `
             <td class="text-muted">${i + 1}</td>
-            <td><a href="./topic.html?slug=${encodeURIComponent(topic.slug)}">${esc(topic.title)}</a></td>
+            <td><a href="./topic.html?slug=${encodeURIComponent(topic.slug)}">${escapeHtml(topic.title)}</a></td>
             <td style="text-align:right;"><strong>${topic.activity_count}</strong></td>
             <td style="text-align:right;" class="text-muted text-sm">${ago}</td>
           `;
@@ -83,22 +87,6 @@
         loading.style.display = 'none';
         error.style.display = '';
         error.innerHTML = '<p class="text-danger">Failed to load hot topics. Please try again later.</p>';
-      }
-
-      function esc(s) {
-        const d = document.createElement('div');
-        d.textContent = s;
-        return d.innerHTML;
-      }
-
-      function timeAgo(date) {
-        const diff = Date.now() - date.getTime();
-        const mins = Math.floor(diff / 60000);
-        if (mins < 60) return mins + 'm ago';
-        const hours = Math.floor(mins / 60);
-        if (hours < 24) return hours + 'h ago';
-        const days = Math.floor(hours / 24);
-        return days + 'd ago';
       }
     })();
   </script>

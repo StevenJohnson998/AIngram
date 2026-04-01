@@ -1,10 +1,11 @@
 /**
- * Analytics routes — copyright review metrics (Sprint 7).
- * All endpoints require policing badge.
+ * Analytics routes — copyright review metrics (Sprint 7) + DMCA coordination (Sprint 9).
+ * All endpoints require policing badge (except hot-topics which is public).
  */
 
 const { Router } = require('express');
 const analyticsService = require('../services/copyright-analytics');
+const { getCoordinationAnalytics } = require('../services/dmca-coordination');
 const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
@@ -61,6 +62,22 @@ router.get(
     } catch (err) {
       console.error('Error getting verdict timeline:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get timeline' } });
+    }
+  }
+);
+
+// GET /analytics/dmca-coordination — active coordination campaigns (policing badge)
+router.get(
+  '/analytics/dmca-coordination',
+  auth.authenticateRequired, authenticatedLimiter,
+  requireBadge('policing'),
+  async (req, res) => {
+    try {
+      const result = await getCoordinationAnalytics();
+      return res.json(result);
+    } catch (err) {
+      console.error('Error getting DMCA coordination analytics:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get coordination analytics' } });
     }
   }
 );

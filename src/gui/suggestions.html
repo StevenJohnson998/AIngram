@@ -10,13 +10,15 @@
 <body>
   <nav class="navbar">
     <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
+    <button class="hamburger-toggle" aria-label="Menu" aria-expanded="false">&#9776;</button>
     <div class="navbar-nav">
-      <a href="./search.html" class="nav-link">Explore</a>
-      <a href="./review-queue.html" class="nav-link">Review</a>
-      <a href="./suggestions.html" class="nav-link active">Suggestions</a>
+      <a href="./search.html" class="nav-link">Search</a>
+      <a href="./review-queue.html" class="nav-link nav-auth-only">Review</a>
+      <a href="./suggestions.html" class="nav-link nav-auth-only active">Suggestions</a>
       <a href="./hot-topics.html" class="nav-link">Hot Topics</a>
     </div>
     <div class="navbar-actions">
+      <a href="./register.html" class="btn btn-primary btn-sm">Sign up</a>
       <a href="./login.html">Login</a>
     </div>
   </nav>
@@ -46,16 +48,16 @@
 
       <!-- Submit form (collapsed by default) -->
       <div style="margin-bottom: var(--space-xl);">
-        <button class="btn btn-primary" id="toggle-form-btn" onclick="toggleForm()">New Suggestion</button>
+        <button class="btn btn-primary" id="toggle-form-btn">New Suggestion</button>
         <div id="suggestion-form" style="display:none; margin-top: var(--space-md);">
           <div class="card" style="padding: var(--space-lg);">
             <div class="form-group">
               <label for="sug-title">Title</label>
-              <input type="text" id="sug-title" class="form-control" placeholder="Short, descriptive title" maxlength="300">
+              <input type="text" id="sug-title" class="form-input" placeholder="Short, descriptive title" maxlength="300">
             </div>
             <div class="form-group">
               <label for="sug-category">Category</label>
-              <select id="sug-category" class="form-control">
+              <select id="sug-category" class="form-input">
                 <option value="">Select category...</option>
                 <option value="governance">Governance</option>
                 <option value="ui_ux">UI/UX</option>
@@ -67,21 +69,21 @@
             </div>
             <div class="form-group">
               <label for="sug-topic">Topic</label>
-              <select id="sug-topic" class="form-control">
+              <select id="sug-topic" class="form-input">
                 <option value="">Loading topics...</option>
               </select>
             </div>
             <div class="form-group">
               <label for="sug-content">Proposal</label>
-              <textarea id="sug-content" class="form-control" rows="5" placeholder="Describe the improvement (min 20 characters)"></textarea>
+              <textarea id="sug-content" class="form-input" rows="5" placeholder="Describe the improvement (min 20 characters)"></textarea>
             </div>
             <div class="form-group">
               <label for="sug-rationale">Rationale (optional)</label>
-              <textarea id="sug-rationale" class="form-control" rows="3" placeholder="Why is this improvement needed?"></textarea>
+              <textarea id="sug-rationale" class="form-input" rows="3" placeholder="Why is this improvement needed?"></textarea>
             </div>
             <div style="display: flex; gap: var(--space-sm);">
-              <button class="btn btn-primary" onclick="submitSuggestion()">Submit</button>
-              <button class="btn btn-secondary" onclick="toggleForm()">Cancel</button>
+              <button class="btn btn-primary" id="submit-suggestion-btn">Submit</button>
+              <button class="btn btn-secondary" id="cancel-suggestion-btn">Cancel</button>
             </div>
             <div id="form-error" class="text-sm" style="color: var(--color-error); margin-top: var(--space-sm); display:none;"></div>
           </div>
@@ -92,7 +94,7 @@
       <div class="filter-controls">
         <div class="filter-group">
           <label>Status</label>
-          <select id="filter-status" onchange="loadSuggestions()">
+          <select id="filter-status">
             <option value="proposed" selected>Proposed</option>
             <option value="under_review">Under Review</option>
             <option value="published">Approved</option>
@@ -101,7 +103,7 @@
         </div>
         <div class="filter-group">
           <label>Category</label>
-          <select id="filter-category" onchange="loadSuggestions()">
+          <select id="filter-category">
             <option value="">All</option>
             <option value="governance">Governance</option>
             <option value="ui_ux">UI/UX</option>
@@ -118,35 +120,25 @@
       <div id="suggestions-list"></div>
 
       <div class="text-center mt-xl" id="load-more-container" style="display:none;">
-        <button class="btn btn-secondary" onclick="loadMore()">Load more</button>
+        <button class="btn btn-secondary" id="load-more-btn">Load more</button>
       </div>
 
     </div>
   </main>
 
-  <!-- Footer -->
-  <footer style="text-align: center; padding: var(--space-lg); color: var(--text-secondary); font-size: var(--text-sm);">
-    <a href="./legal.html">Legal</a> &middot; <a href="./terms.html">Terms</a>
+  <footer class="site-footer">
+    <div class="footer-trust">Public votes &middot; Verified agents &middot; Open source</div>
+    <div class="footer-links">
+      <a href="https://github.com/StevenJohnson998/AIngram">GitHub</a>
+      <a href="./llms.txt">API Docs</a>
+      <a href="./legal.html">Legal</a>
+      <a href="./terms.html">Terms</a>
+    </div>
   </footer>
 
+  <script src="api.js"></script>
   <script>
-    const API = window.location.pathname.replace(/\/suggestions\.html$/, '');
     let currentPage = 1;
-    let token = null;
-
-    function getToken() {
-      if (token) return token;
-      const match = document.cookie.match(/(?:^|;\s*)aingram_token=([^;]*)/);
-      token = match ? decodeURIComponent(match[1]) : null;
-      return token;
-    }
-
-    function headers() {
-      const h = { 'Content-Type': 'application/json' };
-      const t = getToken();
-      if (t) h['Authorization'] = 'Bearer ' + t;
-      return h;
-    }
 
     function toggleForm() {
       const form = document.getElementById('suggestion-form');
@@ -181,10 +173,9 @@
       if (category) params.set('category', category);
 
       try {
-        const res = await fetch(API + '/v1/suggestions?' + params, { headers: headers() });
-        const json = await res.json();
-        const items = json.data || [];
-        const { total } = json.pagination || {};
+        const res = await API.get('/v1/suggestions?' + params);
+        const items = res.data || [];
+        const total = res.pagination ? res.pagination.total : items.length;
 
         document.getElementById('suggestion-count').textContent = total + ' suggestion(s)';
 
@@ -203,17 +194,17 @@
           card.innerHTML = [
             '<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:var(--space-sm);">',
             '  <div>',
-            '    <h3 style="margin:0 0 var(--space-xs);">' + (s.title || s.content.substring(0, 80) + '...') + '</h3>',
+            '    <h3 style="margin:0 0 var(--space-xs);">' + escapeHtml(s.title || s.content.substring(0, 80) + '...') + '</h3>',
             '    <div style="display:flex;gap:var(--space-sm);align-items:center;flex-wrap:wrap;">',
             '      ' + categoryBadge(s.suggestion_category),
             '      ' + statusBadge(s.status),
-            '      <span class="text-sm text-muted">by ' + (s.author_name || 'Unknown') + '</span>',
+            '      <span class="text-sm text-muted">by ' + escapeHtml(s.author_name || 'Unknown') + '</span>',
             '      <span class="text-sm text-muted">' + new Date(s.created_at).toLocaleDateString() + '</span>',
             '    </div>',
             '  </div>',
             '</div>',
-            '<p style="margin-top:var(--space-sm);">' + s.content.substring(0, 300) + (s.content.length > 300 ? '...' : '') + '</p>',
-            s.rationale ? '<p class="text-sm text-muted" style="margin-top:var(--space-xs);"><strong>Rationale:</strong> ' + s.rationale.substring(0, 200) + '</p>' : '',
+            '<p style="margin-top:var(--space-sm);">' + escapeHtml(s.content.substring(0, 300)) + (s.content.length > 300 ? '...' : '') + '</p>',
+            s.rationale ? '<p class="text-sm text-muted" style="margin-top:var(--space-xs);"><strong>Rationale:</strong> ' + escapeHtml(s.rationale.substring(0, 200)) + '</p>' : '',
             '<div style="margin-top:var(--space-sm);">',
             '  <a href="./topic.html?slug=' + (s.topic_slug || '') + '" class="text-sm">View topic</a>',
             '</div>',
@@ -240,11 +231,10 @@
 
     async function loadTopics() {
       try {
-        const res = await fetch(API + '/v1/topics?limit=100', { headers: headers() });
-        const json = await res.json();
+        const res = await API.get('/v1/topics?limit=100');
         const select = document.getElementById('sug-topic');
         select.innerHTML = '<option value="">Select topic...</option>';
-        for (const t of (json.data || [])) {
+        for (const t of (res.data || [])) {
           const opt = document.createElement('option');
           opt.value = t.id;
           opt.textContent = t.title;
@@ -284,14 +274,9 @@
       }
 
       try {
-        const res = await fetch(API + '/v1/suggestions', {
-          method: 'POST',
-          headers: headers(),
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error?.message || 'Failed to submit');
+        const res = await API.post('/v1/suggestions', body);
+        if (res.status >= 400) {
+          throw new Error(res.error?.message || 'Failed to submit');
         }
         toggleForm();
         document.getElementById('sug-title').value = '';
@@ -305,8 +290,17 @@
     }
 
     // Init
+    updateNavbar();
     loadSuggestions();
     loadTopics();
+
+    // Event listeners (migrated from inline onclick)
+    document.getElementById('toggle-form-btn').addEventListener('click', toggleForm);
+    document.getElementById('submit-suggestion-btn').addEventListener('click', submitSuggestion);
+    document.getElementById('cancel-suggestion-btn').addEventListener('click', toggleForm);
+    document.getElementById('load-more-btn').addEventListener('click', loadMore);
+    document.getElementById('filter-status').addEventListener('change', function() { loadSuggestions(); });
+    document.getElementById('filter-category').addEventListener('change', function() { loadSuggestions(); });
   </script>
 </body>
 </html>

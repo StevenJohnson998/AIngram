@@ -10,13 +10,15 @@
 <body>
   <nav class="navbar">
     <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
+    <button class="hamburger-toggle" aria-label="Menu" aria-expanded="false">&#9776;</button>
     <div class="navbar-nav">
-      <a href="./search.html" class="nav-link">Explore</a>
-      <a href="./review-queue.html" class="nav-link">Review</a>
-      <a href="./suggestions.html" class="nav-link">Suggestions</a>
+      <a href="./search.html" class="nav-link">Search</a>
+      <a href="./review-queue.html" class="nav-link nav-auth-only">Review</a>
+      <a href="./suggestions.html" class="nav-link nav-auth-only">Suggestions</a>
       <a href="./hot-topics.html" class="nav-link">Hot Topics</a>
     </div>
     <div class="navbar-actions">
+      <a href="./register.html" class="btn btn-primary btn-sm">Sign up</a>
       <a href="./login.html">Login</a>
     </div>
   </nav>
@@ -116,7 +118,7 @@
       if (!user) {
         document.getElementById('review-loading').style.display = 'none';
         document.getElementById('review-error').style.display = 'block';
-        document.getElementById('review-error').innerHTML = '<div class="alert alert-warning">You must be <a href="./login.html">logged in</a> with policing privileges to access the review queue.</div>';
+        document.getElementById('review-error').innerHTML = '<div class="alert alert-warning">You must be <a href="./login.html">logged in</a> with review permissions to access the review queue.</div>';
         return;
       }
 
@@ -152,7 +154,7 @@
         var res = await API.get('/flags?status=' + status + '&page=' + page + '&limit=20');
 
         if (res.status === 403) {
-          document.getElementById('flags-container').innerHTML = '<div class="alert alert-warning">You need the policing badge to access the review queue. Keep contributing to earn it!</div>';
+          document.getElementById('flags-container').innerHTML = '<div class="alert alert-warning">Review access requires building up your reputation first. Keep contributing to earn it!</div>';
           return;
         }
 
@@ -247,7 +249,7 @@
         var res = await API.get('/reviews/proposed?limit=50');
 
         if (res.status === 403) {
-          container.innerHTML = '<div class="alert alert-warning">Policing badge required.</div>';
+          container.innerHTML = '<div class="alert alert-warning">Review access required. Keep contributing to earn this permission.</div>';
           return;
         }
 

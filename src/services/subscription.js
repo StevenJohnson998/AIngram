@@ -34,6 +34,8 @@ async function getTier(accountId) {
 /**
  * Create a new subscription after validating tier limits and type-specific fields.
  */
+const VALID_TRIGGER_STATUSES = ['published', 'proposed', 'both'];
+
 async function createSubscription({
   accountId,
   type,
@@ -44,6 +46,7 @@ async function createSubscription({
   lang,
   notificationMethod,
   webhookUrl,
+  triggerStatus,
 }) {
   const pool = getPool();
 
@@ -94,9 +97,9 @@ async function createSubscription({
   const embeddingValue = embedding ? `[${embedding.join(',')}]` : null;
 
   const { rows } = await pool.query(
-    `INSERT INTO subscriptions (account_id, type, topic_id, keyword, embedding, similarity_threshold, lang, notification_method, webhook_url)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     RETURNING id, account_id, type, topic_id, keyword, similarity_threshold, lang, notification_method, webhook_url, active, created_at`,
+    `INSERT INTO subscriptions (account_id, type, topic_id, keyword, embedding, similarity_threshold, lang, notification_method, webhook_url, trigger_status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     RETURNING id, account_id, type, topic_id, keyword, similarity_threshold, lang, notification_method, webhook_url, trigger_status, active, created_at`,
     [
       accountId,
       type,
@@ -107,6 +110,7 @@ async function createSubscription({
       lang || null,
       notificationMethod || 'webhook',
       webhookUrl || null,
+      triggerStatus || 'published',
     ]
   );
 
@@ -122,7 +126,7 @@ async function listMySubscriptions(accountId, { page = 1, limit = 20 } = {}) {
 
   const [dataResult, countResult] = await Promise.all([
     pool.query(
-      `SELECT id, account_id, type, topic_id, keyword, similarity_threshold, lang, notification_method, webhook_url, active, created_at
+      `SELECT id, account_id, type, topic_id, keyword, similarity_threshold, lang, notification_method, webhook_url, trigger_status, active, created_at
        FROM subscriptions
        WHERE account_id = $1
        ORDER BY created_at DESC
@@ -148,7 +152,7 @@ async function listMySubscriptions(accountId, { page = 1, limit = 20 } = {}) {
 /**
  * Update a subscription. Verifies ownership.
  */
-async function updateSubscription(id, accountId, { similarityThreshold, webhookUrl, active, lang }) {
+async function updateSubscription(id, accountId, { similarityThreshold, webhookUrl, active, lang, triggerStatus }) {
   const pool = getPool();
 
   // Verify ownership
@@ -189,6 +193,15 @@ async function updateSubscription(id, accountId, { similarityThreshold, webhookU
   if (lang !== undefined) {
     sets.push(`lang = $${paramIndex++}`);
     values.push(lang);
+  }
+  if (triggerStatus !== undefined) {
+    if (!VALID_TRIGGER_STATUSES.includes(triggerStatus)) {
+      const err = new Error(`triggerStatus must be one of: ${VALID_TRIGGER_STATUSES.join(', ')}`);
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+    sets.push(`trigger_status = $${paramIndex++}`);
+    values.push(triggerStatus);
   }
 
   if (sets.length === 0) {
@@ -240,7 +253,7 @@ async function deleteSubscription(id, accountId) {
 async function getSubscriptionById(id) {
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT id, account_id, type, topic_id, keyword, similarity_threshold, lang, notification_method, webhook_url, active, created_at
+    `SELECT id, account_id, type, topic_id, keyword, similarity_threshold, lang, notification_method, webhook_url, trigger_status, active, created_at
      FROM subscriptions WHERE id = $1`,
     [id]
   );
@@ -248,6 +261,7 @@ async function getSubscriptionById(id) {
 }
 
 module.exports = {
+  VALID_TRIGGER_STATUSES,
   getTier,
   createSubscription,
   listMySubscriptions,

@@ -10,14 +10,15 @@
 <body>
   <nav class="navbar">
     <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
+    <button class="hamburger-toggle" aria-label="Menu" aria-expanded="false">&#9776;</button>
     <div class="navbar-nav">
-      <a href="./search.html" class="nav-link">Explore</a>
-      <a href="./review-queue.html" class="nav-link">Review</a>
-      <a href="./suggestions.html" class="nav-link">Suggestions</a>
+      <a href="./search.html" class="nav-link">Search</a>
+      <a href="./review-queue.html" class="nav-link nav-auth-only">Review</a>
+      <a href="./suggestions.html" class="nav-link nav-auth-only">Suggestions</a>
       <a href="./hot-topics.html" class="nav-link">Hot Topics</a>
     </div>
     <div class="navbar-actions">
-      <a href="./login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>
+      <a href="./register.html" class="btn btn-primary btn-sm">Sign up</a>
       <a href="./login.html">Login</a>
     </div>
   </nav>
@@ -177,7 +178,7 @@
                 '</div>' +
               '</div>' +
               '<p class="text-sm text-muted">' + escapeHtml(truncate(item.content, 250)) + '</p>' +
-              (user ? '<button class="btn btn-xs btn-outline mt-sm" onclick="subscribeToSimilar(\'' + escapeHtml(q) + '\')">Subscribe to similar</button>' : '') +
+              (user ? '<button class="btn btn-xs btn-outline mt-sm subscribe-similar-btn" data-query="' + escapeHtml(q).replace(/"/g, '&quot;') + '">Subscribe to similar</button>' : '') +
             '</div>';
           }).join('');
 
@@ -205,8 +206,20 @@
       return str.substring(0, len) + '...';
     }
 
+    function showSearchToast(type, message) {
+      var existing = document.getElementById('search-toast');
+      if (existing) existing.remove();
+      var toast = document.createElement('div');
+      toast.id = 'search-toast';
+      toast.className = 'alert alert-' + type;
+      toast.style.marginBottom = 'var(--space-md)';
+      toast.textContent = message;
+      document.getElementById('results-container').prepend(toast);
+      setTimeout(function() { toast.remove(); }, 5000);
+    }
+
     async function subscribeToSimilar(query) {
-      if (!user) { alert('Please log in first'); return; }
+      if (!user) { showSearchToast('warning', 'Please log in first.'); return; }
       try {
         var { status, data } = await API.post('/subscriptions', {
           type: 'keyword',
@@ -214,14 +227,20 @@
           notificationMethod: 'polling',
         });
         if (status === 201) {
-          alert('Subscribed! You will see matches in your Notifications.');
+          showSearchToast('success', 'Subscribed! You will see matches in your Notifications.');
         } else if (data && data.error) {
-          alert(data.error.message || 'Subscription failed');
+          showSearchToast('warning', data.error.message || 'Subscription failed.');
         }
       } catch (err) {
-        alert('Failed to create subscription');
+        showSearchToast('warning', 'Failed to create subscription.');
       }
     }
+
+    // Event delegation for dynamically generated subscribe buttons
+    document.getElementById('results-container').addEventListener('click', function(e) {
+      var btn = e.target.closest('.subscribe-similar-btn');
+      if (btn) subscribeToSimilar(btn.dataset.query);
+    });
   </script>
 </body>
 </html>

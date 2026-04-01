@@ -10,14 +10,15 @@
 <body>
   <nav class="navbar">
     <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
+    <button class="hamburger-toggle" aria-label="Menu" aria-expanded="false">&#9776;</button>
     <div class="navbar-nav">
-      <a href="./search.html" class="nav-link">Explore</a>
-      <a href="./review-queue.html" class="nav-link">Review</a>
-      <a href="./suggestions.html" class="nav-link">Suggestions</a>
+      <a href="./search.html" class="nav-link">Search</a>
+      <a href="./review-queue.html" class="nav-link nav-auth-only">Review</a>
+      <a href="./suggestions.html" class="nav-link nav-auth-only">Suggestions</a>
       <a href="./hot-topics.html" class="nav-link">Hot Topics</a>
     </div>
     <div class="navbar-actions">
-      <a href="./login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>
+      <a href="./register.html" class="btn btn-primary btn-sm">Sign up</a>
       <a href="./login.html">Login</a>
     </div>
   </nav>
@@ -42,6 +43,20 @@
         <div id="reputation-bars"></div>
       </section>
 
+      <!-- My Contributions (own profile only) -->
+      <section class="card mb-md" id="contributions-section" style="display:none;">
+        <h2 class="section-title" style="margin-bottom: var(--space-md);">My Contributions</h2>
+        <div class="tabs" data-group="contrib" style="margin-bottom: var(--space-md);">
+          <button class="tab-btn active" data-group="contrib" data-filter="">All</button>
+          <button class="tab-btn" data-group="contrib" data-filter="proposed">Proposed</button>
+          <button class="tab-btn" data-group="contrib" data-filter="published">Published</button>
+          <button class="tab-btn" data-group="contrib" data-filter="retracted">Retracted</button>
+        </div>
+        <div id="contributions-container">
+          <p class="text-muted">Loading contributions...</p>
+        </div>
+      </section>
+
       <!-- Recent Votes -->
       <section class="card mb-md">
         <h2 class="section-title">Recent Votes</h2>
@@ -51,7 +66,7 @@
       </section>
 
       <!-- Sanctions -->
-      <section class="card">
+      <section class="card" id="sanctions-section">
         <h2 class="section-title">Sanctions</h2>
         <div id="sanctions-container">
           <p class="text-muted">Loading...</p>
@@ -119,6 +134,13 @@
 
         // Load sanctions
         loadSanctions(accountId);
+
+        // Load contributions (own profile only)
+        var currentUser = await getCurrentUser();
+        if (currentUser && currentUser.id === accountId) {
+          document.getElementById('contributions-section').style.display = '';
+          loadContributions();
+        }
 
       } catch (err) {
         document.getElementById('profile-loading').style.display = 'none';
@@ -191,6 +213,7 @@
 
     async function loadSanctions(accountId) {
       var container = document.getElementById('sanctions-container');
+      var section = document.getElementById('sanctions-section');
       try {
         var res = await API.get('/accounts/' + accountId + '/sanctions?limit=10');
         if (res.status === 200 && res.data && res.data && res.data.length > 0) {
@@ -204,12 +227,76 @@
             '</div>';
           }).join('');
         } else {
-          container.innerHTML = '<p style="color: var(--trust-high); font-weight: 600;">&#10003; Clean record</p>' +
-            '<p class="text-sm text-muted mt-sm">No warnings, suspensions, or bans on this account.</p>';
+          // Hide empty sanctions section
+          if (section) section.style.display = 'none';
         }
       } catch (err) {
-        container.innerHTML = '<p class="text-muted">Sanction history not available.</p>';
+        if (section) section.style.display = 'none';
       }
+    }
+
+    var _allContributions = [];
+
+    async function loadContributions() {
+      var container = document.getElementById('contributions-container');
+      try {
+        var res = await API.get('/accounts/me/chunks?limit=100');
+        if (res.status === 200 && res.data && res.data.length > 0) {
+          _allContributions = res.data;
+          renderContributions('');
+
+          // Tab filtering
+          document.querySelectorAll('.tab-btn[data-group="contrib"]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              document.querySelectorAll('.tab-btn[data-group="contrib"]').forEach(function(b) { b.classList.remove('active'); });
+              this.classList.add('active');
+              renderContributions(this.dataset.filter);
+            });
+          });
+        } else {
+          container.innerHTML = '<p class="text-muted">No contributions yet. <a href="./new-article.html">Write your first article</a>.</p>';
+        }
+      } catch (err) {
+        container.innerHTML = '<p class="text-muted">Could not load contributions.</p>';
+      }
+    }
+
+    function renderContributions(statusFilter) {
+      var container = document.getElementById('contributions-container');
+      var filtered = statusFilter
+        ? _allContributions.filter(function(c) { return c.status === statusFilter; })
+        : _allContributions;
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<p class="text-muted">No ' + (statusFilter || '') + ' contributions.</p>';
+        return;
+      }
+
+      container.innerHTML = filtered.map(function(chunk) {
+        var statusColors = {
+          proposed: 'badge-trust-medium', published: 'badge-trust-high',
+          retracted: 'badge-trust-low', rejected: 'badge-trust-low',
+          under_review: 'badge-trust-medium', disputed: 'badge-trust-low',
+        };
+        var badgeClass = statusColors[chunk.status] || 'badge-trust-medium';
+        var snippet = escapeHtml((chunk.content || '').substring(0, 120)) + (chunk.content && chunk.content.length > 120 ? '...' : '');
+        var topicLink = chunk.topic_id
+          ? '<a href="./topic.html?id=' + chunk.topic_id + '">' + escapeHtml(chunk.topic_title || 'Untitled') + '</a>'
+          : '<span class="text-muted">No topic</span>';
+        var typeLabel = chunk.chunk_type === 'suggestion' ? ' <span class="badge" style="font-size: 0.65rem;">Suggestion</span>' : '';
+
+        return '<div class="activity-item" style="align-items: flex-start;">' +
+          '<div class="activity-info" style="flex: 1;">' +
+            '<div style="margin-bottom: var(--space-xs);">' +
+              '<span class="badge ' + badgeClass + '">' + escapeHtml(chunk.status) + '</span>' +
+              typeLabel +
+              ' in ' + topicLink +
+              ' <span class="text-sm text-muted">' + timeAgo(chunk.created_at) + '</span>' +
+            '</div>' +
+            '<div class="text-sm" style="color: var(--text-secondary);">' + snippet + '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
     }
   </script>
 </body>

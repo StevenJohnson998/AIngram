@@ -1,7 +1,7 @@
 jest.mock('../../config/database');
 
 const { getPool } = require('../../config/database');
-const { matchNewChunk, filterByAdhp } = require('../subscription-matcher');
+const { matchNewChunk, filterByAdhp, deduplicateMatches, escapeLikePattern } = require('../subscription-matcher');
 
 describe('subscription-matcher', () => {
   let mockPool;
@@ -21,21 +21,49 @@ describe('subscription-matcher', () => {
     embedding: '[0.1,0.2,0.3]',
   };
 
+  /**
+   * Helper: set up mocks for matchNewChunk.
+   * Since predicates run in parallel, we use mockImplementation to route by SQL content.
+   */
+  function setupMocks({ chunk, topicIds = [], vectorResults = [], keywordResults = [], topicResults = [] }) {
+    let callIndex = 0;
+    mockPool.query.mockImplementation((sql, params) => {
+      // First call: get chunk
+      if (sql.includes('SELECT id, content, embedding, adhp FROM chunks')) {
+        return { rows: chunk ? [chunk] : [] };
+      }
+      // Second call: get topic IDs
+      if (sql.includes('SELECT topic_id FROM chunk_topics')) {
+        return { rows: topicIds.map(id => ({ topic_id: id })) };
+      }
+      // Vector subscription query
+      if (sql.includes('<=>') && sql.includes("s.type = 'vector'")) {
+        return { rows: vectorResults };
+      }
+      // Keyword subscription query (now SQL ILIKE)
+      if (sql.includes("type = 'keyword'") && sql.includes('ILIKE')) {
+        return { rows: keywordResults };
+      }
+      // Topic subscription query
+      if (sql.includes("type = 'topic'") && sql.includes('topic_id = ANY')) {
+        return { rows: topicResults };
+      }
+      // ADHP filter: fetch accounts
+      if (sql.includes('SELECT id, adhp FROM accounts')) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+  }
+
   describe('vector subscription matching', () => {
     it('finds vector subscriptions above similarity threshold', async () => {
-      mockPool.query
-        // Get chunk
-        .mockResolvedValueOnce({ rows: [CHUNK_WITH_EMBEDDING] })
-        // Get chunk topics
-        .mockResolvedValueOnce({ rows: [] })
-        // Vector subs
-        .mockResolvedValueOnce({
-          rows: [
-            { subscription_id: 'sub-1', account_id: 'acc-1', similarity: 0.85 },
-          ],
-        })
-        // Keyword subs
-        .mockResolvedValueOnce({ rows: [] });
+      setupMocks({
+        chunk: CHUNK_WITH_EMBEDDING,
+        vectorResults: [
+          { subscription_id: 'sub-1', account_id: 'acc-1', similarity: 0.85 },
+        ],
+      });
 
       const matches = await matchNewChunk(CHUNK_ID);
 
@@ -49,11 +77,9 @@ describe('subscription-matcher', () => {
     });
 
     it('skips vector matching when chunk has no embedding', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ ...CHUNK_WITH_EMBEDDING, embedding: null }] })
-        .mockResolvedValueOnce({ rows: [] })
-        // No vector query expected — goes straight to keyword
-        .mockResolvedValueOnce({ rows: [] });
+      setupMocks({
+        chunk: { ...CHUNK_WITH_EMBEDDING, embedding: null },
+      });
 
       const matches = await matchNewChunk(CHUNK_ID);
 
@@ -67,17 +93,13 @@ describe('subscription-matcher', () => {
   });
 
   describe('keyword subscription matching', () => {
-    it('matches keyword subscriptions via ILIKE on content', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ ...CHUNK_WITH_EMBEDDING, embedding: null }] })
-        .mockResolvedValueOnce({ rows: [] })
-        // Keyword subs
-        .mockResolvedValueOnce({
-          rows: [
-            { subscription_id: 'sub-kw1', account_id: 'acc-2', keyword: 'machine learning' },
-            { subscription_id: 'sub-kw2', account_id: 'acc-3', keyword: 'blockchain' },
-          ],
-        });
+    it('matches keyword subscriptions via SQL ILIKE on content', async () => {
+      setupMocks({
+        chunk: { ...CHUNK_WITH_EMBEDDING, embedding: null },
+        keywordResults: [
+          { subscription_id: 'sub-kw1', account_id: 'acc-2', keyword: 'machine learning' },
+        ],
+      });
 
       const matches = await matchNewChunk(CHUNK_ID);
 
@@ -89,37 +111,36 @@ describe('subscription-matcher', () => {
       });
     });
 
-    it('keyword matching is case-insensitive', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ ...CHUNK_WITH_EMBEDDING, embedding: null }] })
-        .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({
-          rows: [
-            { subscription_id: 'sub-kw1', account_id: 'acc-2', keyword: 'MACHINE LEARNING' },
-          ],
-        });
+    it('keyword matching uses ILIKE (SQL-side, case-insensitive)', async () => {
+      setupMocks({
+        chunk: { ...CHUNK_WITH_EMBEDDING, embedding: null },
+        keywordResults: [
+          { subscription_id: 'sub-kw1', account_id: 'acc-2', keyword: 'MACHINE LEARNING' },
+        ],
+      });
 
       const matches = await matchNewChunk(CHUNK_ID);
 
       expect(matches).toHaveLength(1);
       expect(matches[0].matchType).toBe('keyword');
+
+      // Verify ILIKE is in the SQL
+      const keywordCall = mockPool.query.mock.calls.find(
+        ([sql]) => typeof sql === 'string' && sql.includes('ILIKE')
+      );
+      expect(keywordCall).toBeTruthy();
     });
   });
 
   describe('topic subscription matching', () => {
     it('matches topic subscriptions for chunk topics', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ ...CHUNK_WITH_EMBEDDING, embedding: null }] })
-        // Chunk topics
-        .mockResolvedValueOnce({ rows: [{ topic_id: 'topic-1' }, { topic_id: 'topic-2' }] })
-        // Keyword subs (empty)
-        .mockResolvedValueOnce({ rows: [] })
-        // Topic subs
-        .mockResolvedValueOnce({
-          rows: [
-            { subscription_id: 'sub-t1', account_id: 'acc-4', topic_id: 'topic-1' },
-          ],
-        });
+      setupMocks({
+        chunk: { ...CHUNK_WITH_EMBEDDING, embedding: null },
+        topicIds: ['topic-1', 'topic-2'],
+        topicResults: [
+          { subscription_id: 'sub-t1', account_id: 'acc-4', topic_id: 'topic-1' },
+        ],
+      });
 
       const matches = await matchNewChunk(CHUNK_ID);
 
@@ -132,36 +153,31 @@ describe('subscription-matcher', () => {
     });
 
     it('skips topic matching when chunk has no topics', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ ...CHUNK_WITH_EMBEDDING, embedding: null }] })
-        .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [] });
+      setupMocks({
+        chunk: { ...CHUNK_WITH_EMBEDDING, embedding: null },
+        topicIds: [],
+      });
 
       const matches = await matchNewChunk(CHUNK_ID);
 
       expect(matches).toHaveLength(0);
       // Topic subscription query should not be called
-      expect(mockPool.query).toHaveBeenCalledTimes(3);
+      const topicQueryCalled = mockPool.query.mock.calls.some(
+        ([sql]) => typeof sql === 'string' && sql.includes("type = 'topic'")
+      );
+      expect(topicQueryCalled).toBe(false);
     });
   });
 
   describe('combined matching', () => {
     it('returns matches from all three types', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [CHUNK_WITH_EMBEDDING] })
-        .mockResolvedValueOnce({ rows: [{ topic_id: 'topic-1' }] })
-        // Vector subs
-        .mockResolvedValueOnce({
-          rows: [{ subscription_id: 'sub-v', account_id: 'acc-1', similarity: 0.9 }],
-        })
-        // Keyword subs
-        .mockResolvedValueOnce({
-          rows: [{ subscription_id: 'sub-k', account_id: 'acc-2', keyword: 'natural language' }],
-        })
-        // Topic subs
-        .mockResolvedValueOnce({
-          rows: [{ subscription_id: 'sub-t', account_id: 'acc-3', topic_id: 'topic-1' }],
-        });
+      setupMocks({
+        chunk: CHUNK_WITH_EMBEDDING,
+        topicIds: ['topic-1'],
+        vectorResults: [{ subscription_id: 'sub-v', account_id: 'acc-1', similarity: 0.9 }],
+        keywordResults: [{ subscription_id: 'sub-k', account_id: 'acc-2', keyword: 'natural language' }],
+        topicResults: [{ subscription_id: 'sub-t', account_id: 'acc-3', topic_id: 'topic-1' }],
+      });
 
       const matches = await matchNewChunk(CHUNK_ID);
 
@@ -174,11 +190,49 @@ describe('subscription-matcher', () => {
   });
 
   it('returns empty array when chunk not found', async () => {
-    mockPool.query.mockResolvedValueOnce({ rows: [] });
+    setupMocks({ chunk: null });
 
     const matches = await matchNewChunk('nonexistent');
 
     expect(matches).toEqual([]);
+  });
+
+  describe('deduplicateMatches', () => {
+    it('removes duplicate subscriptions, keeps first', () => {
+      const matches = [
+        { subscriptionId: 'sub-1', accountId: 'acc-1', matchType: 'vector', similarity: 0.9 },
+        { subscriptionId: 'sub-1', accountId: 'acc-1', matchType: 'keyword' },
+        { subscriptionId: 'sub-2', accountId: 'acc-2', matchType: 'topic' },
+      ];
+
+      const result = deduplicateMatches(matches);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].matchType).toBe('vector'); // first occurrence kept
+      expect(result[1].subscriptionId).toBe('sub-2');
+    });
+
+    it('returns empty array for empty input', () => {
+      expect(deduplicateMatches([])).toEqual([]);
+    });
+  });
+
+  describe('escapeLikePattern', () => {
+    it('escapes % character', () => {
+      expect(escapeLikePattern('100%')).toBe('100\\%');
+    });
+
+    it('escapes _ character', () => {
+      expect(escapeLikePattern('my_keyword')).toBe('my\\_keyword');
+    });
+
+    it('escapes backslash', () => {
+      expect(escapeLikePattern('path\\file')).toBe('path\\\\file');
+    });
+
+    it('leaves normal text unchanged', () => {
+      expect(escapeLikePattern('machine learning')).toBe('machine learning');
+    });
   });
 
   describe('ADHP policy filtering', () => {
@@ -352,25 +406,28 @@ describe('subscription-matcher', () => {
 
     it('integrates with matchNewChunk when chunk has adhp', async () => {
       const chunkAdhp = { version: '0.2', sensitivity_level: 2 };
-      mockPool.query
-        // Get chunk (with adhp)
-        .mockResolvedValueOnce({ rows: [{ ...CHUNK_WITH_EMBEDDING, embedding: null, adhp: chunkAdhp }] })
-        // Get chunk topics
-        .mockResolvedValueOnce({ rows: [] })
-        // Keyword subs
-        .mockResolvedValueOnce({
-          rows: [
+
+      mockPool.query.mockImplementation((sql) => {
+        if (sql.includes('SELECT id, content, embedding, adhp FROM chunks')) {
+          return { rows: [{ ...CHUNK_WITH_EMBEDDING, embedding: null, adhp: chunkAdhp }] };
+        }
+        if (sql.includes('SELECT topic_id FROM chunk_topics')) {
+          return { rows: [] };
+        }
+        if (sql.includes('ILIKE')) {
+          return { rows: [
             { subscription_id: 'sub-kw1', account_id: 'acc-1', keyword: 'machine learning' },
             { subscription_id: 'sub-kw2', account_id: 'acc-2', keyword: 'natural language' },
-          ],
-        })
-        // ADHP filter: fetch accounts
-        .mockResolvedValueOnce({
-          rows: [
+          ]};
+        }
+        if (sql.includes('SELECT id, adhp FROM accounts')) {
+          return { rows: [
             { id: 'acc-1', adhp: { version: '0.2', sensitivity_level: 3 } },
             { id: 'acc-2', adhp: null }, // undeclared = blocked
-          ],
-        });
+          ]};
+        }
+        return { rows: [] };
+      });
 
       const matches = await matchNewChunk(CHUNK_ID);
 
@@ -379,18 +436,19 @@ describe('subscription-matcher', () => {
     });
 
     it('does not query accounts when chunk has no adhp (no extra query)', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ ...CHUNK_WITH_EMBEDDING, embedding: null, adhp: null }] })
-        .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({
-          rows: [{ subscription_id: 'sub-kw1', account_id: 'acc-1', keyword: 'machine learning' }],
-        });
+      setupMocks({
+        chunk: { ...CHUNK_WITH_EMBEDDING, embedding: null, adhp: null },
+        keywordResults: [{ subscription_id: 'sub-kw1', account_id: 'acc-1', keyword: 'machine learning' }],
+      });
 
       const matches = await matchNewChunk(CHUNK_ID);
 
       expect(matches).toHaveLength(1);
-      // Only 3 queries: chunk, topics, keyword subs — no ADHP account query
-      expect(mockPool.query).toHaveBeenCalledTimes(3);
+      // No ADHP account query should have been made
+      const adhpQueryCalled = mockPool.query.mock.calls.some(
+        ([sql]) => typeof sql === 'string' && sql.includes('SELECT id, adhp FROM accounts')
+      );
+      expect(adhpQueryCalled).toBe(false);
     });
   });
 });

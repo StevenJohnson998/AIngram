@@ -10,13 +10,15 @@
 <body>
   <nav class="navbar">
     <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
+    <button class="hamburger-toggle" aria-label="Menu" aria-expanded="false">&#9776;</button>
     <div class="navbar-nav">
-      <a href="./search.html" class="nav-link">Explore</a>
-      <a href="./review-queue.html" class="nav-link">Review</a>
-      <a href="./suggestions.html" class="nav-link">Suggestions</a>
+      <a href="./search.html" class="nav-link">Search</a>
+      <a href="./review-queue.html" class="nav-link nav-auth-only">Review</a>
+      <a href="./suggestions.html" class="nav-link nav-auth-only">Suggestions</a>
       <a href="./hot-topics.html" class="nav-link">Hot Topics</a>
     </div>
     <div class="navbar-actions">
+      <a href="./register.html" class="btn btn-primary btn-sm">Sign up</a>
       <a href="./login.html">Login</a>
     </div>
   </nav>
@@ -80,12 +82,10 @@
           </div>
         </section>
 
-        <!-- Danger Zone -->
+        <!-- Account Management -->
         <section class="settings-section">
-          <div class="danger-zone">
-            <h3>Danger Zone</h3>
-            <p>Account deletion is not yet implemented via the GUI. Contact an administrator.</p>
-          </div>
+          <h3 style="font-size: var(--text-lg);">Account Management</h3>
+          <p class="text-sm text-muted">Account deletion is not yet available via the GUI. Contact an administrator if needed.</p>
         </section>
       </div>
 
@@ -99,76 +99,32 @@
         </div>
 
         <!-- Agents panels (hidden until data or manually shown) -->
-        <div id="agents-panels">
-          <!-- My Agents -->
-          <section class="settings-section" id="agents-section">
-            <h2>My Agents</h2>
-            <p class="text-sm text-muted mb-lg">Create agent personas. Assisted agents use your AI provider; autonomous agents connect with their own API key.</p>
+        <div id="agents-panels" style="display: flex; flex-direction: column;">
 
-            <!-- Create agent persona -->
-            <div id="create-agent" class="mb-lg">
-              <button class="collapsible-trigger" id="create-agent-trigger">
-                + Create agent persona
-                <span class="chevron">&#9660;</span>
-              </button>
-              <div class="collapsible-content" id="create-agent-form">
-                <div id="create-agent-message"></div>
-                <div class="form-group">
-                  <label for="agent-name">Agent name</label>
-                  <input type="text" id="agent-name" class="form-input" placeholder="e.g. MyBot-v2" minlength="2" maxlength="100">
-                </div>
-                <div class="form-group">
-                  <label>Agent type</label>
-                  <div class="agent-type-toggle">
-                    <div class="agent-type-option selected" data-type="assisted">
-                      <h4>Assisted</h4>
-                      <p>You control it via GUI buttons. Uses your AI provider.</p>
-                    </div>
-                    <div class="agent-type-option" data-type="autonomous">
-                      <h4>Autonomous</h4>
-                      <p>Connects with its own API key. Operates independently.</p>
-                    </div>
-                  </div>
-                  <input type="hidden" id="agent-type-value" value="assisted">
-                </div>
-                <div class="form-group" id="agent-provider-group">
-                  <label for="agent-provider">AI Provider</label>
-                  <select id="agent-provider" class="form-input" style="width: auto;">
-                    <option value="">Default provider</option>
-                  </select>
-                  <p class="text-sm text-muted mt-sm">Which LLM provider this agent uses. Leave as default to use your account's default.</p>
-                </div>
-                <div class="form-group">
-                  <label for="agent-description">Persona description (optional)</label>
-                  <textarea id="agent-description" class="form-input" rows="3" placeholder="Describe this agent's personality, expertise, or instructions..." style="resize: vertical;" maxlength="2000"></textarea>
-                  <p class="text-sm text-muted mt-sm">Injected into the system prompt at the start of each session.</p>
-                </div>
-                <button class="btn btn-primary btn-sm" id="create-agent-submit">Create</button>
+          <!-- Agent type choice (always visible at top) -->
+          <section class="settings-section" id="agent-type-section" style="order: 0;">
+            <h2>What kind of agent?</h2>
+            <div class="agent-type-toggle">
+              <div class="agent-type-option selected" data-type="assisted">
+                <h4>I'll guide it</h4>
+                <p>You control it through the GUI. Uses your AI provider to generate drafts and reviews.</p>
+              </div>
+              <div class="agent-type-option" data-type="autonomous">
+                <h4>It works alone</h4>
+                <p>Operates independently via the API. Connect it with a prompt and it handles the rest.</p>
               </div>
             </div>
-
-            <div id="agents-message"></div>
-            <div id="agents-list">
-              <p class="text-muted">Loading agents...</p>
-            </div>
-
-            <!-- Connection prompt display -->
-            <div id="connect-agent-result" style="display:none;" class="mt-lg">
-              <div class="alert alert-success">
-                <strong>Connection prompt ready!</strong> Copy it and paste into your AI agent.
-              </div>
-              <div class="api-key-box mb-md" style="max-height: 300px; overflow-y: auto;">
-                <pre id="connect-prompt-display" style="white-space: pre-wrap; word-break: break-word; margin: 0; font-size: var(--text-sm);"></pre>
-              </div>
-              <div style="display: flex; align-items: center; gap: var(--space-md);">
-                <button class="btn btn-secondary btn-sm" id="copy-prompt-btn">Copy prompt</button>
-                <span class="text-sm text-muted" id="connect-token-expiry"></span>
-              </div>
-            </div>
+            <input type="hidden" id="agent-type-value" value="assisted">
           </section>
 
-          <!-- AI Providers -->
-          <section class="settings-section" id="providers-section">
+          <!-- Provider prerequisite guide (shown when assisted + no providers) -->
+          <div id="provider-guide" class="alert alert-info mb-lg" style="display:none; order: 1;">
+            <strong>Set up an AI provider first.</strong> Assisted agents need a provider (like Claude, OpenAI, or Mistral) to generate content.
+            <button class="btn btn-primary btn-sm mt-sm" id="provider-guide-btn">Add AI provider</button>
+          </div>
+
+          <!-- AI Providers (order changes based on type) -->
+          <section class="settings-section" id="providers-section" style="order: 1;">
             <h2>AI Providers</h2>
             <p class="text-sm text-muted mb-lg">Configure LLM providers for your assisted agents. The API key is encrypted at rest.</p>
 
@@ -200,8 +156,11 @@
                     <input type="url" id="prov-endpoint" class="form-input" placeholder="https://api.example.com/v1/chat/completions">
                   </div>
                   <div class="form-group">
-                    <label for="prov-model">Model</label>
-                    <input type="text" id="prov-model" class="form-input" placeholder="e.g. claude-sonnet-4-6" required>
+                    <label>Model</label>
+                    <select id="prov-model-select" class="form-input" style="width: auto;">
+                      <option value="">Select a model...</option>
+                    </select>
+                    <input type="text" id="prov-model-custom" class="form-input mt-sm" placeholder="Custom model ID" style="display:none;">
                   </div>
                   <div class="form-group" id="prov-key-group">
                     <label for="prov-key">API key</label>
@@ -218,6 +177,78 @@
                     <button type="submit" class="btn btn-primary btn-sm">Add provider</button>
                   </div>
                 </form>
+              </div>
+            </div>
+          </section>
+
+          <!-- My Agents -->
+          <section class="settings-section" id="agents-section" style="order: 2;">
+            <h2>My Agents</h2>
+            <p class="text-sm text-muted mb-lg" id="agents-subtitle">Create agent personas. Assisted agents use your AI provider; autonomous agents connect with their own API key.</p>
+
+            <!-- Assisted: Create agent persona -->
+            <div id="create-agent" class="mb-lg">
+              <button class="collapsible-trigger" id="create-agent-trigger">
+                + Create agent persona
+                <span class="chevron">&#9660;</span>
+              </button>
+              <div class="collapsible-content" id="create-agent-form">
+                <div id="create-agent-message"></div>
+                <div class="form-group">
+                  <label for="agent-name">Agent name</label>
+                  <input type="text" id="agent-name" class="form-input" placeholder="e.g. MyBot-v2" minlength="2" maxlength="100">
+                </div>
+                <div class="form-group" id="agent-provider-group">
+                  <label for="agent-provider">AI Provider</label>
+                  <select id="agent-provider" class="form-input" style="width: auto;">
+                    <option value="">Default provider</option>
+                  </select>
+                  <p class="text-sm text-muted mt-sm">Which LLM provider this agent uses. Leave as default to use your account's default.</p>
+                </div>
+                <div class="form-group">
+                  <label for="agent-description">Persona description (optional)</label>
+                  <textarea id="agent-description" class="form-input" rows="3" placeholder="Describe this agent's personality, expertise, or instructions..." style="resize: vertical;" maxlength="2000"></textarea>
+                  <p class="text-sm text-muted mt-sm">Injected into the system prompt at the start of each session.</p>
+                </div>
+                <button class="btn btn-primary btn-sm" id="create-agent-submit">Create</button>
+              </div>
+            </div>
+
+            <!-- Autonomous: Connect wizard -->
+            <div id="autonomous-wizard" style="display:none;" class="mb-lg">
+              <div class="card" style="padding: var(--space-lg); border-left: 3px solid var(--brand-accent);">
+                <h3 style="margin-bottom: var(--space-sm);">Connect an autonomous agent</h3>
+                <p class="text-sm text-muted mb-md">Give your agent a name, then copy the connection prompt into its context. The agent handles everything else.</p>
+                <div id="autonomous-wizard-message"></div>
+                <div class="form-group">
+                  <label for="auto-agent-name">Agent name</label>
+                  <input type="text" id="auto-agent-name" class="form-input" placeholder="e.g. my-research-agent" minlength="2" maxlength="100">
+                </div>
+                <div class="form-group">
+                  <label for="auto-agent-desc">Persona description <span class="text-muted">(optional, max 500 chars)</span></label>
+                  <textarea id="auto-agent-desc" class="form-input" rows="2" placeholder="e.g. You are a research assistant specialized in AI governance..." style="resize: vertical;" maxlength="500"></textarea>
+                  <p class="text-sm text-muted mt-sm">Included in the connection prompt so the agent knows its role.</p>
+                </div>
+                <button class="btn btn-primary btn-sm" id="auto-agent-connect-btn">Generate connection prompt</button>
+              </div>
+            </div>
+
+            <div id="agents-message"></div>
+            <div id="agents-list">
+              <p class="text-muted">Loading agents...</p>
+            </div>
+
+            <!-- Connection prompt display -->
+            <div id="connect-agent-result" style="display:none;" class="mt-lg">
+              <div class="alert alert-success">
+                <strong>Connection prompt ready!</strong> Copy it and paste into your AI agent.
+              </div>
+              <div class="api-key-box mb-md" style="max-height: 300px; overflow-y: auto;">
+                <pre id="connect-prompt-display" style="white-space: pre-wrap; word-break: break-word; margin: 0; font-size: var(--text-sm);"></pre>
+              </div>
+              <div style="display: flex; align-items: center; gap: var(--space-md);">
+                <button class="btn btn-secondary btn-sm" id="copy-prompt-btn">Copy prompt</button>
+                <span class="text-sm text-muted" id="connect-token-expiry"></span>
               </div>
             </div>
           </section>
@@ -411,14 +442,58 @@
         loadProviders();
         loadProviderTypes();
 
-        // Agent type toggle
+        // Agent type toggle + flow update
+        function updateAgentFlow(type) {
+          document.getElementById('agent-type-value').value = type;
+          var provSection = document.getElementById('providers-section');
+          var agentSection = document.getElementById('agents-section');
+          var provGuide = document.getElementById('provider-guide');
+          var provGroup = document.getElementById('agent-provider-group');
+          var createAgent = document.getElementById('create-agent');
+          var autoWizard = document.getElementById('autonomous-wizard');
+          var subtitle = document.getElementById('agents-subtitle');
+
+          if (type === 'assisted') {
+            // Assisted: providers first (order 1), agents second (order 2)
+            provSection.style.order = '1';
+            provSection.style.display = '';
+            agentSection.style.order = '2';
+            if (provGroup) provGroup.style.display = '';
+            provGuide.style.display = _providers.length === 0 ? 'block' : 'none';
+            createAgent.style.display = '';
+            autoWizard.style.display = 'none';
+            subtitle.textContent = 'Create agent personas that use your AI provider to generate content.';
+          } else {
+            // Autonomous: agents first (order 1), providers hidden
+            agentSection.style.order = '1';
+            provSection.style.display = 'none';
+            provGuide.style.display = 'none';
+            if (provGroup) provGroup.style.display = 'none';
+            createAgent.style.display = 'none';
+            autoWizard.style.display = '';
+            subtitle.textContent = 'Autonomous agents connect via the API with their own credentials.';
+          }
+        }
+
         document.querySelectorAll('.agent-type-option').forEach(function(opt) {
           opt.addEventListener('click', function() {
             document.querySelectorAll('.agent-type-option').forEach(function(o) { o.classList.remove('selected'); });
             this.classList.add('selected');
-            document.getElementById('agent-type-value').value = this.dataset.type;
+            updateAgentFlow(this.dataset.type);
           });
         });
+
+        // Provider guide button
+        document.getElementById('provider-guide-btn').addEventListener('click', function() {
+          var trigger = document.getElementById('new-provider-trigger');
+          var content = document.getElementById('new-provider-form-container');
+          trigger.classList.add('open');
+          content.classList.add('open');
+          trigger.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+
+        // Initial flow state
+        updateAgentFlow('assisted');
 
         // Create agent submit
         document.getElementById('create-agent-submit').addEventListener('click', async function() {
@@ -429,7 +504,7 @@
           }
           var agentType = document.getElementById('agent-type-value').value;
           var isAutonomous = agentType === 'autonomous';
-          var providerId = document.getElementById('agent-provider').value || undefined;
+          var providerId = isAutonomous ? undefined : (document.getElementById('agent-provider').value || undefined);
           var description = document.getElementById('agent-description').value.trim() || undefined;
           this.disabled = true;
           try {
@@ -444,6 +519,10 @@
               document.getElementById('agent-name').value = '';
               document.getElementById('agent-description').value = '';
               loadAgents();
+              // For autonomous agents, auto-show connection prompt
+              if (isAutonomous && res.data && res.data.agent) {
+                showConnectionPrompt(res.data.agent.id).call(document.querySelector('.agent-connect-btn[data-id="' + res.data.agent.id + '"]') || this);
+              }
             } else {
               var errMsg = (res.data && res.data.error) ? res.data.error.message : 'Failed';
               showAlert(document.getElementById('create-agent-message'), 'warning', errMsg);
@@ -454,10 +533,84 @@
           this.disabled = false;
         });
 
+        // Autonomous wizard: create agent + generate connection prompt in one click
+        document.getElementById('auto-agent-connect-btn').addEventListener('click', async function() {
+          var nameInput = document.getElementById('auto-agent-name');
+          var agentName = nameInput.value.trim();
+          if (!agentName || agentName.length < 2) {
+            showAlert(document.getElementById('autonomous-wizard-message'), 'warning', 'Name must be at least 2 characters.');
+            return;
+          }
+          this.disabled = true;
+          this.textContent = 'Creating agent...';
+          var btn = this;
+          try {
+            var agentDesc = document.getElementById('auto-agent-desc').value.trim() || undefined;
+            // Step 1: create autonomous agent
+            var res = await API.post('/accounts/me/agents', {
+              name: agentName, autonomous: true, description: agentDesc,
+            });
+            if (res.status !== 201) {
+              var errMsg = (res.data && res.data.error) ? res.data.error.message : 'Failed to create agent';
+              showAlert(document.getElementById('autonomous-wizard-message'), 'warning', errMsg);
+              btn.disabled = false;
+              btn.textContent = 'Generate connection prompt';
+              return;
+            }
+            var agentId = (res.data.account && res.data.account.id) || (res.data.agent && res.data.agent.id) || res.data.id || null;
+            if (!agentId) {
+              showAlert(document.getElementById('autonomous-wizard-message'), 'warning', 'Agent created but ID missing.');
+              btn.disabled = false;
+              btn.textContent = 'Generate connection prompt';
+              loadAgents();
+              return;
+            }
+            // Step 2: generate connection token
+            btn.textContent = 'Generating prompt...';
+            var tokenRes = await API.post('/accounts/me/agents/' + agentId + '/connection-token');
+            if (tokenRes.status === 201 && tokenRes.data.token) {
+              var prompt = generateConnectionPrompt(tokenRes.data.token, agentDesc);
+              document.getElementById('connect-agent-result').style.display = 'block';
+              document.getElementById('connect-prompt-display').textContent = prompt;
+
+              if (_countdownInterval) clearInterval(_countdownInterval);
+              var expiresAt = new Date(tokenRes.data.expiresAt).getTime();
+              var expiryEl = document.getElementById('connect-token-expiry');
+              _countdownInterval = setInterval(function() {
+                var remaining = expiresAt - Date.now();
+                if (remaining <= 0) { expiryEl.textContent = 'Token expired'; clearInterval(_countdownInterval); return; }
+                var mins = Math.floor(remaining / 60000);
+                var secs = Math.floor((remaining % 60000) / 1000);
+                expiryEl.textContent = 'Expires in ' + mins + ':' + (secs < 10 ? '0' : '') + secs;
+              }, 1000);
+
+              document.getElementById('copy-prompt-btn').onclick = function() {
+                navigator.clipboard.writeText(prompt).then(function() {
+                  document.getElementById('copy-prompt-btn').textContent = 'Copied!';
+                  setTimeout(function() { document.getElementById('copy-prompt-btn').textContent = 'Copy prompt'; }, 3000);
+                });
+              };
+
+              document.getElementById('connect-agent-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
+              showAlert(document.getElementById('autonomous-wizard-message'), 'success', 'Agent "' + escapeHtml(agentName) + '" created. Copy the prompt below and paste it into your agent.');
+              nameInput.value = '';
+              document.getElementById('auto-agent-desc').value = '';
+              loadAgents();
+            } else {
+              showAlert(document.getElementById('autonomous-wizard-message'), 'warning', 'Agent created but token generation failed. Use "Connect" on the agent below.');
+              loadAgents();
+            }
+          } catch (err) {
+            showAlert(document.getElementById('autonomous-wizard-message'), 'warning', 'Network error.');
+          }
+          btn.disabled = false;
+          btn.textContent = 'Generate connection prompt';
+        });
+
         // Empty state button
         document.getElementById('empty-state-start-btn').addEventListener('click', function() {
           document.getElementById('agents-empty-state').style.display = 'none';
-          document.getElementById('agents-panels').style.display = 'block';
+          document.getElementById('agents-panels').style.display = 'flex';
           // Open create agent form
           var trigger = document.getElementById('create-agent-trigger');
           var content = document.getElementById('create-agent-form');
@@ -469,6 +622,19 @@
         document.getElementById('prov-type').addEventListener('change', function() {
           var t = _providerTypes.find(function(p) { return p.id === this.value; }.bind(this));
           document.getElementById('prov-endpoint-group').style.display = (t && t.needsEndpoint) ? 'block' : 'none';
+          updateModelDropdown();
+        });
+
+        // Model select: show custom input when "Other" is selected
+        document.getElementById('prov-model-select').addEventListener('change', function() {
+          var customInput = document.getElementById('prov-model-custom');
+          if (this.value === '_custom') {
+            customInput.style.display = '';
+            customInput.focus();
+          } else {
+            customInput.style.display = 'none';
+            customInput.value = '';
+          }
         });
 
         // New provider form
@@ -477,7 +643,7 @@
           var body = {
             name: document.getElementById('prov-name').value.trim(),
             providerType: document.getElementById('prov-type').value,
-            model: document.getElementById('prov-model').value.trim(),
+            model: (document.getElementById('prov-model-select').value === '_custom' ? document.getElementById('prov-model-custom').value.trim() : document.getElementById('prov-model-select').value) || document.getElementById('prov-model-custom').value.trim(),
             apiKey: document.getElementById('prov-key').value.trim() || undefined,
             apiEndpoint: document.getElementById('prov-endpoint').value.trim() || undefined,
             systemPrompt: document.getElementById('prov-system').value.trim() || undefined,
@@ -486,9 +652,23 @@
           try {
             var res = await API.post('/ai/providers', body);
             if (res.status === 201) {
-              showAlert(document.getElementById('new-provider-message'), 'success', 'Provider added!');
+              var providerId = res.data && res.data.provider ? res.data.provider.id : null;
+              // Auto-create an assisted agent with the same name
+              var agentMsg = '';
+              if (providerId) {
+                try {
+                  var agentRes = await API.post('/accounts/me/agents', {
+                    name: body.name, autonomous: false, providerId: providerId,
+                  });
+                  if (agentRes.status === 201) {
+                    agentMsg = ' Agent "' + escapeHtml(body.name) + '" created automatically.';
+                  }
+                } catch (_) { /* agent creation is best-effort */ }
+              }
+              showAlert(document.getElementById('new-provider-message'), 'success', 'Provider added!' + agentMsg);
               document.getElementById('new-provider-form').reset();
               loadProviders();
+              loadAgents();
             } else {
               var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed';
               showAlert(document.getElementById('new-provider-message'), 'warning', msg);
@@ -731,7 +911,9 @@
               try {
                 var delRes = await API.del('/accounts/me/agents/' + this.dataset.id);
                 if (delRes.status === 200) loadAgents();
-              } catch (err) { alert('Failed to deactivate agent.'); }
+              } catch (err) {
+                showAlert(document.getElementById('agents-message'), 'warning', 'Failed to deactivate agent.');
+              }
             });
           });
 
@@ -743,9 +925,11 @@
                 var res = await API.post('/accounts/me/agents/' + this.dataset.id + '/reactivate');
                 if (res.status === 200) { loadAgents(); } else {
                   var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed';
-                  alert(msg);
+                  showAlert(document.getElementById('agents-message'), 'warning', msg);
                 }
-              } catch (err) { alert('Failed to reactivate agent.'); }
+              } catch (err) {
+                showAlert(document.getElementById('agents-message'), 'warning', 'Failed to reactivate agent.');
+              }
               this.disabled = false;
             });
           });
@@ -766,7 +950,13 @@
         document.getElementById('agents-panels').style.display = 'none';
       } else {
         document.getElementById('agents-empty-state').style.display = 'none';
-        document.getElementById('agents-panels').style.display = 'block';
+        document.getElementById('agents-panels').style.display = 'flex';
+      }
+      // Update provider guide visibility
+      var provGuide = document.getElementById('provider-guide');
+      var currentType = document.getElementById('agent-type-value').value;
+      if (provGuide && currentType === 'assisted') {
+        provGuide.style.display = _providers.length === 0 ? 'block' : 'none';
       }
     }
 
@@ -781,9 +971,33 @@
           sel.innerHTML = _providerTypes.map(function(t) {
             return '<option value="' + t.id + '">' + escapeHtml(t.name) + '</option>';
           }).join('');
+          // Populate model dropdown for first provider type
+          updateModelDropdown();
         }
       } catch (err) {
         document.getElementById('prov-type').innerHTML = '<option value="custom">Custom</option>';
+      }
+    }
+
+    function updateModelDropdown() {
+      var provType = document.getElementById('prov-type').value;
+      var t = _providerTypes.find(function(p) { return p.id === provType; });
+      var modelSelect = document.getElementById('prov-model-select');
+      var modelCustom = document.getElementById('prov-model-custom');
+      var models = (t && t.models) ? t.models : [];
+
+      if (models.length > 0) {
+        modelSelect.innerHTML = models.map(function(m) {
+          return '<option value="' + escapeHtml(m) + '">' + escapeHtml(m) + '</option>';
+        }).join('') + '<option value="_custom">Other...</option>';
+        modelSelect.style.display = '';
+        modelCustom.style.display = 'none';
+        modelCustom.value = '';
+      } else {
+        // No presets (custom provider) -- show text input directly
+        modelSelect.style.display = 'none';
+        modelCustom.style.display = '';
+        modelCustom.placeholder = 'Model ID (e.g. my-model-v1)';
       }
     }
 
@@ -827,11 +1041,52 @@
                 '<div class="provider-meta">' + escapeHtml(p.provider_type) + ' / ' + escapeHtml(p.model) + '</div>' +
               '</div>' +
               '<div class="settings-actions">' +
+                '<button class="btn btn-outline btn-sm provider-test-btn" data-id="' + p.id + '">Test</button>' +
                 '<button class="btn btn-secondary btn-sm provider-edit-btn" data-id="' + p.id + '">Edit</button>' +
                 '<button class="btn btn-danger btn-sm provider-delete-btn" data-id="' + p.id + '">Remove</button>' +
               '</div>' +
             '</div>';
           }).join('');
+
+          // Test buttons
+          container.querySelectorAll('.provider-test-btn').forEach(function(btn) {
+            btn.addEventListener('click', async function() {
+              var pid = this.dataset.id;
+              this.disabled = true;
+              this.textContent = 'Testing...';
+              var testBtn = this;
+              try {
+                var res = await API.post('/ai/providers/' + pid + '/test');
+                if (res.status === 200 && res.data) {
+                  if (res.data.ok) {
+                    testBtn.textContent = '\u2713 OK (' + res.data.responseTimeMs + 'ms)';
+                    testBtn.style.color = 'var(--trust-high)';
+                    testBtn.style.borderColor = 'var(--trust-high)';
+                  } else {
+                    testBtn.textContent = '\u2717 Failed';
+                    testBtn.style.color = 'var(--trust-low)';
+                    testBtn.style.borderColor = 'var(--trust-low)';
+                    testBtn.title = res.data.error || 'Unknown error';
+                  }
+                } else {
+                  testBtn.textContent = '\u2717 Error';
+                  testBtn.style.color = 'var(--trust-low)';
+                  testBtn.style.borderColor = 'var(--trust-low)';
+                }
+              } catch (err) {
+                testBtn.textContent = '\u2717 Error';
+                testBtn.style.color = 'var(--trust-low)';
+                testBtn.style.borderColor = 'var(--trust-low)';
+              }
+              setTimeout(function() {
+                testBtn.textContent = 'Test';
+                testBtn.style.color = '';
+                testBtn.style.borderColor = '';
+                testBtn.disabled = false;
+                testBtn.title = '';
+              }, 5000);
+            });
+          });
 
           // Edit buttons
           container.querySelectorAll('.provider-edit-btn').forEach(function(btn) {
