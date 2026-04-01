@@ -13,7 +13,7 @@ const VALID_PROVIDER_TYPES = aiProviderService.PROVIDER_TYPES;
 router.get('/types', (_req, res) => {
   const config = require('../config/ai-providers.json');
   const types = Object.entries(config.providers).map(([key, val]) => ({
-    id: key, name: val.name, needsEndpoint: val.endpoint === null,
+    id: key, name: val.name, needsEndpoint: val.endpoint === null, models: val.models || [],
   }));
   return res.status(200).json({ types });
 });
@@ -116,6 +116,46 @@ router.put('/:id', authenticateRequired, authenticatedLimiter, async (req, res) 
     return res.status(200).json({ provider: updated });
   } catch (err) {
     console.error('Update provider error:', err.message);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    });
+  }
+});
+
+/**
+ * POST /ai/providers/:id/test — test provider connectivity
+ */
+router.post('/:id/test', authenticateRequired, authenticatedLimiter, async (req, res) => {
+  try {
+    const provider = await aiProviderService.getProviderById(req.params.id);
+    if (!provider || provider.account_id !== req.account.id) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Provider not found' },
+      });
+    }
+
+    const start = Date.now();
+    try {
+      const result = await aiProviderService.callProvider(provider, [
+        { role: 'user', content: 'Reply with exactly: OK' },
+      ], { maxTokens: 10, temperature: 0 });
+
+      return res.status(200).json({
+        ok: true,
+        model: provider.model,
+        responseTimeMs: Date.now() - start,
+        reply: (result.content || '').substring(0, 50),
+      });
+    } catch (callErr) {
+      return res.status(200).json({
+        ok: false,
+        model: provider.model,
+        responseTimeMs: Date.now() - start,
+        error: callErr.message.substring(0, 200),
+      });
+    }
+  } catch (err) {
+    console.error('Test provider error:', err.message);
     return res.status(500).json({
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
     });

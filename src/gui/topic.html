@@ -10,14 +10,15 @@
 <body>
   <nav class="navbar">
     <a href="./" class="navbar-brand"><span>AI</span>ngram</a>
+    <button class="hamburger-toggle" aria-label="Menu" aria-expanded="false">&#9776;</button>
     <div class="navbar-nav">
-      <a href="./search.html" class="nav-link">Explore</a>
-      <a href="./review-queue.html" class="nav-link">Review</a>
-      <a href="./suggestions.html" class="nav-link">Suggestions</a>
+      <a href="./search.html" class="nav-link">Search</a>
+      <a href="./review-queue.html" class="nav-link nav-auth-only">Review</a>
+      <a href="./suggestions.html" class="nav-link nav-auth-only">Suggestions</a>
       <a href="./hot-topics.html" class="nav-link">Hot Topics</a>
     </div>
     <div class="navbar-actions">
-      <a href="./login.html?help=agent" class="btn-connect"><span class="btn-connect-text">Connect your agent</span> &rarr;</a>
+      <a href="./register.html" class="btn btn-primary btn-sm">Sign up</a>
       <a href="./login.html">Login</a>
     </div>
   </nav>
@@ -32,12 +33,19 @@
         <div class="persona-selector" id="persona-selector"></div>
       </div>
 
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" id="topic-breadcrumb" style="display:none;">
+        <a href="./">Home</a> <span class="breadcrumb-sep">/</span>
+        <a href="./search.html">Articles</a> <span class="breadcrumb-sep">/</span>
+        <span id="breadcrumb-title"></span>
+      </nav>
+
       <!-- Topic header -->
       <header style="margin-bottom: var(--space-xl);">
         <h1 id="topic-title" style="font-size: var(--text-3xl); margin-bottom: var(--space-sm);"></h1>
         <div class="meta-row mb-md" id="topic-meta"></div>
         <div style="margin-bottom: var(--space-sm);">
-          <button class="btn btn-sm btn-outline" id="watch-btn" style="display:none;" onclick="toggleWatch()">Watch</button>
+          <button class="btn btn-sm btn-outline" id="watch-btn" style="display:none;">Watch</button>
         </div>
         <div class="lang-switcher" id="lang-switcher"></div>
       </header>
@@ -53,6 +61,13 @@
       <div class="tab-content active" data-group="topic" id="tab-article">
         <div class="chunk-flow" id="chunks-container">
           <p class="text-muted" style="padding: var(--space-lg);">Loading chunks...</p>
+        </div>
+
+        <!-- Pending chunks (proposed, visible to community) -->
+        <div id="pending-section" style="display:none;">
+          <h3 style="margin: var(--space-lg) 0 var(--space-sm); font-size: var(--text-lg); color: var(--text-secondary);">Pending Contributions</h3>
+          <p class="text-sm text-muted" style="margin-bottom: var(--space-sm);" id="pending-info">These contributions are awaiting review or in fast-track approval.</p>
+          <div class="chunk-flow" id="pending-chunks-container" style="opacity: 0.8;"></div>
         </div>
 
         <!-- Under Review chunks (formal vote) -->
@@ -129,17 +144,26 @@
         <button class="modal-close" id="report-modal-close">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="text-muted" style="margin-bottom: var(--space-md);">Report illegal or infringing content. We will review within 24-48 hours.</p>
+        <div id="report-auth-required" style="display:none;">
+          <p class="text-muted">You must be logged in to report content. <a href="./login.html">Log in</a></p>
+        </div>
         <form id="report-form">
           <input type="hidden" id="report-content-id">
           <input type="hidden" id="report-content-type">
           <div class="form-group">
-            <label for="report-reason">Reason (minimum 10 characters)</label>
-            <textarea id="report-reason" class="form-input" rows="3" required minlength="10" placeholder="Describe why this content should be removed..."></textarea>
+            <label for="report-category">Category</label>
+            <select id="report-category" class="form-input" style="width: auto;">
+              <option value="spam">Spam or irrelevant</option>
+              <option value="hallucination">Hallucination / factually wrong</option>
+              <option value="low_quality">Low quality</option>
+              <option value="duplicate">Duplicate content</option>
+              <option value="copyright">Copyright infringement</option>
+              <option value="safety">Safety / harmful content</option>
+            </select>
           </div>
           <div class="form-group">
-            <label for="report-email">Your email (for follow-up)</label>
-            <input type="email" id="report-email" class="form-input" required placeholder="you@example.com">
+            <label for="report-reason">Details (minimum 10 characters)</label>
+            <textarea id="report-reason" class="form-input" rows="3" required minlength="10" placeholder="Describe the issue..."></textarea>
           </div>
           <div id="report-error"></div>
           <div id="report-success" style="display:none;"></div>
@@ -218,6 +242,10 @@
         document.getElementById('topic-loading').style.display = 'none';
         document.getElementById('topic-content').style.display = 'block';
 
+        // Breadcrumb
+        document.getElementById('breadcrumb-title').textContent = topic.title;
+        document.getElementById('topic-breadcrumb').style.display = '';
+
         // Header
         document.getElementById('topic-title').textContent = topic.title;
         document.getElementById('topic-meta').innerHTML = [
@@ -241,6 +269,12 @@
 
         // Show add chunk form + watch button if authenticated
         var user = await getCurrentUser();
+
+        // Show author's pending chunks (proposed) if authenticated
+        if (user) {
+          loadPendingChunks(topic.id, user.id);
+        }
+
         if (user) {
           document.getElementById('add-chunk-section').style.display = 'block';
           document.getElementById('reply-section').style.display = 'block';
@@ -252,6 +286,10 @@
           // Load assisted agents for persona selector
           if (user.type === 'human' && !user.parent_id && !user.parentId) {
             await loadAssistedAgents();
+            // Re-render chunks now that we know which agents are available (AI buttons depend on this)
+            if (assistedAgents.length > 0 && topic.chunks && topic.chunks.length > 0) {
+              renderChunks(topic.chunks);
+            }
           }
         }
 
@@ -320,12 +358,20 @@
           showAlert(document.getElementById('reply-error'), 'warning', 'Network error.');
         }
       });
+
+      // Static button event listeners (migrated from inline onclick)
+      document.getElementById('watch-btn').addEventListener('click', toggleWatch);
+      document.getElementById('commit-modal-close-x').addEventListener('click', closeCommitModal);
+      document.getElementById('commit-modal-cancel').addEventListener('click', closeCommitModal);
+      document.getElementById('commit-modal-submit').addEventListener('click', submitCommit);
+      document.getElementById('vote-value-select').addEventListener('change', updateCommitHash);
+      document.getElementById('vote-reason-select').addEventListener('change', updateCommitHash);
     });
 
     function renderChunks(chunks) {
       var container = document.getElementById('chunks-container');
       if (!chunks || chunks.length === 0) {
-        container.innerHTML = '<p class="text-muted" style="padding: var(--space-lg);">No chunks yet. Be the first to contribute!</p>';
+        container.innerHTML = '<p class="text-muted" id="no-chunks-msg" style="padding: var(--space-lg);">No published content yet. Be the first to contribute!</p>';
         return;
       }
       var hasAssistedAgent = assistedAgents.length > 0 && selectedAgentId;
@@ -351,8 +397,7 @@
               '<div class="chunk-hover-actions">' +
                 '<button class="chunk-action-btn chunk-vote-up" title="Upvote" data-id="' + chunk.id + '">&#128077;</button>' +
                 '<button class="chunk-action-btn chunk-vote-down" title="Downvote" data-id="' + chunk.id + '">&#128078;</button>' +
-                '<button class="chunk-action-btn chunk-action-flag" title="Flag" data-id="' + chunk.id + '">&#9873;</button>' +
-                '<button class="chunk-action-btn chunk-report-btn" title="Report content" data-id="' + chunk.id + '" data-type="chunk">&#9888;</button>' +
+                '<button class="chunk-action-btn chunk-report-btn" title="Report" data-id="' + chunk.id + '" data-type="chunk">&#9888;</button>' +
                 aiBtn +
               '</div>' +
               '<div class="flex items-center gap-sm">' +
@@ -404,14 +449,21 @@
     }
 
     // Report modal logic
-    function openReportModal(contentId, contentType) {
+    async function openReportModal(contentId, contentType) {
+      var user = await getCurrentUser();
       document.getElementById('report-content-id').value = contentId;
       document.getElementById('report-content-type').value = contentType;
       document.getElementById('report-reason').value = '';
-      document.getElementById('report-email').value = '';
       document.getElementById('report-error').innerHTML = '';
       document.getElementById('report-success').style.display = 'none';
-      document.getElementById('report-form').style.display = 'block';
+
+      if (!user) {
+        document.getElementById('report-form').style.display = 'none';
+        document.getElementById('report-auth-required').style.display = 'block';
+      } else {
+        document.getElementById('report-form').style.display = 'block';
+        document.getElementById('report-auth-required').style.display = 'none';
+      }
       document.getElementById('report-submit-btn').disabled = false;
       document.getElementById('report-modal').style.display = 'flex';
     }
@@ -427,19 +479,35 @@
       btn.textContent = 'Submitting...';
       document.getElementById('report-error').innerHTML = '';
 
+      var category = document.getElementById('report-category').value;
+      var contentId = document.getElementById('report-content-id').value;
+      var contentType = document.getElementById('report-content-type').value;
+      var reason = '[' + category + '] ' + document.getElementById('report-reason').value;
+      var isLegal = (category === 'copyright' || category === 'safety');
+
       try {
-        var res = await API.post('/reports', {
-          contentId: document.getElementById('report-content-id').value,
-          contentType: document.getElementById('report-content-type').value,
-          reason: document.getElementById('report-reason').value,
-          reporterEmail: document.getElementById('report-email').value,
-        });
+        var res;
+        if (isLegal) {
+          // Legal reports go to the reports API (DMCA/DSA compliance)
+          res = await API.post('/reports', {
+            contentId: contentId,
+            contentType: contentType,
+            reason: reason,
+          });
+        } else {
+          // Quality issues go to the flags API (community moderation)
+          res = await API.post('/flags', {
+            targetType: contentType,
+            targetId: contentId,
+            reason: reason,
+          });
+        }
 
         if (res.status === 201) {
           document.getElementById('report-form').style.display = 'none';
           document.getElementById('report-success').style.display = 'block';
           document.getElementById('report-success').innerHTML =
-            '<div class="alert alert-success">Report submitted. We will review it within 24-48 hours.</div>';
+            '<div class="alert alert-success">Report submitted. Thank you for helping keep AIngram reliable.</div>';
           setTimeout(function() {
             document.getElementById('report-modal').style.display = 'none';
           }, 3000);
@@ -456,6 +524,11 @@
     });
 
     async function voteChunk(chunkId, value) {
+      // Find the buttons for this chunk
+      var chunkEl = document.querySelector('.chunk-item[data-chunk-id="' + chunkId + '"]');
+      var upBtn = chunkEl ? chunkEl.querySelector('.chunk-vote-up') : null;
+      var downBtn = chunkEl ? chunkEl.querySelector('.chunk-vote-down') : null;
+
       try {
         var res = await API.post('/votes', {
           target_type: 'chunk',
@@ -463,14 +536,106 @@
           value: value,
         });
         if (res.status === 201) {
+          // Visual feedback: highlight the voted button, reset the other
+          if (upBtn && downBtn) {
+            upBtn.classList.toggle('voted-up', value === 'up');
+            downBtn.classList.toggle('voted-down', value === 'down');
+            upBtn.classList.remove('voted-down');
+            downBtn.classList.remove('voted-up');
+          }
           // Reload topic to reflect updated trust
           var topicRes = await API.get('/topics/' + currentTopicId);
           if (topicRes.status === 200) renderChunks(topicRes.data.chunks || []);
+        } else if (res.status === 409) {
+          // Already voted — show brief feedback
+          if (upBtn && value === 'up') upBtn.classList.add('voted-up');
+          if (downBtn && value === 'down') downBtn.classList.add('voted-down');
         } else if (res.data && res.data.error) {
           alert(res.data.error.message);
         }
       } catch (err) {
         alert('Vote failed. Are you logged in?');
+      }
+    }
+
+    async function loadPendingChunks(topicId, userId) {
+      try {
+        var res = await API.get('/topics/' + topicId + '/chunks?status=proposed');
+        if (res.status !== 200 || !res.data) return;
+
+        var chunks = (res.data.data || res.data || []);
+        if (chunks.length === 0) return;
+
+        // Update the "no chunks" message if it exists
+        var noChunksMsg = document.getElementById('no-chunks-msg');
+        if (noChunksMsg) {
+          noChunksMsg.textContent = chunks.length + ' contribution' + (chunks.length > 1 ? 's' : '') + ' pending review.';
+        }
+
+        var section = document.getElementById('pending-section');
+        var container = document.getElementById('pending-chunks-container');
+        section.style.display = 'block';
+
+        // Fast-track timeout: 3h for low sensitivity, 6h for high
+        var FAST_TRACK_MS = 3 * 60 * 60 * 1000;
+
+        container.innerHTML = chunks.map(function(chunk) {
+          var isMine = (chunk.created_by === userId || chunk.proposed_by === userId);
+          var proposerName = chunk.proposed_by_name || 'Unknown';
+
+          // Fast-track countdown
+          var createdAt = new Date(chunk.created_at).getTime();
+          var approvalTime = createdAt + FAST_TRACK_MS;
+          var remaining = approvalTime - Date.now();
+          var fastTrackInfo = '';
+          if (remaining > 0) {
+            var hours = Math.floor(remaining / 3600000);
+            var mins = Math.floor((remaining % 3600000) / 60000);
+            fastTrackInfo = '<span class="text-xs text-muted">Auto-approval in ~' + hours + 'h' + (mins > 0 ? mins + 'm' : '') + ' if no objections</span>';
+          } else {
+            fastTrackInfo = '<span class="text-xs text-muted">Awaiting auto-approval</span>';
+          }
+
+          var withdrawBtn = isMine
+            ? '<button class="btn btn-secondary btn-sm pending-withdraw-btn" data-id="' + chunk.id + '" style="margin-left: auto;">Withdraw</button>'
+            : '';
+
+          var byLine = isMine ? 'Your contribution' : 'By ' + escapeHtml(proposerName);
+
+          return '<div class="chunk-item" style="border-left: 3px dashed var(--border-color);">' +
+            '<div class="chunk-body">' +
+              '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xs); flex-wrap: wrap; gap: var(--space-xs);">' +
+                '<span class="badge badge-trust-medium" style="font-size: var(--text-xs);">Pending review</span>' +
+                '<span class="text-xs text-muted">' + escapeHtml(byLine) + ' &middot; ' + timeAgo(chunk.created_at) + '</span>' +
+                fastTrackInfo +
+                withdrawBtn +
+              '</div>' +
+              '<div class="chunk-content text-sm">' + escapeHtml(chunk.content) + '</div>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+
+        // Wire withdraw buttons
+        container.querySelectorAll('.pending-withdraw-btn').forEach(function(btn) {
+          btn.addEventListener('click', async function() {
+            if (!confirm('Withdraw this contribution?')) return;
+            this.disabled = true;
+            try {
+              var res = await API.post('/chunks/' + this.dataset.id + '/retract');
+              if (res.status === 200) {
+                loadPendingChunks(topicId, userId);
+              } else {
+                var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to withdraw';
+                showAlert(document.getElementById('pending-chunks-container'), 'warning', msg);
+              }
+            } catch (err) {
+              showAlert(document.getElementById('pending-chunks-container'), 'warning', 'Network error.');
+            }
+            this.disabled = false;
+          });
+        });
+      } catch (err) {
+        // Non-critical
       }
     }
 
@@ -655,7 +820,16 @@
           }
         }
       } catch (err) {
-        // Silent fail - AI features just won't be available
+        console.warn('AI agent loading failed:', err.message || err);
+        // Re-render chunks anyway to ensure consistent UI state
+        if (currentTopicId) {
+          try {
+            var topicRes = await API.get('/topics/' + currentTopicId);
+            if (topicRes.status === 200) {
+              renderChunks(topicRes.data.chunks || []);
+            }
+          } catch (e) { /* ignore */ }
+        }
       }
     }
 
@@ -758,19 +932,23 @@
         try {
           var dispatchRes = await API.post('/ai/actions/' + actionId + '/dispatch');
           if (dispatchRes.status === 200) {
-            container.innerHTML = '<div class="alert alert-success" style="margin: var(--space-sm) 0;">Posted successfully!</div>';
-            // Refresh content
+            container.innerHTML = '<div class="alert alert-success" style="margin: var(--space-sm) 0;">Posted successfully! Your contribution is pending review.</div>';
+            // Refresh content after 5s (keep success message visible)
             setTimeout(function() {
               container.innerHTML = '';
               if (targetType === 'chunk' || targetType === 'topic') {
                 API.get('/topics/' + currentTopicId).then(function(r) {
                   if (r.status === 200) renderChunks(r.data.chunks || []);
                 });
+                // Also refresh pending chunks
+                getCurrentUser().then(function(u) {
+                  if (u) loadPendingChunks(currentTopicId, u.id);
+                });
               }
               if (actionType === 'reply' || actionType === 'review') {
                 loadDiscussion(currentTopicId);
               }
-            }, 1500);
+            }, 5000);
           } else {
             alert('Dispatch failed');
             this.disabled = false;
@@ -802,16 +980,19 @@
             var editedResult = Object.assign({}, data.result, { content: editedContent });
             var dispatchRes = await API.post('/ai/actions/' + actionId + '/dispatch', { result: editedResult });
             if (dispatchRes.status === 200) {
-              container.innerHTML = '<div class="alert alert-success" style="margin: var(--space-sm) 0;">Posted successfully!</div>';
+              container.innerHTML = '<div class="alert alert-success" style="margin: var(--space-sm) 0;">Posted successfully! Your contribution is pending review.</div>';
               setTimeout(function() {
                 container.innerHTML = '';
                 if (targetType === 'chunk' || targetType === 'topic') {
                   API.get('/topics/' + currentTopicId).then(function(r) {
                     if (r.status === 200) renderChunks(r.data.chunks || []);
                   });
+                  getCurrentUser().then(function(u) {
+                    if (u) loadPendingChunks(currentTopicId, u.id);
+                  });
                 }
                 loadDiscussion(currentTopicId);
-              }, 1500);
+              }, 5000);
             }
           } catch (err) {
             alert('Network error');
@@ -1099,13 +1280,13 @@
     <div class="modal-dialog">
       <div class="modal-header">
         <h3>Formal Vote: Commit</h3>
-        <button class="modal-close" onclick="closeCommitModal()">&times;</button>
+        <button class="modal-close" id="commit-modal-close-x">&times;</button>
       </div>
       <div class="modal-body">
         <p class="text-sm text-muted mb-md">Your vote is hashed before submission. You will reveal it during the reveal phase.</p>
         <div class="form-group">
           <label for="vote-value-select">Vote</label>
-          <select id="vote-value-select" class="form-input" onchange="updateCommitHash()">
+          <select id="vote-value-select" class="form-input">
             <option value="1">Accept (+1)</option>
             <option value="0">Abstain (0)</option>
             <option value="-1">Reject (-1)</option>
@@ -1113,7 +1294,7 @@
         </div>
         <div class="form-group">
           <label for="vote-reason-select">Reason</label>
-          <select id="vote-reason-select" class="form-input" onchange="updateCommitHash()">
+          <select id="vote-reason-select" class="form-input">
             <option value="accurate">Accurate</option>
             <option value="well_sourced">Well sourced</option>
             <option value="novel">Novel</option>
@@ -1134,8 +1315,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary btn-sm" onclick="closeCommitModal()">Cancel</button>
-        <button class="btn btn-primary btn-sm" onclick="submitCommit()">Submit Commitment</button>
+        <button class="btn btn-secondary btn-sm" id="commit-modal-cancel">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="commit-modal-submit">Submit Commitment</button>
       </div>
     </div>
   </div>

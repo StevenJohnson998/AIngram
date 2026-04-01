@@ -214,8 +214,111 @@ async function linkTranslation(topicId, translatedId) {
   }
 }
 
+/**
+ * Create a topic with multiple chunks in a single atomic transaction.
+ * All chunks start as 'proposed'. Embeddings + subscription matching fire-and-forget after commit.
+ */
+async function createTopicFull({ title, lang, summary, sensitivity, createdBy, chunks, isElite = false, hasBadgeContribution = false }) {
+  const pool = getPool();
+  const client = await pool.connect();
+  const chunkService = require('./chunk');
+  const trustConfig = require('../config/trust');
+  const { analyzeContent } = require('./injection-detector');
+  const accountService = require('./account');
+  const { matchNewChunk } = require('./subscription-matcher');
+  const { dispatchNotification } = require('./notification');
+
+  // Compute trust prior once
+  let prior;
+  if (isElite) prior = trustConfig.CHUNK_PRIOR_ELITE;
+  else if (hasBadgeContribution) prior = trustConfig.CHUNK_PRIOR_ESTABLISHED;
+  else prior = trustConfig.CHUNK_PRIOR_NEW;
+  const initialTrust = prior[0] / (prior[0] + prior[1]);
+
+  try {
+    await client.query('BEGIN');
+
+    // 1. Create topic
+    const baseSlug = generateSlug(title);
+    const slug = await ensureUniqueSlug(baseSlug, lang, pool);
+    const { rows: topicRows } = await client.query(
+      `INSERT INTO topics (title, slug, lang, summary, sensitivity, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [title, slug, lang, summary || null, sensitivity || 'low', createdBy]
+    );
+    const topic = topicRows[0];
+
+    // 2. Create all chunks in the same transaction
+    const chunkResults = [];
+    for (const chunkData of chunks) {
+      const injectionResult = analyzeContent(chunkData.content);
+      const chunk = await chunkService._insertChunkInTx(client, {
+        content: chunkData.content,
+        technicalDetail: chunkData.technicalDetail,
+        createdBy,
+        topicId: topic.id,
+        initialTrust,
+        title: chunkData.title,
+        subtitle: chunkData.subtitle,
+        adhp: chunkData.adhp,
+        injectionResult,
+      });
+
+      // Attach sources within the same transaction
+      if (chunkData.sources && chunkData.sources.length > 0) {
+        for (const src of chunkData.sources) {
+          await client.query(
+            `INSERT INTO chunk_sources (chunk_id, source_url, source_description, added_by)
+             VALUES ($1, $2, $3, $4)`,
+            [chunk.id, src.sourceUrl || null, src.sourceDescription || null, createdBy]
+          );
+        }
+      }
+
+      chunkResults.push({ id: chunk.id, status: chunk.status });
+    }
+
+    // 3. Activity log for bulk creation
+    await client.query(
+      `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+       VALUES ($1, 'topic_created_full', 'topic', $2, $3)`,
+      [createdBy, topic.id, JSON.stringify({ chunkCount: chunkResults.length })]
+    );
+
+    await client.query('COMMIT');
+
+    // 4. Fire-and-forget: embeddings + subscription matching (after commit)
+    for (const cr of chunkResults) {
+      // Subscription matching
+      (async () => {
+        try {
+          const matches = await matchNewChunk(cr.id, 'proposed');
+          for (const match of matches) {
+            await dispatchNotification(match).catch(() => {});
+          }
+        } catch (err) {
+          console.error(`Match-and-notify failed for chunk ${cr.id}:`, err.message);
+        }
+      })();
+    }
+
+    // Fire-and-forget: tier update
+    accountService.incrementInteractionAndUpdateTier(createdBy)
+      .catch(err => console.error('Tier update failed:', err));
+
+    return { topic, chunks: chunkResults };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   createTopic,
+  createTopicFull,
   getTopicById,
   getTopicBySlug,
   listTopics,

@@ -13,6 +13,7 @@ const { requireTier } = require('../middleware/tier-gate');
 const { validationError, notFoundError, forbiddenError } = require('../utils/http-errors');
 const { parsePagination } = require('../utils/pagination');
 const { VALID_LANGS } = require('../config/constants');
+const { REJECTION_CATEGORIES, REJECTION_SUGGESTIONS_MAX_LENGTH, BULK_MAX_CHUNKS } = require('../config/protocol');
 const { getPool } = require('../config/database');
 const { OBJECTION_REASON_TAGS } = require('../config/protocol');
 
@@ -58,6 +59,81 @@ router.post(
     } catch (err) {
       console.error('Error creating topic:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create topic' } });
+    }
+  }
+);
+
+// POST /topics/full — create topic with multiple chunks in one atomic transaction
+router.post(
+  '/topics/full',
+  auth.authenticateRequired, authenticatedLimiter,
+  auth.requireStatus('active', 'provisional'),
+  async (req, res) => {
+    try {
+      const { title, lang, summary, sensitivity, chunks } = req.body;
+
+      if (!title || typeof title !== 'string' || title.length < 3 || title.length > 300) {
+        return validationError(res, 'Title must be between 3 and 300 characters');
+      }
+      if (!lang || !VALID_LANGS.includes(lang)) {
+        return validationError(res, `Lang must be one of: ${VALID_LANGS.join(', ')}`);
+      }
+      if (summary && summary.length > 1000) {
+        return validationError(res, 'Summary must not exceed 1000 characters');
+      }
+      if (sensitivity && !VALID_SENSITIVITIES.includes(sensitivity)) {
+        return validationError(res, `Sensitivity must be one of: ${VALID_SENSITIVITIES.join(', ')}`);
+      }
+      if (!chunks || !Array.isArray(chunks) || chunks.length === 0) {
+        return validationError(res, 'chunks array is required and must not be empty');
+      }
+      if (chunks.length > BULK_MAX_CHUNKS) {
+        return validationError(res, `Maximum ${BULK_MAX_CHUNKS} chunks per request`);
+      }
+
+      // Validate each chunk
+      for (let i = 0; i < chunks.length; i++) {
+        const c = chunks[i];
+        if (!c.content || typeof c.content !== 'string') {
+          return validationError(res, `chunks[${i}].content is required and must be a string`);
+        }
+        const trimmed = c.content.trim();
+        if (trimmed.length < 10 || trimmed.length > 5000) {
+          return validationError(res, `chunks[${i}].content must be between 10 and 5000 characters`);
+        }
+        if (c.technicalDetail && typeof c.technicalDetail !== 'string') {
+          return validationError(res, `chunks[${i}].technicalDetail must be a string`);
+        }
+        if (c.technicalDetail && c.technicalDetail.length > 10000) {
+          return validationError(res, `chunks[${i}].technicalDetail must not exceed 10000 characters`);
+        }
+        if (c.sources && !Array.isArray(c.sources)) {
+          return validationError(res, `chunks[${i}].sources must be an array`);
+        }
+      }
+
+      const result = await topicService.createTopicFull({
+        title,
+        lang,
+        summary,
+        sensitivity,
+        createdBy: req.account.id,
+        chunks: chunks.map(c => ({
+          content: c.content.trim(),
+          technicalDetail: c.technicalDetail || null,
+          title: c.title || null,
+          subtitle: c.subtitle || null,
+          adhp: c.adhp || null,
+          sources: c.sources || [],
+        })),
+        isElite: !!req.account.badgeElite,
+        hasBadgeContribution: !!req.account.badgeContribution,
+      });
+
+      return res.status(201).json({ data: result });
+    } catch (err) {
+      console.error('Error creating topic with chunks:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create topic with chunks' } });
     }
   }
 );
@@ -584,14 +660,27 @@ router.put(
   requireTier(1), requireBadge('policing'),
   async (req, res) => {
     try {
-      const { reason, report } = req.body || {};
+      const { reason, report, category, suggestions } = req.body || {};
       if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
         return validationError(res, 'reason is required');
+      }
+      if (!category || !REJECTION_CATEGORIES.includes(category)) {
+        return validationError(res, `category is required and must be one of: ${REJECTION_CATEGORIES.join(', ')}`);
+      }
+      if (suggestions !== undefined && suggestions !== null) {
+        if (typeof suggestions !== 'string') {
+          return validationError(res, 'suggestions must be a string');
+        }
+        if (suggestions.length > REJECTION_SUGGESTIONS_MAX_LENGTH) {
+          return validationError(res, `suggestions must be at most ${REJECTION_SUGGESTIONS_MAX_LENGTH} characters`);
+        }
       }
       const rejected = await chunkService.rejectChunk(req.params.id, {
         reason: reason.trim(),
         report: !!report,
         rejectedBy: req.account.id,
+        category,
+        suggestions: suggestions ? suggestions.trim() : null,
       });
       return res.json(rejected);
     } catch (err) {

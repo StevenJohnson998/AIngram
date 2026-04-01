@@ -1,5 +1,25 @@
 jest.mock('../../config/database');
 jest.mock('../../utils/slug');
+jest.mock('../chunk', () => ({
+  _insertChunkInTx: jest.fn(),
+}));
+jest.mock('../../config/trust', () => ({
+  CHUNK_PRIOR_NEW: [1, 1],
+  CHUNK_PRIOR_ESTABLISHED: [3, 1],
+  CHUNK_PRIOR_ELITE: [5, 1],
+}));
+jest.mock('../injection-detector', () => ({
+  analyzeContent: jest.fn().mockReturnValue({ score: 0, flags: [], suspicious: false }),
+}));
+jest.mock('../account', () => ({
+  incrementInteractionAndUpdateTier: jest.fn().mockResolvedValue(0),
+}));
+jest.mock('../subscription-matcher', () => ({
+  matchNewChunk: jest.fn().mockResolvedValue([]),
+}));
+jest.mock('../notification', () => ({
+  dispatchNotification: jest.fn().mockResolvedValue(undefined),
+}));
 
 const { getPool } = require('../../config/database');
 const { generateSlug, ensureUniqueSlug } = require('../../utils/slug');
@@ -260,6 +280,70 @@ describe('topic service', () => {
         .mockRejectedValueOnce(new Error('DB error'));
 
       await expect(topicService.linkTranslation('uuid-1', 'uuid-2')).rejects.toThrow('DB error');
+
+      expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
+      expect(mockClient.release).toHaveBeenCalled();
+    });
+  });
+
+  describe('createTopicFull', () => {
+    const chunkService = require('../chunk');
+
+    it('creates topic + chunks atomically', async () => {
+      const topic = { id: 'topic-1', title: 'Test Topic', slug: 'test-slug', lang: 'en' };
+      const chunk1 = { id: 'chunk-1', status: 'proposed' };
+      const chunk2 = { id: 'chunk-2', status: 'proposed' };
+
+      mockClient.query
+        .mockResolvedValueOnce() // BEGIN
+        .mockResolvedValueOnce({ rows: [topic] }) // INSERT topic
+        .mockResolvedValueOnce() // INSERT chunk_sources for chunk 1
+        .mockResolvedValueOnce() // activity_log for bulk
+        .mockResolvedValueOnce(); // COMMIT
+
+      chunkService._insertChunkInTx
+        .mockResolvedValueOnce(chunk1)
+        .mockResolvedValueOnce(chunk2);
+
+      const result = await topicService.createTopicFull({
+        title: 'Test Topic',
+        lang: 'en',
+        summary: 'A test topic',
+        createdBy: 'account-1',
+        chunks: [
+          { content: 'First chunk content here', sources: [{ sourceUrl: 'https://example.com' }] },
+          { content: 'Second chunk content here' },
+        ],
+      });
+
+      expect(result.topic).toEqual(topic);
+      expect(result.chunks).toEqual([
+        { id: 'chunk-1', status: 'proposed' },
+        { id: 'chunk-2', status: 'proposed' },
+      ]);
+      expect(chunkService._insertChunkInTx).toHaveBeenCalledTimes(2);
+      expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
+      expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
+    });
+
+    it('rolls back on chunk insertion failure', async () => {
+      const topic = { id: 'topic-1', title: 'Test', slug: 'test-slug', lang: 'en' };
+
+      mockClient.query
+        .mockResolvedValueOnce() // BEGIN
+        .mockResolvedValueOnce({ rows: [topic] }); // INSERT topic
+
+      chunkService._insertChunkInTx
+        .mockRejectedValueOnce(new Error('Chunk insert failed'));
+
+      await expect(
+        topicService.createTopicFull({
+          title: 'Test',
+          lang: 'en',
+          createdBy: 'account-1',
+          chunks: [{ content: 'Content that will fail' }],
+        })
+      ).rejects.toThrow('Chunk insert failed');
 
       expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
       expect(mockClient.release).toHaveBeenCalled();

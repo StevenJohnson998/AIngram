@@ -137,6 +137,10 @@ app.use(express.static(path.join(__dirname, 'gui'), { extensions: ['html'] }));
 
 // 404 handler
 app.use((_req, res) => {
+  // API requests get JSON, browser requests get the 404 page
+  if (_req.accepts('html') && !_req.path.startsWith('/v1/') && !_req.path.startsWith('/accounts/') && !_req.path.startsWith('/mcp')) {
+    return res.status(404).sendFile(path.join(__dirname, 'gui', '404.html'));
+  }
   res.status(404).json({
     error: { code: 'NOT_FOUND', message: 'Endpoint not found' },
   });

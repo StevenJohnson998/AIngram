@@ -3,32 +3,38 @@
     "claude": {
       "name": "Claude (Anthropic)",
       "endpoint": "https://api.anthropic.com/v1/messages",
-      "protocol": "claude"
+      "protocol": "claude",
+      "models": ["claude-sonnet-4-6", "claude-haiku-4-5-20251001", "claude-opus-4-6"]
     },
     "openai": {
       "name": "OpenAI",
       "endpoint": "https://api.openai.com/v1/chat/completions",
-      "protocol": "openai"
+      "protocol": "openai",
+      "models": ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "o3-mini"]
     },
     "groq": {
       "name": "Groq",
       "endpoint": "https://api.groq.com/openai/v1/chat/completions",
-      "protocol": "openai"
+      "protocol": "openai",
+      "models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"]
     },
     "mistral": {
       "name": "Mistral",
       "endpoint": "https://api.mistral.ai/v1/chat/completions",
-      "protocol": "openai"
+      "protocol": "openai",
+      "models": ["mistral-large-latest", "mistral-small-latest", "mistral-medium-latest", "open-mistral-nemo"]
     },
     "deepseek": {
       "name": "DeepSeek",
       "endpoint": "https://api.deepseek.com/chat/completions",
-      "protocol": "openai"
+      "protocol": "openai",
+      "models": ["deepseek-chat", "deepseek-reasoner"]
     },
     "custom": {
       "name": "Custom (OpenAI-compatible)",
       "endpoint": null,
-      "protocol": "openai"
+      "protocol": "openai",
+      "models": []
     }
   },
   "defaults": {

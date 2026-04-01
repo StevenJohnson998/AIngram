@@ -72,9 +72,103 @@ async function filterByAdhp(chunkAdhp, matches) {
 }
 
 /**
+ * Escape SQL LIKE special characters in a keyword string.
+ */
+function escapeLikePattern(keyword) {
+  return keyword.replace(/[%_\\]/g, '\\$&');
+}
+
+/**
+ * Match vector subscriptions against a chunk embedding.
+ * @returns {Array<{subscriptionId, accountId, matchType: 'vector', similarity}>}
+ */
+async function matchVectorSubscriptions(pool, chunkId, embedding, triggerFilter) {
+  if (!embedding) return [];
+
+  const { rows } = await pool.query(
+    `SELECT s.id as subscription_id, s.account_id, s.similarity_threshold,
+            1 - (s.embedding <=> c.embedding) as similarity
+     FROM subscriptions s, chunks c
+     WHERE c.id = $1
+       AND s.type = 'vector'
+       AND s.active = true
+       AND s.embedding IS NOT NULL
+       AND s.trigger_status = ANY($2)
+       AND 1 - (s.embedding <=> c.embedding) >= COALESCE(s.similarity_threshold, 0.7)`,
+    [chunkId, triggerFilter]
+  );
+
+  return rows.map(sub => ({
+    subscriptionId: sub.subscription_id,
+    accountId: sub.account_id,
+    matchType: 'vector',
+    similarity: parseFloat(sub.similarity),
+  }));
+}
+
+/**
+ * Match keyword subscriptions against chunk content using SQL ILIKE.
+ * @returns {Array<{subscriptionId, accountId, matchType: 'keyword'}>}
+ */
+async function matchKeywordSubscriptions(pool, content, triggerFilter) {
+  const { rows } = await pool.query(
+    `SELECT id as subscription_id, account_id, keyword
+     FROM subscriptions
+     WHERE type = 'keyword'
+       AND active = true
+       AND keyword IS NOT NULL
+       AND trigger_status = ANY($1)
+       AND $2 ILIKE '%' || replace(replace(replace(keyword, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'`,
+    [triggerFilter, content]
+  );
+
+  return rows.map(sub => ({
+    subscriptionId: sub.subscription_id,
+    accountId: sub.account_id,
+    matchType: 'keyword',
+  }));
+}
+
+/**
+ * Match topic subscriptions for the chunk's associated topics.
+ * @returns {Array<{subscriptionId, accountId, matchType: 'topic'}>}
+ */
+async function matchTopicSubscriptions(pool, topicIds, triggerFilter) {
+  if (topicIds.length === 0) return [];
+
+  const { rows } = await pool.query(
+    `SELECT id as subscription_id, account_id, topic_id
+     FROM subscriptions
+     WHERE type = 'topic'
+       AND active = true
+       AND topic_id = ANY($1)
+       AND trigger_status = ANY($2)`,
+    [topicIds, triggerFilter]
+  );
+
+  return rows.map(sub => ({
+    subscriptionId: sub.subscription_id,
+    accountId: sub.account_id,
+    matchType: 'topic',
+  }));
+}
+
+/**
+ * Deduplicate matches: if the same subscription matched via multiple types, keep the first.
+ */
+function deduplicateMatches(matches) {
+  const seen = new Set();
+  return matches.filter(m => {
+    if (seen.has(m.subscriptionId)) return false;
+    seen.add(m.subscriptionId);
+    return true;
+  });
+}
+
+/**
  * Find subscriptions that match a newly embedded chunk.
- * Checks three subscription types: vector, keyword, topic.
- * Then applies ADHP policy filtering if the chunk has an ADHP profile.
+ * Runs vector, keyword, and topic predicates in parallel.
+ * Then deduplicates and applies ADHP policy filtering.
  *
  * @param {string} chunkId - UUID of the newly embedded chunk
  * @param {'published'|'proposed'} triggerStatus - chunk status that triggered the match
@@ -108,79 +202,18 @@ async function matchNewChunk(chunkId, triggerStatus = 'published') {
     ? ['proposed', 'both']
     : ['published', 'both'];
 
-  const matches = [];
+  // 2. Run all three predicates in parallel
+  const [vectorMatches, keywordMatches, topicMatches] = await Promise.all([
+    matchVectorSubscriptions(pool, chunkId, chunk.embedding, triggerFilter),
+    matchKeywordSubscriptions(pool, chunk.content, triggerFilter),
+    matchTopicSubscriptions(pool, topicIds, triggerFilter),
+  ]);
 
-  // 2. Vector subscriptions: cosine similarity >= threshold
-  if (chunk.embedding) {
-    const { rows: vectorSubs } = await pool.query(
-      `SELECT s.id as subscription_id, s.account_id, s.similarity_threshold,
-              1 - (s.embedding <=> c.embedding) as similarity
-       FROM subscriptions s, chunks c
-       WHERE c.id = $1
-         AND s.type = 'vector'
-         AND s.active = true
-         AND s.embedding IS NOT NULL
-         AND s.trigger_status = ANY($2)
-         AND 1 - (s.embedding <=> c.embedding) >= COALESCE(s.similarity_threshold, 0.7)`,
-      [chunkId, triggerFilter]
-    );
+  // 3. Combine and deduplicate
+  const allMatches = deduplicateMatches([...vectorMatches, ...keywordMatches, ...topicMatches]);
 
-    for (const sub of vectorSubs) {
-      matches.push({
-        subscriptionId: sub.subscription_id,
-        accountId: sub.account_id,
-        matchType: 'vector',
-        similarity: parseFloat(sub.similarity),
-      });
-    }
-  }
-
-  // 3. Keyword subscriptions: ILIKE on chunk content
-  const { rows: keywordSubs } = await pool.query(
-    `SELECT id as subscription_id, account_id, keyword
-     FROM subscriptions
-     WHERE type = 'keyword'
-       AND active = true
-       AND keyword IS NOT NULL
-       AND trigger_status = ANY($1)`,
-    [triggerFilter]
-  );
-
-  for (const sub of keywordSubs) {
-    if (chunk.content.toLowerCase().includes(sub.keyword.toLowerCase())) {
-      matches.push({
-        subscriptionId: sub.subscription_id,
-        accountId: sub.account_id,
-        matchType: 'keyword',
-      });
-    }
-  }
-
-  // 4. Topic subscriptions: chunk's topic_id matches subscription topic_id
-  if (topicIds.length > 0) {
-    const { rows: topicSubs } = await pool.query(
-      `SELECT id as subscription_id, account_id, topic_id
-       FROM subscriptions
-       WHERE type = 'topic'
-         AND active = true
-         AND topic_id = ANY($1)
-         AND trigger_status = ANY($2)`,
-      [topicIds, triggerFilter]
-    );
-
-    for (const sub of topicSubs) {
-      matches.push({
-        subscriptionId: sub.subscription_id,
-        accountId: sub.account_id,
-        matchType: 'topic',
-      });
-    }
-  }
-
-  // 5. ADHP policy filtering
-  const filtered = await filterByAdhp(chunk.adhp, matches);
-
-  return filtered;
+  // 4. ADHP policy filtering
+  return filterByAdhp(chunk.adhp, allMatches);
 }
 
-module.exports = { matchNewChunk, filterByAdhp };
+module.exports = { matchNewChunk, filterByAdhp, deduplicateMatches, escapeLikePattern };

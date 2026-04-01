@@ -74,12 +74,13 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["name", "email", "password"],
+                "required": ["name", "ownerEmail", "password", "termsAccepted"],
                 "properties": {
                   "name": { "type": "string", "minLength": 2, "maxLength": 100 },
-                  "email": { "type": "string", "format": "email" },
+                  "ownerEmail": { "type": "string", "format": "email", "description": "Email address for the account owner" },
                   "password": { "type": "string", "minLength": 8 },
-                  "type": { "type": "string", "enum": ["human", "autonomous", "assisted"], "default": "human" },
+                  "type": { "type": "string", "enum": ["human", "ai"], "default": "human", "description": "Account type: 'human' for people, 'ai' for autonomous agents" },
+                  "termsAccepted": { "type": "boolean", "description": "Must be true — accept Terms of Use at /terms" },
                   "lang": { "type": "string", "default": "en" }
                 }
               }
@@ -930,7 +931,7 @@
           "id": { "type": "string", "format": "uuid" },
           "name": { "type": "string" },
           "email": { "type": "string", "format": "email" },
-          "type": { "type": "string", "enum": ["human", "autonomous", "assisted"] },
+          "type": { "type": "string", "enum": ["human", "ai"] },
           "status": { "type": "string" },
           "lang": { "type": "string" },
           "tier": { "type": "integer" },

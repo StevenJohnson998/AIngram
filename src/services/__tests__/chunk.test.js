@@ -65,7 +65,7 @@ describe('chunk service', () => {
       expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
       expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO chunks'),
-        ['Test content for a chunk', null, false, 'account-1', 0.5, null, null, null]
+        ['Test content for a chunk', null, false, 'account-1', 0.5, null, null, null, 0, null]
       );
       expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO chunk_topics'),
@@ -93,7 +93,7 @@ describe('chunk service', () => {
 
       expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO chunks'),
-        ['Some test content here', 'Benchmark data: 95% accuracy', true, 'account-1', 0.5, null, null, null]
+        ['Some test content here', 'Benchmark data: 95% accuracy', true, 'account-1', 0.5, null, null, null, 0, null]
       );
     });
 
@@ -296,6 +296,91 @@ describe('chunk service', () => {
 
       expect(result.pagination).toEqual({ page: 1, limit: 20, total: 3 });
       expect(mockPool.query.mock.calls[1][1]).toEqual(['topic-1', 'published', 20, 0]);
+    });
+  });
+
+  describe('rejectChunk', () => {
+    it('stores rejection category and suggestions', async () => {
+      const rejected = {
+        id: 'chunk-1',
+        status: 'retracted',
+        retract_reason: 'rejected',
+        reject_reason: 'Inaccurate claims',
+        rejection_category: 'inaccurate',
+        rejection_suggestions: 'Add peer-reviewed sources',
+        rejected_by: 'reviewer-1',
+        rejected_at: new Date().toISOString(),
+      };
+
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [rejected] }) // UPDATE RETURNING *
+        .mockResolvedValueOnce(); // INSERT activity_log
+
+      const result = await chunkService.rejectChunk('chunk-1', {
+        reason: 'Inaccurate claims',
+        category: 'inaccurate',
+        suggestions: 'Add peer-reviewed sources',
+        rejectedBy: 'reviewer-1',
+      });
+
+      expect(result.rejection_category).toBe('inaccurate');
+      expect(result.rejection_suggestions).toBe('Add peer-reviewed sources');
+      expect(result.reject_reason).toBe('Inaccurate claims');
+
+      // Verify SQL includes the new columns
+      const updateCall = mockPool.query.mock.calls[0];
+      expect(updateCall[0]).toContain('rejection_category');
+      expect(updateCall[0]).toContain('rejection_suggestions');
+      expect(updateCall[1]).toEqual([
+        'chunk-1', 'Inaccurate claims', 'reviewer-1', 'inaccurate', 'Add peer-reviewed sources',
+      ]);
+    });
+
+    it('allows null suggestions', async () => {
+      const rejected = {
+        id: 'chunk-1',
+        status: 'retracted',
+        retract_reason: 'rejected',
+        reject_reason: 'Duplicate content',
+        rejection_category: 'duplicate',
+        rejection_suggestions: null,
+        rejected_by: 'reviewer-1',
+      };
+
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [rejected] })
+        .mockResolvedValueOnce();
+
+      const result = await chunkService.rejectChunk('chunk-1', {
+        reason: 'Duplicate content',
+        category: 'duplicate',
+        rejectedBy: 'reviewer-1',
+      });
+
+      expect(result.rejection_category).toBe('duplicate');
+      expect(result.rejection_suggestions).toBeNull();
+      expect(mockPool.query.mock.calls[0][1][4]).toBeNull();
+    });
+
+    it('allows null category (for backward compatibility)', async () => {
+      const rejected = {
+        id: 'chunk-1',
+        status: 'retracted',
+        retract_reason: 'rejected',
+        rejection_category: null,
+      };
+
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [rejected] })
+        .mockResolvedValueOnce();
+
+      const result = await chunkService.rejectChunk('chunk-1', {
+        reason: 'Legacy reject',
+        rejectedBy: 'reviewer-1',
+      });
+
+      expect(result.rejection_category).toBeNull();
+      expect(mockPool.query.mock.calls[0][1][3]).toBeNull();
     });
   });
 });

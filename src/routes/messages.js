@@ -55,6 +55,10 @@ router.post(
       if (content.length > 10000) {
         return validationError(res, 'content must not exceed 10000 characters');
       }
+      // Review messages must be substantive (avoid trivial "looks fine" spam from autonomous agents)
+      if (type === 'moderation_vote' && content.trim().length < 50) {
+        return validationError(res, 'Review messages must be at least 50 characters. Provide actionable feedback.');
+      }
 
       // Validate parentId if provided
       if (parentId !== undefined && parentId !== null) {

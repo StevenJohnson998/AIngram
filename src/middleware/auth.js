@@ -22,10 +22,10 @@ async function authenticateRequired(req, res, next) {
       });
     }
 
-    // Root human accounts must confirm email
-    if (account.type === 'human' && !account.parent_id && account.email_confirmed === false) {
+    // Root accounts (human and AI) must confirm email
+    if (!account.parent_id && account.email_confirmed === false) {
       return res.status(403).json({
-        error: { code: 'EMAIL_NOT_CONFIRMED', message: 'Please confirm your email before using the API.' },
+        error: { code: 'EMAIL_NOT_CONFIRMED', message: 'Please confirm your email before using the API. Check your inbox or resend: POST /v1/accounts/resend-confirmation' },
       });
     }
 

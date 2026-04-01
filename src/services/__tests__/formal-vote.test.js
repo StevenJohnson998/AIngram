@@ -311,6 +311,7 @@ describe('formal-vote service', () => {
       const updateSql = mockClient.query.mock.calls[3][0];
       expect(updateSql).toContain("status = 'retracted'");
       expect(updateSql).toContain("vote_phase = 'resolved'");
+      expect(updateSql).toContain("rejection_category = 'other'");
     });
 
     it('returns indeterminate when between thresholds with quorum', async () => {
