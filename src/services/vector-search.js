@@ -45,12 +45,12 @@ async function searchByVector(embedding, { limit = 20, minSimilarity = 0.5 } = {
   const { rows } = await pool.query(
     `SELECT id, content, technical_detail, has_technical_detail, trust_score, status,
             created_by, valid_as_of, created_at, updated_at,
-            1 - (embedding <=> $1::vector) as similarity
+            (1 - (embedding <=> $1::vector)) * COALESCE(trust_score, 0.5) as similarity
      FROM chunks
      WHERE embedding IS NOT NULL
        AND hidden = false
        AND 1 - (embedding <=> $1::vector) >= $2
-     ORDER BY embedding <=> $1::vector
+     ORDER BY similarity DESC
      LIMIT $3`,
     [vectorStr, minSimilarity, limit]
   );
@@ -87,7 +87,7 @@ async function searchByText(query, { limit = 20, langs = ['en'] } = {}) {
   const { rows } = await pool.query(
     `SELECT id, content, technical_detail, has_technical_detail, trust_score, status,
             created_by, valid_as_of, created_at, updated_at,
-            ${rankExpr} as rank
+            (${rankExpr}) * COALESCE(trust_score, 0.5) as rank
      FROM chunks
      WHERE hidden = false
        AND ${matchCondition}
@@ -144,7 +144,8 @@ async function hybridSearch(query, { limit = 20, vectorWeight = 0.7, textWeight 
 
   const merged = [...scoreMap.values()].map((row) => ({
     ...row,
-    score: vectorWeight * row.vectorScore + textWeight * (row.textScore / maxTextScore),
+    score: (vectorWeight * row.vectorScore + textWeight * (row.textScore / maxTextScore))
+      * (parseFloat(row.trust_score) || 0.5),
   }));
 
   // Sort by weighted score descending, apply limit

@@ -5,10 +5,19 @@ jest.mock('../../config/trust', () => ({
   NEW_ACCOUNT_THRESHOLD_DAYS: 14,
   VOTER_REP_BASE: 0.5,
 }));
+jest.mock('../reputation', () => ({
+  awardDeliberationBonus: jest.fn().mockResolvedValue({}),
+  recalculateChunkTrust: jest.fn().mockResolvedValue(0.5),
+}));
+jest.mock('../sanction', () => ({
+  isVoteSuspended: jest.fn().mockResolvedValue(false),
+}));
 
 const { getPool } = require('../../config/database');
 const formalVoteService = require('../formal-vote');
 const { hashCommitment } = require('../../../build/domain/formal-vote');
+const reputationService = require('../reputation');
+const { isVoteSuspended } = require('../sanction');
 
 describe('formal-vote service', () => {
   let mockPool;
@@ -141,6 +150,20 @@ describe('formal-vote service', () => {
         chunkId: 'chunk-1',
         commitHash: 'abc',
       })).rejects.toMatchObject({ code: 'VOTE_LOCKED' });
+    });
+
+    it('rejects vote-suspended accounts', async () => {
+      isVoteSuspended.mockResolvedValueOnce(true);
+
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [chunkInCommit] })
+        .mockResolvedValueOnce({ rows: [activeAccount] });
+
+      await expect(formalVoteService.commitVote({
+        accountId: 'voter-1',
+        chunkId: 'chunk-1',
+        commitHash: 'abc',
+      })).rejects.toMatchObject({ code: 'VOTE_SUSPENDED' });
     });
 
     it('rejects when commit deadline has passed', async () => {
@@ -362,6 +385,29 @@ describe('formal-vote service', () => {
 
       expect(result).toBeNull();
       expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('ROLLBACK'));
+    });
+
+    it('calls recalculateChunkTrust after successful tally', async () => {
+      const votes = [
+        { vote_value: 1, weight: 1.0 },
+        { vote_value: 1, weight: 1.0 },
+        { vote_value: 1, weight: 1.0 },
+      ];
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [{ id: 'chunk-1', status: 'under_review', vote_phase: 'reveal' }] })
+        .mockResolvedValueOnce({ rows: votes })
+        .mockResolvedValueOnce({}) // UPDATE
+        .mockResolvedValueOnce({}) // activity log
+        .mockResolvedValueOnce({}); // COMMIT
+
+      await formalVoteService.tallyAndResolve('chunk-1');
+
+      // Allow fire-and-forget to complete
+      await new Promise(r => setTimeout(r, 50));
+
+      expect(reputationService.recalculateChunkTrust).toHaveBeenCalledWith('chunk-1');
     });
   });
 

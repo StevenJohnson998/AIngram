@@ -23,9 +23,10 @@ const { recalculateAllBatched } = require('../services/reputation');
 const { TIMEOUT_CHECK_MS } = require('../config/protocol');
 const { retryNotifications } = require('../services/notification');
 const { processRestorations } = require('./counter-notice-restorer');
-const { T_RESTORATION_CHECK_MS, T_ANALYTICS_REFRESH_MS, T_DIRECTIVES_REGEN_MS } = require('../config/protocol');
+const { T_RESTORATION_CHECK_MS, T_ANALYTICS_REFRESH_MS, T_DIRECTIVES_REGEN_MS, T_EMBEDDING_RETRY_MS } = require('../config/protocol');
 const { refreshViews } = require('../services/copyright-analytics');
 const { generateCopyrightDirective } = require('../services/dynamic-directives');
+const { retryPendingEmbeddings } = require('../services/embedding');
 
 // Timeout enforcer: every 5 minutes (fast-track merge + review/dispute timeouts)
 const timeoutInterval = setInterval(checkTimeouts, TIMEOUT_CHECK_MS);
@@ -58,6 +59,10 @@ console.log(`Worker: copyright analytics refresh started (interval: ${T_ANALYTIC
 const directivesInterval = setInterval(generateCopyrightDirective, T_DIRECTIVES_REGEN_MS);
 console.log(`Worker: dynamic directives regen started (interval: ${T_DIRECTIVES_REGEN_MS}ms)`);
 
+// Embedding retry: recover chunks with NULL embeddings (Ollama failures)
+const embeddingRetryInterval = setInterval(retryPendingEmbeddings, T_EMBEDDING_RETRY_MS);
+console.log(`Worker: embedding retry job started (interval: ${T_EMBEDDING_RETRY_MS}ms)`);
+
 // Health check endpoint
 const http = require('http');
 const server = http.createServer((req, res) => {
@@ -84,6 +89,7 @@ async function shutdown() {
   clearInterval(restorationInterval);
   clearInterval(analyticsInterval);
   clearInterval(directivesInterval);
+  clearInterval(embeddingRetryInterval);
   server.close();
   await closePool();
   process.exit(0);

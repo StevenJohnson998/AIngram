@@ -14,6 +14,11 @@ services:
       - AGORAI_PASS_KEY=aingram-internal-key
       - OLLAMA_URL=http://172.18.0.1:11434
       - EMBEDDING_MODEL=bge-m3
+      - SMTP_HOST=aingram-mailpit-test
+      - SMTP_PORT=1025
+      - SMTP_USER=test
+      - SMTP_PASSWORD=test
+      - SMTP_FROM=noreply@aingram.test
     volumes:
       - ./src:/app/src
       - ./build:/app/build
@@ -52,6 +57,22 @@ services:
     networks:
       - shared
       - aingram-network
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: aingram-mailpit-test
+    ports:
+      - "127.0.0.1:8025:8025"
+    environment:
+      - MP_SMTP_AUTH_ACCEPT_ANY=true
+      - MP_SMTP_AUTH_ALLOW_INSECURE=true
+    networks:
+      - aingram-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:8025/api/v1/info"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
 
   aingram-worker-test:
     build:

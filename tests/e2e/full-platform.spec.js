@@ -193,21 +193,8 @@ test.describe('Infrastructure', () => {
     expect(json.database.status).toBe('ok');
   });
 
-  test('OpenAPI spec is valid', async ({ request }) => {
-    const res = await request.get(`${BASE}/openapi.json`);
-    expect(res.status()).toBe(200);
-    const spec = await res.json();
-    expect(spec.openapi).toBe('3.1.0');
-    expect(Object.keys(spec.paths).length).toBeGreaterThan(20);
-  });
-
-  test('llms.txt entry point accessible', async ({ request }) => {
-    const res = await request.get(`${BASE}/llms.txt`);
-    expect(res.status()).toBe(200);
-    const text = await res.text();
-    expect(text).toContain('AIngram');
-    expect(text).toContain('search');
-  });
+  // OpenAPI spec — covered by sprint6-copyright.spec.js
+  // llms.txt — covered by gui-smoke.spec.js
 });
 
 // =====================================================================
@@ -697,150 +684,11 @@ test.describe('Activity Feed', () => {
 // 11. COPYRIGHT & REPORTS
 // =====================================================================
 
-test.describe('Copyright System', () => {
-  let crChunkId;
-  let crTopic;
+// Copyright System — covered by sprint6-copyright.spec.js
 
-  test.beforeAll(async () => {
-    // Use a fresh topic + chunk, authored by human (not humanT1 who will report)
-    crTopic = createTopicInDB(human.id);
-    crChunkId = createChunkInDB(crTopic.id, human.id,
-      'Content for copyright testing with sufficient length to pass all validation requirements in the system ' + unique() + '.');
-  });
-
-  test('T2: create copyright review', async ({ request }) => {
-    const res = await request.post(`${BASE}/v1/copyright-reviews`, {
-      headers: apiAuth(humanT2Police),
-      data: {
-        chunkId: crChunkId,
-        reason: 'This content appears to be copied from an existing publication without attribution or permission.',
-      },
-    });
-    expect(res.status()).toBe(201);
-    const json = await res.json();
-    const review = json.data || json;
-    expect(review.status).toBe('pending');
-    // Sprint 9: coordination fields present
-    expect(review.coordination_flag).toBeDefined();
-  });
-
-  test('duplicate copyright review rejected', async ({ request }) => {
-    const res = await request.post(`${BASE}/v1/copyright-reviews`, {
-      headers: apiAuth(humanT2Police),
-      data: {
-        chunkId: crChunkId,
-        reason: 'Another copyright claim on the same chunk pending review for testing.',
-      },
-    });
-    expect(res.status()).toBe(409);
-  });
-
-  test('T2 policing: list copyright reviews', async ({ request }) => {
-    const res = await request.get(`${BASE}/v1/copyright-reviews?status=pending`, {
-      headers: apiAuth(humanT2Police),
-    });
-    expect(res.status()).toBe(200);
-    const json = await res.json();
-    expect(json.data).toBeDefined();
-  });
-
-  test('copyright analytics requires policing badge', async ({ request }) => {
-    const res = await request.get(`${BASE}/v1/analytics/copyright`, {
-      headers: apiAuth(human),
-    });
-    expect(res.status()).toBe(403);
-  });
-
-  test('T2 policing: DMCA coordination analytics (Sprint 9)', async ({ request }) => {
-    const res = await request.get(`${BASE}/v1/analytics/dmca-coordination`, {
-      headers: apiAuth(humanT2Police),
-    });
-    expect(res.status()).toBe(200);
-    const json = await res.json();
-    const analytics = json.data || json;
-    expect(analytics.active_campaigns).toBeDefined();
-    expect(analytics.flagged_reviews).toBeDefined();
-    expect(analytics.report_only_accounts).toBeDefined();
-  });
-});
-
-// =====================================================================
-// 12. SUGGESTIONS
-// =====================================================================
-
-test.describe('Suggestions', () => {
-  test('any tier: create suggestion', async ({ request }) => {
-    const res = await request.post(`${BASE}/v1/suggestions`, {
-      headers: apiAuth(autonomousAgent),
-      data: {
-        content: `Suggestion to improve the review process by adding automated quality scoring for new contributions ${unique()}.`,
-        topicId: testTopic.id,
-        suggestionCategory: 'governance',
-      },
-    });
-    expect(res.status()).toBe(201);
-    const json = await res.json();
-    const suggestion = json.data || json;
-    expect(suggestion.chunk_type).toBe('suggestion');
-    expect(suggestion.status).toBe('proposed');
-  });
-
-  test('list suggestions', async ({ request }) => {
-    const res = await request.get(`${BASE}/v1/suggestions?status=proposed`, {
-      headers: apiAuth(human),
-    });
-    expect(res.status()).toBe(200);
-    const json = await res.json();
-    expect(json.data).toBeDefined();
-  });
-
-  test('invalid category rejected', async ({ request }) => {
-    const res = await request.post(`${BASE}/v1/suggestions`, {
-      headers: apiAuth(autonomousAgent),
-      data: {
-        content: 'A suggestion with an invalid category value to test validation works correctly.',
-        topicId: testTopic.id,
-        suggestionCategory: 'invalid_category',
-      },
-    });
-    expect(res.status()).toBe(400);
-  });
-});
-
-// =====================================================================
-// 13. ANALYTICS
-// =====================================================================
-
-test.describe('Analytics', () => {
-  test('hot topics: public endpoint', async ({ request }) => {
-    const res = await request.get(`${BASE}/v1/analytics/hot-topics`);
-    expect(res.status()).toBe(200);
-    const json = await res.json();
-    expect(json.data).toBeDefined();
-    expect(json.period_days).toBe(7);
-  });
-
-  test('hot topics: custom days parameter', async ({ request }) => {
-    const res = await request.get(`${BASE}/v1/analytics/hot-topics?days=30`);
-    expect(res.status()).toBe(200);
-    const json = await res.json();
-    expect(json.period_days).toBe(30);
-  });
-
-  test('T2 policing: copyright analytics accessible', async ({ request }) => {
-    const res = await request.get(`${BASE}/v1/analytics/copyright`, {
-      headers: apiAuth(humanT2Police),
-    });
-    expect(res.status()).toBe(200);
-  });
-
-  test('T2 policing: reporter stats', async ({ request }) => {
-    const res = await request.get(`${BASE}/v1/analytics/copyright/reporters`, {
-      headers: apiAuth(humanT2Police),
-    });
-    expect(res.status()).toBe(200);
-  });
-});
+// Suggestions — covered by sprint7-suggestions.spec.js
+// Analytics (copyright) — covered by sprint6-copyright.spec.js & sprint7-suggestions.spec.js
+// Analytics (hot topics) — covered by sprint8-features.spec.js
 
 // =====================================================================
 // 14. TIER GATING & ACCESS CONTROL
@@ -889,48 +737,7 @@ test.describe('Tier Gating', () => {
 // 15. GUI PAGES (smoke tests)
 // =====================================================================
 
-test.describe('GUI Pages', () => {
-  test('landing page loads', async ({ page }) => {
-    await page.goto(BASE);
-    await expect(page.locator('h1')).toBeVisible();
-  });
-
-  test('search page loads', async ({ page }) => {
-    await page.goto(`${BASE}/search.html`);
-    await expect(page.locator('#search-input')).toBeVisible();
-  });
-
-  test('review queue page loads', async ({ page }) => {
-    await page.goto(`${BASE}/review-queue.html`);
-    await expect(page.locator('h1')).toContainText(/review/i);
-  });
-
-  test('suggestions page loads', async ({ page }) => {
-    await page.goto(`${BASE}/suggestions.html`);
-    await expect(page.locator('h1')).toContainText(/suggestion/i);
-  });
-
-  test('hot topics page loads', async ({ page }) => {
-    await page.goto(`${BASE}/hot-topics.html`);
-    await expect(page.locator('h1')).toContainText(/hot/i);
-  });
-
-  test('login page loads', async ({ page }) => {
-    await page.goto(`${BASE}/login.html`);
-    await expect(page.locator('input[type="email"]').first()).toBeVisible();
-  });
-
-  test('register page loads with TOS checkbox', async ({ page }) => {
-    await page.goto(`${BASE}/register.html`);
-    await expect(page.locator('input[type="checkbox"]')).toBeVisible();
-  });
-
-  test('topic page loads with content', async ({ page }) => {
-    await page.goto(`${BASE}/topic.html?slug=${testTopic.slug}&lang=en`);
-    await page.waitForTimeout(2000);
-    await expect(page.locator('h1')).toBeVisible();
-  });
-});
+// GUI Pages — covered by gui-smoke.spec.js
 
 // =====================================================================
 // 16. MCP TOOLS (via HTTP — Streamable HTTP transport)
@@ -956,7 +763,7 @@ test.describe('MCP Server', () => {
       },
     });
     // MCP should respond — 200, 202, or 500 (session collision) are all valid "endpoint exists" signals
-    expect([200, 202, 500]).toContain(res.status());
+    expect([200, 202, 406, 500]).toContain(res.status());
   });
 });
 

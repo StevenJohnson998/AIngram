@@ -10,6 +10,8 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "jest",
+    "test:e2e": "npx playwright test tests/e2e/pipelines/",
+    "test:e2e:all": "npx playwright test tests/e2e/",
     "verify-db": "node src/config/verify-db.js"
   },
   "dependencies": {

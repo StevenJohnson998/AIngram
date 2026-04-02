@@ -11,13 +11,13 @@ const { test, expect } = require('@playwright/test');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
 
-const BASE = process.env.BASE_URL || 'http://172.18.0.22:3000';
+const BASE = process.env.BASE_URL || 'http://172.18.0.19:3000';
 const unique = () => crypto.randomBytes(4).toString('hex');
 
 // Container names for test env
-const API_CONTAINER = process.env.API_CONTAINER || 'aingram-api';
+const API_CONTAINER = process.env.API_CONTAINER || 'aingram-api-test';
 const DB_CONTAINER = process.env.DB_CONTAINER || 'postgres';
-const DB_NAME = process.env.DB_NAME || 'aingram';
+const DB_NAME = process.env.DB_NAME || 'aingram_test';
 
 /** Create a confirmed user directly in DB with specified tier and badges.
  *  Pipes a node script into the container via stdin to avoid shell escaping issues with bcrypt hashes. */

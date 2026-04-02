@@ -1,7 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 
-const BASE = process.env.BASE_URL || 'http://172.18.0.22:3000';
+const BASE = process.env.BASE_URL || 'http://172.18.0.19:3000';
 
 test.describe('AIngram GUI Smoke Tests', () => {
 

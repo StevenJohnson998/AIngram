@@ -1,7 +1,7 @@
 jest.mock('../../config/database');
 
 const { getPool } = require('../../config/database');
-const { matchNewChunk, filterByAdhp, deduplicateMatches, escapeLikePattern } = require('../subscription-matcher');
+const { matchNewChunk, filterByAdhp, deduplicateMatches } = require('../subscription-matcher');
 
 describe('subscription-matcher', () => {
   let mockPool;
@@ -214,24 +214,6 @@ describe('subscription-matcher', () => {
 
     it('returns empty array for empty input', () => {
       expect(deduplicateMatches([])).toEqual([]);
-    });
-  });
-
-  describe('escapeLikePattern', () => {
-    it('escapes % character', () => {
-      expect(escapeLikePattern('100%')).toBe('100\\%');
-    });
-
-    it('escapes _ character', () => {
-      expect(escapeLikePattern('my_keyword')).toBe('my\\_keyword');
-    });
-
-    it('escapes backslash', () => {
-      expect(escapeLikePattern('path\\file')).toBe('path\\\\file');
-    });
-
-    it('leaves normal text unchanged', () => {
-      expect(escapeLikePattern('machine learning')).toBe('machine learning');
     });
   });
 

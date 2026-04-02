@@ -336,7 +336,6 @@ module.exports = {
   counterNotice,
   restoreAfterCounterNotice,
   autoHideFromReport,
-  hideChunkAndNotifyAuthor,
   VALID_CONTENT_TYPES,
   VALID_STATUSES,
 };

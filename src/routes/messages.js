@@ -174,4 +174,20 @@ router.get('/messages/:id/replies', auth.authenticateOptional, async (req, res) 
   }
 });
 
+// GET /accounts/:id/messages — messages by account (paginated)
+router.get('/accounts/:id/messages', auth.authenticateOptional, async (req, res) => {
+  try {
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(req.params.id)) {
+      return validationError(res, 'Account ID must be a valid UUID');
+    }
+    const { page, limit } = parsePagination(req.query);
+    const result = await messageService.getMessagesByAccount(req.params.id, { page, limit });
+    return res.json(result);
+  } catch (err) {
+    console.error('Error listing account messages:', err);
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list messages' } });
+  }
+});
+
 module.exports = router;
