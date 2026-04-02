@@ -90,76 +90,8 @@ test.describe('Hot Topics API', () => {
   });
 });
 
-// ── Suggestion via API ─────────────────────────────────────────────
-
-test.describe('Suggestion creation via API', () => {
-  test('POST /suggestions creates a suggestion chunk', async ({ request }) => {
-    const user = createUserInDB({ tier: 0 });
-
-    // First get a topic ID
-    const topicsRes = await request.get(`${BASE}/v1/topics?limit=1`);
-    expect(topicsRes.status()).toBe(200);
-    const topics = await topicsRes.json();
-    if (!topics.data || topics.data.length === 0) {
-      test.skip();
-      return;
-    }
-    const topicId = topics.data[0].id;
-
-    const res = await request.post(`${BASE}/v1/suggestions`, {
-      headers: { Authorization: `Bearer ${user.apiKey}` },
-      data: {
-        topicId,
-        content: `E2E test suggestion content ${unique()} — should be at least twenty characters.`,
-        suggestionCategory: 'technical',
-        title: `E2E Suggestion ${unique()}`,
-      },
-    });
-    expect(res.status()).toBe(201);
-    const body = await res.json();
-    const suggestion = body.data || body;
-    expect(suggestion.chunk_type).toBe('suggestion');
-    expect(suggestion.status).toBe('proposed');
-    expect(suggestion.suggestion_category).toBe('technical');
-  });
-});
-
-// ── Source tools (check-sources) ───────────────────────────────────
-
-test.describe('Copyright review source tools', () => {
-  test('check-sources returns enriched source data', async ({ request }) => {
-    const user = createUserInDB({ tier: 1 });
-
-    // We need a policing badge user — upgrade via DB
-    const badgeScript = `
-      const { Pool } = require('pg');
-      const pool = new Pool({ host: process.env.DB_HOST || 'postgres', database: process.env.DB_NAME, user: process.env.DB_USER, password: process.env.DB_PASSWORD });
-      pool.query('UPDATE accounts SET badge_policing = true WHERE id = $1', ['${user.id}']).then(() => pool.end());
-    `;
-    execSync(`docker exec -i ${API_CONTAINER} node`, { input: badgeScript, encoding: 'utf-8', timeout: 10000 });
-
-    // Find a chunk with sources
-    const topicsRes = await request.get(`${BASE}/v1/topics?limit=1`);
-    const topics = await topicsRes.json();
-    if (!topics.data?.length) { test.skip(); return; }
-
-    const topicRes = await request.get(`${BASE}/v1/topics/${topics.data[0].id}`);
-    const topicBody = await topicRes.json();
-    const topic = topicBody.data || topicBody;
-    if (!topic.chunks?.length) { test.skip(); return; }
-
-    const chunkId = topic.chunks[0].id;
-
-    const res = await request.get(`${BASE}/v1/copyright-reviews/tools/check-sources/${chunkId}`, {
-      headers: { Authorization: `Bearer ${user.apiKey}` },
-    });
-    expect(res.status()).toBe(200);
-    const data = await res.json();
-    expect(data).toHaveProperty('chunkId', chunkId);
-    expect(data).toHaveProperty('sources');
-    expect(Array.isArray(data.sources)).toBe(true);
-  });
-});
+// Suggestion creation — covered by sprint7-suggestions.spec.js
+// check-sources tool — covered by sprint6-copyright.spec.js
 
 // ── Topic chunk pagination ─────────────────────────────────────────
 

@@ -267,4 +267,19 @@ router.delete(
   }
 );
 
+// GET /accounts/:id/subscription-tier — subscription tier and limits
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+router.get('/accounts/:id/subscription-tier', auth.authenticateRequired, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) {
+      return validationError(res, 'Account ID must be a valid UUID');
+    }
+    const tier = await subscriptionService.getTier(req.params.id);
+    return res.json(tier);
+  } catch (err) {
+    console.error('Error getting subscription tier:', err);
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get subscription tier' } });
+  }
+});
+
 module.exports = router;

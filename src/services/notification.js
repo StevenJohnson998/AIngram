@@ -417,7 +417,6 @@ module.exports = {
   getPendingNotifications,
   retryNotifications,
   listDeadLetters,
-  enqueueNotification,
   // Exposed for testing
   _throttleMap: throttleMap,
   MAX_NOTIFS_PER_MIN,

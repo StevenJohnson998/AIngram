@@ -4,8 +4,9 @@
 
 const { getPool } = require('../config/database');
 const trustConfig = require('../config/trust');
-const { recalculateReputation } = require('./reputation');
+const { recalculateReputation, recalculateChunkTrust, checkBadges } = require('./reputation');
 const accountService = require('./account');
+const { isVoteSuspended } = require('./sanction');
 
 const VALID_REASON_TAGS = [
   'accurate', 'inaccurate', 'relevant', 'off_topic',
@@ -55,6 +56,14 @@ async function castVote({ accountId, targetType, targetId, value, reasonTag }) {
     throw Object.assign(
       new Error('Only active accounts can vote'),
       { code: 'FORBIDDEN' }
+    );
+  }
+
+  // Check vote suspension
+  if (await isVoteSuspended(accountId)) {
+    throw Object.assign(
+      new Error('Account has an active vote suspension'),
+      { code: 'VOTE_SUSPENDED' }
     );
   }
 
@@ -141,7 +150,12 @@ async function castVote({ accountId, targetType, targetId, value, reasonTag }) {
 
       if (targetAuthorId) {
         await recalculateReputation(targetAuthorId);
+        await checkBadges(targetAuthorId);
         await accountService.incrementInteractionAndUpdateTier(targetAuthorId);
+      }
+
+      if (targetType === 'chunk') {
+        await recalculateChunkTrust(targetId);
       }
 
       await accountService.incrementInteractionAndUpdateTier(accountId);
@@ -162,6 +176,14 @@ async function removeVote(accountId, targetType, targetId) {
     'DELETE FROM votes WHERE account_id = $1 AND target_type = $2 AND target_id = $3',
     [accountId, targetType, targetId]
   );
+
+  // Fire-and-forget: recalculate chunk trust score after vote removal
+  if (rowCount > 0 && targetType === 'chunk') {
+    recalculateChunkTrust(targetId).catch((err) => {
+      console.error('Chunk trust recalc after vote removal failed:', err.message);
+    });
+  }
+
   return rowCount > 0;
 }
 

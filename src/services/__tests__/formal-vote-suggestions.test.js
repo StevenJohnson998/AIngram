@@ -4,6 +4,13 @@ jest.mock('../../config/trust', () => ({
   VOTE_WEIGHT_ESTABLISHED: 1.0,
   VOTER_REP_BASE: 0.5,
 }));
+jest.mock('../sanction', () => ({
+  isVoteSuspended: jest.fn().mockResolvedValue(false),
+}));
+jest.mock('../reputation', () => ({
+  awardDeliberationBonus: jest.fn().mockResolvedValue({}),
+  recalculateChunkTrust: jest.fn().mockResolvedValue(0.5),
+}));
 
 const { getPool } = require('../../config/database');
 const formalVoteService = require('../formal-vote');

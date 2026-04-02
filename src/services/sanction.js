@@ -4,6 +4,7 @@
 
 const { getPool } = require('../config/database');
 const flagService = require('./flag');
+const { recalculateChunkTrust } = require('./reputation');
 
 /**
  * Escalation rules: determine sanction type based on prior active minor sanctions.
@@ -81,11 +82,30 @@ async function createSanction({ accountId, severity, reason, issuedBy }) {
     client.release();
   }
 
-  // Post-ban audit runs OUTSIDE the transaction (fire-and-forget)
+  // Post-ban actions run OUTSIDE the transaction (fire-and-forget)
   if (sanction.type === 'ban') {
     postBanAudit(accountId, issuedBy).catch((err) => {
       console.error('Post-ban audit error:', err.message);
     });
+
+    // Nullify votes: collect all banned accounts (self + cascade family)
+    (async () => {
+      try {
+        const { rows: bannedRows } = await pool.query(
+          `SELECT id FROM accounts WHERE status = 'banned'
+           AND (
+             id = $1
+             OR id = (SELECT parent_id FROM accounts WHERE id = $1)
+             OR parent_id = (SELECT COALESCE(parent_id, id) FROM accounts WHERE id = $1)
+           )`,
+          [accountId]
+        );
+        const bannedIds = bannedRows.map((r) => r.id);
+        await nullifyVotesOnBan(bannedIds);
+      } catch (err) {
+        console.error('Vote nullification on ban error:', err.message);
+      }
+    })();
   }
 
   return sanction;
@@ -229,6 +249,54 @@ async function postBanAudit(accountId, issuedBy) {
 }
 
 /**
+ * Soft-nullify all votes by a banned account (set weight=0).
+ * Then recalculate trust_score for all affected chunks.
+ * For cascade bans, pass all banned account IDs.
+ */
+async function nullifyVotesOnBan(accountIds) {
+  const pool = getPool();
+  const ids = Array.isArray(accountIds) ? accountIds : [accountIds];
+
+  // Nullify informal votes
+  const voteResult = await pool.query(
+    `UPDATE votes SET weight = 0
+     WHERE account_id = ANY($1) AND weight != 0
+     RETURNING target_type, target_id`,
+    [ids]
+  );
+
+  // Nullify formal votes
+  const formalResult = await pool.query(
+    `UPDATE formal_votes SET weight = 0
+     WHERE account_id = ANY($1) AND weight != 0
+     RETURNING chunk_id`,
+    [ids]
+  );
+
+  // Collect unique chunk IDs that need trust recalculation
+  const chunkIds = new Set();
+  for (const row of voteResult.rows) {
+    if (row.target_type === 'chunk') chunkIds.add(row.target_id);
+  }
+  for (const row of formalResult.rows) {
+    chunkIds.add(row.chunk_id);
+  }
+
+  // Fire-and-forget recalculation for each affected chunk
+  for (const chunkId of chunkIds) {
+    recalculateChunkTrust(chunkId).catch((err) => {
+      console.error(`Chunk trust recalc after ban failed for ${chunkId}:`, err.message);
+    });
+  }
+
+  return {
+    votesNullified: voteResult.rowCount,
+    formalVotesNullified: formalResult.rowCount,
+    chunksRecalculated: chunkIds.size,
+  };
+}
+
+/**
  * Cascade ban to parent + all sub-accounts when:
  * - Grave violation on any sub-account
  * - 3+ total sanctions across all accounts in the family
@@ -297,4 +365,5 @@ module.exports = {
   listAllActive,
   isVoteSuspended,
   postBanAudit,
+  nullifyVotesOnBan,
 };

@@ -72,13 +72,6 @@ async function filterByAdhp(chunkAdhp, matches) {
 }
 
 /**
- * Escape SQL LIKE special characters in a keyword string.
- */
-function escapeLikePattern(keyword) {
-  return keyword.replace(/[%_\\]/g, '\\$&');
-}
-
-/**
  * Match vector subscriptions against a chunk embedding.
  * @returns {Array<{subscriptionId, accountId, matchType: 'vector', similarity}>}
  */
@@ -216,4 +209,4 @@ async function matchNewChunk(chunkId, triggerStatus = 'published') {
   return filterByAdhp(chunk.adhp, allMatches);
 }
 
-module.exports = { matchNewChunk, filterByAdhp, deduplicateMatches, escapeLikePattern };
+module.exports = { matchNewChunk, filterByAdhp, deduplicateMatches };

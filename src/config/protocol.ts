@@ -198,8 +198,5 @@ export const T_ANALYTICS_REFRESH_MS = parseInt(process.env.T_ANALYTICS_REFRESH_M
 /** Dynamic directives regeneration interval (ms) — default 24h */
 export const T_DIRECTIVES_REGEN_MS = parseInt(process.env.T_DIRECTIVES_REGEN_MS || '', 10) || 24 * 60 * 60 * 1000;
 
-// --- Legacy aliases (consumed by auto-merge.js, will be removed after Sprint 2) ---
-
-export const MERGE_TIMEOUT_LOW_SENSITIVITY_MS = T_FAST_LOW_MS;
-export const MERGE_TIMEOUT_HIGH_SENSITIVITY_MS = T_FAST_HIGH_MS;
-export const AUTO_MERGE_CHECK_INTERVAL_MS = TIMEOUT_CHECK_MS;
+/** Embedding retry interval (ms) — default 30min */
+export const T_EMBEDDING_RETRY_MS = parseInt(process.env.T_EMBEDDING_RETRY_MS || '', 10) || 30 * 60 * 1000;

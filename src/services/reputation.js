@@ -71,96 +71,77 @@ async function recalculateReputation(accountId) {
 async function checkBadges(accountId) {
   const pool = getPool();
 
-  // Get account
-  const { rows: accountRows } = await pool.query(
-    'SELECT id, created_at FROM accounts WHERE id = $1',
+  // Query 1: account data (age + elite fields) — merged from 2 former queries
+  const accountPromise = pool.query(
+    'SELECT id, created_at, reputation_contribution, badge_contribution FROM accounts WHERE id = $1',
     [accountId]
   );
-  if (accountRows.length === 0) {
-    throw Object.assign(new Error('Account not found'), { code: 'NOT_FOUND' });
-  }
-  const account = accountRows[0];
 
-  // Check account age meets badge minimum
-  const badgeMinMs = trustConfig.BADGE_MIN_AGE_DAYS * 24 * 60 * 60 * 1000;
-  const accountAge = Date.now() - new Date(account.created_at).getTime();
-  const oldEnough = accountAge >= badgeMinMs;
-
-  // Check active flags
-  const { rows: flagRows } = await pool.query(
+  // Query 2: active flags
+  const flagPromise = pool.query(
     `SELECT COUNT(*)::int AS flag_count
      FROM messages
      WHERE type = 'flag' AND content LIKE '%' || $1 || '%' AND status != 'resolved'`,
     [accountId]
   );
-  const hasFlags = flagRows[0].flag_count > 0;
+
+  // Query 3: votes + topics for level 1 and 2 in one pass
+  const statsPromise = pool.query(
+    `SELECT
+       m.level,
+       COUNT(DISTINCT m.topic_id)::int AS topic_count,
+       COALESCE(SUM(v.weight) FILTER (WHERE v.value = 'up'), 0)::float AS up_weight,
+       COALESCE(SUM(v.weight), 0)::float AS total_weight
+     FROM messages m
+     LEFT JOIN votes v ON v.target_id = m.id AND v.target_type = 'message'
+     WHERE m.account_id = $1 AND m.level IN (1, 2)
+     GROUP BY m.level`,
+    [accountId]
+  );
+
+  const [accountResult, flagResult, statsResult] = await Promise.all([
+    accountPromise, flagPromise, statsPromise,
+  ]);
+
+  if (accountResult.rows.length === 0) {
+    throw Object.assign(new Error('Account not found'), { code: 'NOT_FOUND' });
+  }
+  const account = accountResult.rows[0];
+
+  // Account age checks
+  const badgeMinMs = trustConfig.BADGE_MIN_AGE_DAYS * 24 * 60 * 60 * 1000;
+  const accountAge = Date.now() - new Date(account.created_at).getTime();
+  const oldEnough = accountAge >= badgeMinMs;
+
+  const hasFlags = flagResult.rows[0].flag_count > 0;
+
+  // Parse stats by level (default zeros if no rows for a level)
+  const levelStats = { 1: { topic_count: 0, up_weight: 0, total_weight: 0 }, 2: { topic_count: 0, up_weight: 0, total_weight: 0 } };
+  for (const row of statsResult.rows) {
+    levelStats[row.level] = row;
+  }
 
   // --- Contribution badge (level-1 messages) ---
-  const { rows: contribVoteRows } = await pool.query(
-    `SELECT
-       COALESCE(SUM(v.weight) FILTER (WHERE v.value = 'up'), 0)::float AS up_weight,
-       COALESCE(SUM(v.weight), 0)::float AS total_weight
-     FROM votes v
-     JOIN messages m ON m.id = v.target_id AND v.target_type = 'message'
-     WHERE m.account_id = $1 AND m.level = 1`,
-    [accountId]
-  );
-  const contribUp = contribVoteRows[0].up_weight;
-  const contribTotal = contribVoteRows[0].total_weight;
-  const contribPositiveRatio = contribTotal > 0 ? contribUp / contribTotal : 0;
-
-  // Distinct topics for contribution
-  const { rows: contribTopicRows } = await pool.query(
-    `SELECT COUNT(DISTINCT m.topic_id)::int AS topic_count
-     FROM messages m
-     WHERE m.account_id = $1 AND m.level = 1`,
-    [accountId]
-  );
-  const contribTopicCount = contribTopicRows[0].topic_count;
-
+  const contribPositiveRatio = levelStats[1].total_weight > 0
+    ? levelStats[1].up_weight / levelStats[1].total_weight : 0;
   const badgeContribution = oldEnough && !hasFlags
     && contribPositiveRatio > trustConfig.BADGE_MIN_POSITIVE_RATIO
-    && contribTopicCount >= trustConfig.BADGE_CONTRIBUTION_MIN_TOPICS;
+    && levelStats[1].topic_count >= trustConfig.BADGE_CONTRIBUTION_MIN_TOPICS;
 
   // --- Policing badge (level-2 messages) ---
-  const { rows: policingVoteRows } = await pool.query(
-    `SELECT
-       COALESCE(SUM(v.weight) FILTER (WHERE v.value = 'up'), 0)::float AS up_weight,
-       COALESCE(SUM(v.weight), 0)::float AS total_weight
-     FROM votes v
-     JOIN messages m ON m.id = v.target_id AND v.target_type = 'message'
-     WHERE m.account_id = $1 AND m.level = 2`,
-    [accountId]
-  );
-  const policingUp = policingVoteRows[0].up_weight;
-  const policingTotal = policingVoteRows[0].total_weight;
-  const policingPositiveRatio = policingTotal > 0 ? policingUp / policingTotal : 0;
-
-  // Distinct topics for policing
-  const { rows: policingTopicRows } = await pool.query(
-    `SELECT COUNT(DISTINCT m.topic_id)::int AS topic_count
-     FROM messages m
-     WHERE m.account_id = $1 AND m.level = 2`,
-    [accountId]
-  );
-  const policingTopicCount = policingTopicRows[0].topic_count;
-
+  const policingPositiveRatio = levelStats[2].total_weight > 0
+    ? levelStats[2].up_weight / levelStats[2].total_weight : 0;
   const badgePolicing = oldEnough && !hasFlags
     && policingPositiveRatio > trustConfig.BADGE_MIN_POSITIVE_RATIO
-    && policingTopicCount >= trustConfig.BADGE_POLICING_MIN_TOPICS;
+    && levelStats[2].topic_count >= trustConfig.BADGE_POLICING_MIN_TOPICS;
 
   // --- Elite badge ---
   const eliteMinMs = trustConfig.BADGE_ELITE_MIN_AGE_DAYS * 24 * 60 * 60 * 1000;
   const oldEnoughForElite = accountAge >= eliteMinMs;
-  const { rows: eliteAccountRows } = await pool.query(
-    'SELECT reputation_contribution, badge_contribution FROM accounts WHERE id = $1',
-    [accountId]
-  );
-  const eliteAccount = eliteAccountRows[0];
   const badgeElite = oldEnoughForElite && !hasFlags
     && badgeContribution
-    && (eliteAccount.reputation_contribution || 0) >= trustConfig.BADGE_ELITE_MIN_REPUTATION
-    && contribTopicCount >= trustConfig.BADGE_ELITE_MIN_TOPICS;
+    && (account.reputation_contribution || 0) >= trustConfig.BADGE_ELITE_MIN_REPUTATION
+    && levelStats[1].topic_count >= trustConfig.BADGE_ELITE_MIN_TOPICS;
 
   // Update badges
   await pool.query(

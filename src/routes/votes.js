@@ -61,6 +61,9 @@ router.post(
       if (err.code === 'VOTE_LOCKED') {
         return res.status(403).json({ error: { code: 'VOTE_LOCKED', message: err.message } });
       }
+      if (err.code === 'VOTE_SUSPENDED') {
+        return res.status(403).json({ error: { code: 'VOTE_SUSPENDED', message: err.message } });
+      }
       if (err.code === 'SELF_VOTE') {
         return res.status(403).json({ error: { code: 'SELF_VOTE', message: err.message } });
       }
@@ -106,6 +109,24 @@ router.delete(
     }
   }
 );
+
+// GET /votes/summary?target_type=...&target_id=... — vote counts and weights
+router.get('/votes/summary', auth.authenticateOptional, async (req, res) => {
+  try {
+    const { target_type, target_id } = req.query;
+    if (!target_type || !voteService.VALID_TARGET_TYPES.includes(target_type)) {
+      return validationError(res, `target_type must be one of: ${voteService.VALID_TARGET_TYPES.join(', ')}`);
+    }
+    if (!target_id || !UUID_RE.test(target_id)) {
+      return validationError(res, 'target_id must be a valid UUID');
+    }
+    const summary = await voteService.getVoteSummary(target_type, target_id);
+    return res.json(summary);
+  } catch (err) {
+    console.error('Error getting vote summary:', err);
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get vote summary' } });
+  }
+});
 
 // GET /votes?target_type=...&target_id=... — list votes on target
 router.get('/votes', auth.authenticateOptional, async (req, res) => {
@@ -193,6 +214,7 @@ router.post(
       if (err.code === 'DEADLINE_PASSED') return res.status(409).json({ error: { code: err.code, message: err.message } });
       if (err.code === 'SELF_VOTE') return res.status(403).json({ error: { code: err.code, message: err.message } });
       if (err.code === 'VOTE_LOCKED') return res.status(403).json({ error: { code: err.code, message: err.message } });
+      if (err.code === 'VOTE_SUSPENDED') return res.status(403).json({ error: { code: err.code, message: err.message } });
       if (err.code === 'FORBIDDEN') return forbiddenError(res, err.message);
       if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
       if (err.code === 'WEIGHT_TOO_LOW') return res.status(403).json({ error: { code: err.code, message: err.message } });

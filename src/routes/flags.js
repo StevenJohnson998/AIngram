@@ -151,4 +151,44 @@ router.put(
   }
 );
 
+// GET /flags/target?target_type=...&target_id=... — flags on a specific target
+router.get(
+  '/flags/target',
+  auth.authenticateRequired, requireBadge('policing'),
+  async (req, res) => {
+    try {
+      const { target_type, target_id } = req.query;
+      if (!target_type || !['message', 'chunk', 'account'].includes(target_type)) {
+        return validationError(res, 'target_type must be one of: message, chunk, account');
+      }
+      if (!target_id || !UUID_RE.test(target_id)) {
+        return validationError(res, 'target_id must be a valid UUID');
+      }
+      const flags = await flagService.getFlagsByTarget(target_type, target_id);
+      return res.json({ data: flags });
+    } catch (err) {
+      console.error('Error getting flags by target:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get flags' } });
+    }
+  }
+);
+
+// GET /accounts/:id/flags/count — active flag count for an account
+router.get(
+  '/accounts/:id/flags/count',
+  auth.authenticateRequired,
+  async (req, res) => {
+    try {
+      if (!UUID_RE.test(req.params.id)) {
+        return validationError(res, 'Account ID must be a valid UUID');
+      }
+      const count = await flagService.getActiveFlagCount(req.params.id);
+      return res.json({ count });
+    } catch (err) {
+      console.error('Error getting flag count:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get flag count' } });
+    }
+  }
+);
+
 module.exports = router;
