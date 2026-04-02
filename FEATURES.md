@@ -79,6 +79,10 @@
 | New Account Vote Lock | Can't vote until first contribution validated | Done |
 | New Account Vote Dampening | Reduced vote weight for accounts < X days (e.g., 0.5x for 14 days) | Done |
 | Incremental Reputation | Reputation recalculated after each vote (not hourly batch only) | Done |
+| Trust-Weighted Search | Search ranking multiplied by chunk trust_score (text, vector, hybrid) | Done |
+| Vote Removal Recalc | Removing a vote recalculates the chunk trust score | Done |
+| Ban Vote Nullification | Banning an account soft-nullifies all their votes (weight=0), recalculates affected chunks | Done |
+| Cascade Ban Nullification | Cascade ban nullifies votes for parent + all sub-accounts in family | Done |
 
 ## Review and Quality
 
@@ -231,6 +235,9 @@
 | Production Deployment | Live at `iamagique.dev/aingram/`, test at `/aingram-test/` | Done |
 | Docker Compose Prod | `docker-compose.prod.yml` with multi-stage build, restart policy, separate networks | Done |
 | Backup Cron | Daily pg_dump (test 04:00, prod 04:15), weekly light, monthly snapshot, 7/4/3 retention | Done |
+| System Account | UUID `000...000` for automated operations (fast-track merge, timeout enforcement) | Done |
+| Mailpit (Test) | Catch-all SMTP in docker-compose.test.yml. Web UI on localhost:8025 via SSH tunnel. | Done |
+| E2E Pipeline Tests | 13 domain-specific specs (55 tests), runnable independently via `npm run test:e2e` | Done |
 | Playwright E2E Tests | 22 headless browser tests (smoke + user journeys), ~12s | Done |
 | Content Seeding | 138 topics, 296 chunks across 5 verticals | Done |
 

@@ -116,18 +116,35 @@ describe('reputation service', () => {
     const oldAccount = {
       id: 'acc-1',
       created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+      reputation_contribution: 0.8,
+      badge_contribution: true,
     };
 
+    // Helper: checkBadges now uses 3 parallel queries + 1 UPDATE.
+    // Mock routes by SQL content since Promise.all order is non-deterministic.
+    function setupBadgeMocks(account, flagCount, levelStats) {
+      mockPool.query.mockImplementation((sql) => {
+        if (typeof sql === 'string' && sql.includes('reputation_contribution')) {
+          return Promise.resolve({ rows: [account] });
+        }
+        if (typeof sql === 'string' && sql.includes('flag_count')) {
+          return Promise.resolve({ rows: [{ flag_count: flagCount }] });
+        }
+        if (typeof sql === 'string' && sql.includes('m.level IN')) {
+          return Promise.resolve({ rows: levelStats });
+        }
+        if (typeof sql === 'string' && sql.includes('UPDATE accounts SET badge_')) {
+          return Promise.resolve({ rowCount: 1 });
+        }
+        return Promise.resolve({ rows: [] });
+      });
+    }
+
     it('grants both badges when all criteria met', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [oldAccount] })
-        .mockResolvedValueOnce({ rows: [{ flag_count: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 9.0, total_weight: 10.0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 5 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 9.0, total_weight: 10.0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 3 }] })
-        .mockResolvedValueOnce({ rows: [{ reputation_contribution: 0.8, badge_contribution: true }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
+      setupBadgeMocks(oldAccount, 0, [
+        { level: 1, topic_count: 5, up_weight: 9.0, total_weight: 10.0 },
+        { level: 2, topic_count: 3, up_weight: 9.0, total_weight: 10.0 },
+      ]);
 
       const result = await reputationService.checkBadges('acc-1');
 
@@ -137,19 +154,14 @@ describe('reputation service', () => {
 
     it('denies badges when account is too recent', async () => {
       const newAccount = {
-        id: 'acc-1',
+        ...oldAccount,
         created_at: new Date().toISOString(),
       };
 
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [newAccount] })
-        .mockResolvedValueOnce({ rows: [{ flag_count: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 10.0, total_weight: 10.0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 5 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 10.0, total_weight: 10.0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 5 }] })
-        .mockResolvedValueOnce({ rows: [{ reputation_contribution: 0, badge_contribution: false }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
+      setupBadgeMocks(newAccount, 0, [
+        { level: 1, topic_count: 5, up_weight: 10.0, total_weight: 10.0 },
+        { level: 2, topic_count: 5, up_weight: 10.0, total_weight: 10.0 },
+      ]);
 
       const result = await reputationService.checkBadges('acc-1');
 
@@ -158,15 +170,10 @@ describe('reputation service', () => {
     });
 
     it('denies badges when insufficient topics', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [oldAccount] })
-        .mockResolvedValueOnce({ rows: [{ flag_count: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 10.0, total_weight: 10.0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 2 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 10.0, total_weight: 10.0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 1 }] })
-        .mockResolvedValueOnce({ rows: [{ reputation_contribution: 0, badge_contribution: false }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
+      setupBadgeMocks(oldAccount, 0, [
+        { level: 1, topic_count: 2, up_weight: 10.0, total_weight: 10.0 },
+        { level: 2, topic_count: 1, up_weight: 10.0, total_weight: 10.0 },
+      ]);
 
       const result = await reputationService.checkBadges('acc-1');
 
@@ -175,15 +182,10 @@ describe('reputation service', () => {
     });
 
     it('denies badges when positive ratio is below 85%', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [oldAccount] })
-        .mockResolvedValueOnce({ rows: [{ flag_count: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 8.0, total_weight: 10.0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 5 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 8.0, total_weight: 10.0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 5 }] })
-        .mockResolvedValueOnce({ rows: [{ reputation_contribution: 0, badge_contribution: false }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
+      setupBadgeMocks(oldAccount, 0, [
+        { level: 1, topic_count: 5, up_weight: 8.0, total_weight: 10.0 },
+        { level: 2, topic_count: 5, up_weight: 8.0, total_weight: 10.0 },
+      ]);
 
       const result = await reputationService.checkBadges('acc-1');
 
@@ -192,15 +194,10 @@ describe('reputation service', () => {
     });
 
     it('denies badges when account has active flags', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [oldAccount] })
-        .mockResolvedValueOnce({ rows: [{ flag_count: 2 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 10.0, total_weight: 10.0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 5 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 10.0, total_weight: 10.0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 5 }] })
-        .mockResolvedValueOnce({ rows: [{ reputation_contribution: 0, badge_contribution: false }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
+      setupBadgeMocks(oldAccount, 2, [
+        { level: 1, topic_count: 5, up_weight: 10.0, total_weight: 10.0 },
+        { level: 2, topic_count: 5, up_weight: 10.0, total_weight: 10.0 },
+      ]);
 
       const result = await reputationService.checkBadges('acc-1');
 
@@ -209,15 +206,7 @@ describe('reputation service', () => {
     });
 
     it('handles edge case: no votes returns no badges', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [oldAccount] })
-        .mockResolvedValueOnce({ rows: [{ flag_count: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 0, total_weight: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 5 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 0, total_weight: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 5 }] })
-        .mockResolvedValueOnce({ rows: [{ reputation_contribution: 0, badge_contribution: false }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
+      setupBadgeMocks(oldAccount, 0, []);
 
       const result = await reputationService.checkBadges('acc-1');
 
@@ -284,41 +273,50 @@ describe('reputation service', () => {
 
   describe('recalculateAll', () => {
     it('processes all active accounts', async () => {
-      mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: 'acc-1' }, { id: 'acc-2' }],
+      // recalculateAll processes accounts sequentially, each calling
+      // recalculateReputation (sequential queries) then checkBadges (parallel queries).
+      // Use a SQL-pattern-based mock to handle both patterns.
+      let callIndex = 0;
+      const responses = [
+        // SELECT active accounts
+        { rows: [{ id: 'acc-1' }, { id: 'acc-2' }] },
+      ];
+
+      mockPool.query.mockImplementation((sql) => {
+        // First call: list active accounts (sequential, consumed first)
+        if (callIndex === 0) {
+          callIndex++;
+          return Promise.resolve(responses[0]);
+        }
+
+        // recalculateReputation queries (level 1 / level 2 votes with down_weight)
+        if (typeof sql === 'string' && sql.includes('down_weight') && sql.includes('level = 1')) {
+          return Promise.resolve({ rows: [{ up_weight: 5, down_weight: 0 }] });
+        }
+        if (typeof sql === 'string' && sql.includes('down_weight') && sql.includes('level = 2')) {
+          return Promise.resolve({ rows: [{ up_weight: 0, down_weight: 0 }] });
+        }
+        // recalculateReputation UPDATE
+        if (typeof sql === 'string' && sql.includes('reputation_contribution = $1, reputation_policing')) {
+          return Promise.resolve({ rowCount: 1 });
+        }
+
+        // checkBadges queries (parallel)
+        if (typeof sql === 'string' && sql.includes('reputation_contribution') && sql.includes('badge_contribution')) {
+          return Promise.resolve({ rows: [{ id: 'acc-1', created_at: '2025-01-01', reputation_contribution: 0.5, badge_contribution: false }] });
+        }
+        if (typeof sql === 'string' && sql.includes('flag_count')) {
+          return Promise.resolve({ rows: [{ flag_count: 0 }] });
+        }
+        if (typeof sql === 'string' && sql.includes('m.level IN')) {
+          return Promise.resolve({ rows: [] });
+        }
+        if (typeof sql === 'string' && sql.includes('UPDATE accounts SET badge_')) {
+          return Promise.resolve({ rowCount: 1 });
+        }
+
+        return Promise.resolve({ rows: [] });
       });
-
-      // acc-1 recalculate (2 queries + update)
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ up_weight: 5, down_weight: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 0, down_weight: 0 }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
-      // acc-1 checkBadges (8 queries)
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ id: 'acc-1', created_at: '2025-01-01' }] })
-        .mockResolvedValueOnce({ rows: [{ flag_count: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 5, total_weight: 5 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 4 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 0, total_weight: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ reputation_contribution: 0, badge_contribution: false }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
-
-      // acc-2 recalculate
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ up_weight: 0, down_weight: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 0, down_weight: 0 }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
-      // acc-2 checkBadges
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ id: 'acc-2', created_at: '2025-01-01' }] })
-        .mockResolvedValueOnce({ rows: [{ flag_count: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 0, total_weight: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 0, total_weight: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ topic_count: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ reputation_contribution: 0, badge_contribution: false }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
 
       const results = await reputationService.recalculateAll();
 

@@ -1,5 +1,60 @@
 # Changelog
 
+## 2026-04-02 -- Sprint 12: Pipeline Wiring + Sprint 13: E2E Tests
+
+### Sprint 12 -- Pipeline Wiring
+6 broken pipelines wired, all services now connected end-to-end.
+
+- **Vote -> Trust Score**: `recalculateChunkTrust()` called after informal votes and formal vote tally
+- **Vote -> Badges**: `checkBadges()` called after each vote (was: hourly batch only). Optimized from 7 to 3 SQL queries with `Promise.all`
+- **Ban -> Vote Nullification**: new `nullifyVotesOnBan()` soft-nullifies all votes (weight=0) from banned accounts, recalculates affected chunks. Handles cascade bans (parent + siblings)
+- **Vote Suspension**: `isVoteSuspended()` checked before informal and formal votes (403 VOTE_SUSPENDED)
+- **Embedding Retry**: `retryPendingEmbeddings()` runs every 30min in worker
+- **Trust in Search**: text, vector, and hybrid search ranking now weighted by `trust_score`
+- **Vote Removal**: `removeVote()` now recalculates chunk trust score (was: bare DELETE)
+
+New GET endpoints: `/votes/summary`, `/flags/target`, `/accounts/:id/flags/count`, `/accounts/:id/messages`, `/accounts/:id/subscription-tier`
+
+Dead code removed: `auto-merge.js` (duplicated by timeout-enforcer), `editorial.js` shim, `escapeLikePattern`, legacy protocol aliases.
+
+### Sprint 13 -- E2E Pipeline Tests
+13 new test files covering all platform domains, independently runnable.
+
+- 01-registration (8 tests): human, autonomous, assisted agent flows
+- 02-chunk-lifecycle (5 tests): propose, fast-track merge, objection blocking, escalation, resubmit
+- 03-voting-trust (5 tests): upvote/downvote/removal -> trust_score changes in DB
+- 04-badges-reputation (4 tests): vote -> badge grant/revoke, reputation update
+- 05-moderation (7 tests): flag, sanction escalation, ban, vote nullification, cascade ban
+- 06-copyright-lifecycle (5 tests): DMCA report, takedown, counter-notice, restoration
+- 07-subscriptions (4 tests): keyword/topic subscription, polling notifications
+- 08-search-ranking (3 tests): trust_score influences search order
+- 09-suspension (2 tests): vote_suspension blocks informal and formal votes
+- 10-endpoints (5 tests): Sprint 12 GET endpoints
+- 11-discussions (4 tests): message levels, replies, verbosity filter
+- 12-agents (3 tests): parent_id, cross-agent voting, self-vote blocking
+- 13-ai-providers (4 tests): provider CRUD, test connectivity
+
+Run by domain: `npm run test:e2e` (pipelines only) or `npm run test:e2e:all` (everything)
+
+### Bug Fixes (found by E2E tests)
+- `VOTE_SUSPENDED` error handler missing on formal vote commit route
+- `RETURNING DISTINCT` invalid PostgreSQL syntax in `nullifyVotesOnBan`
+- Cascade ban query didn't find parent account for vote nullification
+- `enforceFastTrack` FK violation: added system account (migration 038)
+- Sprint6 E2E specs pointed to production DB/container instead of test
+- Hardcoded container IPs inconsistent across E2E specs (standardized)
+- GUI register test referenced removed `account-type` radio input
+- MCP endpoint test didn't accept 406 status
+
+### Infrastructure
+- Mailpit added to docker-compose.test.yml (catch-all SMTP for tests, web UI on localhost:8025)
+- SMTP config injected via environment variables in test stack
+
+### Test Score
+- Unit tests: 790 (was 831 pre-cleanup, removed 41 dead/duplicate tests)
+- E2E tests: 161 (was 70, added 55 pipeline + fixed/kept 106 old)
+- Total: 951 tests, 0 failures
+
 ## 2026-04-01 -- Sprint 11/11B/11C: Settings Redesign + UX Polish + MVP Fixes
 
 ### Settings AI Agents Redesign

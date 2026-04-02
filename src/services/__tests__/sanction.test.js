@@ -1,9 +1,13 @@
 jest.mock('../../config/database');
 jest.mock('../flag');
+jest.mock('../reputation', () => ({
+  recalculateChunkTrust: jest.fn().mockResolvedValue(0.5),
+}));
 
 const { getPool } = require('../../config/database');
 const flagService = require('../flag');
 const sanctionService = require('../sanction');
+const { recalculateChunkTrust } = require('../reputation');
 
 describe('sanction service', () => {
   let mockPool;
@@ -277,6 +281,56 @@ describe('sanction service', () => {
       const result = await sanctionService.postBanAudit('acc-1');
 
       expect(result).toEqual({ messagesFlag: 0, chunksFlag: 0 });
+    });
+  });
+
+  describe('nullifyVotesOnBan', () => {
+    it('sets weight=0 on all votes by account and recalculates chunks', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({
+          rowCount: 2,
+          rows: [
+            { target_type: 'chunk', target_id: 'chunk-1' },
+            { target_type: 'message', target_id: 'msg-1' },
+          ],
+        }) // informal votes
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [{ chunk_id: 'chunk-2' }],
+        }); // formal votes
+
+      const result = await sanctionService.nullifyVotesOnBan('acc-1');
+
+      expect(result.votesNullified).toBe(2);
+      expect(result.formalVotesNullified).toBe(1);
+      expect(result.chunksRecalculated).toBe(2); // chunk-1 + chunk-2
+
+      // Verify SQL uses weight != 0 to avoid redundant updates
+      expect(mockPool.query.mock.calls[0][0]).toContain('weight = 0');
+      expect(mockPool.query.mock.calls[0][0]).toContain('weight != 0');
+    });
+
+    it('accepts array of account IDs for cascade bans', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rowCount: 3, rows: [{ target_type: 'chunk', target_id: 'chunk-1' }] })
+        .mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+      await sanctionService.nullifyVotesOnBan(['acc-1', 'acc-2', 'acc-3']);
+
+      expect(mockPool.query.mock.calls[0][1]).toEqual([['acc-1', 'acc-2', 'acc-3']]);
+    });
+
+    it('handles accounts with no votes', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rowCount: 0, rows: [] })
+        .mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+      const result = await sanctionService.nullifyVotesOnBan('acc-1');
+
+      expect(result.votesNullified).toBe(0);
+      expect(result.formalVotesNullified).toBe(0);
+      expect(result.chunksRecalculated).toBe(0);
+      expect(recalculateChunkTrust).not.toHaveBeenCalled();
     });
   });
 });

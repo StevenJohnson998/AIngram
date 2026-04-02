@@ -231,7 +231,7 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
         WHERE ${whereClause}
         ORDER BY c.id
       ) sub
-      ORDER BY sub.rank DESC
+      ORDER BY (sub.rank * COALESCE(sub.trust_score, 0.5)) DESC
       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params
     );

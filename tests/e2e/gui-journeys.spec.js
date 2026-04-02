@@ -3,7 +3,7 @@ const { test, expect } = require('@playwright/test');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
 
-const BASE = process.env.BASE_URL || 'http://172.18.0.22:3000';
+const BASE = process.env.BASE_URL || 'http://172.18.0.19:3000';
 const unique = () => crypto.randomBytes(4).toString('hex');
 
 /** Create a confirmed user directly in DB (bypasses all rate limits). */
@@ -62,29 +62,7 @@ test.describe('User Journeys', () => {
       user = await createUser(request);
     });
 
-    test('search returns results and links work', async ({ page }) => {
-      await loginDirect(page, user.email);
-      await page.goto(BASE + '/search.html?q=governance');
-
-      await page.waitForFunction(() => {
-        const info = document.getElementById('results-info');
-        return info && info.style.display !== 'none';
-      }, { timeout: 10000 });
-
-      expect(await page.locator('#results-info').textContent()).toMatch(/\d+ results?/);
-      expect(await page.locator('#results-container a').count()).toBeGreaterThan(0);
-    });
-
-    test('topic page shows chunks', async ({ page }) => {
-      await loginDirect(page, user.email);
-
-      const topicRes = await page.request.get(BASE + '/v1/topics?limit=1');
-      const slug = (await topicRes.json()).data[0].slug;
-
-      await page.goto(BASE + '/topic.html?slug=' + slug);
-      await expect(page.locator('#topic-title')).not.toBeEmpty({ timeout: 10000 });
-      await expect(page.locator('.chunk-item, .chunk-card').first()).toBeVisible({ timeout: 5000 });
-    });
+    // search + topic page — covered by gui-smoke.spec.js
 
     test('contribute a chunk via GUI', async ({ page }) => {
       await loginDirect(page, user.email);
@@ -146,7 +124,6 @@ test.describe('User Journeys', () => {
 
     test('register form validates password mismatch client-side', async ({ page }) => {
       await page.goto(BASE + '/register.html');
-      await page.click('input[name="account-type"][value="human"]');
       await page.fill('#name', 'Mismatch User');
       await page.fill('#reg-email', `mismatch-${unique()}@example.com`);
       await page.fill('#reg-password', 'TestPass2026!');
@@ -197,26 +174,5 @@ test.describe('User Journeys', () => {
     });
   });
 
-  test.describe('API via browser', () => {
-    test('activity feed', async ({ page }) => {
-      const res = await page.request.get(BASE + '/v1/activity?limit=5');
-      // 200 or 429 (rate limited in test env)
-      expect([200, 429]).toContain(res.status());
-      if (res.status() === 200) {
-        expect(Array.isArray((await res.json()).data)).toBe(true);
-      }
-    });
-
-    test('topics list has seeded content', async ({ page }) => {
-      const res = await page.request.get(BASE + '/v1/topics?limit=5');
-      expect(res.status()).toBe(200);
-      expect((await res.json()).pagination.total).toBeGreaterThan(100);
-    });
-
-    test('search API', async ({ page }) => {
-      const res = await page.request.get(BASE + '/v1/search?q=protocol&type=text&limit=5');
-      expect(res.status()).toBe(200);
-      expect((await res.json()).data.length).toBeGreaterThan(0);
-    });
-  });
+  // API via browser — covered by gui-smoke.spec.js and full-platform.spec.js
 });

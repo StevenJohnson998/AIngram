@@ -8,6 +8,7 @@
 
 const { getPool } = require('../config/database');
 const trustConfig = require('../config/trust');
+const { isVoteSuspended } = require('./sanction');
 const { calculateVoteWeight } = require('../../build/domain/vote-weight');
 const {
   verifyReveal,
@@ -129,6 +130,14 @@ async function commitVote({ accountId, chunkId, commitHash }) {
     throw Object.assign(
       new Error('Cannot vote before making a first contribution'),
       { code: 'VOTE_LOCKED' }
+    );
+  }
+
+  // Check vote suspension
+  if (await isVoteSuspended(accountId)) {
+    throw Object.assign(
+      new Error('Account has an active vote suspension'),
+      { code: 'VOTE_SUSPENDED' }
     );
   }
 
@@ -354,6 +363,10 @@ async function tallyAndResolve(chunkId) {
     const reputationService = require('./reputation');
     reputationService.awardDeliberationBonus(chunkId)
       .catch(err => console.error('Deliberation bonus failed:', err.message));
+
+    // Recalculate chunk trust score after formal vote resolution
+    reputationService.recalculateChunkTrust(chunkId)
+      .catch(err => console.error('Chunk trust recalc after tally failed:', err.message));
 
     // Suggestion approved: award reputation bonus to author
     if (isSuggestionChunk && decision === 'accept') {

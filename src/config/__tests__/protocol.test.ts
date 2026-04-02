@@ -15,9 +15,6 @@ import {
   OBJECTION_REASON_TAGS,
   DELTA_DELIB,
   DELTA_DISSENT,
-  MERGE_TIMEOUT_LOW_SENSITIVITY_MS,
-  MERGE_TIMEOUT_HIGH_SENSITIVITY_MS,
-  AUTO_MERGE_CHECK_INTERVAL_MS,
 } from '../protocol';
 
 describe('protocol constants', () => {
@@ -54,9 +51,4 @@ describe('protocol constants', () => {
     expect(DELTA_DISSENT).toBe(0.05);
   });
 
-  test('legacy aliases match new names', () => {
-    expect(MERGE_TIMEOUT_LOW_SENSITIVITY_MS).toBe(T_FAST_LOW_MS);
-    expect(MERGE_TIMEOUT_HIGH_SENSITIVITY_MS).toBe(T_FAST_HIGH_MS);
-    expect(AUTO_MERGE_CHECK_INTERVAL_MS).toBe(TIMEOUT_CHECK_MS);
-  });
 });
