@@ -504,52 +504,43 @@ const MAX_MCP_SESSIONS = 200;
 const MCP_SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 function mountMcp(app) {
-  // Track active transports by session ID with last-activity timestamp + account
-  const transports = new Map(); // sessionId → { transport, lastActivity, account }
+  const { isInitializeRequest } = require('@modelcontextprotocol/sdk/types.js');
+  const { extractAccount } = require('../middleware/auth');
+
+  // Track active sessions: sessionId → { transport, server, lastActivity, account }
+  const sessions = new Map();
 
   // Closure: look up account for a session
   function getSessionAccount(sessionId) {
-    const entry = transports.get(sessionId);
+    const entry = sessions.get(sessionId);
     return entry ? entry.account : null;
   }
-
-  const server = createMcpServer(getSessionAccount);
 
   // Sweep stale sessions every 5 minutes
   setInterval(() => {
     const now = Date.now();
-    for (const [id, entry] of transports) {
+    for (const [id, entry] of sessions) {
       if (now - entry.lastActivity > MCP_SESSION_TTL_MS) {
-        transports.delete(id);
+        sessions.delete(id);
       }
     }
   }, 5 * 60 * 1000).unref();
-
-  // Extract account from Bearer token (reuse auth middleware logic)
-  const { extractAccount } = require('../middleware/auth');
 
   app.post('/mcp', async (req, res) => {
     try {
       const sessionId = req.headers['mcp-session-id'];
       let transport;
 
-      if (sessionId && transports.has(sessionId)) {
-        const entry = transports.get(sessionId);
+      if (sessionId && sessions.has(sessionId)) {
+        // Reuse existing session
+        const entry = sessions.get(sessionId);
         entry.lastActivity = Date.now();
         transport = entry.transport;
-      } else {
-        if (transports.size >= MAX_MCP_SESSIONS) {
+      } else if (!sessionId && isInitializeRequest(req.body)) {
+        // New session — only allowed for initialize requests without a session ID
+        if (sessions.size >= MAX_MCP_SESSIONS) {
           return res.status(503).json({ error: 'Too many active MCP sessions. Try again later.' });
         }
-        transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: undefined, // auto-generate
-        });
-        transport.onclose = () => {
-          if (transport.sessionId) {
-            transports.delete(transport.sessionId);
-          }
-        };
-        await server.connect(transport);
 
         // Authenticate: extract account from Bearer token (optional — read tools work without)
         let account = null;
@@ -573,7 +564,28 @@ function mountMcp(app) {
           // No auth or invalid — read tools still work
         }
 
-        transports.set(transport.sessionId, { transport, lastActivity: Date.now(), account });
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => require('crypto').randomUUID(),
+          onsessioninitialized: (sid) => {
+            sessions.set(sid, { transport, server, lastActivity: Date.now(), account });
+          },
+        });
+        transport.onclose = () => {
+          if (transport.sessionId) {
+            sessions.delete(transport.sessionId);
+          }
+        };
+
+        // Each session needs its own McpServer instance (SDK allows one transport per server)
+        const server = createMcpServer(getSessionAccount);
+        await server.connect(transport);
+      } else {
+        // No valid session ID and not an initialization request
+        return res.status(400).json({
+          jsonrpc: '2.0',
+          error: { code: -32000, message: 'Bad Request: No valid session ID provided' },
+          id: null,
+        });
       }
 
       await transport.handleRequest(req, res, req.body);
@@ -587,7 +599,7 @@ function mountMcp(app) {
 
   app.get('/mcp', async (req, res) => {
     const sessionId = req.headers['mcp-session-id'];
-    const entry = sessionId && transports.get(sessionId);
+    const entry = sessionId && sessions.get(sessionId);
     if (!entry) {
       return res.status(400).json({ error: 'No active session. Send an initialize request first.' });
     }
@@ -597,10 +609,10 @@ function mountMcp(app) {
 
   app.delete('/mcp', async (req, res) => {
     const sessionId = req.headers['mcp-session-id'];
-    const entry = sessionId && transports.get(sessionId);
+    const entry = sessionId && sessions.get(sessionId);
     if (entry) {
       await entry.transport.handleRequest(req, res);
-      transports.delete(sessionId);
+      sessions.delete(sessionId);
     } else {
       res.status(200).end();
     }
