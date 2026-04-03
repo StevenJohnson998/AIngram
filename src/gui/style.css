@@ -205,6 +205,27 @@ img {
 }
 
 /* ========================================
+   How to Help
+   ======================================== */
+
+.how-to-help {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg, 0.75rem);
+  padding: var(--space-lg) var(--space-xl);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.how-to-help .section-title {
+  font-size: var(--text-lg);
+}
+
+.how-to-help a {
+  color: var(--brand-accent);
+}
+
+/* ========================================
    Footer
    ======================================== */
 
