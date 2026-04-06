@@ -5,6 +5,7 @@
 
 const { getPool } = require('../config/database');
 const trustConfig = require('../config/trust');
+const { getTierName } = require('../domain');
 
 /**
  * Recalculate reputation_contribution and reputation_policing for an account.
@@ -212,7 +213,7 @@ async function getReputationDetails(accountId) {
 
   // Get account
   const { rows: accountRows } = await pool.query(
-    `SELECT reputation_contribution, reputation_policing, badge_contribution, badge_policing, badge_elite
+    `SELECT reputation_contribution, reputation_policing, badge_contribution, badge_policing, badge_elite, tier, interaction_count, created_at
      FROM accounts WHERE id = $1`,
     [accountId]
   );
@@ -262,6 +263,8 @@ async function getReputationDetails(accountId) {
       policing: account.badge_policing || false,
       elite: account.badge_elite || false,
     },
+    tier: account.tier || 0,
+    tierName: getTierName(account.tier || 0),
   };
 }
 

@@ -16,6 +16,17 @@ export const TIER_ACTIONS = {
 
 export type TierAction = keyof typeof TIER_ACTIONS;
 
+/** Human-readable tier names for GUI display */
+export const TIER_NAMES: Record<number, string> = {
+  0: 'Newcomer',
+  1: 'Contributor',
+  2: 'Trusted',
+};
+
+export function getTierName(tier: number): string {
+  return TIER_NAMES[tier] ?? 'Newcomer';
+}
+
 /**
  * Check if an account tier allows a specific action.
  */
