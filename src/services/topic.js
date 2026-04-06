@@ -8,16 +8,16 @@ const { generateSlug, ensureUniqueSlug } = require('../utils/slug');
 /**
  * Create a new topic.
  */
-async function createTopic({ title, lang, summary, sensitivity, createdBy }) {
+async function createTopic({ title, lang, summary, sensitivity, topicType, createdBy }) {
   const pool = getPool();
   const baseSlug = generateSlug(title);
   const slug = await ensureUniqueSlug(baseSlug, lang, pool);
 
   const { rows } = await pool.query(
-    `INSERT INTO topics (title, slug, lang, summary, sensitivity, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO topics (title, slug, lang, summary, sensitivity, topic_type, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [title, slug, lang, summary || null, sensitivity || 'low', createdBy]
+    [title, slug, lang, summary || null, sensitivity || 'standard', topicType || 'knowledge', createdBy]
   );
 
   return rows[0];
@@ -62,7 +62,7 @@ async function getTopicBySlug(slug, lang) {
 /**
  * List topics with filters and pagination.
  */
-async function listTopics({ lang, status, sensitivity, page = 1, limit = 20 } = {}) {
+async function listTopics({ lang, status, sensitivity, topicType, page = 1, limit = 20 } = {}) {
   const pool = getPool();
   const conditions = [];
   const params = [];
@@ -79,6 +79,10 @@ async function listTopics({ lang, status, sensitivity, page = 1, limit = 20 } = 
   if (sensitivity) {
     conditions.push(`t.sensitivity = $${idx++}`);
     params.push(sensitivity);
+  }
+  if (topicType) {
+    conditions.push(`t.topic_type = $${idx++}`);
+    params.push(topicType);
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -110,7 +114,7 @@ async function listTopics({ lang, status, sensitivity, page = 1, limit = 20 } = 
 /**
  * Update a topic. Regenerates slug if title changed.
  */
-async function updateTopic(id, { title, summary, sensitivity }) {
+async function updateTopic(id, { title, summary, sensitivity, topicType }) {
   const pool = getPool();
 
   // Get current topic to check if title changed
@@ -121,6 +125,13 @@ async function updateTopic(id, { title, summary, sensitivity }) {
   if (current.length === 0) return null;
 
   const topic = current[0];
+
+  // topic_type is immutable after creation
+  if (topicType && topicType !== topic.topic_type) {
+    const err = new Error('topic_type is immutable after creation');
+    err.status = 400;
+    throw err;
+  }
   let slug = topic.slug;
 
   // Regenerate slug if title changed
@@ -218,7 +229,7 @@ async function linkTranslation(topicId, translatedId) {
  * Create a topic with multiple chunks in a single atomic transaction.
  * All chunks start as 'proposed'. Embeddings + subscription matching fire-and-forget after commit.
  */
-async function createTopicFull({ title, lang, summary, sensitivity, createdBy, chunks, isElite = false, hasBadgeContribution = false }) {
+async function createTopicFull({ title, lang, summary, sensitivity, topicType, createdBy, chunks, isElite = false, hasBadgeContribution = false }) {
   const pool = getPool();
   const client = await pool.connect();
   const chunkService = require('./chunk');
@@ -242,10 +253,10 @@ async function createTopicFull({ title, lang, summary, sensitivity, createdBy, c
     const baseSlug = generateSlug(title);
     const slug = await ensureUniqueSlug(baseSlug, lang, pool);
     const { rows: topicRows } = await client.query(
-      `INSERT INTO topics (title, slug, lang, summary, sensitivity, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO topics (title, slug, lang, summary, sensitivity, topic_type, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [title, slug, lang, summary || null, sensitivity || 'low', createdBy]
+      [title, slug, lang, summary || null, sensitivity || 'standard', topicType || 'knowledge', createdBy]
     );
     const topic = topicRows[0];
 

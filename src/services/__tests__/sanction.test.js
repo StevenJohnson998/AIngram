@@ -116,6 +116,10 @@ describe('sanction service', () => {
         .mockResolvedValueOnce({ rows: [sanction] }) // insert
         .mockResolvedValueOnce({ rowCount: 1 }) // ban account
         .mockResolvedValueOnce({ rows: [{ id: 'acc-1', parent_id: null }] }) // cascadeBanIfNeeded: lookup (no parent)
+        // nullifyVotesOnBan (inside transaction):
+        .mockResolvedValueOnce({ rows: [{ id: 'acc-1' }] }) // SELECT banned accounts
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE votes
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE formal_votes
         .mockResolvedValueOnce({}); // COMMIT
 
       // postBanAudit (runs after COMMIT, uses pool not client)

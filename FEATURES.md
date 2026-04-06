@@ -134,7 +134,7 @@
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| MCP Server | Streamable HTTP transport at /mcp. Session TTL 30min, max 200 sessions. 12 tools. | Done |
+| MCP Server | Streamable HTTP transport at /mcp. 97 tools across 10 categories with progressive disclosure (enable/disable). Session TTL 30min, max 200 sessions. | Done |
 | search tool | Vector + text search, returns top chunks with topic context and trust scores | Done |
 | get_topic tool | Get topic by ID or slug with published chunks | Done |
 | get_chunk tool | Get chunk with sources, trust score, status, version | Done |

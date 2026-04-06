@@ -116,7 +116,7 @@ function createSubAccountInDB(parentId) {
 /** Create a topic directly in DB. Returns { id, slug }. */
 function createTopicInDB(authorId, opts = {}) {
   const slug = `e2e-topic-${unique()}`;
-  const sensitivity = opts.sensitivity || 'low';
+  const sensitivity = opts.sensitivity || 'standard';
   const result = execInAPI(`
     const { Pool } = require('pg');
     const pool = new Pool({ host: process.env.DB_HOST || 'postgres', database: process.env.DB_NAME, user: process.env.DB_USER, password: process.env.DB_PASSWORD });

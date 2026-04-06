@@ -33,6 +33,10 @@ describe('sanction cascade', () => {
       .mockResolvedValueOnce({ rows: [{ id: 'child-1', parent_id: 'parent-1' }] }) // lookup account
       .mockResolvedValueOnce({ rowCount: 3 }) // ban parent + all children
       .mockResolvedValueOnce({ rowCount: 2 }) // insert cascade sanction records
+      // nullifyVotesOnBan (inside transaction):
+      .mockResolvedValueOnce({ rows: [{ id: 'child-1' }, { id: 'parent-1' }] }) // SELECT banned accounts
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE votes SET weight=0
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE formal_votes SET weight=0
       .mockResolvedValueOnce({}); // COMMIT
 
     // postBanAudit (runs on pool, after commit)
@@ -67,6 +71,10 @@ describe('sanction cascade', () => {
       .mockResolvedValueOnce({ rowCount: 1 }) // ban account
       // cascadeBanIfNeeded: lookup account -> no parent
       .mockResolvedValueOnce({ rows: [{ id: 'root-1', parent_id: null }] })
+      // nullifyVotesOnBan (inside transaction):
+      .mockResolvedValueOnce({ rows: [{ id: 'root-1' }] }) // SELECT banned accounts
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE votes
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE formal_votes
       .mockResolvedValueOnce({}); // COMMIT
 
     // postBanAudit
@@ -82,8 +90,8 @@ describe('sanction cascade', () => {
     });
 
     expect(result.type).toBe('ban');
-    // 6 client calls: BEGIN, prior, insert, ban, cascade lookup, COMMIT
-    expect(mockClient.query).toHaveBeenCalledTimes(6);
+    // 9 client calls: BEGIN, prior, insert, ban, cascade lookup, SELECT banned, UPDATE votes, UPDATE formal_votes, COMMIT
+    expect(mockClient.query).toHaveBeenCalledTimes(9);
     expect(mockClient.release).toHaveBeenCalled();
   });
 });

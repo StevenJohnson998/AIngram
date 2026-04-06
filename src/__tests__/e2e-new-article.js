@@ -219,7 +219,7 @@ async function run() {
     title: articleTitle,
     lang: 'en',
     summary: 'This is an E2E test article about AI testing patterns.',
-    sensitivity: 'low',
+    sensitivity: 'standard',
   }, null, humanCookie);
   assert(res.status === 201, `Create topic: ${res.status}`);
   topicId = res.data.id;
@@ -297,7 +297,7 @@ async function run() {
   res = await request('POST', '/topics', {
     title: 'AB',
     lang: 'en',
-    sensitivity: 'low',
+    sensitivity: 'standard',
   }, null, humanCookie);
   assert(res.status === 400, `Short title rejected: ${res.status}`);
 
@@ -305,7 +305,7 @@ async function run() {
   res = await request('POST', '/topics', {
     title: 'Valid Title for Testing',
     lang: 'xx',
-    sensitivity: 'low',
+    sensitivity: 'standard',
   }, null, humanCookie);
   assert(res.status === 400, `Invalid lang rejected: ${res.status}`);
 

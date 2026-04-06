@@ -1,0 +1,166 @@
+iamagique.dev {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin-key.pem
+
+	# JobOptim Test - API endpoint
+	handle /JobOptim/test/api/* {
+		uri strip_prefix /JobOptim/test
+		reverse_proxy joboptim-api-test:3000
+	}
+
+	# JobOptim Test - Frontend
+	handle_path /JobOptim/test/* {
+		reverse_proxy joboptim-web-test:80
+	}
+
+	# ADHP Demo routes
+	handle_path /adhp-demo/playground* {
+		root * /srv/www/iamagique/adhp-demo/playground
+		file_server
+	}
+	handle_path /adhp-demo/mcp* {
+		reverse_proxy adhp-demo-server:8000
+		uri replace /adhp-demo/mcp /mcp
+	}
+	handle /adhp-demo/mcp* {
+		reverse_proxy adhp-demo-server:8000
+	}
+	handle_path /adhp-demo/health* {
+		reverse_proxy adhp-demo-server:8000
+	}
+
+	# Claude Code Starter Kit
+	handle_path /CCstarterkit/* {
+		root * /srv/www/iamagique/CCstarterkit
+		file_server
+	}
+
+	# Web preview (Basic Auth)
+	handle_path /webpreview/* {
+		basic_auth {
+			steven $2a$14$we.X0JPVlOhnET0ZKPm6veGktxI1iA6e3mU6YbbOxC3KHXzMvhBcC
+		}
+		root * /srv/www/webpreview
+		file_server browse
+	}
+
+	# Admin knowledge base (Basic Auth)
+	handle_path /admin/knowledge/* {
+		basic_auth {
+			steven $2a$14$we.X0JPVlOhnET0ZKPm6veGktxI1iA6e3mU6YbbOxC3KHXzMvhBcC
+		}
+		root * /srv/www/iamagique/admin/knowledge
+		file_server
+	}
+
+	# Admin hub (Basic Auth)
+	handle /admin/ {
+		basic_auth {
+			steven $2a$14$we.X0JPVlOhnET0ZKPm6veGktxI1iA6e3mU6YbbOxC3KHXzMvhBcC
+		}
+		root * /srv/www/iamagique/admin
+		rewrite * /index.html
+		file_server
+	}
+
+	# File Upload (Basic Auth)
+	handle_path /admin/fileupload/* {
+		basic_auth {
+			steven $2a$14$we.X0JPVlOhnET0ZKPm6veGktxI1iA6e3mU6YbbOxC3KHXzMvhBcC
+		}
+		reverse_proxy fileupload:8080
+	}
+
+	# Private Projects (Basic Auth)
+	handle_path /private/* {
+		basic_auth {
+			steven $2a$14$we.X0JPVlOhnET0ZKPm6veGktxI1iA6e3mU6YbbOxC3KHXzMvhBcC
+		}
+		root * /srv/www/iamagique/private
+		file_server
+	}
+
+	# SeoFactory Admin (Basic Auth) — app serves natively at /seofactory/admin/
+	redir /seofactory/admin /seofactory/admin/ permanent
+	handle /seofactory/admin/* {
+		basic_auth {
+			steven $2a$14$we.X0JPVlOhnET0ZKPm6veGktxI1iA6e3mU6YbbOxC3KHXzMvhBcC
+		}
+		reverse_proxy seofactory-admin-test:8100
+	}
+
+	# Filebrowser (test) — auth handled by Filebrowser itself
+	handle /files/* {
+		reverse_proxy filebrowser-test:8080
+	}
+
+	# Agorai: static landing page + GUI app
+	handle_path /agorai/* {
+		root * /srv/www/iamagique/agorai
+		@static file {
+			try_files {path} {path}/index.html
+		}
+		handle @static {
+			file_server
+		}
+		handle {
+			rewrite * /agorai{uri}
+			reverse_proxy agorai-test:3101 {
+				flush_interval -1
+			}
+		}
+	}
+	redir /agorai /agorai/ permanent
+
+	# AIngram: API + GUI (test)
+	handle_path /aingram/* {
+		reverse_proxy aingram-api-test:3000
+	}
+	redir /aingram /aingram/ permanent
+
+	# MesBons API
+	handle_path /mesbons/api/* {
+		reverse_proxy mesbons-api-test:8000
+	}
+
+	# Static files
+	handle /favicon.ico {
+		root * /srv/www/iamagique
+		file_server
+	}
+	handle /apple-touch-icon.png {
+		root * /srv/www/iamagique
+		file_server
+	}
+
+	# Landing page (fallback)
+	handle {
+		root * /srv/www/iamagique/landing
+		file_server
+	}
+
+	# Security headers
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		-Server
+	}
+}
+
+analytics.iamagique.dev {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin-key.pem
+	reverse_proxy umami:3000
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		-Server
+	}
+}
+
+adhp-demo.iamagique.dev {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin-key.pem
+	redir https://iamagique.dev{uri} permanent
+}
+
+:80 {
+	respond "Server is running" 200
+}

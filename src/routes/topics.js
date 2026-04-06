@@ -19,8 +19,9 @@ const { OBJECTION_REASON_TAGS } = require('../config/protocol');
 
 const router = Router();
 
-const VALID_SENSITIVITIES = ['low', 'high'];
+const VALID_SENSITIVITIES = ['standard', 'sensitive'];
 const VALID_STATUSES = ['active', 'locked', 'archived'];
+const VALID_TOPIC_TYPES = ['knowledge', 'course'];
 const VALID_FLAGS = ['spam', 'poisoning', 'hallucination', 'review_needed'];
 
 // --- Topic routes ---
@@ -32,7 +33,7 @@ router.post(
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
-      const { title, lang, summary, sensitivity } = req.body;
+      const { title, lang, summary, sensitivity, topicType } = req.body;
 
       if (!title || typeof title !== 'string' || title.length < 3 || title.length > 300) {
         return validationError(res, 'Title must be between 3 and 300 characters');
@@ -46,12 +47,16 @@ router.post(
       if (sensitivity && !VALID_SENSITIVITIES.includes(sensitivity)) {
         return validationError(res, `Sensitivity must be one of: ${VALID_SENSITIVITIES.join(', ')}`);
       }
+      if (topicType && !VALID_TOPIC_TYPES.includes(topicType)) {
+        return validationError(res, `topicType must be one of: ${VALID_TOPIC_TYPES.join(', ')}`);
+      }
 
       const topic = await topicService.createTopic({
         title,
         lang,
         summary,
         sensitivity,
+        topicType,
         createdBy: req.account.id,
       });
 
@@ -70,7 +75,7 @@ router.post(
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
-      const { title, lang, summary, sensitivity, chunks } = req.body;
+      const { title, lang, summary, sensitivity, topicType, chunks } = req.body;
 
       if (!title || typeof title !== 'string' || title.length < 3 || title.length > 300) {
         return validationError(res, 'Title must be between 3 and 300 characters');
@@ -83,6 +88,9 @@ router.post(
       }
       if (sensitivity && !VALID_SENSITIVITIES.includes(sensitivity)) {
         return validationError(res, `Sensitivity must be one of: ${VALID_SENSITIVITIES.join(', ')}`);
+      }
+      if (topicType && !VALID_TOPIC_TYPES.includes(topicType)) {
+        return validationError(res, `topicType must be one of: ${VALID_TOPIC_TYPES.join(', ')}`);
       }
       if (!chunks || !Array.isArray(chunks) || chunks.length === 0) {
         return validationError(res, 'chunks array is required and must not be empty');
@@ -117,6 +125,7 @@ router.post(
         lang,
         summary,
         sensitivity,
+        topicType,
         createdBy: req.account.id,
         chunks: chunks.map(c => ({
           content: c.content.trim(),
@@ -141,7 +150,7 @@ router.post(
 // GET /topics — list topics
 router.get('/topics', auth.authenticateOptional, async (req, res) => {
   try {
-    const { lang, sensitivity, status } = req.query;
+    const { lang, sensitivity, status, topicType } = req.query;
     const { page, limit } = parsePagination(req.query);
 
     if (lang && !VALID_LANGS.includes(lang)) {
@@ -153,8 +162,11 @@ router.get('/topics', auth.authenticateOptional, async (req, res) => {
     if (status && !VALID_STATUSES.includes(status)) {
       return validationError(res, `Status must be one of: ${VALID_STATUSES.join(', ')}`);
     }
+    if (topicType && !VALID_TOPIC_TYPES.includes(topicType)) {
+      return validationError(res, `topicType must be one of: ${VALID_TOPIC_TYPES.join(', ')}`);
+    }
 
-    const result = await topicService.listTopics({ lang, status, sensitivity, page, limit });
+    const result = await topicService.listTopics({ lang, status, sensitivity, topicType, page, limit });
     return res.json(result);
   } catch (err) {
     console.error('Error listing topics:', err);
@@ -214,7 +226,7 @@ router.put(
   auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
-      const { title, summary, sensitivity } = req.body;
+      const { title, summary, sensitivity, topicType } = req.body;
 
       // Check topic exists and caller is creator
       const existing = await topicService.getTopicById(req.params.id);
@@ -233,7 +245,7 @@ router.put(
         return validationError(res, `Sensitivity must be one of: ${VALID_SENSITIVITIES.join(', ')}`);
       }
 
-      const topic = await topicService.updateTopic(req.params.id, { title, summary, sensitivity });
+      const topic = await topicService.updateTopic(req.params.id, { title, summary, sensitivity, topicType });
       return res.json(topic);
     } catch (err) {
       console.error('Error updating topic:', err);
@@ -600,7 +612,7 @@ router.post(
       // Elite + low-sensitivity topic → auto-merge
       if (req.account.badgeElite && topicId) {
         const topic = await topicService.getTopicById(topicId);
-        if (topic && topic.sensitivity === 'low') {
+        if (topic && topic.sensitivity === 'standard') {
           // Auto-merge: create proposed then merge immediately
           const proposed = await chunkService.proposeEdit({
             originalChunkId: req.params.id,

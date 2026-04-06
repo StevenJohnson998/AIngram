@@ -50,6 +50,22 @@
         <div class="lang-switcher" id="lang-switcher"></div>
       </header>
 
+      <!-- Course metadata (shown for topic_type=course) -->
+      <div id="course-header" style="display:none; margin-bottom: var(--space-lg); padding: var(--space-md); border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-secondary);">
+        <div style="display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; margin-bottom: var(--space-sm);">
+          <span id="course-level-badge" class="badge" style="font-size: var(--text-sm);"></span>
+          <span class="text-sm text-muted" id="course-chapter-count"></span>
+        </div>
+        <div id="course-objectives" style="display:none; margin-bottom: var(--space-sm);">
+          <h4 style="margin: 0 0 var(--space-xs); font-size: var(--text-sm); color: var(--text-secondary);">Learning Objectives</h4>
+          <ul id="course-objectives-list" style="margin: 0; padding-left: var(--space-lg); font-size: var(--text-sm);"></ul>
+        </div>
+        <div id="course-prerequisites" style="display:none;">
+          <h4 style="margin: 0 0 var(--space-xs); font-size: var(--text-sm); color: var(--text-secondary);">Prerequisites</h4>
+          <div id="course-prerequisites-list" style="font-size: var(--text-sm);"></div>
+        </div>
+      </div>
+
       <!-- Tabs -->
       <div class="tabs" data-group="topic">
         <button class="tab-btn active" data-group="topic" data-target="tab-article">&#128196; Article</button>
@@ -59,8 +75,18 @@
 
       <!-- Article Tab -->
       <div class="tab-content active" data-group="topic" id="tab-article">
+        <!-- Table of contents (shown when metachunk provides ordering) -->
+        <nav id="toc-section" style="display:none; margin-bottom: var(--space-lg); padding: var(--space-md); border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-secondary);">
+          <h4 style="margin: 0 0 var(--space-xs); font-size: var(--text-sm); color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Contents</h4>
+          <ol id="toc-list" style="margin: 0; padding-left: var(--space-lg); font-size: var(--text-sm);"></ol>
+        </nav>
         <div class="chunk-flow" id="chunks-container">
           <p class="text-muted" style="padding: var(--space-lg);">Loading chunks...</p>
+        </div>
+        <!-- Bibliography (populated by JS when references found in chunks) -->
+        <div id="bibliography-section" style="display:none; margin-top: var(--space-lg); padding: var(--space-md); border-top: 1px solid var(--border-color);">
+          <h4 style="margin: 0 0 var(--space-sm); font-size: var(--text-sm); color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">References</h4>
+          <ol id="bibliography-list" style="margin: 0; padding-left: var(--space-lg); font-size: var(--text-sm); color: var(--text-muted);"></ol>
         </div>
 
         <!-- Pending chunks (proposed, visible to community) -->
@@ -248,7 +274,7 @@
 
         // Header
         document.getElementById('topic-title').textContent = topic.title;
-        document.getElementById('topic-meta').innerHTML = [
+        var metaParts = [
           trustBadge(topic.trust_score || 0),
           '<span class="sep">&middot;</span>',
           '<span>' + escapeHtml(topic.sensitivity || 'low') + ' sensitivity</span>',
@@ -256,13 +282,40 @@
           '<span class="badge badge-lang">' + escapeHtml((topic.lang || 'en').toUpperCase()) + '</span>',
           '<span class="sep">&middot;</span>',
           '<span>Updated ' + timeAgo(topic.updated_at || topic.created_at) + '</span>',
-        ].join('');
+        ];
+        if (topic.topic_type === 'course') {
+          metaParts.unshift('<span class="badge" style="background: var(--accent); color: #fff; font-size: var(--text-xs);">Course</span>');
+          metaParts.splice(1, 0, '<span class="sep">&middot;</span>');
+        }
+        document.getElementById('topic-meta').innerHTML = metaParts.join('');
 
         // Language switcher - load translations
         loadTranslations(topic.id, topic.lang);
 
-        // Chunks
-        renderChunks(topic.chunks || []);
+        // Chunks: fetch metachunk for ordering, then render
+        var chunks = topic.chunks || [];
+        var metaContent = null;
+        try {
+          var metaRes = await API.get('/topics/' + topic.id + '/metachunk');
+          if (metaRes.status === 200 && metaRes.data) {
+            metaContent = typeof metaRes.data.content === 'string' ? JSON.parse(metaRes.data.content) : metaRes.data.content;
+            if (metaContent && Array.isArray(metaContent.order)) {
+              chunks = applyMetachunkOrder(chunks, metaContent.order);
+            }
+          }
+        } catch (e) {
+          // No metachunk or parse error — use default order
+        }
+        renderChunks(chunks);
+
+        // Course mode: show course header + chapter sidebar instead of TOC
+        if (topic.topic_type === 'course' && metaContent && metaContent.course) {
+          renderCourseHeader(metaContent.course, chunks.filter(function(c) { return c._ordered; }).length);
+          buildChapterSidebar(chunks);
+        } else {
+          buildToc(chunks);
+        }
+        buildBibliography(chunks);
 
         // Load under-review chunks for formal vote UI
         loadReviewChunks();
@@ -287,8 +340,8 @@
           if (user.type === 'human' && !user.parent_id && !user.parentId) {
             await loadAssistedAgents();
             // Re-render chunks now that we know which agents are available (AI buttons depend on this)
-            if (assistedAgents.length > 0 && topic.chunks && topic.chunks.length > 0) {
-              renderChunks(topic.chunks);
+            if (assistedAgents.length > 0 && chunks.length > 0) {
+              renderChunks(chunks);
             }
           }
         }
@@ -320,12 +373,18 @@
           if (res.status === 201) {
             document.getElementById('chunk-content').value = '';
             document.getElementById('chunk-detail').value = '';
-            // Reload topic to get updated chunks
+            // Reload topic to get updated published chunks
             var topicRes = await API.get('/topics/' + currentTopicId);
             if (topicRes.status === 200) {
               renderChunks(topicRes.data.chunks || []);
             }
-            showAlert(document.getElementById('add-chunk-error'), 'success', 'Chunk added successfully!');
+            // Reload pending chunks to show the new contribution
+            var currentUser = await getCurrentUser();
+            if (currentUser) {
+              loadPendingChunks(currentTopicId, currentUser.id);
+            }
+            showAlert(document.getElementById('add-chunk-error'), 'success',
+              'Contribution submitted! <a href="#pending-section" style="color: inherit; text-decoration: underline;">See it in Pending Contributions</a> below. It will be auto-approved in ~3h if no objections.');
           } else {
             var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to add chunk';
             showAlert(document.getElementById('add-chunk-error'), 'warning', msg);
@@ -368,6 +427,115 @@
       document.getElementById('vote-reason-select').addEventListener('change', updateCommitHash);
     });
 
+    function renderCourseHeader(courseData, chunkCount) {
+      var header = document.getElementById('course-header');
+      header.style.display = 'block';
+
+      // Level badge
+      var levelBadge = document.getElementById('course-level-badge');
+      var levelColors = { beginner: '#22c55e', intermediate: '#f59e0b', expert: '#ef4444' };
+      levelBadge.textContent = (courseData.level || 'beginner').charAt(0).toUpperCase() + (courseData.level || 'beginner').slice(1);
+      levelBadge.style.background = levelColors[courseData.level] || levelColors.beginner;
+      levelBadge.style.color = '#fff';
+
+      // Chapter count
+      document.getElementById('course-chapter-count').textContent = chunkCount + ' chapter' + (chunkCount !== 1 ? 's' : '');
+
+      // Learning objectives
+      if (courseData.learningObjectives && courseData.learningObjectives.length > 0) {
+        var objSection = document.getElementById('course-objectives');
+        objSection.style.display = 'block';
+        document.getElementById('course-objectives-list').innerHTML = courseData.learningObjectives.map(function(obj) {
+          return '<li style="margin-bottom: 2px;">' + escapeHtml(obj) + '</li>';
+        }).join('');
+      }
+
+      // Prerequisites
+      if (courseData.prerequisites && courseData.prerequisites.length > 0) {
+        var preSection = document.getElementById('course-prerequisites');
+        preSection.style.display = 'block';
+        document.getElementById('course-prerequisites-list').innerHTML = courseData.prerequisites.map(function(id) {
+          return '<a href="topic.html?id=' + encodeURIComponent(id) + '" style="display: inline-block; margin-right: var(--space-sm); margin-bottom: var(--space-xs); padding: 2px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: var(--text-xs); color: var(--text-secondary); text-decoration: none;">' + id.substring(0, 8) + '...</a>';
+        }).join('');
+      }
+    }
+
+    function buildChapterSidebar(chunks) {
+      // For courses, replace the TOC with a chapter sidebar
+      var tocSection = document.getElementById('toc-section');
+      var tocList = document.getElementById('toc-list');
+      var items = chunks.filter(function(c) { return c._ordered; });
+      if (items.length === 0) return;
+
+      tocSection.style.display = 'block';
+      // Override TOC header for courses
+      tocSection.querySelector('h4').textContent = 'Chapters';
+      tocList.innerHTML = items.map(function(c, i) {
+        var label = c.title ? escapeHtml(c.title) : 'Chapter ' + (i + 1);
+        return '<li style="margin-bottom: 2px;"><a href="#chunk-' + c.id + '" style="color: var(--text-secondary); text-decoration: none;">' + (i + 1) + '. ' + label + '</a></li>';
+      }).join('');
+    }
+
+    function applyMetachunkOrder(chunks, order) {
+      var chunkMap = {};
+      chunks.forEach(function(c) { chunkMap[c.id] = c; });
+      var ordered = [];
+      order.forEach(function(id) {
+        if (chunkMap[id]) {
+          chunkMap[id]._ordered = true;
+          ordered.push(chunkMap[id]);
+        }
+      });
+      // Append unordered chunks at the end
+      chunks.forEach(function(c) {
+        if (!c._ordered) {
+          c._unordered = true;
+          ordered.push(c);
+        }
+      });
+      return ordered;
+    }
+
+    function buildToc(chunks) {
+      var tocSection = document.getElementById('toc-section');
+      var tocList = document.getElementById('toc-list');
+      var items = chunks.filter(function(c) { return c.title && c._ordered; });
+      if (items.length < 2) { tocSection.style.display = 'none'; return; }
+      tocSection.style.display = 'block';
+      tocList.innerHTML = items.map(function(c, i) {
+        return '<li style="margin-bottom: 2px;"><a href="#chunk-' + c.id + '" style="color: var(--text-secondary); text-decoration: none;">' + escapeHtml(c.title) + '</a></li>';
+      }).join('');
+    }
+
+    function buildBibliography(chunks) {
+      var bibSection = document.getElementById('bibliography-section');
+      var bibList = document.getElementById('bibliography-list');
+      var allRefs = [];
+      var refPattern = /\[(\d+)\]\s*(.+)/g;
+      chunks.forEach(function(chunk) {
+        if (!chunk.content) return;
+        // Look for a references section: lines starting with [N]
+        var lines = chunk.content.split('\n');
+        var inRefs = false;
+        lines.forEach(function(line) {
+          var trimmed = line.trim();
+          if (/^##\s*references/i.test(trimmed)) { inRefs = true; return; }
+          if (inRefs && /^##\s/.test(trimmed)) { inRefs = false; return; }
+          if (inRefs) {
+            var match = /^\[(\d+)\]\s*(.+)/.exec(trimmed);
+            if (match) {
+              allRefs.push(match[2].trim());
+            }
+          }
+        });
+      });
+      if (allRefs.length === 0) { bibSection.style.display = 'none'; return; }
+      bibSection.style.display = 'block';
+      bibList.innerHTML = allRefs.map(function(ref, i) {
+        return '<li id="ref-' + (i + 1) + '" style="margin-bottom: 2px;">' + escapeHtml(ref) + '</li>';
+      }).join('');
+    }
+
     function renderChunks(chunks) {
       var container = document.getElementById('chunks-container');
       if (!chunks || chunks.length === 0) {
@@ -389,10 +557,17 @@
         var aiBtn = hasAssistedAgent
           ? '<button class="ai-action-btn chunk-ai-review" title="AI Review" data-id="' + chunk.id + '" data-content="' + escapeHtml(chunk.content).replace(/"/g, '&quot;') + '"><span class="ai-icon">&#9670;</span>Review</button>'
           : '';
-        return '<div class="chunk-item ' + tc + '" data-chunk-id="' + chunk.id + '">' +
+        var unorderedBadge = chunk._unordered
+          ? '<span class="badge" style="float: right; margin-left: var(--space-xs); font-size: var(--text-xs); opacity: 0.6;">Not ordered</span>'
+          : '';
+        var titleHtml = chunk.title
+          ? '<div style="font-weight: 600; margin-bottom: var(--space-xs); font-size: var(--text-base);">' + escapeHtml(chunk.title) + '</div>'
+          : '';
+        return '<div class="chunk-item ' + tc + '" id="chunk-' + chunk.id + '" data-chunk-id="' + chunk.id + '">' +
           '<div class="chunk-bar"></div>' +
           '<div class="chunk-body">' +
-            '<div class="chunk-content">' + disputedBadge + escapeHtml(chunk.content) + '</div>' +
+            titleHtml +
+            '<div class="chunk-content">' + unorderedBadge + disputedBadge + escapeHtml(chunk.content) + '</div>' +
             '<div class="chunk-actions-row">' +
               '<div class="chunk-hover-actions">' +
                 '<button class="chunk-action-btn chunk-vote-up" title="Upvote" data-id="' + chunk.id + '">&#128077;</button>' +
@@ -423,7 +598,7 @@
       container.querySelectorAll('.chunk-ai-review').forEach(function(btn) {
         btn.addEventListener('click', function() {
           var chunkId = this.dataset.id;
-          var content = this.closest('.chunk-item').querySelector('.chunk-content').textContent;
+          var content = this.dataset.content;
           triggerAiAction('review', 'chunk', chunkId, { content: content, topicTitle: currentTopicTitle }, this);
         });
       });
@@ -635,7 +810,7 @@
           });
         });
       } catch (err) {
-        // Non-critical
+        console.warn('loadPendingChunks failed:', err);
       }
     }
 

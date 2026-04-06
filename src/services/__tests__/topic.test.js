@@ -57,7 +57,7 @@ describe('topic service', () => {
         slug: 'test-slug',
         lang: 'en',
         summary: 'A summary',
-        sensitivity: 'low',
+        sensitivity: 'standard',
         created_by: 'account-1',
       };
 
@@ -67,7 +67,7 @@ describe('topic service', () => {
         title: 'Test Topic',
         lang: 'en',
         summary: 'A summary',
-        sensitivity: 'low',
+        sensitivity: 'standard',
         createdBy: 'account-1',
       });
 
@@ -76,11 +76,11 @@ describe('topic service', () => {
       expect(result).toEqual(topic);
       expect(mockPool.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO topics'),
-        ['Test Topic', 'test-slug', 'en', 'A summary', 'low', 'account-1']
+        ['Test Topic', 'test-slug', 'en', 'A summary', 'standard', 'knowledge', 'account-1']
       );
     });
 
-    it('defaults sensitivity to low', async () => {
+    it('defaults sensitivity to standard', async () => {
       mockPool.query.mockResolvedValue({ rows: [{ id: 'uuid-1' }] });
 
       await topicService.createTopic({
@@ -91,7 +91,24 @@ describe('topic service', () => {
 
       expect(mockPool.query).toHaveBeenCalledWith(
         expect.any(String),
-        expect.arrayContaining(['low'])
+        expect.arrayContaining(['standard', 'knowledge'])
+      );
+    });
+
+    it('accepts topicType=course', async () => {
+      mockPool.query.mockResolvedValue({ rows: [{ id: 'uuid-1', topic_type: 'course' }] });
+
+      const result = await topicService.createTopic({
+        title: 'Intro to AI',
+        lang: 'en',
+        topicType: 'course',
+        createdBy: 'account-1',
+      });
+
+      expect(result.topic_type).toBe('course');
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO topics'),
+        expect.arrayContaining(['course'])
       );
     });
   });
@@ -164,15 +181,26 @@ describe('topic service', () => {
       await topicService.listTopics({
         lang: 'en',
         status: 'published',
-        sensitivity: 'high',
+        sensitivity: 'sensitive',
         page: 2,
         limit: 10,
       });
 
       // Count query should have 3 params (lang, status, sensitivity)
-      expect(mockPool.query.mock.calls[0][1]).toEqual(['en', 'published', 'high']);
+      expect(mockPool.query.mock.calls[0][1]).toEqual(['en', 'published', 'sensitive']);
       // Data query should have 5 params (+limit, offset)
-      expect(mockPool.query.mock.calls[1][1]).toEqual(['en', 'published', 'high', 10, 10]);
+      expect(mockPool.query.mock.calls[1][1]).toEqual(['en', 'published', 'sensitive', 10, 10]);
+    });
+
+    it('filters by topicType', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ total: 3 }] })
+        .mockResolvedValueOnce({ rows: [{ id: '1', topic_type: 'course' }] });
+
+      const result = await topicService.listTopics({ topicType: 'course', page: 1, limit: 20 });
+
+      expect(result.data).toHaveLength(1);
+      expect(mockPool.query.mock.calls[0][1]).toEqual(['course']);
     });
   });
 
@@ -205,6 +233,25 @@ describe('topic service', () => {
 
       const result = await topicService.updateTopic('nonexistent', { title: 'X' });
       expect(result).toBeNull();
+    });
+
+    it('rejects topic_type change (immutable)', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ id: 'uuid-1', title: 'Test', slug: 'test', lang: 'en', topic_type: 'knowledge' }],
+      });
+
+      await expect(
+        topicService.updateTopic('uuid-1', { topicType: 'course' })
+      ).rejects.toThrow('topic_type is immutable after creation');
+    });
+
+    it('allows update when topicType matches existing', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ id: 'uuid-1', title: 'Test', slug: 'test', lang: 'en', topic_type: 'course' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'uuid-1', title: 'Test', topic_type: 'course' }] });
+
+      const result = await topicService.updateTopic('uuid-1', { topicType: 'course', summary: 'Updated' });
+      expect(result).toBeTruthy();
     });
   });
 

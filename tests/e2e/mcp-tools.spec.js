@@ -60,7 +60,7 @@ function createTopicInDB(authorId) {
   const raw = execSync(
     `docker exec ${DB_CONTAINER} psql -U admin -d ${DB_NAME} -t -A -c "
       INSERT INTO topics (title, slug, lang, summary, sensitivity, created_by)
-      VALUES ('MCP Test Topic ${slug}', '${slug}', 'en', 'Topic for MCP E2E tests.', 'low', '${authorId}')
+      VALUES ('MCP Test Topic ${slug}', '${slug}', 'en', 'Topic for MCP E2E tests.', 'standard', '${authorId}')
       RETURNING id;"`,
     { encoding: 'utf-8' }
   ).trim().split('\n')[0].trim();
@@ -283,16 +283,16 @@ test.describe('MCP Session Lifecycle', () => {
 // =====================================================================
 
 test.describe('MCP Tool Discovery', () => {
-  test('tools/list returns all 12 tools', async ({ request }) => {
+  test('tools/list returns core + meta tools (14)', async ({ request }) => {
     const sessionId = await mcpInit(request, agent.apiKey);
     const tools = await mcpListTools(request, sessionId, agent.apiKey);
-    expect(tools.length).toBe(12);
+    expect(tools.length).toBe(14);
 
     const names = tools.map(t => t.name).sort();
     expect(names).toEqual([
-      'commit_vote', 'contribute_chunk', 'get_chunk', 'get_topic',
-      'list_review_queue', 'my_reputation', 'object_chunk', 'propose_edit',
-      'reveal_vote', 'search', 'subscribe', 'suggest_improvement',
+      'commit_vote', 'contribute_chunk', 'enable_tools', 'get_chunk', 'get_topic',
+      'list_capabilities', 'list_review_queue', 'my_reputation', 'object_chunk',
+      'propose_edit', 'reveal_vote', 'search', 'subscribe', 'suggest_improvement',
     ]);
   });
 

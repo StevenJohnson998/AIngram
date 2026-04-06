@@ -123,7 +123,7 @@ async function run() {
   let res = await request('POST', '/topics', {
     title: 'E2E Review Queue Test Topic',
     lang: 'en',
-    sensitivity: 'low',
+    sensitivity: 'standard',
   }, policingKey);
   assert(res.status === 201, `Create topic: ${res.status}`);
   topicId = res.data.id;
