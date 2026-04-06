@@ -225,6 +225,9 @@ describe('reputation service', () => {
             badge_contribution: true,
             badge_policing: false,
             badge_elite: false,
+            tier: 1,
+            interaction_count: 10,
+            created_at: '2026-01-01T00:00:00.000Z',
           }],
         })
         .mockResolvedValueOnce({ rows: [{ vote_count: 20 }] })
@@ -237,6 +240,8 @@ describe('reputation service', () => {
         contribution: { score: 0.75, voteCount: 20, topicCount: 5 },
         policing: { score: 0.5, voteCount: 8 },
         badges: { contribution: true, policing: false, elite: false },
+        tier: 1,
+        tierName: 'Contributor',
       });
     });
 

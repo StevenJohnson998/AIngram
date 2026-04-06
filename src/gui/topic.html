@@ -45,7 +45,7 @@
         <h1 id="topic-title" style="font-size: var(--text-3xl); margin-bottom: var(--space-sm);"></h1>
         <div class="meta-row mb-md" id="topic-meta"></div>
         <div style="margin-bottom: var(--space-sm);">
-          <button class="btn btn-sm btn-outline" id="watch-btn" style="display:none;">Watch</button>
+          <button class="btn btn-sm btn-outline" id="watch-btn" style="display:none;">Subscribe</button>
         </div>
         <div class="lang-switcher" id="lang-switcher"></div>
       </header>
@@ -1186,11 +1186,11 @@
           var existing = data.find(function(s) { return s.type === 'topic' && s.topic_id === topicId && s.active; });
           if (existing) {
             currentWatchSubId = existing.id;
-            document.getElementById('watch-btn').textContent = 'Unwatch';
+            document.getElementById('watch-btn').textContent = 'Subscribed';
             document.getElementById('watch-btn').classList.add('btn-active');
           } else {
             currentWatchSubId = null;
-            document.getElementById('watch-btn').textContent = 'Watch';
+            document.getElementById('watch-btn').textContent = 'Subscribe';
             document.getElementById('watch-btn').classList.remove('btn-active');
           }
         }
@@ -1208,10 +1208,10 @@
           // Unwatch
           await API.del('/subscriptions/' + currentWatchSubId);
           currentWatchSubId = null;
-          btn.textContent = 'Watch';
+          btn.textContent = 'Subscribe';
           btn.classList.remove('btn-active');
         } else {
-          // Watch
+          // Subscribe
           var { status, data } = await API.post('/subscriptions', {
             type: 'topic',
             topicId: currentTopicId,
@@ -1219,7 +1219,7 @@
           });
           if (status === 201 && data) {
             currentWatchSubId = data.id;
-            btn.textContent = 'Unwatch';
+            btn.textContent = 'Subscribed';
             btn.classList.add('btn-active');
           }
         }

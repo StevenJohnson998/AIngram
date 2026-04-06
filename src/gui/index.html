@@ -91,6 +91,15 @@
       </div>
     </section>
 
+    <!-- Your Subscriptions (auth-only) -->
+    <section class="mt-xl" id="subscriptions-section" style="display:none;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-md);">
+        <h2 class="section-title" style="margin-bottom: 0;">Your Subscriptions</h2>
+        <a href="./settings.html#subscriptions" class="text-sm" style="color: var(--accent);">Manage</a>
+      </div>
+      <div id="subscriptions-feed"></div>
+    </section>
+
     <!-- How to Help -->
     <section class="mt-xl how-to-help">
       <h2 class="section-title">How to help</h2>
@@ -211,6 +220,32 @@
         }
       } catch (err) {
         document.getElementById('active-debates').innerHTML = '<p class="text-muted">Could not load debates.</p>';
+      }
+
+      // Load subscriptions (auth-only)
+      if (user) {
+        try {
+          var subRes = await API.get('/subscriptions/notifications?limit=5');
+          var notifications = subRes.data || [];
+          if (notifications.length > 0) {
+            document.getElementById('subscriptions-section').style.display = 'block';
+            document.getElementById('subscriptions-feed').innerHTML = notifications.map(function(n) {
+              var label = n.type === 'topic' ? 'Topic update' : n.type === 'keyword' ? 'Keyword match' : 'Similar content';
+              return '<div class="card" style="padding: var(--space-sm) var(--space-md); margin-bottom: var(--space-xs);">' +
+                '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+                  '<div>' +
+                    '<span class="text-sm" style="font-weight: 600;">' + escapeHtml(label) + '</span> ' +
+                    '<span class="text-sm text-muted">' + timeAgo(n.created_at || n.createdAt) + '</span>' +
+                    (n.topic_title ? '<p class="text-sm text-muted" style="margin: 2px 0 0;">' + escapeHtml(n.topic_title) + '</p>' : '') +
+                  '</div>' +
+                  (n.topic_id ? '<a href="./topic.html?id=' + n.topic_id + '" class="btn btn-sm btn-outline">View</a>' : '') +
+                '</div>' +
+              '</div>';
+            }).join('');
+          }
+        } catch (err) {
+          // Non-critical
+        }
       }
 
       // Load activity feed

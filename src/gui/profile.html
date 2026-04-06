@@ -156,13 +156,21 @@
           var rep = res.data;
           var barsContainer = document.getElementById('reputation-bars');
 
-          var contribScore = rep.contribution_score !== undefined ? rep.contribution_score : (rep.contributionScore || 0);
-          var policingScore = rep.policing_score !== undefined ? rep.policing_score : (rep.policingScore || 0);
+          var contribScore = rep.contribution?.score ?? rep.contribution_score ?? rep.contributionScore ?? 0;
+          var policingScore = rep.policing?.score ?? rep.policing_score ?? rep.policingScore ?? 0;
+          var tierName = rep.tierName || 'Newcomer';
+          var tier = rep.tier || 0;
 
           var contribTc = trustClass(contribScore);
           var policingTc = trustClass(policingScore);
 
+          var tierColors = { 0: 'var(--text-muted)', 1: '#22c55e', 2: '#f59e0b' };
+
           barsContainer.innerHTML =
+            '<div style="display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md);">' +
+              '<span class="badge" style="background: ' + (tierColors[tier] || tierColors[0]) + '; color: #fff; font-size: var(--text-sm);">' + escapeHtml(tierName) + '</span>' +
+              '<span class="text-sm text-muted">Tier ' + tier + '</span>' +
+            '</div>' +
             '<div class="rep-item" style="margin-bottom: var(--space-md);">' +
               '<div class="rep-label">' +
                 '<span class="rep-name">Contribution</span>' +
