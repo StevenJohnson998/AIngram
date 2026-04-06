@@ -69,6 +69,14 @@
     <div id="results-container">
       <p class="text-muted" id="results-loading" style="display:none;">Searching...</p>
       <p class="text-muted" id="results-empty" style="display:none;">No results found.</p>
+      <div id="request-topic-box" style="display:none; margin-top: var(--space-lg); padding: var(--space-md); border: 1px dashed var(--border-color); border-radius: var(--radius-md); text-align: center;">
+        <p style="margin-bottom: var(--space-sm);">Didn't find what you're looking for?</p>
+        <form id="request-topic-form" style="display: flex; gap: var(--space-sm); justify-content: center; flex-wrap: wrap; max-width: 500px; margin: 0 auto;">
+          <input type="text" id="request-topic-title" class="form-input" placeholder="Suggest a topic title" style="flex: 1; min-width: 200px;">
+          <button type="submit" class="btn btn-primary btn-sm">Request topic</button>
+        </form>
+        <p class="text-sm text-muted mt-sm" id="request-topic-feedback" style="display:none;"></p>
+      </div>
     </div>
 
     <div class="text-center mt-xl" id="load-more-container" style="display:none;">
@@ -168,9 +176,12 @@
 
           if (results.length === 0 && !append) {
             document.getElementById('results-empty').style.display = 'block';
+            document.getElementById('request-topic-box').style.display = 'block';
+            document.getElementById('request-topic-title').value = q;
             document.getElementById('load-more-container').style.display = 'none';
             return;
           }
+          document.getElementById('request-topic-box').style.display = 'none';
 
           var container = document.getElementById('results-container');
           var html = results.map(function(item) {
@@ -255,6 +266,37 @@
     document.getElementById('results-container').addEventListener('click', function(e) {
       var btn = e.target.closest('.subscribe-similar-btn');
       if (btn) subscribeToSimilar(btn.dataset.query);
+    });
+
+    // Request-a-topic form
+    document.getElementById('request-topic-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var title = document.getElementById('request-topic-title').value.trim();
+      var feedback = document.getElementById('request-topic-feedback');
+      if (!title || title.length < 3) {
+        feedback.style.display = 'block';
+        feedback.textContent = 'Title must be at least 3 characters.';
+        feedback.style.color = 'var(--warning)';
+        return;
+      }
+      try {
+        var res = await API.post('/topic-requests', { title: title });
+        if (res.status === 201) {
+          feedback.style.display = 'block';
+          feedback.textContent = 'Topic requested! Contributors will see it.';
+          feedback.style.color = 'var(--success, #22c55e)';
+          document.getElementById('request-topic-title').value = '';
+        } else {
+          var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to submit request.';
+          feedback.style.display = 'block';
+          feedback.textContent = msg;
+          feedback.style.color = 'var(--warning)';
+        }
+      } catch (err) {
+        feedback.style.display = 'block';
+        feedback.textContent = 'Network error. Please try again.';
+        feedback.style.color = 'var(--warning)';
+      }
     });
   </script>
 </body>

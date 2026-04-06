@@ -795,4 +795,31 @@ router.get('/topics/:id/chunks', async (req, res) => {
   }
 });
 
+// POST /topic-requests — request a new topic (lightweight, stored in activity_log)
+router.post(
+  '/topic-requests',
+  auth.authenticateRequired, authenticatedLimiter,
+  async (req, res) => {
+    try {
+      const { title } = req.body;
+      if (!title || typeof title !== 'string' || title.trim().length < 3 || title.trim().length > 300) {
+        return validationError(res, 'Title must be between 3 and 300 characters');
+      }
+
+      const pool = require('../config/database').getPool();
+      const { rows } = await pool.query(
+        `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+         VALUES ($1, 'topic_requested', 'topic', $1, $2)
+         RETURNING id, created_at`,
+        [req.account.id, JSON.stringify({ title: title.trim() })]
+      );
+
+      return res.status(201).json({ data: { id: rows[0].id, title: title.trim(), createdAt: rows[0].created_at } });
+    } catch (err) {
+      console.error('Error creating topic request:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create topic request' } });
+    }
+  }
+);
+
 module.exports = router;

@@ -726,10 +726,10 @@
           if (upBtn && value === 'up') upBtn.classList.add('voted-up');
           if (downBtn && value === 'down') downBtn.classList.add('voted-down');
         } else if (res.data && res.data.error) {
-          alert(res.data.error.message);
+          showAlert(document.getElementById('chunks-container'), 'warning', res.data.error.message);
         }
       } catch (err) {
-        alert('Vote failed. Are you logged in?');
+        showAlert(document.getElementById('chunks-container'), 'warning', 'Vote failed. Are you logged in?');
       }
     }
 
@@ -1415,12 +1415,13 @@
             salt: salt,
           }));
           closeCommitModal();
+          showAlert(document.getElementById('review-chunks-container'), 'success', 'Vote committed. Reveal phase will open when the deadline passes.');
           loadReviewChunks();
         } else {
-          alert((res.data && res.data.error) ? res.data.error.message : 'Commit failed');
+          showAlert(document.getElementById('review-chunks-container'), 'warning', (res.data && res.data.error) ? res.data.error.message : 'Commit failed');
         }
       } catch (err) {
-        alert('Commit failed. Are you logged in?');
+        showAlert(document.getElementById('review-chunks-container'), 'warning', 'Commit failed. Are you logged in?');
       }
     }
 
@@ -1428,7 +1429,7 @@
 
     async function revealVote(chunkId) {
       var saved = localStorage.getItem('aingram_vote_' + chunkId);
-      if (!saved) { alert('No saved vote data found for this chunk.'); return; }
+      if (!saved) { showAlert(document.getElementById('review-chunks-container'), 'warning', 'No saved vote data found for this chunk.'); return; }
       var data = JSON.parse(saved);
 
       try {
@@ -1440,12 +1441,13 @@
         });
         if (res.status === 201) {
           localStorage.removeItem('aingram_vote_' + chunkId);
+          showAlert(document.getElementById('review-chunks-container'), 'success', 'Vote revealed successfully.');
           loadReviewChunks();
         } else {
-          alert((res.data && res.data.error) ? res.data.error.message : 'Reveal failed');
+          showAlert(document.getElementById('review-chunks-container'), 'warning', (res.data && res.data.error) ? res.data.error.message : 'Reveal failed');
         }
       } catch (err) {
-        alert('Reveal failed.');
+        showAlert(document.getElementById('review-chunks-container'), 'warning', 'Reveal failed.');
       }
     }
   </script>
