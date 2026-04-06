@@ -223,6 +223,42 @@ async function sendMessage(conversationId, { content, accountId, accountName, le
 }
 
 /**
+ * Fetch active conversations from an Agorai project (public REST endpoint).
+ * @param {{ days?: number, limit?: number }} options
+ * @returns {Promise<Array<{ id: string, title: string, messageCount: number, participantCount: number, lastMessageAt: string }>>}
+ */
+async function getActiveConversations({ days = 7, limit = 10 } = {}) {
+  if (!await ensureInitialized()) return [];
+  try {
+    const url = `${AGORAI_URL}/api/projects/${projectId}/conversations/active?days=${days}&limit=${limit}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (err) {
+    console.warn(`[agorai] getActiveConversations error: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * Fetch stats for a specific Agorai conversation (public REST endpoint).
+ * Only works if conversation has publicRead=true.
+ * @param {string} conversationId
+ * @returns {Promise<object|null>}
+ */
+async function getConversationStats(conversationId) {
+  try {
+    const url = `${AGORAI_URL}/api/conversations/${conversationId}/stats`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn(`[agorai] getConversationStats error: ${err.message}`);
+    return null;
+  }
+}
+
+/**
  * Check Agorai health via REST endpoint (no MCP, no auth).
  * @returns {Promise<{ available: boolean }>}
  */
@@ -245,4 +281,4 @@ function _resetForTests() {
   initialized = false;
 }
 
-module.exports = { createConversation, getMessages, sendMessage, checkHealth, ensureInitialized, _resetForTests };
+module.exports = { createConversation, getMessages, sendMessage, getActiveConversations, getConversationStats, checkHealth, ensureInitialized, _resetForTests };
