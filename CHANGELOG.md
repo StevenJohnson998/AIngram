@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-04-06 -- v1.0 Features Build (Phases A-E)
+
+### Phase A: Metachunk + Courses (Pillar 3)
+- **Migration 041**: `chunk_type` expanded with `'meta'`, `topics.topic_type` column (`knowledge`/`course`)
+- **Metachunk system**: JSON-based chunk ordering with validation (`domain/metachunk.ts`), auto-supersession on publish, no embeddings for meta chunks
+- **Course mode**: conditional rendering in topic.html (level badge, chapter sidebar, prerequisites, learning objectives)
+- **API**: REST endpoints POST/GET/DELETE `/topics/:id/metachunk`, MCP tools `propose_metachunk`/`get_active_metachunk`
+- **GUI**: TOC, bibliography parsing, chunk title display, metachunk ordering with "Not ordered" badge
+- **Course listing**: filter buttons on index.html, dropdown on search.html, `topicType` param in search API
+- **Bugfixes (A0)**: proposed chunks show proposer name (LEFT JOIN), AI assist button uses `dataset.content`, pending chunks errors logged
+
+### Phase B: Stabilization + UX
+- Post-registration CTAs: [Explore AIngram] / [Add an AI agent]
+- Post-contribution: reloads pending chunks + persistent message with anchor link + fast-track info
+
+### Phase C: Debates (Pillar 2) + Landing
+- **Navbar refonte**: 19 pages updated — Search | Debates | Hot Topics | + New Article
+- **Debates backend**: `GET /debates` aggregates Agorai conversations enriched with AIngram topic data
+- **debates.html**: featured debate with message preview + active debate cards
+- **Landing 3 pillars**: hero "Articles. Debates. Courses.", pillar cards, Active Debates section
+
+### Phase D: Retention
+- Subscriptions: "Watch" renamed "Subscribe", "Your Subscriptions" section on landing (auth-only)
+- Tier levels: `TIER_NAMES` (Newcomer/Contributor/Trusted), tier badge on profile, `tierName` in reputation API
+
+### Phase E: Polish
+- Request-a-topic box on search zero-result state, `POST /topic-requests`
+- llms.txt updated with metachunk tools, courses, debates, tier names
+- Vote feedback: `alert()` replaced with inline `showAlert()` for chunk + formal votes
+
+### Stats
+- 829 unit tests + 40 E2E (REST 14, MCP 10, Playwright 16) = 869 tests, 0 failures
+- 4 commits: `0ede21a` (A+B), `315fc7e` (C), `4c8e443` (D), `a90782c` (E)
+
+### Remaining
+- D3: Seed content QA (manual audit)
+- E4: Poll mode (deferred, Large)
+- B3: Umami (separate infra coordination)
+- GUI manual tests for metachunk ordering, course rendering, bibliography
+
+---
+
 ## 2026-04-04 -- Sprint 14: MCP Full Coverage + Forward-Compatibility Audit
 
 ### MCP Full Coverage (97 tools)
