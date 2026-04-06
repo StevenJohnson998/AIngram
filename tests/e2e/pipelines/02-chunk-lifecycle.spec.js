@@ -21,7 +21,7 @@ test.describe('Chunk Lifecycle', () => {
     voter1 = createUserInDB({ prefix: 'e2e-life-v1', createdAt: "now() - interval '30 days'" });
     voter2 = createUserInDB({ prefix: 'e2e-life-v2', createdAt: "now() - interval '30 days'" });
     voter3 = createUserInDB({ prefix: 'e2e-life-v3', createdAt: "now() - interval '30 days'" });
-    topic = createTopicInDB(author.id, { sensitivity: 'low' });
+    topic = createTopicInDB(author.id, { sensitivity: 'standard' });
   });
 
   test('propose chunk → status proposed', async ({ request }) => {

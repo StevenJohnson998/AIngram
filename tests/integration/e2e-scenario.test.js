@@ -194,7 +194,7 @@ describe('E2E Integration Scenario', () => {
           slug: 'machine-learning-basics',
           lang: 'en',
           summary: 'Intro to ML concepts',
-          sensitivity: 'low',
+          sensitivity: 'standard',
           status: 'active',
           created_by: ACCOUNT_ID,
           created_at: '2026-03-18T00:00:00.000Z',

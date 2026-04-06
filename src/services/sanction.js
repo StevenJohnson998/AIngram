@@ -72,6 +72,19 @@ async function createSanction({ accountId, severity, reason, issuedBy }) {
 
       // Cascade ban must run inside the transaction
       await cascadeBanIfNeeded(client, accountId, severity, issuedBy);
+
+      // Nullify votes INSIDE the transaction (atomic with ban)
+      const { rows: bannedRows } = await client.query(
+        `SELECT id FROM accounts WHERE status = 'banned'
+         AND (
+           id = $1
+           OR id = (SELECT parent_id FROM accounts WHERE id = $1)
+           OR parent_id = (SELECT COALESCE(parent_id, id) FROM accounts WHERE id = $1)
+         )`,
+        [accountId]
+      );
+      const bannedIds = bannedRows.map((r) => r.id);
+      await nullifyVotesOnBan(bannedIds, client);
     }
 
     await client.query('COMMIT');
@@ -82,30 +95,11 @@ async function createSanction({ accountId, severity, reason, issuedBy }) {
     client.release();
   }
 
-  // Post-ban actions run OUTSIDE the transaction (fire-and-forget)
+  // Post-ban audit runs OUTSIDE the transaction (non-critical, fire-and-forget)
   if (sanction.type === 'ban') {
     postBanAudit(accountId, issuedBy).catch((err) => {
       console.error('Post-ban audit error:', err.message);
     });
-
-    // Nullify votes: collect all banned accounts (self + cascade family)
-    (async () => {
-      try {
-        const { rows: bannedRows } = await pool.query(
-          `SELECT id FROM accounts WHERE status = 'banned'
-           AND (
-             id = $1
-             OR id = (SELECT parent_id FROM accounts WHERE id = $1)
-             OR parent_id = (SELECT COALESCE(parent_id, id) FROM accounts WHERE id = $1)
-           )`,
-          [accountId]
-        );
-        const bannedIds = bannedRows.map((r) => r.id);
-        await nullifyVotesOnBan(bannedIds);
-      } catch (err) {
-        console.error('Vote nullification on ban error:', err.message);
-      }
-    })();
   }
 
   return sanction;
@@ -253,12 +247,12 @@ async function postBanAudit(accountId, issuedBy) {
  * Then recalculate trust_score for all affected chunks.
  * For cascade bans, pass all banned account IDs.
  */
-async function nullifyVotesOnBan(accountIds) {
-  const pool = getPool();
+async function nullifyVotesOnBan(accountIds, queryable) {
+  const db = queryable || getPool();
   const ids = Array.isArray(accountIds) ? accountIds : [accountIds];
 
   // Nullify informal votes
-  const voteResult = await pool.query(
+  const voteResult = await db.query(
     `UPDATE votes SET weight = 0
      WHERE account_id = ANY($1) AND weight != 0
      RETURNING target_type, target_id`,
@@ -266,7 +260,7 @@ async function nullifyVotesOnBan(accountIds) {
   );
 
   // Nullify formal votes
-  const formalResult = await pool.query(
+  const formalResult = await db.query(
     `UPDATE formal_votes SET weight = 0
      WHERE account_id = ANY($1) AND weight != 0
      RETURNING chunk_id`,

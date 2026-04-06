@@ -52,7 +52,7 @@ async function enforceFastTrack() {
     await client.query('COMMIT');
 
     for (const candidate of candidates) {
-      const timeout = candidate.sensitivity === 'high' ? T_FAST_HIGH_MS : T_FAST_LOW_MS;
+      const timeout = candidate.sensitivity === 'sensitive' ? T_FAST_HIGH_MS : T_FAST_LOW_MS;
       const age = Date.now() - new Date(candidate.created_at).getTime();
       if (age < timeout) continue;
 

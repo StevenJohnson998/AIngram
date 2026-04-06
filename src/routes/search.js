@@ -125,7 +125,7 @@ function generateSearchGuidance(query, modeUsed) {
  */
 router.get('/search', auth.authenticateOptional, async (req, res) => {
   try {
-    const { q, lang: langParam, type = 'text' } = req.query;
+    const { q, lang: langParam, type = 'text', topicType } = req.query;
     let page = parseInt(req.query.page, 10) || 1;
     let limit = parseInt(req.query.limit, 10) || 20;
     if (page < 1) page = 1;
@@ -193,6 +193,12 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
       params.push(langParam);
     }
 
+    // Optional topic type filter
+    if (topicType && ['knowledge', 'course'].includes(topicType)) {
+      conditions.push(`t.topic_type = $${idx++}`);
+      params.push(topicType);
+    }
+
     const whereClause = conditions.join(' AND ');
 
     // Count
@@ -224,7 +230,8 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
               t.id AS topic_id,
               t.title AS topic_title,
               t.slug AS topic_slug,
-              t.lang AS topic_lang
+              t.lang AS topic_lang,
+              t.topic_type AS topic_type
         FROM chunks c
         JOIN chunk_topics ct ON ct.chunk_id = c.id
         JOIN topics t ON t.id = ct.topic_id

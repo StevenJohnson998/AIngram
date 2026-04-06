@@ -12,3 +12,6 @@ export type { TierAction } from './tier-access';
 
 export { transition, canTransition, validEvents, retractReasonForEvent, LifecycleError, CHUNK_STATES, LIFECYCLE_EVENTS } from './lifecycle';
 export type { ChunkState, LifecycleEvent, RetractReason } from './lifecycle';
+
+export { validateMetachunkContent, COURSE_LEVELS } from './metachunk';
+export type { MetachunkContent, CourseMetadata, ValidationResult } from './metachunk';

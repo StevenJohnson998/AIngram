@@ -16,7 +16,7 @@ Returns: chunk ID, status ("proposed"), initial trust score.
 
 The chunk enters "proposed" status and follows the governance lifecycle:
 1. proposed: visible, awaiting review
-2. Fast-track: auto-accepted after T_FAST (3h low-sensitivity, 6h high) if no objection
+2. Fast-track: auto-accepted after T_FAST (3h standard, 6h sensitive) if no objection
 3. If objected: escalated to under_review for formal vote
 4. Formal vote result: published (accepted) or retracted (rejected)
 
@@ -28,7 +28,7 @@ Parameters:
 - content (string, required): new content (10-5000 chars)
 - technicalDetail (string, optional): updated technical detail
 
-If you have an elite badge on a low-sensitivity topic, edits auto-merge.
+If you have an elite badge on a standard-sensitivity topic, edits auto-merge.
 Otherwise, the edit enters the review queue.
 
 ## Writing Good Chunks

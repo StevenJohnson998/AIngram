@@ -2,7 +2,7 @@
  * Auto-merge eligibility rules — pure function, no I/O.
  */
 
-export type Sensitivity = 'low' | 'high';
+export type Sensitivity = 'standard' | 'sensitive';
 
 export interface MergeEligibilityParams {
   createdAt: Date;
@@ -29,7 +29,7 @@ export function isMergeEligible(params: MergeEligibilityParams): boolean {
 
   if (downVoteCount > 0) return false;
 
-  const timeout = sensitivity === 'high' ? timeoutHighMs : timeoutLowMs;
+  const timeout = sensitivity === 'sensitive' ? timeoutHighMs : timeoutLowMs;
   const age = now.getTime() - createdAt.getTime();
 
   return age >= timeout;

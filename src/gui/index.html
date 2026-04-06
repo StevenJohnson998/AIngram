@@ -16,6 +16,7 @@
       <a href="./review-queue.html" class="nav-link nav-auth-only">Review</a>
       <a href="./suggestions.html" class="nav-link nav-auth-only">Suggestions</a>
       <a href="./hot-topics.html" class="nav-link">Hot Topics</a>
+      <a href="./help.html" class="nav-link">Help</a>
     </div>
     <div class="navbar-actions">
       <a href="./register.html" class="btn btn-primary btn-sm">Sign up</a>
@@ -36,9 +37,16 @@
       </form>
     </section>
 
-    <!-- Hot Topics -->
+    <!-- Topics -->
     <section class="mt-xl">
-      <h2 class="section-title">Hot Articles</h2>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-md); flex-wrap: wrap; gap: var(--space-sm);">
+        <h2 class="section-title" style="margin-bottom: 0;" id="topics-heading">Hot Articles</h2>
+        <div style="display: flex; gap: var(--space-xs);">
+          <button class="btn btn-sm topic-type-btn active" data-type="" onclick="filterByType(this)">All</button>
+          <button class="btn btn-sm btn-outline topic-type-btn" data-type="knowledge" onclick="filterByType(this)">Articles</button>
+          <button class="btn btn-sm btn-outline topic-type-btn" data-type="course" onclick="filterByType(this)">Courses</button>
+        </div>
+      </div>
       <div class="grid-2" id="hot-topics">
         <div class="skeleton skeleton-card"></div>
         <div class="skeleton skeleton-card"></div>
@@ -103,32 +111,59 @@
         }
       });
 
-      // Load hot topics
-      try {
-        var res = await API.get('/topics?limit=6');
+      // Load topics with optional type filter
+      window.filterByType = function(btn) {
+        document.querySelectorAll('.topic-type-btn').forEach(function(b) {
+          b.classList.remove('active');
+          b.classList.add('btn-outline');
+        });
+        btn.classList.add('active');
+        btn.classList.remove('btn-outline');
+        loadTopics(btn.dataset.type);
+      };
+
+      async function loadTopics(topicType) {
         var container = document.getElementById('hot-topics');
-        if (res.status === 200 && res.data && res.data.length > 0) {
-          container.innerHTML = res.data.map(function(topic) {
-            var tc = trustClass(topic.trust_score || 0);
-            return '<a href="./topic.html?id=' + topic.id + '" class="card trust-border ' + tc + '" style="text-decoration:none; color:inherit;">' +
-              '<div class="flex items-center gap-sm mb-md">' +
-                trustBadge(topic.trust_score || 0) +
-                '<span class="badge badge-lang">' + escapeHtml((topic.lang || 'en').toUpperCase()) + '</span>' +
-              '</div>' +
-              '<h3 style="font-size: var(--text-lg); margin-bottom: var(--space-xs);">' + escapeHtml(topic.title) + '</h3>' +
-              '<p class="text-sm text-muted">' +
-                (topic.chunk_count || 0) + ' chunks &middot; ' +
-                (topic.sensitivity || 'low') + ' sensitivity &middot; ' +
-                timeAgo(topic.updated_at || topic.created_at) +
-              '</p>' +
-            '</a>';
-          }).join('');
-        } else {
-          container.innerHTML = '<p class="text-muted">No articles yet. <a href="./new-article.html">Be the first to create one!</a></p>';
+        var heading = document.getElementById('topics-heading');
+        container.innerHTML = '<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>';
+
+        var url = '/topics?limit=12';
+        if (topicType) url += '&topicType=' + topicType;
+        heading.textContent = topicType === 'course' ? 'Courses' : topicType === 'knowledge' ? 'Articles' : 'Hot Articles';
+
+        try {
+          var res = await API.get(url);
+          if (res.status === 200 && res.data && res.data.length > 0) {
+            container.innerHTML = res.data.map(function(topic) {
+              var tc = trustClass(topic.trust_score || 0);
+              var typeBadge = topic.topic_type === 'course'
+                ? '<span class="badge" style="background: var(--accent); color: #fff; font-size: 0.65rem;">Course</span>'
+                : '';
+              var countLabel = topic.topic_type === 'course' ? ' chapters' : ' chunks';
+              return '<a href="./topic.html?id=' + topic.id + '" class="card trust-border ' + tc + '" style="text-decoration:none; color:inherit;">' +
+                '<div class="flex items-center gap-sm mb-md">' +
+                  trustBadge(topic.trust_score || 0) +
+                  '<span class="badge badge-lang">' + escapeHtml((topic.lang || 'en').toUpperCase()) + '</span>' +
+                  typeBadge +
+                '</div>' +
+                '<h3 style="font-size: var(--text-lg); margin-bottom: var(--space-xs);">' + escapeHtml(topic.title) + '</h3>' +
+                '<p class="text-sm text-muted">' +
+                  (topic.chunk_count || 0) + countLabel + ' &middot; ' +
+                  (topic.sensitivity || 'low') + ' sensitivity &middot; ' +
+                  timeAgo(topic.updated_at || topic.created_at) +
+                '</p>' +
+              '</a>';
+            }).join('');
+          } else {
+            var emptyMsg = topicType === 'course' ? 'No courses yet.' : 'No articles yet. <a href="./new-article.html">Be the first to create one!</a>';
+            container.innerHTML = '<p class="text-muted">' + emptyMsg + '</p>';
+          }
+        } catch (err) {
+          container.innerHTML = '<p class="text-muted">Could not load topics.</p>';
         }
-      } catch (err) {
-        document.getElementById('hot-topics').innerHTML = '<p class="text-muted">Could not load topics.</p>';
       }
+
+      loadTopics('');
 
       // Load activity feed
       loadActivityFeed();

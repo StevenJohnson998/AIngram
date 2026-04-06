@@ -6,7 +6,7 @@
 const { getPool } = require('../config/database');
 const { generateEmbedding } = require('./ollama');
 const trustConfig = require('../config/trust');
-const { transition, retractReasonForEvent } = require('../domain');
+const { transition, retractReasonForEvent, validateMetachunkContent } = require('../domain');
 const accountService = require('./account');
 const { matchNewChunk } = require('./subscription-matcher');
 const { dispatchNotification } = require('./notification');
@@ -32,12 +32,13 @@ async function matchAndNotify(chunkId, triggerStatus) {
     );
     const subMap = new Map(subscriptions.map(s => [s.id, s]));
 
-    // Get chunk content preview
+    // Get chunk content preview + title/subtitle (D62)
     const { rows: chunkRows } = await pool.query(
-      'SELECT content FROM chunks WHERE id = $1',
+      'SELECT content, title, subtitle FROM chunks WHERE id = $1',
       [chunkId]
     );
-    const contentPreview = chunkRows[0]?.content?.substring(0, 200) || '';
+    const chunkData = chunkRows[0] || {};
+    const contentPreview = chunkData.content?.substring(0, 200) || '';
 
     for (const match of matches) {
       const subscription = subMap.get(match.subscriptionId);
@@ -48,6 +49,8 @@ async function matchAndNotify(chunkId, triggerStatus) {
         matchType: match.matchType,
         similarity: match.similarity,
         contentPreview,
+        title: chunkData.title || null,
+        subtitle: chunkData.subtitle || null,
       });
     }
 
@@ -300,9 +303,10 @@ async function getChunksByTopic(topicId, { status = 'published', page = 1, limit
       [topicId, status]
     ),
     pool.query(
-      `SELECT c.*
+      `SELECT c.*, a.name AS proposed_by_name
        FROM chunk_topics ct
        JOIN chunks c ON c.id = ct.chunk_id
+       LEFT JOIN accounts a ON a.id = c.proposed_by
        WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false
        ORDER BY c.created_at DESC
        LIMIT $3 OFFSET $4`,
@@ -469,6 +473,17 @@ async function mergeChunk(proposedChunkId, mergedById) {
        RETURNING *`,
       [mergedById, proposedChunkId]
     );
+
+    // Metachunk supersession: when a meta chunk is published, supersede the old one
+    if (proposed.chunk_type === 'meta') {
+      const { rows: topicRows } = await client.query(
+        'SELECT topic_id FROM chunk_topics WHERE chunk_id = $1',
+        [proposedChunkId]
+      );
+      if (topicRows.length > 0) {
+        await supersedeOldMetachunk(client, topicRows[0].topic_id, proposedChunkId);
+      }
+    }
 
     // Log activity
     await client.query(
@@ -799,6 +814,108 @@ async function createSuggestion({ content, topicId, createdBy, suggestionCategor
 }
 
 /**
+ * Create a metachunk — a JSON structure defining chunk ordering for a topic.
+ * Metachunks never fast-track (excluded from timeout-enforcer by chunk_type filter).
+ * No embeddings, no injection detection, no duplicate check.
+ * On publish, the previous published metachunk for the same topic is superseded.
+ */
+async function createMetachunk({ content, topicId, createdBy }) {
+  const pool = getPool();
+  const topicService = require('./topic');
+
+  // Validate topic exists and get topic_type
+  const topic = await topicService.getTopicById(topicId);
+  if (!topic) {
+    const err = new Error('Topic not found');
+    err.status = 404;
+    throw err;
+  }
+
+  // Validate metachunk JSON content
+  const validation = validateMetachunkContent(content, topic.topic_type);
+  if (!validation.valid) {
+    const err = new Error(validation.error);
+    err.status = 400;
+    throw err;
+  }
+
+  const client = await pool.connect();
+  const initialTrust = trustConfig.CHUNK_PRIOR_NEW[0] / (trustConfig.CHUNK_PRIOR_NEW[0] + trustConfig.CHUNK_PRIOR_NEW[1]);
+
+  try {
+    await client.query('BEGIN');
+
+    const { rows } = await client.query(
+      `INSERT INTO chunks (content, created_by, trust_score, status, chunk_type)
+       VALUES ($1, $2, $3, 'proposed', 'meta')
+       RETURNING *`,
+      [content, createdBy, initialTrust]
+    );
+
+    const chunk = rows[0];
+
+    // Link to topic
+    await client.query(
+      'INSERT INTO chunk_topics (chunk_id, topic_id) VALUES ($1, $2)',
+      [chunk.id, topicId]
+    );
+
+    // Activity log
+    await client.query(
+      `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+       VALUES ($1, 'metachunk_proposed', 'chunk', $2, $3)`,
+      [createdBy, chunk.id, JSON.stringify({ topicId, chunkCount: validation.parsed.order.length })]
+    );
+
+    await client.query('COMMIT');
+
+    // Fire-and-forget: tier update
+    accountService.incrementInteractionAndUpdateTier(createdBy)
+      .catch(err => console.error('Tier update failed:', err));
+
+    return chunk;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Supersede previous published metachunk when a new one is published for the same topic.
+ * Called during the merge/publish flow for metachunks.
+ */
+async function supersedeOldMetachunk(client, topicId, newMetachunkId) {
+  const { rows } = await client.query(
+    `UPDATE chunks SET status = 'superseded', updated_at = now()
+     WHERE id IN (
+       SELECT c.id FROM chunks c
+       JOIN chunk_topics ct ON ct.chunk_id = c.id
+       WHERE ct.topic_id = $1 AND c.chunk_type = 'meta' AND c.status = 'published' AND c.id != $2
+     )
+     RETURNING id`,
+    [topicId, newMetachunkId]
+  );
+  return rows.map(r => r.id);
+}
+
+/**
+ * Get the active (published) metachunk for a topic, if any.
+ */
+async function getActiveMetachunk(topicId) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT c.* FROM chunks c
+     JOIN chunk_topics ct ON ct.chunk_id = c.id
+     WHERE ct.topic_id = $1 AND c.chunk_type = 'meta' AND c.status = 'published'
+     LIMIT 1`,
+    [topicId]
+  );
+  return rows[0] || null;
+}
+
+/**
  * List suggestions with pagination and filters.
  */
 async function listSuggestions({ status = 'proposed', category = null, page = 1, limit = 20 } = {}) {
@@ -891,6 +1008,8 @@ async function getChunksByAccount(accountId, { status, page = 1, limit = 20 } = 
 module.exports = {
   createChunk,
   createSuggestion,
+  createMetachunk,
+  getActiveMetachunk,
   _insertChunkInTx,
   getChunkById,
   updateChunk,

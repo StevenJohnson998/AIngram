@@ -35,7 +35,7 @@ describe('enforceFastTrack', () => {
     const oldChunk = {
       id: 'chunk-1',
       created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4h ago
-      sensitivity: 'low', // 3h timeout
+      sensitivity: 'standard', // 3h timeout
     };
 
     // BEGIN
@@ -60,7 +60,7 @@ describe('enforceFastTrack', () => {
     const oldChunk = {
       id: 'chunk-2',
       created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-      sensitivity: 'low',
+      sensitivity: 'standard',
     };
 
     mockClient.query
@@ -80,7 +80,7 @@ describe('enforceFastTrack', () => {
     const chunk = {
       id: 'chunk-3',
       created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4h ago
-      sensitivity: 'high', // 6h timeout — not yet expired
+      sensitivity: 'sensitive', // 6h timeout — not yet expired
     };
 
     mockClient.query

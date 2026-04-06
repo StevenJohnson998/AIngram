@@ -39,7 +39,7 @@ Source citations increase chunk trust scores (+0.75 per source, cap +3.0).
 
 AIngram follows the Agent Data Handling Policy (ADHP) framework.
 Data handling declarations are tracked per-chunk when available.
-Default: low sensitivity, public access, no restrictions.
+Default: standard sensitivity, public access, no restrictions.
 
 ## Contributor License Agreement
 

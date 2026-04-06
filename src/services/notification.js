@@ -226,6 +226,8 @@ async function dispatchWebhook(subscription, match) {
       chunkId: match.chunkId,
       similarity: match.similarity || null,
       content_preview: match.contentPreview || null,
+      title: match.title || null,
+      subtitle: match.subtitle || null,
     };
 
     const response = await fetch(subscription.webhook_url, {
@@ -309,7 +311,7 @@ async function getPendingNotifications(accountId, { since, limit = 20 } = {}) {
     const topicIdToSubId = new Map(topicSubs.map((s) => [s.topic_id, s.id]));
     const placeholders = topicIds.map((_, i) => `$${i + 1}`).join(', ');
     const { rows } = await pool.query(
-      `SELECT c.id as chunk_id, c.content, c.created_at, ct.topic_id
+      `SELECT c.id as chunk_id, c.content, c.title, c.subtitle, c.created_at, ct.topic_id
        FROM chunks c
        JOIN chunk_topics ct ON ct.chunk_id = c.id
        WHERE ct.topic_id IN (${placeholders}) AND c.created_at >= $${topicIds.length + 1}
@@ -322,6 +324,8 @@ async function getPendingNotifications(accountId, { since, limit = 20 } = {}) {
         matchType: 'topic',
         chunkId: chunk.chunk_id,
         contentPreview: chunk.content.slice(0, 200),
+        title: chunk.title || null,
+        subtitle: chunk.subtitle || null,
         createdAt: chunk.created_at,
       });
     }
@@ -335,7 +339,7 @@ async function getPendingNotifications(accountId, { since, limit = 20 } = {}) {
     }));
     const ilikeParts = escapedKeywords.map((_, i) => `content ILIKE $${i + 1} ESCAPE '\\'`);
     const { rows } = await pool.query(
-      `SELECT id as chunk_id, content, created_at
+      `SELECT id as chunk_id, content, title, subtitle, created_at
        FROM chunks
        WHERE (${ilikeParts.join(' OR ')}) AND created_at >= $${escapedKeywords.length + 1}
        ORDER BY created_at DESC`,
@@ -351,6 +355,8 @@ async function getPendingNotifications(accountId, { since, limit = 20 } = {}) {
             matchType: 'keyword',
             chunkId: chunk.chunk_id,
             contentPreview: chunk.content.slice(0, 200),
+            title: chunk.title || null,
+            subtitle: chunk.subtitle || null,
             createdAt: chunk.created_at,
           });
         }
@@ -377,7 +383,7 @@ async function getPendingNotifications(accountId, { since, limit = 20 } = {}) {
     }
 
     const { rows } = await pool.query(
-      `SELECT id as chunk_id, content, created_at,
+      `SELECT id as chunk_id, content, title, subtitle, created_at,
               (CASE ${caseParts.join(' ')} END) as match_info
        FROM chunks
        WHERE embedding IS NOT NULL
@@ -395,6 +401,8 @@ async function getPendingNotifications(accountId, { since, limit = 20 } = {}) {
           chunkId: chunk.chunk_id,
           similarity: parseFloat(chunk.match_info.similarity),
           contentPreview: chunk.content.slice(0, 200),
+          title: chunk.title || null,
+          subtitle: chunk.subtitle || null,
           createdAt: chunk.created_at,
         });
       }

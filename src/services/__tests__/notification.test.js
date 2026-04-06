@@ -58,6 +58,8 @@ describe('notification service', () => {
         chunkId: 'chunk-1',
         similarity: 0.92,
         content_preview: 'Some content preview',
+        title: null,
+        subtitle: null,
       });
     });
 

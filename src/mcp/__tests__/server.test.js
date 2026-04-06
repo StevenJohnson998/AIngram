@@ -1,5 +1,6 @@
 /**
- * MCP server unit tests — verify tool registration and auth gating.
+ * MCP server unit tests — verify tool registration, auth gating,
+ * and progressive disclosure (meta-tools + enable/disable).
  * Service-level behavior is tested via integration tests in tests/integration/.
  */
 
@@ -20,25 +21,74 @@ const SESSION_ID = 'test-session-123';
 const AUTH_SESSION = (sessionId) => sessionId === SESSION_ID ? MOCK_ACCOUNT : null;
 const NO_AUTH_SESSION = () => null;
 
+const CORE_TOOL_NAMES = [
+  'search', 'get_topic', 'get_chunk', 'list_review_queue',
+  'contribute_chunk', 'propose_edit', 'commit_vote', 'reveal_vote',
+  'object_chunk', 'subscribe', 'my_reputation', 'suggest_improvement',
+];
+
+const META_TOOL_NAMES = ['list_capabilities', 'enable_tools'];
+
 describe('MCP Server', () => {
   describe('tool registration', () => {
-    it('registers all 12 tools', () => {
+    it('registers core tools + meta-tools + category tools', () => {
       const server = createMcpServer(AUTH_SESSION);
       const names = Object.keys(server._registeredTools);
-      expect(names).toHaveLength(12);
-      expect(names).toEqual(expect.arrayContaining([
-        'search', 'get_topic', 'get_chunk', 'list_review_queue',
-        'contribute_chunk', 'propose_edit', 'commit_vote', 'reveal_vote',
-        'object_chunk', 'subscribe', 'my_reputation', 'suggest_improvement',
-      ]));
+      // Core (12) + meta (2) + account (14) + knowledge_curation (12) + governance (10) = 50
+      expect(names.length).toBeGreaterThanOrEqual(14);
+      expect(names).toEqual(expect.arrayContaining([...CORE_TOOL_NAMES, ...META_TOOL_NAMES]));
     });
 
-    it('all tools have descriptions and handlers', () => {
+    it('all registered tools have descriptions and handlers', () => {
       const server = createMcpServer(AUTH_SESSION);
-      for (const [name, tool] of Object.entries(server._registeredTools)) {
+      for (const [, tool] of Object.entries(server._registeredTools)) {
         expect(tool.description).toBeTruthy();
         expect(typeof tool.handler).toBe('function');
       }
+    });
+
+    it('core tools and meta-tools are enabled by default', () => {
+      const server = createMcpServer(AUTH_SESSION);
+      for (const name of [...CORE_TOOL_NAMES, ...META_TOOL_NAMES]) {
+        expect(server._registeredTools[name].enabled).toBe(true);
+      }
+    });
+  });
+
+  describe('progressive disclosure', () => {
+    it('list_capabilities returns all categories', async () => {
+      const server = createMcpServer(AUTH_SESSION);
+      const tool = server._registeredTools['list_capabilities'];
+      const result = await tool.handler({}, {});
+      expect(result.isError).toBeFalsy();
+      const data = JSON.parse(result.content[0].text);
+      expect(data.categories).toBeInstanceOf(Array);
+      expect(data.categories.length).toBeGreaterThanOrEqual(1);
+
+      const core = data.categories.find(c => c.category === 'core');
+      expect(core).toBeDefined();
+      expect(core.enabled).toBe(true);
+      expect(core.alwaysEnabled).toBe(true);
+      expect(core.toolCount).toBe(CORE_TOOL_NAMES.length);
+    });
+
+    it('enable_tools rejects unknown category', async () => {
+      const server = createMcpServer(AUTH_SESSION);
+      const tool = server._registeredTools['enable_tools'];
+      const result = await tool.handler({ category: 'nonexistent', enabled: true }, {});
+      expect(result.isError).toBe(true);
+      const data = JSON.parse(result.content[0].text);
+      expect(data.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('enable_tools cannot disable core', async () => {
+      const server = createMcpServer(AUTH_SESSION);
+      const tool = server._registeredTools['enable_tools'];
+      const result = await tool.handler({ category: 'core', enabled: false }, {});
+      expect(result.isError).toBeFalsy();
+      const data = JSON.parse(result.content[0].text);
+      expect(data.enabled).toBe(true);
+      expect(data.message).toContain('always enabled');
     });
   });
 
@@ -69,7 +119,6 @@ describe('MCP Server', () => {
 
     it('my_reputation returns UNAUTHORIZED error without auth', async () => {
       const tool = server._registeredTools['my_reputation'];
-      // my_reputation has empty inputSchema, so SDK calls handler(args, extra)
       const result = await tool.handler({}, { sessionId: 'unknown-session' });
       expect(result.isError).toBe(true);
       const data = JSON.parse(result.content[0].text);
@@ -86,7 +135,6 @@ describe('MCP Server', () => {
 
     it('search does not check auth', async () => {
       const tool = server._registeredTools['search'];
-      // Will hit real DB or fail on DB, but should NOT return UNAUTHORIZED
       const result = await tool.handler({ query: 'test' }, { sessionId: 'anon' });
       if (result.isError) {
         const data = JSON.parse(result.content[0].text);

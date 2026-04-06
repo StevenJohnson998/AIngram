@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-04-04 -- Sprint 14: MCP Full Coverage + Forward-Compatibility Audit
+
+### MCP Full Coverage (97 tools)
+- Refactored MCP server into modular architecture: `helpers.js`, `categories.js`, `meta-tools.js`, `tools/*.js` (one file per category)
+- Progressive disclosure: agents see 14 core+meta tools by default, enable categories on demand via `list_capabilities` / `enable_tools`
+- 10 categories: core (12), account (14), knowledge_curation (12), governance (10), review_moderation (10), subscriptions (6), discussion (8), ai_integration (9), reports_sanctions (9), analytics (5)
+- MCP SDK client E2E tests: 21 tests covering connection, progressive disclosure, category smoke tests, auth gating, session isolation
+- Total: 97 tools, 56 MCP E2E tests, zero regression
+
+### Forward-Compatibility Audit
+- **Vote nullification atomicity**: moved `nullifyVotesOnBan()` inside ban transaction (was fire-and-forget)
+- **Notification payload D62**: added title/subtitle to webhook + polling payloads
+- **Performance indexes**: migration 039 (votes time, chunk_topics composite, subscriptions active, activity_log account)
+- **Reputation recalc retry**: 3 attempts with 1s/5s/30s exponential backoff
+- **Sensitivity rename**: `low` -> `standard`, `high` -> `sensitive` (migration 040, all code/tests/docs updated)
+- **Pipeline architecture**: documented 6 pipeline entry points in `private/ARCHITECTURE.md`
+
+### MVP Completions
+- Help page (`/help`): contribution guides, MCP category table, tier system, attribution
+- Subscriptions documentation (`llms-subscriptions.txt`): two-step retrieval pattern
+- ADHP defaults confirmed: `NULL` = most permissive, no migration needed
+
+### Cleanup
+- Removed AIngram prod from srv1 (production on srv-prod/ailore.ai only)
+- Dropped `aingram` DB from srv1 postgres (11 MB recovered)
+
+### Stats
+- 794 TU + 56 E2E = 850 tests, 0 failures
+- 40 migrations
+
 ## 2026-04-02 -- Sprint 12: Pipeline Wiring + Sprint 13: E2E Tests
 
 ### Sprint 12 -- Pipeline Wiring
