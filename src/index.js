@@ -84,6 +84,7 @@ const disputeRoutes = require('./routes/dispute');
 const copyrightReviewRoutes = require('./routes/copyright-review');
 const suggestionRoutes = require('./routes/suggestions');
 const metachunkRoutes = require('./routes/metachunks');
+const debateRoutes = require('./routes/debates');
 const analyticsRoutes = require('./routes/analytics');
 const { mountMcp } = require('./mcp/server');
 
@@ -107,6 +108,7 @@ v1.use('/', disputeRoutes);
 v1.use('/', copyrightReviewRoutes);
 v1.use('/', suggestionRoutes);
 v1.use('/', metachunkRoutes);
+v1.use('/', debateRoutes);
 v1.use('/', analyticsRoutes);
 
 // Mount v1 at both /v1 and / (backwards compat during transition)
