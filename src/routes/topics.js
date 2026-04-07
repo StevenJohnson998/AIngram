@@ -200,10 +200,17 @@ router.get('/topics/by-slug/:slug/:lang', auth.authenticateOptional, async (req,
   }
 });
 
-// GET /topics/:id — get topic by ID (includes chunks with sources, paginated)
+// GET /topics/:id — get topic by ID or slug (includes chunks with sources, paginated)
+const UUID_RE_TOPIC = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 router.get('/topics/:id', auth.authenticateOptional, async (req, res) => {
   try {
-    const topic = await topicService.getTopicById(req.params.id);
+    let topic;
+    if (UUID_RE_TOPIC.test(req.params.id)) {
+      topic = await topicService.getTopicById(req.params.id);
+    } else {
+      // Fallback: treat as slug (default lang=en)
+      topic = await topicService.getTopicBySlug(req.params.id, req.query.lang || 'en');
+    }
     if (!topic) return notFoundError(res, 'Topic not found');
 
     const { page, limit } = parsePagination(req.query);
