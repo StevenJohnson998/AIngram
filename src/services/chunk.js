@@ -23,8 +23,7 @@ async function matchAndNotify(chunkId, triggerStatus) {
     if (matches.length === 0) return;
 
     // Fetch full subscription records for matched IDs
-    const { getPool: getDbPool } = require('../config/database');
-    const pool = getDbPool();
+    const pool = getPool();
     const subIds = matches.map(m => m.subscriptionId);
     const { rows: subscriptions } = await pool.query(
       'SELECT * FROM subscriptions WHERE id = ANY($1)',
@@ -473,6 +472,17 @@ async function mergeChunk(proposedChunkId, mergedById) {
        RETURNING *`,
       [mergedById, proposedChunkId]
     );
+
+    // Summary supersession: when a summary chunk is published, supersede the old one
+    if (proposed.chunk_type === 'summary') {
+      const { rows: topicRows } = await client.query(
+        'SELECT topic_id FROM chunk_topics WHERE chunk_id = $1',
+        [proposedChunkId]
+      );
+      if (topicRows.length > 0) {
+        await supersedeOldSummary(client, topicRows[0].topic_id, proposedChunkId);
+      }
+    }
 
     // Metachunk supersession: when a meta chunk is published, supersede the old one
     if (proposed.chunk_type === 'meta') {
@@ -1005,11 +1015,113 @@ async function getChunksByAccount(accountId, { status, page = 1, limit = 20 } = 
   };
 }
 
+/**
+ * Create a summary chunk for a topic (article + discussion summaries).
+ * At most 1 published summary per topic (old one superseded on merge).
+ */
+async function createSummaryChunk({ topicId, createdBy, articleSummary, discussionSummary }) {
+  const pool = getPool();
+
+  // Validate topic exists
+  const topicResult = await pool.query('SELECT id FROM topics WHERE id = $1', [topicId]);
+  if (topicResult.rows.length === 0) {
+    const err = new Error('Topic not found');
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+
+  // At least one summary required
+  if (!articleSummary && !discussionSummary) {
+    const err = new Error('At least one of articleSummary or discussionSummary is required');
+    err.code = 'VALIDATION_ERROR';
+    throw err;
+  }
+
+  const client = await pool.connect();
+  const initialTrust = trustConfig.CHUNK_PRIOR_NEW[0] / (trustConfig.CHUNK_PRIOR_NEW[0] + trustConfig.CHUNK_PRIOR_NEW[1]);
+
+  // Content field stores a human-readable combination for display
+  const content = [
+    articleSummary ? `Article summary: ${articleSummary}` : null,
+    discussionSummary ? `Discussion summary: ${discussionSummary}` : null,
+  ].filter(Boolean).join('\n\n');
+
+  try {
+    await client.query('BEGIN');
+
+    const { rows } = await client.query(
+      `INSERT INTO chunks (content, created_by, trust_score, status, chunk_type, article_summary, discussion_summary)
+       VALUES ($1, $2, $3, 'proposed', 'summary', $4, $5)
+       RETURNING *`,
+      [content, createdBy, initialTrust, articleSummary || null, discussionSummary || null]
+    );
+
+    const chunk = rows[0];
+
+    await client.query(
+      'INSERT INTO chunk_topics (chunk_id, topic_id) VALUES ($1, $2)',
+      [chunk.id, topicId]
+    );
+
+    await client.query(
+      `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+       VALUES ($1, 'summary_proposed', 'chunk', $2, $3)`,
+      [createdBy, chunk.id, JSON.stringify({ topicId })]
+    );
+
+    await client.query('COMMIT');
+
+    accountService.incrementInteractionAndUpdateTier(createdBy)
+      .catch(err => console.error('Tier update failed:', err));
+
+    return chunk;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Supersede old published summary chunk when a new one is published on the same topic.
+ */
+async function supersedeOldSummary(client, topicId, newSummaryId) {
+  const { rows } = await client.query(
+    `UPDATE chunks SET status = 'superseded', updated_at = now()
+     WHERE id IN (
+       SELECT c.id FROM chunks c
+       JOIN chunk_topics ct ON ct.chunk_id = c.id
+       WHERE ct.topic_id = $1 AND c.chunk_type = 'summary' AND c.status = 'published' AND c.id != $2
+     )
+     RETURNING id`,
+    [topicId, newSummaryId]
+  );
+  return rows.map(r => r.id);
+}
+
+/**
+ * Get the active (published) summary chunk for a topic, if any.
+ */
+async function getActiveSummary(topicId) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT c.* FROM chunks c
+     JOIN chunk_topics ct ON ct.chunk_id = c.id
+     WHERE ct.topic_id = $1 AND c.chunk_type = 'summary' AND c.status = 'published'
+     LIMIT 1`,
+    [topicId]
+  );
+  return rows[0] || null;
+}
+
 module.exports = {
   createChunk,
   createSuggestion,
   createMetachunk,
   getActiveMetachunk,
+  getActiveSummary,
+  createSummaryChunk,
   _insertChunkInTx,
   getChunkById,
   updateChunk,

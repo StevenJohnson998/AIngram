@@ -47,7 +47,7 @@ router.post(
       if (!reason || typeof reason !== 'string' || reason.trim().length < 10) {
         return validationError(res, 'reason is required (minimum 10 characters)');
       }
-      if (!reporterEmail || typeof reporterEmail !== 'string' || !reporterEmail.includes('@')) {
+      if (!reporterEmail || typeof reporterEmail !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reporterEmail)) {
         return validationError(res, 'A valid reporterEmail is required');
       }
 
@@ -162,7 +162,7 @@ router.post(
       if (!UUID_RE.test(id)) return validationError(res, 'Invalid report ID');
 
       const { email, reason } = req.body;
-      if (!email || typeof email !== 'string' || !email.includes('@')) {
+      if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return validationError(res, 'A valid email is required');
       }
       if (!reason || typeof reason !== 'string' || reason.trim().length < 50) {

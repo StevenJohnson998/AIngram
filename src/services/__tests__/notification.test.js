@@ -154,16 +154,18 @@ describe('notification service', () => {
     });
 
     it('returns matching chunks for topic polling subscription', async () => {
-      // Polling subscriptions
+      // Polling subscriptions (now includes last_read_at)
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: 'sub-1', type: 'topic', topic_id: 'topic-1', keyword: null, embedding: null, similarity_threshold: null, lang: null }],
+        rows: [{ id: 'sub-1', type: 'topic', topic_id: 'topic-1', keyword: null, embedding: null, similarity_threshold: null, lang: null, last_read_at: null }],
       });
-      // Batched topic chunks query — now includes topic_id in result
+      // Batched topic chunks query (now includes topic_title)
       mockPool.query.mockResolvedValueOnce({
         rows: [
-          { chunk_id: 'chunk-1', content: 'New content about AI', created_at: new Date().toISOString(), topic_id: 'topic-1' },
+          { chunk_id: 'chunk-1', content: 'New content about AI', created_at: new Date().toISOString(), topic_id: 'topic-1', topic_title: 'AI Governance' },
         ],
       });
+      // Discussion posts query (empty)
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
 
       const result = await getPendingNotifications(ACCOUNT_ID, {});
 
@@ -171,15 +173,18 @@ describe('notification service', () => {
       expect(result.data[0].subscriptionId).toBe('sub-1');
       expect(result.data[0].matchType).toBe('topic');
       expect(result.data[0].chunkId).toBe('chunk-1');
+      expect(result.data[0].topicId).toBe('topic-1');
+      expect(result.data[0].topicTitle).toBe('AI Governance');
+      expect(result.data[0].eventType).toBe('chunk');
     });
 
     it('returns matching chunks for keyword polling subscription', async () => {
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: 'sub-2', type: 'keyword', topic_id: null, keyword: 'machine learning', embedding: null, similarity_threshold: null, lang: null }],
+        rows: [{ id: 'sub-2', type: 'keyword', topic_id: null, keyword: 'machine learning', embedding: null, similarity_threshold: null, lang: null, last_read_at: null }],
       });
       mockPool.query.mockResolvedValueOnce({
         rows: [
-          { chunk_id: 'chunk-2', content: 'Machine learning advances in 2026', created_at: new Date().toISOString() },
+          { chunk_id: 'chunk-2', content: 'Machine learning advances in 2026', created_at: new Date().toISOString(), topic_id: 'topic-2', topic_title: 'ML Research' },
         ],
       });
 

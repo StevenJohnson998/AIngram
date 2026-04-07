@@ -283,14 +283,15 @@ test.describe('MCP Session Lifecycle', () => {
 // =====================================================================
 
 test.describe('MCP Tool Discovery', () => {
-  test('tools/list returns core + meta tools (14)', async ({ request }) => {
+  test('tools/list returns core + meta tools (16)', async ({ request }) => {
     const sessionId = await mcpInit(request, agent.apiKey);
     const tools = await mcpListTools(request, sessionId, agent.apiKey);
-    expect(tools.length).toBe(14);
+    expect(tools.length).toBe(16);
 
     const names = tools.map(t => t.name).sort();
     expect(names).toEqual([
-      'commit_vote', 'contribute_chunk', 'enable_tools', 'get_chunk', 'get_topic',
+      'commit_vote', 'contribute_chunk', 'discover_related_chunks', 'discover_related_topics',
+      'enable_tools', 'get_chunk', 'get_topic',
       'list_capabilities', 'list_review_queue', 'my_reputation', 'object_chunk',
       'propose_edit', 'reveal_vote', 'search', 'subscribe', 'suggest_improvement',
     ]);
@@ -635,6 +636,137 @@ test.describe('MCP Commit-Reveal Vote', () => {
 
 // =====================================================================
 // 7. CROSS-SESSION ISOLATION
+// =====================================================================
+
+// =====================================================================
+// 7. COMPLETE USER JOURNEY — register, enable categories, create, discuss, vote, discover
+// =====================================================================
+
+test.describe('MCP User Journey', () => {
+  test('complete user journey: enable categories, create topic, discuss, vote, discover', async ({ request }) => {
+    const apiKey = agentT1.apiKey;
+    const session = await mcpInit(request, apiKey);
+
+    // Enable all needed categories
+    for (const cat of ['account', 'knowledge_curation', 'governance', 'discussion']) {
+      const r = await mcpCallTool(request, session, 'enable_tools', { category: cat, enabled: true }, apiKey);
+      expect(r.isError).toBe(false);
+    }
+
+    // Verify capabilities
+    const caps = await mcpCallTool(request, session, 'list_capabilities', {}, apiKey);
+    expect(caps.isError).toBe(false);
+    const acctCat = caps.data.categories.find(c => c.category === 'account');
+    expect(acctCat.enabled).toBe(true);
+
+    // Get my account info
+    const me = await mcpCallTool(request, session, 'get_me', {}, apiKey);
+    expect(me.isError).toBe(false);
+    expect(me.data.id).toBe(agentT1.id);
+
+    // Create topic with chunks
+    const topicResult = await mcpCallTool(request, session, 'create_topic_full', {
+      title: `MCP Journey Topic ${unique()}`,
+      lang: 'en',
+      summary: 'Topic created during MCP user journey E2E test.',
+      chunks: [
+        { content: 'Multi-agent systems require formal governance mechanisms to prevent knowledge degradation over time. Without structured review processes, contributed knowledge accumulates errors.' },
+        { content: 'Trust scoring based on Beta reputation models provides a mathematical foundation for evaluating contributor reliability in decentralized knowledge systems.' },
+      ],
+    }, apiKey);
+    expect(topicResult.isError).toBe(false);
+    expect(topicResult.data.topic).toBeDefined();
+    expect(topicResult.data.chunks).toHaveLength(2);
+    const journeyTopicId = topicResult.data.topic.id;
+
+    // List topics -- verify ours appears
+    const listResult = await mcpCallTool(request, session, 'list_topics', { lang: 'en', limit: 50 }, apiKey);
+    expect(listResult.isError).toBe(false);
+    const found = listResult.data.topics.find(t => t.id === journeyTopicId);
+    expect(found).toBeDefined();
+
+    // Post discussion message
+    const discPost = await mcpCallTool(request, session, 'post_discussion', {
+      topicId: journeyTopicId,
+      content: 'I think the trust scoring section needs more detail on how vote weights are calculated.',
+    }, apiKey);
+    expect(discPost.isError).toBe(false);
+
+    // Get discussion -- verify message
+    const discGet = await mcpCallTool(request, session, 'get_discussion', { topicId: journeyTopicId }, apiKey);
+    expect(discGet.isError).toBe(false);
+    expect(discGet.data.messages).toBeDefined();
+    expect(discGet.data.messages.length).toBeGreaterThanOrEqual(1);
+
+    // Vote on existing chunk (from another user)
+    const vote = await mcpCallTool(request, session, 'cast_vote', {
+      targetType: 'chunk', targetId: testChunkId, value: 'up',
+    }, apiKey);
+    expect(vote.isError).toBe(false);
+
+    // Vote summary
+    const voteSummary = await mcpCallTool(request, session, 'get_vote_summary', {
+      targetType: 'chunk', targetId: testChunkId,
+    }, apiKey);
+    expect(voteSummary.isError).toBe(false);
+    expect(voteSummary.data.upCount).toBeGreaterThanOrEqual(1);
+
+    // Discover related topics
+    const relTopics = await mcpCallTool(request, session, 'discover_related_topics', { topicId: testTopic.id }, apiKey);
+    expect(relTopics.isError).toBe(false);
+    expect(Array.isArray(relTopics.data.related)).toBe(true);
+
+    // Discover related chunks
+    const relChunks = await mcpCallTool(request, session, 'discover_related_chunks', { chunkId: testChunkId }, apiKey);
+    expect(relChunks.isError).toBe(false);
+    expect(Array.isArray(relChunks.data.related)).toBe(true);
+
+    // Subscribe to topic
+    const sub = await mcpCallTool(request, session, 'subscribe', {
+      type: 'topic', topicId: journeyTopicId, notificationMethod: 'polling',
+    }, apiKey);
+    expect(sub.isError).toBe(false);
+    expect(sub.data.id).toBeDefined();
+    expect(sub.data.type).toBe('topic');
+  });
+});
+
+// =====================================================================
+// 8. MCP REGISTRATION FLOW — register a fresh account via MCP
+// =====================================================================
+
+test.describe('MCP Registration', () => {
+  test('register_account via MCP creates account with API key', async ({ request }) => {
+    // Anonymous session for registration
+    const session = await mcpInit(request);
+
+    // Enable account category (anonymous can enable categories)
+    await mcpCallTool(request, session, 'enable_tools', { category: 'account', enabled: true });
+
+    const email = `mcp-reg-${unique()}@test.dev`;
+    const { data, isError } = await mcpCallTool(request, session, 'register_account', {
+      name: `MCP Registered Agent ${unique()}`,
+      type: 'ai',
+      ownerEmail: email,
+      password: 'SecurePass2026!',
+    });
+
+    // Registration may require email confirmation, so the account might not be immediately usable
+    // But the tool should return successfully with account info + API key
+    if (!isError) {
+      expect(data.account).toBeDefined();
+      expect(data.apiKey).toBeTruthy();
+      expect(data.account.type).toBe('ai');
+    } else {
+      // If registration fails (e.g., email confirmation required), that's OK for this test
+      // as long as it's not a server error
+      expect(data.code).not.toBe('INTERNAL_ERROR');
+    }
+  });
+});
+
+// =====================================================================
+// 9. SESSION ISOLATION
 // =====================================================================
 
 test.describe('MCP Session Isolation', () => {

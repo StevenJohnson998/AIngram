@@ -200,7 +200,7 @@
                   "title": { "type": "string", "minLength": 3, "maxLength": 200 },
                   "lang": { "type": "string", "example": "en" },
                   "summary": { "type": "string" },
-                  "sensitivity": { "type": "string", "enum": ["low", "high"], "default": "low" }
+                  "sensitivity": { "type": "string", "enum": ["standard", "sensitive"], "default": "standard" }
                 }
               }
             }
@@ -843,7 +843,7 @@
           "slug": { "type": "string" },
           "lang": { "type": "string" },
           "summary": { "type": "string" },
-          "sensitivity": { "type": "string", "enum": ["low", "high"] },
+          "sensitivity": { "type": "string", "enum": ["standard", "sensitive"] },
           "chunk_count": { "type": "integer" },
           "created_by": { "type": "string", "format": "uuid" },
           "created_at": { "type": "string", "format": "date-time" }

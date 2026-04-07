@@ -55,7 +55,7 @@ async function retryPendingEmbeddings() {
   const BATCH_LIMIT = 100;
 
   const { rows } = await pool.query(
-    "SELECT id, content FROM chunks WHERE embedding IS NULL AND chunk_type != 'meta' LIMIT $1",
+    "SELECT id, content FROM chunks WHERE embedding IS NULL AND chunk_type NOT IN ('meta', 'summary') LIMIT $1",
     [BATCH_LIMIT]
   );
 

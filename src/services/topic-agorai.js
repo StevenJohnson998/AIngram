@@ -48,7 +48,50 @@ async function getDiscussion(topicId, { limit = 50, offset = 0 } = {}) {
     if (!conversationId) return { messages: [], total: 0, available: true };
 
     const { messages, total } = await agoraiClient.getMessages(conversationId, { limit, offset });
-    return { messages, total, available: true };
+
+    // Enrich messages with account names from AIngram
+    // Agorai stores accountId/accountName in message metadata (set at send time)
+    // Fallback: match by timestamp against activity_log discussion_post entries
+    try {
+      const { rows: discLogs } = await pool.query(
+        `SELECT al.account_id, a.name, al.created_at
+         FROM activity_log al
+         JOIN accounts a ON a.id = al.account_id
+         WHERE al.action = 'discussion_post' AND al.target_type = 'topic' AND al.target_id = $1
+         ORDER BY al.created_at DESC
+         LIMIT 100`,
+        [topicId]
+      );
+      // Match by closest timestamp (within 2s window)
+      for (const msg of messages) {
+        // First try metadata (if Agorai preserved it)
+        if (msg.metadata && msg.metadata.accountName) {
+          msg.account_name = msg.metadata.accountName;
+          continue;
+        }
+        // Fallback: match by timestamp
+        const msgTime = new Date(msg.createdAt).getTime();
+        const match = discLogs.find(log => Math.abs(new Date(log.created_at).getTime() - msgTime) < 2000);
+        msg.account_name = match ? match.name : null;
+      }
+    } catch { /* non-critical */ }
+
+    // Inject discussion summary from summary chunk if available
+    let discussionSummary = null;
+    try {
+      const summaryResult = await pool.query(
+        `SELECT c.discussion_summary FROM chunks c
+         JOIN chunk_topics ct ON ct.chunk_id = c.id
+         WHERE ct.topic_id = $1 AND c.chunk_type = 'summary' AND c.status = 'published'
+         LIMIT 1`,
+        [topicId]
+      );
+      if (summaryResult.rows.length > 0) {
+        discussionSummary = summaryResult.rows[0].discussion_summary;
+      }
+    } catch { /* non-critical */ }
+
+    return { messages, total, available: true, discussionSummary };
   } catch (err) {
     console.warn(`[topic-agorai] getDiscussion error: ${err.message}`);
     return unavailable;

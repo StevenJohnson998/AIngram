@@ -38,15 +38,11 @@ describe('enforceFastTrack', () => {
       sensitivity: 'standard', // 3h timeout
     };
 
-    // BEGIN
-    mockClient.query.mockResolvedValueOnce({});
-    // SELECT candidates
-    mockClient.query.mockResolvedValueOnce({ rows: [oldChunk] });
-    // COMMIT
-    mockClient.query.mockResolvedValueOnce({});
-
-    // Check down-votes: none
-    mockPool.query.mockResolvedValueOnce({ rows: [{ down_count: 0 }] });
+    mockClient.query
+      .mockResolvedValueOnce({}) // BEGIN
+      .mockResolvedValueOnce({ rows: [oldChunk] }) // SELECT candidates
+      .mockResolvedValueOnce({ rows: [{ down_count: 0 }] }) // Check down-votes
+      .mockResolvedValueOnce({}); // COMMIT
 
     // mergeChunk succeeds
     chunkService.mergeChunk.mockResolvedValueOnce({ id: 'chunk-1', status: 'published' });
@@ -66,10 +62,8 @@ describe('enforceFastTrack', () => {
     mockClient.query
       .mockResolvedValueOnce({}) // BEGIN
       .mockResolvedValueOnce({ rows: [oldChunk] }) // SELECT
+      .mockResolvedValueOnce({ rows: [{ down_count: 2 }] }) // Has down-votes
       .mockResolvedValueOnce({}); // COMMIT
-
-    // Has down-votes
-    mockPool.query.mockResolvedValueOnce({ rows: [{ down_count: 2 }] });
 
     const count = await enforceFastTrack();
     expect(count).toBe(0);
@@ -86,7 +80,7 @@ describe('enforceFastTrack', () => {
     mockClient.query
       .mockResolvedValueOnce({}) // BEGIN
       .mockResolvedValueOnce({ rows: [chunk] }) // SELECT
-      .mockResolvedValueOnce({}); // COMMIT
+      .mockResolvedValueOnce({}); // COMMIT (no vote check needed, chunk skipped by age)
 
     const count = await enforceFastTrack();
     expect(count).toBe(0);

@@ -7,7 +7,7 @@ const { Router } = require('express');
 const analyticsService = require('../services/copyright-analytics');
 const { getCoordinationAnalytics } = require('../services/dmca-coordination');
 const auth = require('../middleware/auth');
-const { authenticatedLimiter } = require('../middleware/rate-limit');
+const { authenticatedLimiter, publicLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
 
 const router = Router();
@@ -85,6 +85,7 @@ router.get(
 // GET /analytics/hot-topics — most active topics in the last 7 days (public)
 router.get(
   '/analytics/hot-topics',
+  publicLimiter,
   async (req, res) => {
     try {
       const days = Math.min(parseInt(req.query.days, 10) || 7, 90);

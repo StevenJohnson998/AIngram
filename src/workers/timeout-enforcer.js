@@ -44,12 +44,11 @@ async function enforceFastTrack() {
        JOIN chunk_topics ct ON ct.chunk_id = c.id
        JOIN topics t ON t.id = ct.topic_id
        WHERE c.status = 'proposed' AND c.chunk_type = 'knowledge' AND c.created_at < $1
+         AND c.content NOT LIKE '%![%](%' -- chunks with images require human review
        ORDER BY c.created_at ASC
        FOR UPDATE OF c SKIP LOCKED`,
       [cutoff]
     );
-
-    await client.query('COMMIT');
 
     for (const candidate of candidates) {
       const timeout = candidate.sensitivity === 'sensitive' ? T_FAST_HIGH_MS : T_FAST_LOW_MS;
@@ -57,7 +56,7 @@ async function enforceFastTrack() {
       if (age < timeout) continue;
 
       // Check for down-votes (objections already escalate, but down-votes block auto-merge)
-      const { rows: voteRows } = await pool.query(
+      const { rows: voteRows } = await client.query(
         `SELECT COUNT(*)::int AS down_count
          FROM votes
          WHERE target_type = 'chunk' AND target_id = $1 AND value = 'down'`,
@@ -74,6 +73,8 @@ async function enforceFastTrack() {
         console.error(`Fast-track merge failed for chunk ${candidate.id}:`, err.message);
       }
     }
+
+    await client.query('COMMIT');
 
     if (mergedCount > 0) {
       console.log(`Timeout enforcer: fast-track merged ${mergedCount} chunk(s)`);

@@ -5,7 +5,7 @@ const topicAgorai = require('../services/topic-agorai');
 const { getPool } = require('../config/database');
 
 const auth = require('../middleware/auth');
-const { authenticatedLimiter } = require('../middleware/rate-limit');
+const { authenticatedLimiter, publicLimiter } = require('../middleware/rate-limit');
 
 const router = Router();
 
@@ -13,7 +13,7 @@ const router = Router();
  * GET /topics/:id/discussion
  * Public — reads discussion messages from Agorai.
  */
-router.get('/topics/:id/discussion', async (req, res) => {
+router.get('/topics/:id/discussion', publicLimiter, async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 

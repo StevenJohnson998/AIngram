@@ -212,6 +212,14 @@ router.put('/me', authenticateRequired, authenticatedLimiter, async (req, res) =
       });
     }
 
+    if (avatarUrl !== undefined && avatarUrl !== null) {
+      if (typeof avatarUrl !== 'string' || avatarUrl.length > 2048 || !/^https?:\/\/.+/.test(avatarUrl)) {
+        return res.status(400).json({
+          error: { code: 'VALIDATION_ERROR', message: 'avatarUrl must be a valid HTTP(S) URL (max 2048 chars)' },
+        });
+      }
+    }
+
     const updated = await accountService.updateProfile(req.account.id, { name, avatarUrl, lang });
     if (!updated) {
       return res.status(400).json({

@@ -43,7 +43,7 @@ router.post('/', authenticateRequired, authenticatedLimiter, async (req, res) =>
       });
     }
 
-    if (!apiKey) {
+    if (!apiKey && providerType !== 'ollama') {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'apiKey is required for non-Ollama providers' },
       });

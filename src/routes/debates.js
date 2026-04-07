@@ -7,6 +7,7 @@ const { Router } = require('express');
 const agoraiClient = require('../services/agorai-client');
 const { getPool } = require('../config/database');
 const auth = require('../middleware/auth');
+const { publicLimiter } = require('../middleware/rate-limit');
 
 const router = Router();
 
@@ -14,7 +15,7 @@ const router = Router();
  * GET /debates — Active discussions enriched with topic metadata.
  * Featured = first result. Includes last messages preview for featured.
  */
-router.get('/debates', auth.authenticateOptional, async (req, res) => {
+router.get('/debates', publicLimiter, auth.authenticateOptional, async (req, res) => {
   try {
     const days = Math.min(parseInt(req.query.days, 10) || 7, 30);
     const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);

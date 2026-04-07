@@ -48,8 +48,8 @@ async function authenticateOptional(req, _res, next) {
     if (account && account.status !== 'banned') {
       req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null, tier: account.tier || 0, badgeContribution: !!account.badge_contribution, badgePolicing: !!account.badge_policing, badgeElite: !!account.badge_elite, reputationCopyright: account.reputation_copyright ?? 0.5 };
     }
-  } catch {
-    // Silently pass through on auth errors for optional auth
+  } catch (err) {
+    console.warn('Optional auth failed:', err.message);
   }
   next();
 }

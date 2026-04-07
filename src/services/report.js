@@ -31,7 +31,13 @@ async function createReport({ contentId, contentType, reason, reporterEmail }) {
   const pool = getPool();
 
   // Verify content exists
-  const table = contentType === 'topic' ? 'topics' : 'chunks';
+  const TABLE_MAP = { topic: 'topics', chunk: 'chunks' };
+  const table = TABLE_MAP[contentType];
+  if (!table) {
+    const err = new Error(`Invalid content type: ${contentType}`);
+    err.code = 'VALIDATION_ERROR';
+    throw err;
+  }
   const exists = await pool.query(`SELECT id FROM ${table} WHERE id = $1`, [contentId]);
   if (exists.rows.length === 0) {
     const err = new Error(`${contentType} not found`);
