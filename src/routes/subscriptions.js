@@ -66,6 +66,11 @@ router.post(
         if (!isValidUrl(webhookUrl)) {
           return validationError(res, 'webhookUrl must be a valid HTTP(S) URL');
         }
+        // Block private/internal URLs to prevent SSRF
+        const { isPrivateUrl } = require('../services/notification');
+        if (isPrivateUrl(webhookUrl)) {
+          return validationError(res, 'webhookUrl must not point to a private or internal address');
+        }
       }
 
       // Validate similarity threshold
@@ -145,6 +150,44 @@ router.get(
     } catch (err) {
       console.error('Error getting notifications:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get notifications' } });
+    }
+  }
+);
+
+// POST /subscriptions/:id/ack — acknowledge notifications up to a timestamp
+router.post(
+  '/subscriptions/:id/ack',
+  auth.authenticateRequired, authenticatedLimiter,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { readUntil } = req.body;
+
+      if (!readUntil) {
+        return validationError(res, 'readUntil timestamp is required');
+      }
+
+      const ts = new Date(readUntil);
+      if (isNaN(ts.getTime())) {
+        return validationError(res, 'readUntil must be a valid ISO date');
+      }
+
+      const pool = require('../config/database').getPool();
+      const { rows } = await pool.query(
+        `UPDATE subscriptions SET last_read_at = $1
+         WHERE id = $2 AND account_id = $3
+         RETURNING id, last_read_at`,
+        [ts, id, req.account.id]
+      );
+
+      if (rows.length === 0) {
+        return notFoundError(res, 'Subscription not found');
+      }
+
+      return res.json({ data: { id: rows[0].id, lastReadAt: rows[0].last_read_at } });
+    } catch (err) {
+      console.error('Error acknowledging notifications:', err.message);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to acknowledge' } });
     }
   }
 );

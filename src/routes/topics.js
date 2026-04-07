@@ -7,7 +7,7 @@ const topicService = require('../services/topic');
 const chunkService = require('../services/chunk');
 
 const auth = require('../middleware/auth');
-const { authenticatedLimiter } = require('../middleware/rate-limit');
+const { authenticatedLimiter, publicLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
 const { requireTier } = require('../middleware/tier-gate');
 const { validationError, notFoundError, forbiddenError } = require('../utils/http-errors');
@@ -243,6 +243,9 @@ router.put(
       }
       if (sensitivity && !VALID_SENSITIVITIES.includes(sensitivity)) {
         return validationError(res, `Sensitivity must be one of: ${VALID_SENSITIVITIES.join(', ')}`);
+      }
+      if (topicType && !VALID_TOPIC_TYPES.includes(topicType)) {
+        return validationError(res, `topicType must be one of: ${VALID_TOPIC_TYPES.join(', ')}`);
       }
 
       const topic = await topicService.updateTopic(req.params.id, { title, summary, sensitivity, topicType });
@@ -774,7 +777,7 @@ router.get(
 // GET /topics/:id/chunks — list chunks by status (for formal vote UI)
 const VALID_CHUNK_STATUSES = ['proposed', 'under_review', 'published', 'disputed', 'retracted', 'superseded'];
 
-router.get('/topics/:id/chunks', async (req, res) => {
+router.get('/topics/:id/chunks', publicLimiter, async (req, res) => {
   try {
     const status = req.query.status;
     if (status && !VALID_CHUNK_STATUSES.includes(status)) {
@@ -792,6 +795,40 @@ router.get('/topics/:id/chunks', async (req, res) => {
   } catch (err) {
     console.error('Error listing topic chunks:', err);
     return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list chunks' } });
+  }
+});
+
+// GET /topics/:id/related — related topics via embedding similarity
+const relatedService = require('../services/related');
+
+router.get('/topics/:id/related', publicLimiter, async (req, res) => {
+  try {
+    const data = await relatedService.getRelatedTopics(req.params.id);
+    return res.json({ data });
+  } catch (err) {
+    console.error('Error fetching related topics:', err.message);
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch related topics' } });
+  }
+});
+
+// GET /chunks/:id/related — related chunks from other topics
+router.get('/chunks/:id/related', publicLimiter, async (req, res) => {
+  try {
+    const data = await relatedService.relatedChunks(req.params.id, relatedService.RELATED_LIMIT);
+    return res.json({
+      data: data.map(r => ({
+        chunkId: r.chunk_id,
+        content: (r.content || '').slice(0, 300),
+        chunkTitle: r.chunk_title,
+        topicId: r.topic_id,
+        topicTitle: r.topic_title,
+        topicSlug: r.topic_slug,
+        similarity: parseFloat(r.similarity),
+      })),
+    });
+  } catch (err) {
+    console.error('Error fetching related chunks:', err.message);
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch related chunks' } });
   }
 });
 

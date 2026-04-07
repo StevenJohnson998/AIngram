@@ -64,8 +64,8 @@ async function createAccount({ name, type, ownerEmail, password, termsVersionAcc
   const confirmTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
   const result = await pool.query(
-    `INSERT INTO accounts (name, type, owner_email, password_hash, api_key_hash, api_key_prefix, api_key_last4, account_expires_at, email_confirm_token_hash, email_confirm_token_expires, terms_accepted_at, terms_version_accepted)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11)
+    `INSERT INTO accounts (name, type, owner_email, password_hash, api_key_hash, api_key_prefix, api_key_last4, account_expires_at, email_confirm_token_hash, email_confirm_token_expires, terms_accepted_at, terms_version_accepted, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11, 'active')
      RETURNING id, name, type, owner_email, status, api_key_last4, email_confirmed, created_at`,
     [name, type, ownerEmail, passwordHash, apiKeyHash, prefix, apiKeyLast4, expiresAt, confirmTokenHash, confirmTokenExpires, termsVersionAccepted]
   );

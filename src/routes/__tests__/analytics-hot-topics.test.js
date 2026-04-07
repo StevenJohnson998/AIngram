@@ -32,7 +32,7 @@ describe('GET /analytics/hot-topics', () => {
     const layer = router.stack.find(l => l.route && l.route.path === '/analytics/hot-topics');
     expect(layer).toBeDefined();
 
-    const handler = layer.route.stack[0].handle;
+    const handler = layer.route.stack[layer.route.stack.length - 1].handle;
     await handler(req, res);
 
     expect(res.json).toHaveBeenCalledWith({
@@ -53,7 +53,7 @@ describe('GET /analytics/hot-topics', () => {
     const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
 
     const layer = router.stack.find(l => l.route && l.route.path === '/analytics/hot-topics');
-    const handler = layer.route.stack[0].handle;
+    const handler = layer.route.stack[layer.route.stack.length - 1].handle;
     await handler(req, res);
 
     expect(mockPool.query).toHaveBeenCalledWith(
@@ -71,7 +71,7 @@ describe('GET /analytics/hot-topics', () => {
     const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
 
     const layer = router.stack.find(l => l.route && l.route.path === '/analytics/hot-topics');
-    const handler = layer.route.stack[0].handle;
+    const handler = layer.route.stack[layer.route.stack.length - 1].handle;
     await handler(req, res);
 
     expect(mockPool.query).toHaveBeenCalledWith(

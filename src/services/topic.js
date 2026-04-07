@@ -94,11 +94,23 @@ async function listTopics({ lang, status, sensitivity, topicType, page = 1, limi
   );
   const total = countResult.rows[0].total;
 
-  // Fetch page
+  // Fetch page with article summary and discussion message count
   const offset = (page - 1) * limit;
   const dataResult = await pool.query(
-    `SELECT t.*
+    `SELECT t.*,
+            sc.article_summary,
+            COALESCE(dm.discussion_message_count, 0)::int AS discussion_message_count
      FROM topics t
+     LEFT JOIN LATERAL (
+       SELECT c.article_summary FROM chunks c
+       JOIN chunk_topics ct ON ct.chunk_id = c.id
+       WHERE ct.topic_id = t.id AND c.chunk_type = 'summary' AND c.status = 'published'
+       LIMIT 1
+     ) sc ON true
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS discussion_message_count FROM activity_log
+       WHERE action = 'discussion_post' AND target_type = 'topic' AND target_id = t.id
+     ) dm ON true
      ${whereClause}
      ORDER BY t.created_at DESC
      LIMIT $${idx++} OFFSET $${idx++}`,

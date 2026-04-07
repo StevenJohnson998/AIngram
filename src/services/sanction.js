@@ -9,24 +9,7 @@ const { recalculateChunkTrust } = require('./reputation');
 /**
  * Escalation rules: determine sanction type based on prior active minor sanctions.
  */
-const ESCALATION_RULES = [
-  { priorCount: 0, type: 'vote_suspension' },
-  { priorCount: 1, type: 'rate_limit' },
-  // 2+ -> account_freeze
-];
-
-/**
- * Determine sanction type based on severity and prior sanctions.
- * Delegates to domain/escalation.ts for the pure logic.
- */
-function determineSanctionType(severity, priorActiveMinorCount) {
-  // Domain function has same logic — keeping inline for now as the .js→.ts
-  // require path will be wired when services are converted to TypeScript.
-  if (severity === 'grave') return 'ban';
-  if (priorActiveMinorCount >= 2) return 'account_freeze';
-  if (priorActiveMinorCount === 1) return 'rate_limit';
-  return 'vote_suspension';
-}
+const { determineSanctionType } = require('../domain');
 
 /**
  * Create a sanction with automatic escalation.
@@ -350,7 +333,6 @@ async function cascadeBanIfNeeded(queryable, accountId, severity, issuedBy) {
 }
 
 module.exports = {
-  ESCALATION_RULES,
   determineSanctionType,
   createSanction,
   liftSanction,

@@ -136,40 +136,31 @@ async function castVote({ accountId, targetType, targetId, value, reasonTag }) {
     [accountId, targetType, targetId, value, reasonTag || null, weight]
   );
 
-  // Fire-and-forget: incremental reputation recalc with retry (3 attempts, backoff 1s/5s/30s)
+  // Fire-and-forget: incremental reputation recalc (hourly batch is the safety net)
   (async () => {
-    const RETRY_DELAYS = [1000, 5000, 30000];
-    for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
-      try {
-        let targetAuthorId;
-        if (targetType === 'chunk') {
-          const r = await pool.query('SELECT created_by FROM chunks WHERE id = $1', [targetId]);
-          targetAuthorId = r.rows[0]?.created_by;
-        } else if (targetType === 'message') {
-          const r = await pool.query('SELECT account_id FROM messages WHERE id = $1', [targetId]);
-          targetAuthorId = r.rows[0]?.account_id;
-        }
-
-        if (targetAuthorId) {
-          await recalculateReputation(targetAuthorId);
-          await checkBadges(targetAuthorId);
-          await accountService.incrementInteractionAndUpdateTier(targetAuthorId);
-        }
-
-        if (targetType === 'chunk') {
-          await recalculateChunkTrust(targetId);
-        }
-
-        await accountService.incrementInteractionAndUpdateTier(accountId);
-        return; // success
-      } catch (err) {
-        if (attempt < RETRY_DELAYS.length) {
-          console.warn(`Reputation recalc attempt ${attempt + 1} failed, retrying in ${RETRY_DELAYS[attempt]}ms:`, err.message);
-          await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
-        } else {
-          console.error(`Reputation recalc failed after ${attempt + 1} attempts:`, err.message);
-        }
+    try {
+      let targetAuthorId;
+      if (targetType === 'chunk') {
+        const r = await pool.query('SELECT created_by FROM chunks WHERE id = $1', [targetId]);
+        targetAuthorId = r.rows[0]?.created_by;
+      } else if (targetType === 'message') {
+        const r = await pool.query('SELECT account_id FROM messages WHERE id = $1', [targetId]);
+        targetAuthorId = r.rows[0]?.account_id;
       }
+
+      if (targetAuthorId) {
+        await recalculateReputation(targetAuthorId);
+        await checkBadges(targetAuthorId);
+        await accountService.incrementInteractionAndUpdateTier(targetAuthorId);
+      }
+
+      if (targetType === 'chunk') {
+        await recalculateChunkTrust(targetId);
+      }
+
+      await accountService.incrementInteractionAndUpdateTier(accountId);
+    } catch (err) {
+      console.warn('Reputation recalc failed (will be caught by hourly batch):', err.message);
     }
   })();
 

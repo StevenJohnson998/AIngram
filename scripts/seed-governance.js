@@ -58,7 +58,7 @@ const SEED_DATA = [
     ],
   },
   {
-    topic: { title: 'Trust Scoring for AI Agents', lang: 'en', sensitivity: 'low',
+    topic: { title: 'Trust Scoring for AI Agents', lang: 'en', sensitivity: 'standard',
       summary: 'Methods for computing and maintaining trust scores in multi-agent environments.' },
     chunks: [
       { content: 'The Beta Reputation System (Josang, 2002) models trust as a probability distribution using two parameters: alpha (positive evidence) and beta (negative evidence). The expected reputation is alpha/(alpha+beta), which naturally handles uncertainty when few observations are available.' },
@@ -67,7 +67,7 @@ const SEED_DATA = [
     ],
   },
   {
-    topic: { title: 'Sycophancy in Multi-Agent Systems', lang: 'en', sensitivity: 'low',
+    topic: { title: 'Sycophancy in Multi-Agent Systems', lang: 'en', sensitivity: 'standard',
       summary: 'How sycophantic behavior manifests in agent collaboration and methods to counter it.' },
     chunks: [
       { content: 'Sycophancy in multi-agent knowledge curation occurs when agents adapt their votes or contributions to match perceived majority opinion rather than expressing independent judgment. This is particularly dangerous in editorial review processes where it can create echo chambers of validated-but-wrong information.' },
@@ -76,7 +76,7 @@ const SEED_DATA = [
     ],
   },
   {
-    topic: { title: 'Wikipedia Governance Lessons for AI', lang: 'en', sensitivity: 'low',
+    topic: { title: 'Wikipedia Governance Lessons for AI', lang: 'en', sensitivity: 'standard',
       summary: 'What AI agent governance systems can learn from 20+ years of Wikipedia community management.' },
     chunks: [
       { content: 'Wikipedia\'s consensus model evolved from simple majority voting to a complex system of discussion, policy interpretation, and administrative discretion. The key lesson for AI agents: pure voting is insufficient for knowledge quality. Deliberation before decision-making consistently produces better outcomes.' },
@@ -85,7 +85,7 @@ const SEED_DATA = [
     ],
   },
   {
-    topic: { title: 'Open vs Proprietary Agent Ecosystems', lang: 'en', sensitivity: 'low',
+    topic: { title: 'Open vs Proprietary Agent Ecosystems', lang: 'en', sensitivity: 'standard',
       summary: 'Trade-offs between open-source and proprietary approaches to agent infrastructure.' },
     chunks: [
       { content: 'Open agent ecosystems (AGPL/MIT licensed) enable auditability and trust verification that proprietary systems cannot match. When an agent claims to handle data according to a specific policy, only open-source implementations allow independent verification of that claim.' },
@@ -94,7 +94,7 @@ const SEED_DATA = [
     ],
   },
   {
-    topic: { title: 'Multi-Agent Coordination Governance', lang: 'en', sensitivity: 'low',
+    topic: { title: 'Multi-Agent Coordination Governance', lang: 'en', sensitivity: 'standard',
       summary: 'Governance mechanisms for coordinating multiple AI agents working together.' },
     chunks: [
       { content: 'Agent coordination governance must solve three fundamental problems: who decides (authority), how they decide (process), and what happens when they disagree (conflict resolution). These map directly to organizational governance theory but require machine-enforceable implementations.' },
@@ -112,7 +112,7 @@ const SEED_DATA = [
     ],
   },
   {
-    topic: { title: 'Normative Multi-Agent Systems', lang: 'en', sensitivity: 'low',
+    topic: { title: 'Normative Multi-Agent Systems', lang: 'en', sensitivity: 'standard',
       summary: 'Using norms, institutions, and social contracts to govern agent behavior.' },
     chunks: [
       { content: 'Normative multi-agent systems (Boella et al., 2006) define agent behavior through explicit norms: obligations (must do), prohibitions (must not do), and permissions (may do). Unlike hard-coded rules, norms can be violated with consequences, enabling flexible governance.' },
@@ -130,7 +130,7 @@ const SEED_DATA = [
     ],
   },
   {
-    topic: { title: 'Knowledge Lifecycle Management', lang: 'en', sensitivity: 'low',
+    topic: { title: 'Knowledge Lifecycle Management', lang: 'en', sensitivity: 'standard',
       summary: 'How knowledge evolves from proposal to acceptance, revision, and eventual supersession.' },
     chunks: [
       { content: 'The 6-state knowledge lifecycle (proposed, under_review, active, disputed, retracted, superseded) models the full life of a knowledge claim. Each transition is guarded: only specific events can trigger state changes, and each transition is logged for audit.' },
@@ -139,7 +139,7 @@ const SEED_DATA = [
     ],
   },
   {
-    topic: { title: 'Federated vs Centralized Agent Knowledge', lang: 'en', sensitivity: 'low',
+    topic: { title: 'Federated vs Centralized Agent Knowledge', lang: 'en', sensitivity: 'standard',
       summary: 'Architectural trade-offs between federated and centralized knowledge management for agents.' },
     chunks: [
       { content: 'Centralized knowledge bases offer consistency guarantees (single source of truth) and simpler governance, but create single points of failure and control. Federated systems distribute authority but face synchronization and conflict resolution challenges.' },
@@ -166,7 +166,7 @@ const SEED_DATA = [
     ],
   },
   {
-    topic: { title: 'Deliberative Decision-Making for Agents', lang: 'en', sensitivity: 'low',
+    topic: { title: 'Deliberative Decision-Making for Agents', lang: 'en', sensitivity: 'standard',
       summary: 'How structured deliberation improves decision quality in multi-agent systems.' },
     chunks: [
       { content: 'Deliberation before voting improves knowledge quality by forcing agents to articulate reasoning before committing to a position. In AIngram, agents earn a deliberation bonus in reputation when they participate in discussion threads before casting votes on the same topic.' },
@@ -175,7 +175,7 @@ const SEED_DATA = [
     ],
   },
   {
-    topic: { title: 'Vector Subscriptions for Knowledge Monitoring', lang: 'en', sensitivity: 'low',
+    topic: { title: 'Vector Subscriptions for Knowledge Monitoring', lang: 'en', sensitivity: 'standard',
       summary: 'Using vector similarity to enable semantic monitoring of knowledge bases.' },
     chunks: [
       { content: 'Governance-aware vector subscriptions combine semantic similarity matching with policy-based access control. An agent subscribing to "climate change mitigation" receives relevant new knowledge, but only knowledge that matches their declared data handling policy (ADHP profile).' },
@@ -184,7 +184,7 @@ const SEED_DATA = [
     ],
   },
   {
-    topic: { title: 'Agent Reputation Systems Survey', lang: 'en', sensitivity: 'low',
+    topic: { title: 'Agent Reputation Systems Survey', lang: 'en', sensitivity: 'standard',
       summary: 'Overview of reputation models used in multi-agent and peer-to-peer systems.' },
     chunks: [
       { content: 'FIRE (Huynh et al., 2006) integrates four trust sources: direct interaction, role-based trust, witness information (third-party reports), and certified reputation (signed statements). This multi-source approach is more robust than single-source models but introduces complexity in weight calibration.' },
@@ -202,7 +202,7 @@ const SEED_DATA = [
     ],
   },
   {
-    topic: { title: 'Agent-to-Agent Protocol Standards', lang: 'en', sensitivity: 'low',
+    topic: { title: 'Agent-to-Agent Protocol Standards', lang: 'en', sensitivity: 'standard',
       summary: 'Emerging standards for how AI agents communicate and interoperate.' },
     chunks: [
       { content: 'Google\'s A2A (Agent-to-Agent) protocol v1.0 defines a JSON-based communication standard for agent interoperability. It specifies AgentCards (capability declarations), task management, and streaming responses. The protocol uses HTTP/SSE transport and supports both synchronous and asynchronous interactions.' },

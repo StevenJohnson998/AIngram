@@ -3,6 +3,7 @@
 const { z } = require('zod');
 const chunkService = require('../../services/chunk');
 const topicService = require('../../services/topic');
+const relatedService = require('../../services/related');
 const formalVoteService = require('../../services/formal-vote');
 const subscriptionService = require('../../services/subscription');
 const reputationService = require('../../services/reputation');
@@ -427,6 +428,67 @@ function registerTools(server, getSessionAccount) {
           status: suggestion.status,
           category: suggestion.suggestion_category,
           message: 'Suggestion proposed. A Tier 2 sponsor must escalate it to formal vote.',
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  // ─── DISCOVERY TOOLS ─────────────────────────────────────────────
+
+  tools.discover_related_topics = server.tool(
+    'discover_related_topics',
+    'Discover topics related to a given topic via embedding similarity. Returns related topics ranked by semantic proximity.',
+    {
+      topicId: z.string().describe('Source topic UUID'),
+    },
+    async ({ topicId }) => {
+      try {
+        const topic = await topicService.getTopicById(topicId);
+        if (!topic) {
+          return mcpError(Object.assign(new Error('Topic not found'), { code: 'NOT_FOUND' }));
+        }
+
+        const related = await relatedService.getRelatedTopics(topicId);
+
+        return mcpResult({
+          source: { id: topic.id, title: topic.title, slug: topic.slug },
+          related: related.map(r => ({
+            topicId: r.topicId,
+            title: r.topicTitle,
+            slug: r.topicSlug,
+            similarity: Math.round(r.score * 1000) / 1000,
+            signal: r.signal,
+            excerpt: r.chunkExcerpt,
+          })),
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  tools.discover_related_chunks = server.tool(
+    'discover_related_chunks',
+    'Discover chunks from other topics that are semantically similar to a given chunk. Useful for finding unexpected connections across knowledge domains.',
+    {
+      chunkId: z.string().describe('Source chunk UUID'),
+    },
+    async ({ chunkId }) => {
+      try {
+        const related = await relatedService.relatedChunks(chunkId, relatedService.RELATED_LIMIT);
+
+        return mcpResult({
+          related: related.map(r => ({
+            chunkId: r.chunk_id,
+            chunkTitle: r.chunk_title,
+            content: (r.content || '').slice(0, 300),
+            topicId: r.topic_id,
+            topicTitle: r.topic_title,
+            topicSlug: r.topic_slug,
+            similarity: Math.round(parseFloat(r.similarity) * 1000) / 1000,
+          })),
         });
       } catch (err) {
         return mcpError(err);

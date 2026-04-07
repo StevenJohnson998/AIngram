@@ -201,6 +201,31 @@ function escapeHtml(str) {
 }
 
 /**
+ * Render chunk content: escape HTML, then convert markdown images and line breaks.
+ * Only supports ![alt](url) syntax -- not full markdown.
+ * URLs are validated to prevent XSS (only http/https allowed).
+ * Images only rendered for published chunks (unpublished = reviewed by moderator).
+ */
+function renderContent(str, status) {
+  if (!str) return '';
+  var escaped = escapeHtml(str);
+  if (status === 'published') {
+    // Convert markdown images: ![alt](url) -> <img>
+    escaped = escaped.replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, function(_, alt, url) {
+      return '<img src="' + url + '" alt="' + alt + '" class="chunk-img" loading="lazy">';
+    });
+  } else {
+    // Non-published: show placeholder instead of rendering image
+    escaped = escaped.replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, function(_, alt) {
+      return '<span class="badge" style="background:var(--surface-secondary);">[Image: ' + (alt || 'pending review') + ']</span>';
+    });
+  }
+  // Convert line breaks
+  escaped = escaped.replace(/\n/g, '<br>');
+  return escaped;
+}
+
+/**
  * Utility: relative time
  */
 function timeAgo(dateStr) {

@@ -272,7 +272,7 @@ function registerTools(server, getSessionAccount) {
       try {
         const account = requireAccount(getSessionAccount, extra);
         // Fetch the action to get its details
-        const actions = await aiActionService.getActionHistory(account.id, { limit: 1, offset: 0 });
+        const actions = await aiActionService.getActionHistory(account.id, { limit: 100, offset: 0 });
         const action = actions.find(a => a.id === params.actionId);
         if (!action) {
           return mcpError(Object.assign(new Error('Action not found'), { code: 'NOT_FOUND' }));

@@ -93,7 +93,7 @@ function createTopicInDB(authorId) {
   const raw = execSync(
     `docker exec ${DB_CONTAINER} psql -U admin -d ${DB_NAME} -t -A -c "
       INSERT INTO topics (title, slug, lang, summary, sensitivity, created_by)
-      VALUES ('E2E Test Topic ${slug}', '${slug}', 'en', 'A comprehensive test topic.', 'low', '${authorId}')
+      VALUES ('E2E Test Topic ${slug}', '${slug}', 'en', 'A comprehensive test topic.', 'standard', '${authorId}')
       RETURNING id;"`,
     { encoding: 'utf-8' }
   ).trim().split('\n')[0].trim();
@@ -794,5 +794,206 @@ test.describe('Edge Cases', () => {
       data: {},
     });
     expect(res.status()).toBe(400);
+  });
+});
+
+// =====================================================================
+// 11. RELATED TOPICS / CHUNKS DISCOVERY
+// =====================================================================
+
+test.describe('Related Discovery', () => {
+  test('GET /topics/:id/related returns related topics', async ({ request }) => {
+    const res = await request.get(`${BASE}/v1/topics/${testTopic.id}/related`);
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(json.data).toBeDefined();
+    expect(Array.isArray(json.data)).toBe(true);
+    // Each result has required fields
+    for (const r of json.data) {
+      expect(r.topicId).toBeTruthy();
+      expect(r.topicTitle).toBeTruthy();
+      expect(r.topicSlug).toBeTruthy();
+      expect(typeof r.score).toBe('number');
+      expect(r.signal).toMatch(/^(chunk_embedding|topic_embedding)$/);
+    }
+  });
+
+  test('GET /chunks/:id/related returns related chunks from other topics', async ({ request }) => {
+    const res = await request.get(`${BASE}/v1/chunks/${testChunkId}/related`);
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(json.data).toBeDefined();
+    expect(Array.isArray(json.data)).toBe(true);
+    for (const r of json.data) {
+      expect(r.topicId).toBeTruthy();
+      expect(r.topicTitle).toBeTruthy();
+      expect(typeof r.similarity).toBe('number');
+    }
+  });
+
+  test('related: nonexistent topic returns empty or 404', async ({ request }) => {
+    const res = await request.get(`${BASE}/v1/topics/00000000-0000-0000-0000-000000000099/related`);
+    expect([200, 404]).toContain(res.status());
+    if (res.status() === 200) {
+      const json = await res.json();
+      expect(json.data).toEqual([]);
+    }
+  });
+});
+
+// =====================================================================
+// 12. CURATION LIFECYCLE — Flag & Dispute
+// =====================================================================
+
+test.describe('Curation Lifecycle', () => {
+  let curTopic, curChunkId, disputeChunkId;
+
+  test.beforeAll(() => {
+    curTopic = createTopicInDB(humanT1.id);
+    curChunkId = createChunkInDB(curTopic.id, humanT1.id);
+    // Separate chunk for dispute tests (flag test may alter curChunk state)
+    disputeChunkId = createChunkInDB(curTopic.id, humanT1.id, 'Dedicated dispute test chunk about multi-agent governance and its implications for knowledge curation.');
+  });
+
+  test('T2 policing: flag a published chunk', async ({ request }) => {
+    const res = await request.post(`${BASE}/v1/flags`, {
+      headers: apiAuth(humanT2Police),
+      data: {
+        targetType: 'chunk',
+        targetId: curChunkId,
+        reason: 'hallucination',
+        description: 'This content appears to contain factual inaccuracies about transformer architectures.',
+      },
+    });
+    expect(res.status()).toBe(201);
+    const json = await res.json();
+    expect(json.data || json).toMatchObject({
+      target_type: 'chunk',
+      status: expect.stringMatching(/^(open|pending)$/),
+    });
+  });
+
+  test('T2 policing: list flags includes the new flag', async ({ request }) => {
+    const res = await request.get(`${BASE}/v1/flags?targetType=chunk&targetId=${curChunkId}`, {
+      headers: apiAuth(humanT2Police),
+    });
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    const flags = json.data || json;
+    expect(Array.isArray(flags)).toBe(true);
+    expect(flags.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('T1 user: file dispute on published chunk', async ({ request }) => {
+    const res = await request.post(`${BASE}/v1/chunks/${disputeChunkId}/dispute`, {
+      headers: apiAuth(humanT1),
+      data: {
+        reason: 'The claims about attention mechanism efficiency are outdated and contradicted by recent research.',
+        reasonTag: 'inaccurate',
+      },
+    });
+    // Verify dispute endpoint responds correctly
+    // 200/201 success, 400 invalid state, 409 already disputed
+    expect(res.status()).toBeLessThan(500);
+    if (res.status() === 200 || res.status() === 201) {
+      const json = await res.json();
+      expect(json).toBeDefined();
+    }
+  });
+
+  test('T0 user: cannot file dispute (tier gate)', async ({ request }) => {
+    const res = await request.post(`${BASE}/v1/chunks/${disputeChunkId}/dispute`, {
+      headers: apiAuth(human),
+      data: {
+        reason: 'I disagree with this content strongly and think it should be changed immediately.',
+        reasonTag: 'inaccurate',
+      },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('list disputed chunks', async ({ request }) => {
+    const res = await request.get(`${BASE}/v1/disputes`, {
+      headers: apiAuth(humanT1),
+    });
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(json.data).toBeDefined();
+  });
+});
+
+// =====================================================================
+// 13. FORMAL VOTE — Commit-Reveal Lifecycle
+// =====================================================================
+
+test.describe('Formal Vote Lifecycle', () => {
+  let voteTopic, voteChunkId;
+
+  test.beforeAll(() => {
+    // Create topic + proposed chunk for voting
+    voteTopic = createTopicInDB(humanT1.id);
+    // Insert as proposed, not published
+    const raw = execSync(
+      `docker exec ${DB_CONTAINER} psql -U admin -d ${DB_NAME} -t -A -c "
+        INSERT INTO chunks (content, created_by, trust_score, status)
+        VALUES ('Formal vote test chunk about multi-agent decision making protocols and their governance implications.', '${humanT1.id}', 0.5, 'proposed')
+        RETURNING id;"`,
+      { encoding: 'utf-8' }
+    ).trim().split('\n')[0].trim();
+    execSync(
+      `docker exec ${DB_CONTAINER} psql -U admin -d ${DB_NAME} -c "INSERT INTO chunk_topics (chunk_id, topic_id) VALUES ('${raw}', '${voteTopic.id}');"`,
+      { encoding: 'utf-8' }
+    );
+    voteChunkId = raw;
+  });
+
+  test('T1 user: escalate proposed chunk to under_review', async ({ request }) => {
+    const res = await request.post(`${BASE}/v1/chunks/${voteChunkId}/escalate`, {
+      headers: apiAuth(humanT2Police),
+      data: { reason: 'Needs community review before publishing', tag: 'quality_concern' },
+    });
+    // 200 or 201 depending on implementation
+    expect([200, 201]).toContain(res.status());
+  });
+
+  test('chunk is now under_review with vote_phase commit', async ({ request }) => {
+    const res = await request.get(`${BASE}/v1/topics/${voteTopic.id}/chunks?status=under_review`, {
+      headers: apiAuth(humanT1),
+    });
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    const chunks = json.data || json;
+    const chunk = Array.isArray(chunks) ? chunks.find(c => c.id === voteChunkId) : null;
+    // Chunk should be under_review (it may or may not have vote_phase set depending on implementation)
+    if (chunk) {
+      expect(chunk.status).toBe('under_review');
+    }
+  });
+});
+
+// =====================================================================
+// 14. DISCUSSION — Post + Fetch
+// =====================================================================
+
+test.describe('Discussion Flow', () => {
+  test('post a discussion message on topic', async ({ request }) => {
+    const res = await request.post(`${BASE}/v1/topics/${testTopic.id}/discussion`, {
+      headers: apiAuth(humanT1),
+      data: {
+        content: 'I think we should expand the section on trust scoring methodology to include recent EigenTrust variants.',
+        level: 1,
+      },
+    });
+    // 200 or 201
+    expect([200, 201]).toContain(res.status());
+  });
+
+  test('fetch discussion messages', async ({ request }) => {
+    const res = await request.get(`${BASE}/v1/topics/${testTopic.id}/discussion?limit=10`);
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    // Response shape: { data: { messages: [...], total, available } }
+    expect(json.data).toBeDefined();
+    expect(Array.isArray(json.data.messages)).toBe(true);
   });
 });

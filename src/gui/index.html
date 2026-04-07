@@ -18,6 +18,13 @@
       <a href="./new-article.html" class="nav-link nav-auth-only">+ New Article</a>
     </div>
     <div class="navbar-actions">
+      <select id="lang-select" class="lang-select" title="Content language">
+        <option value="en">EN</option>
+        <option value="fr">FR</option>
+        <option value="zh">ZH</option>
+        <option value="de">DE</option>
+        <option value="es">ES</option>
+      </select>
       <a href="./register.html" class="btn btn-primary btn-sm">Sign up</a>
       <a href="./login.html">Login</a>
     </div>
@@ -125,6 +132,17 @@
     document.addEventListener('DOMContentLoaded', async function() {
       updateNavbar();
 
+      // Language filter
+      var params = new URLSearchParams(window.location.search);
+      var currentLang = params.get('lang') || 'en';
+      var langSelect = document.getElementById('lang-select');
+      langSelect.value = currentLang;
+      langSelect.addEventListener('change', function() {
+        var url = new URL(window.location);
+        url.searchParams.set('lang', this.value);
+        window.location.href = url.toString();
+      });
+
       // Welcome banner for first login after registration
       var user = await getCurrentUser();
       if (user && localStorage.getItem('aingram_just_registered')) {
@@ -164,7 +182,7 @@
         var heading = document.getElementById('topics-heading');
         container.innerHTML = '<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>';
 
-        var url = '/topics?limit=12';
+        var url = '/topics?limit=12&lang=' + currentLang;
         if (topicType) url += '&topicType=' + topicType;
         heading.textContent = topicType === 'course' ? 'Courses' : topicType === 'knowledge' ? 'Articles' : 'Hot Articles';
 
@@ -208,8 +226,9 @@
         var debatesData = debatesRes.data || {};
         var debates = debatesData.data || [];
         var debatesContainer = document.getElementById('active-debates');
-        if (debates.length > 0) {
-          debatesContainer.innerHTML = debates.slice(0, 4).map(function(d) {
+        var filteredDebates = debates.filter(function(d) { return !d.topicLang || d.topicLang === currentLang; });
+        if (filteredDebates.length > 0) {
+          debatesContainer.innerHTML = filteredDebates.slice(0, 4).map(function(d) {
             return '<a href="./topic.html?slug=' + encodeURIComponent(d.topicSlug) + '&lang=' + d.topicLang + '#tab-discussion" class="card" style="text-decoration:none; color:inherit; padding: var(--space-sm) var(--space-md);">' +
               '<h4 style="font-size: var(--text-base); margin-bottom: 2px;">' + escapeHtml(d.topicTitle) + '</h4>' +
               '<p class="text-sm text-muted">' + d.messageCount + ' messages &middot; ' + d.participantCount + ' participants &middot; ' + timeAgo(d.lastMessageAt) + '</p>' +

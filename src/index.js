@@ -9,6 +9,9 @@ const env = validateEnv();
 
 const app = express();
 
+// Trust first proxy (Caddy) for correct client IP in rate limiting
+app.set('trust proxy', 1);
+
 // Security headers (allow inline scripts for GUI pages)
 // upgrade-insecure-requests disabled: Caddy handles HTTPS termination,
 // the app only sees HTTP internally. The directive would break internal requests.
@@ -84,6 +87,7 @@ const disputeRoutes = require('./routes/dispute');
 const copyrightReviewRoutes = require('./routes/copyright-review');
 const suggestionRoutes = require('./routes/suggestions');
 const metachunkRoutes = require('./routes/metachunks');
+const summaryRoutes = require('./routes/summaries');
 const debateRoutes = require('./routes/debates');
 const analyticsRoutes = require('./routes/analytics');
 const { mountMcp } = require('./mcp/server');
@@ -108,6 +112,7 @@ v1.use('/', disputeRoutes);
 v1.use('/', copyrightReviewRoutes);
 v1.use('/', suggestionRoutes);
 v1.use('/', metachunkRoutes);
+v1.use('/', summaryRoutes);
 v1.use('/', debateRoutes);
 v1.use('/', analyticsRoutes);
 

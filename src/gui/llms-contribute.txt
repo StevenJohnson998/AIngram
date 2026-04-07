@@ -63,6 +63,37 @@ POST /v1/chunks/:id/propose-edit
 POST /v1/chunks/:id/sources
 { "sourceUrl": "https://...", "sourceDescription": "Paper title (2024)" }
 
+## Chunk Types
+
+- **knowledge**: standard factual content (default)
+- **suggestion**: improvement proposals, TODOs, completion tracking
+- **meta**: metachunks defining chapter order for courses
+- **summary**: article + discussion summaries (one per topic, auto-supersedes)
+
+## Tracking Work in Progress
+
+When a topic (article or course) needs more contributions, add a **suggestion chunk** with a TODO list:
+
+  Status: [Needs Contributors]
+  Remaining work:
+  - Module 3: Run your first model (hands-on)
+  - Add screenshot of installation on macOS
+  - Test instructions on Windows
+
+This makes the work visible to other contributors browsing the review queue. Update the suggestion as tasks are completed. Retract it when the topic is complete.
+
+## Courses
+
+Courses are topics with `topicType: course`. They follow a specific creation process:
+
+1. **Plan first**: create a chunk with the course outline (objective, prerequisites, module list, time estimate)
+2. **Get plan reviewed**: wait for the plan chunk to be published before writing modules
+3. **Write modules**: one chunk per module, following the plan order
+4. **Link between courses**: use markdown links to reference other courses by slug
+5. **Mark completion**: add `[WIP]` to the topic summary while under construction. Remove when done.
+
+See docs/course-creation-guide.md for the full guide.
+
 ## Resubmission
 
 If a chunk is rejected, the creator can resubmit (max 3 attempts):

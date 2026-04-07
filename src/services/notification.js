@@ -284,11 +284,11 @@ async function dispatchEmail(subscription, match) {
 async function getPendingNotifications(accountId, { since, limit = 20 } = {}) {
   const pool = getPool();
 
-  const sinceDate = since || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const fallbackSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  // Get active polling subscriptions for this account
+  // Get active polling subscriptions for this account (include last_read_at for ack pattern)
   const { rows: subs } = await pool.query(
-    `SELECT id, type, topic_id, keyword, embedding, similarity_threshold, lang
+    `SELECT id, type, topic_id, keyword, embedding, similarity_threshold, lang, last_read_at
      FROM subscriptions
      WHERE account_id = $1 AND active = true AND notification_method = 'polling'`,
     [accountId]
@@ -305,55 +305,107 @@ async function getPendingNotifications(accountId, { since, limit = 20 } = {}) {
   const keywordSubs = subs.filter((s) => s.type === 'keyword' && s.keyword);
   const vectorSubs = subs.filter((s) => s.type === 'vector' && s.embedding);
 
-  // Batch topic subscriptions: single query for all topic_ids
+  // Batch topic subscriptions: chunks + discussion posts
   if (topicSubs.length > 0) {
     const topicIds = topicSubs.map((s) => s.topic_id);
-    const topicIdToSubId = new Map(topicSubs.map((s) => [s.topic_id, s.id]));
+    const topicSubMap = new Map(topicSubs.map((s) => [s.topic_id, s]));
+
+    // Use the earliest last_read_at across topic subs, or fallback
+    const topicSince = since || topicSubs.reduce((min, s) => {
+      const lr = s.last_read_at ? new Date(s.last_read_at).toISOString() : null;
+      return lr && lr < min ? lr : min;
+    }, fallbackSince);
+
     const placeholders = topicIds.map((_, i) => `$${i + 1}`).join(', ');
-    const { rows } = await pool.query(
-      `SELECT c.id as chunk_id, c.content, c.title, c.subtitle, c.created_at, ct.topic_id
+
+    // New chunks on subscribed topics
+    const { rows: chunkRows } = await pool.query(
+      `SELECT c.id as chunk_id, c.content, c.title, c.subtitle, c.created_at,
+              ct.topic_id, t.title as topic_title
        FROM chunks c
        JOIN chunk_topics ct ON ct.chunk_id = c.id
+       JOIN topics t ON t.id = ct.topic_id
        WHERE ct.topic_id IN (${placeholders}) AND c.created_at >= $${topicIds.length + 1}
        ORDER BY c.created_at DESC`,
-      [...topicIds, sinceDate]
+      [...topicIds, topicSince]
     );
-    for (const chunk of rows) {
+    for (const chunk of chunkRows) {
+      const sub = topicSubMap.get(chunk.topic_id);
+      if (sub && sub.last_read_at && new Date(chunk.created_at) <= new Date(sub.last_read_at)) continue;
       notifications.push({
-        subscriptionId: topicIdToSubId.get(chunk.topic_id),
+        subscriptionId: sub.id,
         matchType: 'topic',
+        eventType: 'chunk',
         chunkId: chunk.chunk_id,
+        topicId: chunk.topic_id,
+        topicTitle: chunk.topic_title,
         contentPreview: chunk.content.slice(0, 200),
         title: chunk.title || null,
         subtitle: chunk.subtitle || null,
         createdAt: chunk.created_at,
       });
     }
+
+    // Discussion posts on subscribed topics
+    const { rows: discRows } = await pool.query(
+      `SELECT al.id, al.account_id, a.name as actor_name, al.target_id as topic_id,
+              t.title as topic_title, al.metadata, al.created_at
+       FROM activity_log al
+       JOIN topics t ON t.id = al.target_id
+       LEFT JOIN accounts a ON a.id = al.account_id
+       WHERE al.action = 'discussion_post' AND al.target_type = 'topic'
+         AND al.target_id IN (${placeholders}) AND al.created_at >= $${topicIds.length + 1}
+       ORDER BY al.created_at DESC`,
+      [...topicIds, topicSince]
+    );
+    for (const disc of discRows) {
+      const sub = topicSubMap.get(disc.topic_id);
+      if (sub && sub.last_read_at && new Date(disc.created_at) <= new Date(sub.last_read_at)) continue;
+      notifications.push({
+        subscriptionId: sub.id,
+        matchType: 'topic',
+        eventType: 'discussion_post',
+        topicId: disc.topic_id,
+        topicTitle: disc.topic_title,
+        actorName: disc.actor_name,
+        createdAt: disc.created_at,
+      });
+    }
   }
 
   // Batch keyword subscriptions: single query with OR conditions
   if (keywordSubs.length > 0) {
+    const kwSince = since || keywordSubs.reduce((min, s) => {
+      const lr = s.last_read_at ? new Date(s.last_read_at).toISOString() : null;
+      return lr && lr < min ? lr : min;
+    }, fallbackSince);
+
     const escapedKeywords = keywordSubs.map((s) => ({
-      subId: s.id,
+      sub: s,
       pattern: `%${s.keyword.replace(/[%_\\]/g, '\\$&')}%`,
     }));
-    const ilikeParts = escapedKeywords.map((_, i) => `content ILIKE $${i + 1} ESCAPE '\\'`);
+    const ilikeParts = escapedKeywords.map((_, i) => `c.content ILIKE $${i + 1} ESCAPE '\\'`);
     const { rows } = await pool.query(
-      `SELECT id as chunk_id, content, title, subtitle, created_at
-       FROM chunks
-       WHERE (${ilikeParts.join(' OR ')}) AND created_at >= $${escapedKeywords.length + 1}
-       ORDER BY created_at DESC`,
-      [...escapedKeywords.map((k) => k.pattern), sinceDate]
+      `SELECT c.id as chunk_id, c.content, c.title, c.subtitle, c.created_at,
+              ct.topic_id, t.title as topic_title
+       FROM chunks c
+       LEFT JOIN chunk_topics ct ON ct.chunk_id = c.id
+       LEFT JOIN topics t ON t.id = ct.topic_id
+       WHERE (${ilikeParts.join(' OR ')}) AND c.created_at >= $${escapedKeywords.length + 1}
+       ORDER BY c.created_at DESC`,
+      [...escapedKeywords.map((k) => k.pattern), kwSince]
     );
-    // Match each chunk back to its subscription(s)
     for (const chunk of rows) {
-      for (const kw of keywordSubs) {
-        const escapedKw = kw.keyword.replace(/[%_\\]/g, '\\$&').toLowerCase();
-        if (chunk.content.toLowerCase().includes(kw.keyword.toLowerCase())) {
+      for (const { sub } of escapedKeywords) {
+        if (chunk.content.toLowerCase().includes(sub.keyword.toLowerCase())) {
+          if (sub.last_read_at && new Date(chunk.created_at) <= new Date(sub.last_read_at)) continue;
           notifications.push({
-            subscriptionId: kw.id,
+            subscriptionId: sub.id,
             matchType: 'keyword',
+            eventType: 'chunk',
             chunkId: chunk.chunk_id,
+            topicId: chunk.topic_id || null,
+            topicTitle: chunk.topic_title || null,
             contentPreview: chunk.content.slice(0, 200),
             title: chunk.title || null,
             subtitle: chunk.subtitle || null,
@@ -366,9 +418,14 @@ async function getPendingNotifications(accountId, { since, limit = 20 } = {}) {
 
   // Batch vector subscriptions: single query with multiple cosine comparisons
   if (vectorSubs.length > 0) {
+    const vecSince = since || vectorSubs.reduce((min, s) => {
+      const lr = s.last_read_at ? new Date(s.last_read_at).toISOString() : null;
+      return lr && lr < min ? lr : min;
+    }, fallbackSince);
+
     const caseParts = [];
     const whereParts = [];
-    const params = [sinceDate];
+    const params = [vecSince];
     let idx = 2;
 
     for (const sub of vectorSubs) {
@@ -376,29 +433,37 @@ async function getPendingNotifications(accountId, { since, limit = 20 } = {}) {
       const embIdx = idx++;
       const threshIdx = idx++;
       params.push(sub.embedding, threshold);
-      whereParts.push(`1 - (embedding <=> $${embIdx}::vector) >= $${threshIdx}`);
+      whereParts.push(`1 - (c.embedding <=> $${embIdx}::vector) >= $${threshIdx}`);
       caseParts.push(
-        `WHEN 1 - (embedding <=> $${embIdx}::vector) >= $${threshIdx} THEN json_build_object('subId', '${sub.id}'::text, 'similarity', 1 - (embedding <=> $${embIdx}::vector))`
+        `WHEN 1 - (c.embedding <=> $${embIdx}::vector) >= $${threshIdx} THEN json_build_object('subId', '${sub.id}'::text, 'similarity', 1 - (c.embedding <=> $${embIdx}::vector), 'lastReadAt', '${sub.last_read_at || ''}'::text)`
       );
     }
 
     const { rows } = await pool.query(
-      `SELECT id as chunk_id, content, title, subtitle, created_at,
+      `SELECT c.id as chunk_id, c.content, c.title, c.subtitle, c.created_at,
+              ct.topic_id, t.title as topic_title,
               (CASE ${caseParts.join(' ')} END) as match_info
-       FROM chunks
-       WHERE embedding IS NOT NULL
-         AND created_at >= $1
+       FROM chunks c
+       LEFT JOIN chunk_topics ct ON ct.chunk_id = c.id
+       LEFT JOIN topics t ON t.id = ct.topic_id
+       WHERE c.embedding IS NOT NULL
+         AND c.created_at >= $1
          AND (${whereParts.join(' OR ')})
-       ORDER BY created_at DESC`,
+       ORDER BY c.created_at DESC`,
       params
     );
 
     for (const chunk of rows) {
       if (chunk.match_info) {
+        // Respect per-subscription last_read_at
+        if (chunk.match_info.lastReadAt && new Date(chunk.created_at) <= new Date(chunk.match_info.lastReadAt)) continue;
         notifications.push({
           subscriptionId: chunk.match_info.subId,
           matchType: 'vector',
+          eventType: 'chunk',
           chunkId: chunk.chunk_id,
+          topicId: chunk.topic_id || null,
+          topicTitle: chunk.topic_title || null,
           similarity: parseFloat(chunk.match_info.similarity),
           contentPreview: chunk.content.slice(0, 200),
           title: chunk.title || null,
@@ -425,6 +490,7 @@ module.exports = {
   getPendingNotifications,
   retryNotifications,
   listDeadLetters,
+  isPrivateUrl,
   // Exposed for testing
   _throttleMap: throttleMap,
   MAX_NOTIFS_PER_MIN,

@@ -160,6 +160,13 @@
       </div>
 
     </div>
+
+    <!-- Related Topics -->
+    <section id="related-topics" style="display:none;">
+      <h3 class="section-title">Related Topics</h3>
+      <div id="related-topics-grid" class="related-grid"></div>
+    </section>
+
   </main>
 
   <!-- Report Modal -->
@@ -346,9 +353,10 @@
           }
         }
 
-        // Load discussion and history
+        // Load discussion, history, and related topics
         loadDiscussion(topic.id);
         loadHistory(topic.id);
+        loadRelatedTopics(topic.id);
 
       } catch (err) {
         document.getElementById('topic-loading').style.display = 'none';
@@ -567,7 +575,7 @@
           '<div class="chunk-bar"></div>' +
           '<div class="chunk-body">' +
             titleHtml +
-            '<div class="chunk-content">' + unorderedBadge + disputedBadge + escapeHtml(chunk.content) + '</div>' +
+            '<div class="chunk-content">' + unorderedBadge + disputedBadge + renderContent(chunk.content, chunk.status) + '</div>' +
             '<div class="chunk-actions-row">' +
               '<div class="chunk-hover-actions">' +
                 '<button class="chunk-action-btn chunk-vote-up" title="Upvote" data-id="' + chunk.id + '">&#128077;</button>' +
@@ -886,6 +894,28 @@
         }
       } catch (err) {
         container.innerHTML = '<p class="text-muted">Could not load history.</p>';
+      }
+    }
+
+    async function loadRelatedTopics(topicId) {
+      try {
+        var res = await API.get('/topics/' + topicId + '/related');
+        if (res.status === 200 && res.data && res.data.data && res.data.data.length > 0) {
+          var section = document.getElementById('related-topics');
+          var grid = document.getElementById('related-topics-grid');
+          grid.innerHTML = res.data.data.map(function(r) {
+            var pct = Math.round(r.score * 100);
+            var excerpt = r.chunkExcerpt ? escapeHtml(r.chunkExcerpt.substring(0, 120)) + (r.chunkExcerpt.length > 120 ? '...' : '') : '';
+            return '<a href="./topic.html?id=' + encodeURIComponent(r.topicId) + '" class="related-card">' +
+              '<div class="related-card-title">' + escapeHtml(r.topicTitle) + '</div>' +
+              (excerpt ? '<div class="related-card-excerpt">' + excerpt + '</div>' : '') +
+              '<div class="related-card-score">' + pct + '% match</div>' +
+            '</a>';
+          }).join('');
+          section.style.display = 'block';
+        }
+      } catch (err) {
+        // Silent fail -- related topics are non-critical
       }
     }
 
