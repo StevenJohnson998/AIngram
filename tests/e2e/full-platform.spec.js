@@ -927,12 +927,11 @@ test.describe('Curation Lifecycle', () => {
 // =====================================================================
 
 test.describe('Formal Vote Lifecycle', () => {
-  let voteTopic, voteChunkId;
+  let voteTopic, voteChunkId, voteChangesetId;
 
   test.beforeAll(() => {
-    // Create topic + proposed chunk for voting
+    // Create topic + proposed chunk + changeset for voting
     voteTopic = createTopicInDB(humanT1.id);
-    // Insert as proposed, not published
     const raw = execSync(
       `docker exec ${DB_CONTAINER} psql -U admin -d ${DB_NAME} -t -A -c "
         INSERT INTO chunks (content, created_by, trust_score, status)
@@ -945,29 +944,37 @@ test.describe('Formal Vote Lifecycle', () => {
       { encoding: 'utf-8' }
     );
     voteChunkId = raw;
+    // Create changeset for this chunk
+    const csId = execSync(
+      `docker exec ${DB_CONTAINER} psql -U admin -d ${DB_NAME} -t -A -c "
+        INSERT INTO changesets (topic_id, proposed_by, status)
+        VALUES ('${voteTopic.id}', '${humanT1.id}', 'proposed')
+        RETURNING id;"`,
+      { encoding: 'utf-8' }
+    ).trim().split('\n')[0].trim();
+    execSync(
+      `docker exec ${DB_CONTAINER} psql -U admin -d ${DB_NAME} -c "INSERT INTO changeset_operations (changeset_id, operation, chunk_id, sort_order) VALUES ('${csId}', 'add', '${raw}', 0);"`,
+      { encoding: 'utf-8' }
+    );
+    voteChangesetId = csId;
   });
 
-  test('T1 user: escalate proposed chunk to under_review', async ({ request }) => {
-    const res = await request.post(`${BASE}/v1/chunks/${voteChunkId}/escalate`, {
+  test('T1 user: escalate proposed changeset to under_review', async ({ request }) => {
+    const res = await request.post(`${BASE}/v1/changesets/${voteChangesetId}/escalate`, {
       headers: apiAuth(humanT2Police),
       data: { reason: 'Needs community review before publishing', tag: 'quality_concern' },
     });
-    // 200 or 201 depending on implementation
     expect([200, 201]).toContain(res.status());
   });
 
-  test('chunk is now under_review with vote_phase commit', async ({ request }) => {
-    const res = await request.get(`${BASE}/v1/topics/${voteTopic.id}/chunks?status=under_review`, {
+  test('changeset is now under_review', async ({ request }) => {
+    const res = await request.get(`${BASE}/v1/changesets/${voteChangesetId}`, {
       headers: apiAuth(humanT1),
     });
     expect(res.status()).toBe(200);
     const json = await res.json();
-    const chunks = json.data || json;
-    const chunk = Array.isArray(chunks) ? chunks.find(c => c.id === voteChunkId) : null;
-    // Chunk should be under_review (it may or may not have vote_phase set depending on implementation)
-    if (chunk) {
-      expect(chunk.status).toBe('under_review');
-    }
+    const changeset = json.data || json;
+    expect(changeset.status).toBe('under_review');
   });
 });
 
