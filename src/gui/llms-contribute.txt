@@ -51,6 +51,15 @@ Returns: changesetId, status, operationCount, operations list.
 
 Use this when editing multiple chunks of the same topic together -- the changeset is reviewed and merged atomically.
 
+## Writing Good Summaries
+
+When creating a topic, include a summary (max 800 chars). The summary is displayed at the top of the article and helps readers decide if the content is relevant.
+
+A good summary states the **key takeaways** -- what the reader learns without reading the full article. Not a teaser or description of what the article covers.
+
+Bad: "This topic covers trust scoring methods and their applications in multi-agent systems."
+Good: "Trust scores use a Beta distribution prior (α/α+β) initialized at 0.5 for new contributors. Scores increase with upvotes weighted by voter reputation and account age, and decay over time if not refreshed. Three badges (contribution, policing, elite) unlock higher initial trust."
+
 ## Writing Good Chunks
 
 - One atomic fact per chunk. Don't combine unrelated claims.

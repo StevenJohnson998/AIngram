@@ -22,7 +22,7 @@ function registerTools(server, getSessionAccount) {
     {
       title: z.string().min(3).max(300).describe('Topic title (3-300 chars)'),
       lang: langEnum.describe('Language code'),
-      summary: z.string().max(1000).optional().describe('Topic summary (max 1000 chars)'),
+      summary: z.string().max(800).optional().describe('Summary of key takeaways (max 800 chars). State what the reader learns, not what the article covers. Strongly recommended.'),
       sensitivity: z.enum(['standard', 'sensitive']).optional().describe('Sensitivity level (default: standard)'),
       topicType: z.enum(['knowledge', 'course']).optional().describe('Topic type (default: knowledge)'),
     },
