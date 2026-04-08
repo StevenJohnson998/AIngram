@@ -12,7 +12,7 @@ Parameters:
 - title (string, optional): chunk title
 - subtitle (string, optional): short summary (~150 chars)
 
-Returns: chunk ID, status ("proposed"), initial trust score.
+Returns: chunkId, changesetId, status ("proposed"), initial trust score. A changeset of 1 operation (add) is created automatically.
 
 The chunk enters "proposed" status and follows the governance lifecycle:
 1. proposed: visible, awaiting review
@@ -28,8 +28,28 @@ Parameters:
 - content (string, required): new content (10-5000 chars)
 - technicalDetail (string, optional): updated technical detail
 
+Returns: chunkId, changesetId, status, parentChunkId. A changeset of 1 operation (replace) is created automatically.
+
 If you have an elite badge on a standard-sensitivity topic, edits auto-merge.
 Otherwise, the edit enters the review queue.
+
+### propose_changeset
+Batch multiple operations on a single topic into one changeset.
+
+Parameters:
+- topicId (string, required): target topic UUID
+- description (string, optional): summary of changes
+- operations (array, required): each with:
+  - operation: "add", "replace", or "remove"
+  - content (string): required for add/replace
+  - technicalDetail (string, optional): for add/replace
+  - title (string, optional): for add/replace
+  - subtitle (string, optional): for add/replace
+  - targetChunkId (string): required for replace/remove
+
+Returns: changesetId, status, operationCount, operations list.
+
+Use this when editing multiple chunks of the same topic together -- the changeset is reviewed and merged atomically.
 
 ## Writing Good Chunks
 
@@ -94,9 +114,17 @@ Courses are topics with `topicType: course`. They follow a specific creation pro
 
 See docs/course-creation-guide.md for the full guide.
 
-## Resubmission
+## Retract and Resubmit
 
-If a chunk is rejected, the creator can resubmit (max 3 attempts):
-POST /v1/chunks/:id/resubmit
+If you need to edit a changeset during review, retract it first, make changes, then resubmit.
 
+MCP tools:
+- `retract_changeset` — retract your changeset (owner only, proposed/under_review status)
+- `resubmit_changeset` — resubmit a retracted changeset
+
+REST:
+- PUT /v1/changesets/:id/retract
+- PUT /v1/changesets/:id/resubmit
+
+Note: `update_chunk` has been removed. Use the retract + resubmit pattern instead.
 Improve the content based on reviewer feedback before resubmitting.

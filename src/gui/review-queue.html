@@ -68,7 +68,7 @@
       <!-- Proposed Edits section -->
       <div style="margin-top: var(--space-2xl);">
         <h2 style="font-size: var(--text-xl); margin-bottom: var(--space-md);">Proposed Edits</h2>
-        <p class="text-sm text-muted mb-lg">Chunk edits awaiting review or auto-merge.</p>
+        <p class="text-sm text-muted mb-lg">Changeset edits awaiting review or auto-merge.</p>
         <div id="proposals-container">
           <p class="text-muted">Loading proposed edits...</p>
         </div>
@@ -110,7 +110,7 @@
   <script src="api.js"></script>
   <script>
     var currentPage = 1;
-    var rejectingChunkId = null;
+    var rejectingChangesetId = null;
 
     document.addEventListener('DOMContentLoaded', async function() {
       updateNavbar();
@@ -247,19 +247,19 @@
     async function loadProposals() {
       var container = document.getElementById('proposals-container');
       try {
-        var res = await API.get('/reviews/proposed?limit=50');
+        var res = await API.get('/reviews/pending?limit=50');
 
         if (res.status === 403) {
           container.innerHTML = '<div class="alert alert-warning">Review access required. Keep contributing to earn this permission.</div>';
           return;
         }
 
-        if (res.status !== 200 || !res.data || !res.data) {
+        if (res.status !== 200 || !res.data || !res.data.items) {
           container.innerHTML = '<p class="text-muted">No proposed edits.</p>';
           return;
         }
 
-        var proposals = res.data;
+        var proposals = res.data.items;
         if (proposals.length === 0) {
           container.innerHTML = '<p class="text-muted">No proposed edits pending.</p>';
           return;
@@ -272,7 +272,7 @@
             var b = this;
             b.disabled = true;
             try {
-              var res = await API.put('/chunks/' + b.dataset.id + '/merge');
+              var res = await API.put('/changesets/' + b.dataset.id + '/merge');
               if (res.status === 200) loadProposals();
               else alert((res.data && res.data.error) ? res.data.error.message : 'Merge failed');
             } catch (err) { alert('Network error.'); }
@@ -290,7 +290,7 @@
     }
 
     function renderProposal(p) {
-      var proposer = p.proposed_by_name ? escapeHtml(p.proposed_by_name) : 'Unknown';
+      var proposer = p.proposedByName ? escapeHtml(p.proposedByName) : 'Unknown';
       var diffHtml = '';
 
       if (p.original_content) {
@@ -315,14 +315,14 @@
       }
 
       var topicLink = '';
-      if (p.topic_slug && p.topic_lang) {
-        topicLink = '<a href="./topic.html?slug=' + encodeURIComponent(p.topic_slug) + '&lang=' + encodeURIComponent(p.topic_lang) + '">' + escapeHtml(p.topic_title) + '</a>';
-      } else if (p.topic_title) {
-        topicLink = escapeHtml(p.topic_title);
+      if (p.topicSlug && p.topicLang) {
+        topicLink = '<a href="./topic.html?slug=' + encodeURIComponent(p.topicSlug) + '&lang=' + encodeURIComponent(p.topicLang) + '">' + escapeHtml(p.topicTitle) + '</a>';
+      } else if (p.topicTitle) {
+        topicLink = escapeHtml(p.topicTitle);
       }
 
       var discussionLink = '';
-      if (p.agorai_conversation_id) {
+      if (p.agoraiConversationId) {
         discussionLink = '<span class="sep">&middot;</span><span title="Has discussion">&#128172; Discussion</span>';
       }
 
@@ -336,21 +336,21 @@
             '<span class="sep">&middot;</span>' +
             '<span>by ' + proposer + '</span>' +
             '<span class="sep">&middot;</span>' +
-            '<span>' + timeAgo(p.created_at) + '</span>' +
+            '<span>' + timeAgo(p.createdAt) + '</span>' +
             discussionLink +
           '</div>' +
         '</div>' +
         '<div class="review-actions">' +
-          '<button class="btn btn-primary btn-sm proposal-merge-btn" data-id="' + p.id + '">Merge</button>' +
-          '<button class="btn btn-danger btn-sm proposal-reject-btn" data-id="' + p.id + '">Reject</button>' +
+          '<button class="btn btn-primary btn-sm proposal-merge-btn" data-id="' + p.changesetId + '">Merge</button>' +
+          '<button class="btn btn-danger btn-sm proposal-reject-btn" data-id="' + p.changesetId + '">Reject</button>' +
         '</div>' +
       '</div>';
     }
 
     // --- Reject modal ---
 
-    function openRejectModal(chunkId) {
-      rejectingChunkId = chunkId;
+    function openRejectModal(changesetId) {
+      rejectingChangesetId = changesetId;
       document.getElementById('reject-reason').value = '';
       document.getElementById('reject-report').checked = false;
       document.getElementById('reject-modal').style.display = 'flex';
@@ -358,7 +358,7 @@
     }
 
     function closeRejectModal() {
-      rejectingChunkId = null;
+      rejectingChangesetId = null;
       document.getElementById('reject-modal').style.display = 'none';
     }
 
@@ -374,7 +374,7 @@
       btn.textContent = 'Rejecting...';
 
       try {
-        var res = await API.put('/chunks/' + rejectingChunkId + '/reject', { reason: reason, report: report });
+        var res = await API.put('/changesets/' + rejectingChangesetId + '/reject', { reason: reason, report: report });
         if (res.status === 200) {
           closeRejectModal();
           loadProposals();

@@ -53,6 +53,7 @@ Call `poll_notifications` (or receive a webhook). Each notification contains:
   "subscriptionId": "sub-uuid",
   "matchType": "topic",
   "chunkId": "chunk-uuid",
+  "changesetId": "cs-uuid",
   "contentPreview": "First 200 characters of the chunk content...",
   "similarity": 0.85,
   "createdAt": "2026-04-04T12:00:00Z"
@@ -60,6 +61,7 @@ Call `poll_notifications` (or receive a webhook). Each notification contains:
 ```
 
 The `contentPreview` (200 chars) is enough to decide if the full content is relevant.
+For topic subscriptions, notifications are grouped per changeset (1 notification per changeset, not per chunk).
 
 ### Step 2: Fetch Full Content (On Demand)
 
