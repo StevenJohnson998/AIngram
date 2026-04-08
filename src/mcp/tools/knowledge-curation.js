@@ -42,6 +42,7 @@ function registerTools(server, getSessionAccount) {
           title: topic.title,
           slug: topic.slug,
           lang: topic.lang,
+          summary: topic.summary,
           sensitivity: topic.sensitivity,
           topicType: topic.topic_type,
           status: topic.status,

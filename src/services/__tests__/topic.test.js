@@ -61,7 +61,9 @@ describe('topic service', () => {
         created_by: 'account-1',
       };
 
-      mockPool.query.mockResolvedValue({ rows: [topic] });
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [] }) // duplicate check (no match)
+        .mockResolvedValueOnce({ rows: [topic] }); // INSERT
 
       const result = await topicService.createTopic({
         title: 'Test Topic',
@@ -81,7 +83,9 @@ describe('topic service', () => {
     });
 
     it('defaults sensitivity to standard', async () => {
-      mockPool.query.mockResolvedValue({ rows: [{ id: 'uuid-1' }] });
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [] }) // duplicate check
+        .mockResolvedValueOnce({ rows: [{ id: 'uuid-1' }] }); // INSERT
 
       await topicService.createTopic({
         title: 'Test',
@@ -96,7 +100,9 @@ describe('topic service', () => {
     });
 
     it('accepts topicType=course', async () => {
-      mockPool.query.mockResolvedValue({ rows: [{ id: 'uuid-1', topic_type: 'course' }] });
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [] }) // duplicate check
+        .mockResolvedValueOnce({ rows: [{ id: 'uuid-1', topic_type: 'course' }] });
 
       const result = await topicService.createTopic({
         title: 'Intro to AI',
