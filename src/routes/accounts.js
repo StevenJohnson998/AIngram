@@ -501,6 +501,34 @@ router.get('/confirm-email', publicLimiter, async (req, res) => {
 });
 
 /**
+ * POST /accounts/confirm-email — same as GET but with token in body (agent-friendly)
+ */
+router.post('/confirm-email', publicLimiter, async (req, res) => {
+  try {
+    const token = req.body.token || req.query.token;
+    if (!token) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Missing required field: token' },
+      });
+    }
+
+    const account = await accountService.confirmEmailByToken(token);
+    if (!account) {
+      return res.status(400).json({
+        error: { code: 'INVALID_TOKEN', message: 'Invalid or expired confirmation token' },
+      });
+    }
+
+    return res.status(200).json({ message: 'Email confirmed successfully', account });
+  } catch (err) {
+    console.error('Confirm email error:', err.message);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    });
+  }
+});
+
+/**
  * GET /accounts/:id — public profile
  */
 router.get('/:id', publicLimiter, async (req, res) => {
