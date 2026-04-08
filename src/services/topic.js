@@ -10,6 +10,25 @@ const { generateSlug, ensureUniqueSlug } = require('../utils/slug');
  */
 async function createTopic({ title, lang, summary, sensitivity, topicType, createdBy }) {
   const pool = getPool();
+
+  // Duplicate topic detection: check for similar titles in the same language
+  const { rows: dupeRows } = await pool.query(
+    `SELECT id, title, similarity(title, $1) AS sim
+     FROM topics
+     WHERE lang = $2 AND similarity(title, $1) > 0.5
+     ORDER BY sim DESC
+     LIMIT 1`,
+    [title, lang || 'en']
+  );
+  if (dupeRows.length > 0) {
+    const err = new Error(
+      `A similar topic already exists: "${dupeRows[0].title}" (similarity: ${dupeRows[0].sim.toFixed(2)}). Consider contributing to it instead.`
+    );
+    err.code = 'DUPLICATE_TOPIC';
+    err.existingTopicId = dupeRows[0].id;
+    throw err;
+  }
+
   const baseSlug = generateSlug(title);
   const slug = await ensureUniqueSlug(baseSlug, lang, pool);
 
