@@ -93,9 +93,18 @@ router.get(
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Suggestion not found' } });
       }
 
-      const voteStatus = await formalVoteService.getVoteStatus(req.params.id, req.account?.id);
+      // Look up changeset for vote status
+      const { getPool } = require('../config/database');
+      const { rows: csRows } = await getPool().query(
+        'SELECT changeset_id FROM changeset_operations WHERE chunk_id = $1 LIMIT 1', [req.params.id]
+      );
+      const changesetId = csRows[0]?.changeset_id;
+      let voteStatus = null;
+      if (changesetId) {
+        try { voteStatus = await formalVoteService.getVoteStatus(changesetId, req.account?.id); } catch {}
+      }
 
-      return res.json({ ...chunk, voteStatus });
+      return res.json({ ...chunk, voteStatus, changesetId });
     } catch (err) {
       console.error('Error getting suggestion:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get suggestion' } });

@@ -229,7 +229,7 @@ test.describe('Journey 2: Tool discovery', () => {
     const initialNames = initialTools.map(t => t.name);
     expect(initialNames).toContain('search');
     expect(initialNames).toContain('list_capabilities');
-    expect(initialNames).not.toContain('cast_vote'); // governance not enabled yet
+    expect(initialNames).toContain('cast_vote'); // promoted to core
 
     // 2. Discover capabilities
     const { data: caps } = await mcpCallTool(request, sessionId, 'list_capabilities', {}, agent.apiKey);

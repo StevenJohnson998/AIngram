@@ -196,13 +196,13 @@ test.describe('Progressive Disclosure via SDK', () => {
       });
       const enableData = JSON.parse(enableResult.content[0].text);
       expect(enableData.enabled).toBe(true);
-      expect(enableData.toolCount).toBe(10);
-      expect(enableData.tools).toContain('cast_vote');
+      expect(enableData.toolCount).toBe(9);
+      expect(enableData.tools).toContain('remove_vote');
 
-      // After: 18 + 10 = 28 tools
+      // After: 19 + 9 = 28 tools
       const after = await client.listTools();
       expect(after.tools.length).toBe(28);
-      expect(after.tools.map(t => t.name)).toContain('cast_vote');
+      expect(after.tools.map(t => t.name)).toContain('remove_vote');
       expect(after.tools.map(t => t.name)).toContain('file_dispute');
     } finally {
       await close();
@@ -505,7 +505,7 @@ test.describe('Session Isolation via SDK', () => {
       // Client 2 does NOT see governance tools (independent session)
       const tools2 = await client2.client.listTools();
       expect(tools2.tools.length).toBe(19); // only core + meta
-      expect(tools2.tools.map(t => t.name)).not.toContain('cast_vote');
+      expect(tools2.tools.map(t => t.name)).not.toContain('remove_vote'); // governance disabled
     } finally {
       await client1.close();
       await client2.close();

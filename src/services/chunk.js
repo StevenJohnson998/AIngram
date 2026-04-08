@@ -732,8 +732,21 @@ async function listPendingProposals({ page = 1, limit = 20 } = {}) {
  */
 async function escalateToReview(chunkId, escalatedBy) {
   const pool = getPool();
+  const changesetService = require('./changeset');
 
-  // Atomic: only escalate if currently proposed
+  // Find the changeset for this chunk
+  const { rows: csRows } = await pool.query(
+    `SELECT changeset_id FROM changeset_operations WHERE chunk_id = $1 LIMIT 1`,
+    [chunkId]
+  );
+
+  if (csRows.length > 0) {
+    // Delegate to changeset service
+    const result = await changesetService.escalateToReview(csRows[0].changeset_id, escalatedBy);
+    return result;
+  }
+
+  // Legacy fallback: chunk without changeset (pre-migration data)
   const { rows } = await pool.query(
     `UPDATE chunks SET status = 'under_review', under_review_at = now(), updated_at = now()
      WHERE id = $1 AND status = 'proposed'
@@ -754,10 +767,6 @@ async function escalateToReview(chunkId, escalatedBy) {
      VALUES ($1, 'chunk_escalated', 'chunk', $2)`,
     [escalatedBy, chunkId]
   );
-
-  // Sprint 3: start formal vote commit phase (must succeed or escalation fails)
-  const formalVoteService = require('./formal-vote');
-  await formalVoteService.startCommitPhase(chunkId);
 
   return rows[0];
 }

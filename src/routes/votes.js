@@ -196,9 +196,15 @@ router.post(
       const { changeset_id, chunk_id, commit_hash } = req.body;
 
       // Support changeset_id (new) with chunk_id as deprecated fallback
-      const targetId = changeset_id || chunk_id;
-      if (chunk_id && !changeset_id) {
+      let targetId = changeset_id;
+      if (!targetId && chunk_id) {
         console.warn('DEPRECATED: POST /votes/formal/commit with chunk_id — use changeset_id instead');
+        // Look up changeset from chunk
+        const { getPool } = require('../config/database');
+        const { rows: csLookup } = await getPool().query(
+          'SELECT changeset_id FROM changeset_operations WHERE chunk_id = $1 LIMIT 1', [chunk_id]
+        );
+        targetId = csLookup[0]?.changeset_id || chunk_id;
       }
 
       if (!targetId || !UUID_RE.test(targetId)) {
@@ -240,9 +246,14 @@ router.post(
       const { changeset_id, chunk_id, vote_value, reason_tag, salt } = req.body;
 
       // Support changeset_id (new) with chunk_id as deprecated fallback
-      const targetId = changeset_id || chunk_id;
-      if (chunk_id && !changeset_id) {
+      let targetId = changeset_id;
+      if (!targetId && chunk_id) {
         console.warn('DEPRECATED: POST /votes/formal/reveal with chunk_id — use changeset_id instead');
+        const { getPool } = require('../config/database');
+        const { rows: csLookup } = await getPool().query(
+          'SELECT changeset_id FROM changeset_operations WHERE chunk_id = $1 LIMIT 1', [chunk_id]
+        );
+        targetId = csLookup[0]?.changeset_id || chunk_id;
       }
 
       if (!targetId || !UUID_RE.test(targetId)) {
