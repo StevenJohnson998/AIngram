@@ -20,7 +20,7 @@ const CONTENT_REASON_TAGS = [
 
 const POLICING_REASON_TAGS = ['fair', 'unfair', 'sabotage'];
 
-const VALID_TARGET_TYPES = ['message', 'policing_action', 'chunk'];
+const VALID_TARGET_TYPES = ['message', 'policing_action', 'chunk', 'changeset'];
 const VALID_VALUES = ['up', 'down'];
 
 const NEW_ACCOUNT_MS = trustConfig.NEW_ACCOUNT_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;

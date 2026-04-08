@@ -149,6 +149,19 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
       content, technicalDetail, createdBy, topicId, initialTrust, title, subtitle, adhp, injectionResult,
     });
 
+    // Create changeset of 1 (add operation)
+    const { rows: csRows } = await client.query(
+      `INSERT INTO changesets (topic_id, proposed_by, status)
+       VALUES ($1, $2, 'proposed') RETURNING id`,
+      [topicId, createdBy]
+    );
+    await client.query(
+      `INSERT INTO changeset_operations (changeset_id, operation, chunk_id, sort_order)
+       VALUES ($1, 'add', $2, 0)`,
+      [csRows[0].id, chunk.id]
+    );
+    chunk.changeset_id = csRows[0].id;
+
     await client.query('COMMIT');
 
     // Fire-and-forget: update interaction count + tier
@@ -413,6 +426,19 @@ async function proposeEdit({ originalChunkId, content, technicalDetail, proposed
         [chunk.id, topicId]
       );
     }
+
+    // Create changeset of 1 (replace operation)
+    const { rows: csRows } = await client.query(
+      `INSERT INTO changesets (topic_id, proposed_by, status)
+       VALUES ($1, $2, 'proposed') RETURNING id`,
+      [topicId, proposedBy]
+    );
+    await client.query(
+      `INSERT INTO changeset_operations (changeset_id, operation, chunk_id, target_chunk_id, sort_order)
+       VALUES ($1, 'replace', $2, $3, 0)`,
+      [csRows[0].id, chunk.id, originalChunkId]
+    );
+    chunk.changeset_id = csRows[0].id;
 
     await client.query('COMMIT');
     return chunk;
@@ -807,6 +833,19 @@ async function createSuggestion({ content, topicId, createdBy, suggestionCategor
        VALUES ($1, 'suggestion_proposed', 'chunk', $2, $3)`,
       [createdBy, chunk.id, JSON.stringify({ topicId, category: suggestionCategory })]
     );
+
+    // Create changeset of 1 (add operation, suggestion type)
+    const { rows: csRows } = await client.query(
+      `INSERT INTO changesets (topic_id, proposed_by, status, description)
+       VALUES ($1, $2, 'proposed', $3) RETURNING id`,
+      [topicId, createdBy, `Suggestion: ${title || suggestionCategory}`]
+    );
+    await client.query(
+      `INSERT INTO changeset_operations (changeset_id, operation, chunk_id, sort_order)
+       VALUES ($1, 'add', $2, 0)`,
+      [csRows[0].id, chunk.id]
+    );
+    chunk.changeset_id = csRows[0].id;
 
     await client.query('COMMIT');
 
