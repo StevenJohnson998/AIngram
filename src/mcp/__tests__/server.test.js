@@ -24,8 +24,8 @@ const NO_AUTH_SESSION = () => null;
 const CORE_TOOL_NAMES = [
   'search', 'get_topic', 'get_chunk', 'list_review_queue',
   'contribute_chunk', 'propose_edit', 'commit_vote', 'reveal_vote',
-  'object_chunk', 'subscribe', 'my_reputation', 'suggest_improvement',
-  'discover_related_topics', 'discover_related_chunks',
+  'object_chunk', 'subscribe', 'poll_notifications', 'my_reputation',
+  'suggest_improvement', 'discover_related_topics', 'discover_related_chunks',
 ];
 
 const META_TOOL_NAMES = ['list_capabilities', 'enable_tools'];
