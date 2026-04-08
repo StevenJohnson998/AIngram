@@ -25,7 +25,7 @@ const CORE_TOOL_NAMES = [
   'search', 'get_topic', 'get_chunk', 'list_review_queue',
   'contribute_chunk', 'propose_edit', 'commit_vote', 'reveal_vote',
   'object_changeset', 'subscribe', 'poll_notifications', 'my_reputation',
-  'get_changeset',
+  'get_changeset', 'cast_vote',
   'suggest_improvement', 'discover_related_topics', 'discover_related_chunks',
 ];
 

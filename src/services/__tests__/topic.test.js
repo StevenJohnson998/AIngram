@@ -20,6 +20,9 @@ jest.mock('../subscription-matcher', () => ({
 jest.mock('../notification', () => ({
   dispatchNotification: jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock('../ollama', () => ({
+  generateEmbedding: jest.fn().mockResolvedValue(null),
+}));
 
 const { getPool } = require('../../config/database');
 const { generateSlug, ensureUniqueSlug } = require('../../utils/slug');
@@ -78,7 +81,7 @@ describe('topic service', () => {
       expect(result).toEqual(topic);
       expect(mockPool.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO topics'),
-        ['Test Topic', 'test-slug', 'en', 'A summary', 'standard', 'knowledge', 'account-1']
+        ['Test Topic', 'test-slug', 'en', 'A summary', 'standard', 'knowledge', 'account-1', null]
       );
     });
 

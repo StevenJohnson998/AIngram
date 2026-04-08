@@ -10,9 +10,11 @@ const { generateSlug, ensureUniqueSlug } = require('../utils/slug');
  */
 async function createTopic({ title, lang, summary, sensitivity, topicType, createdBy }) {
   const pool = getPool();
+  const { generateEmbedding } = require('./ollama');
 
-  // Duplicate topic detection: check for similar titles in the same language
-  const { rows: dupeRows } = await pool.query(
+  // Duplicate topic detection — two complementary checks:
+  // 1. Trigram similarity (textual overlap, fast, no Ollama needed)
+  const { rows: trigramDupes } = await pool.query(
     `SELECT id, title, similarity(title, $1) AS sim
      FROM topics
      WHERE lang = $2 AND similarity(title, $1) > 0.5
@@ -20,23 +22,53 @@ async function createTopic({ title, lang, summary, sensitivity, topicType, creat
      LIMIT 1`,
     [title, lang || 'en']
   );
-  if (dupeRows.length > 0) {
+  if (trigramDupes.length > 0) {
     const err = new Error(
-      `A similar topic already exists: "${dupeRows[0].title}" (similarity: ${dupeRows[0].sim.toFixed(2)}). Consider contributing to it instead.`
+      `A similar topic already exists: "${trigramDupes[0].title}" (similarity: ${trigramDupes[0].sim.toFixed(2)}). Consider contributing to it instead.`
     );
     err.code = 'DUPLICATE_TOPIC';
-    err.existingTopicId = dupeRows[0].id;
+    err.existingTopicId = trigramDupes[0].id;
     throw err;
+  }
+
+  // 2. Semantic similarity (embedding cosine, catches "RAG" vs "Retrieval-Augmented Generation")
+  let titleEmbedding = null;
+  try {
+    titleEmbedding = await generateEmbedding(title);
+    if (titleEmbedding) {
+      const vectorStr = `[${titleEmbedding.join(',')}]`;
+      const { rows: semanticDupes } = await pool.query(
+        `SELECT id, title, 1 - (embedding <=> $1::vector) AS sim
+         FROM topics
+         WHERE lang = $2 AND embedding IS NOT NULL
+           AND 1 - (embedding <=> $1::vector) > 0.85
+         ORDER BY sim DESC
+         LIMIT 1`,
+        [vectorStr, lang || 'en']
+      );
+      if (semanticDupes.length > 0) {
+        const err = new Error(
+          `A semantically similar topic already exists: "${semanticDupes[0].title}" (similarity: ${semanticDupes[0].sim.toFixed(2)}). Consider contributing to it instead.`
+        );
+        err.code = 'DUPLICATE_TOPIC';
+        err.existingTopicId = semanticDupes[0].id;
+        throw err;
+      }
+    }
+  } catch (embErr) {
+    if (embErr.code === 'DUPLICATE_TOPIC') throw embErr;
+    // Ollama unavailable — skip semantic check, trigram already passed
   }
 
   const baseSlug = generateSlug(title);
   const slug = await ensureUniqueSlug(baseSlug, lang, pool);
 
+  const embeddingValue = titleEmbedding ? `[${titleEmbedding.join(',')}]` : null;
   const { rows } = await pool.query(
-    `INSERT INTO topics (title, slug, lang, summary, sensitivity, topic_type, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO topics (title, slug, lang, summary, sensitivity, topic_type, created_by, embedding)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [title, slug, lang, summary || null, sensitivity || 'standard', topicType || 'knowledge', createdBy]
+    [title, slug, lang, summary || null, sensitivity || 'standard', topicType || 'knowledge', createdBy, embeddingValue]
   );
 
   // Auto-subscribe the creator to their own topic (fire-and-forget)
