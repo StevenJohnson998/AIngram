@@ -7,6 +7,11 @@ jest.mock('../../config/trust', () => ({
 jest.mock('../sanction', () => ({
   isVoteSuspended: jest.fn().mockResolvedValue(false),
 }));
+jest.mock('../changeset', () => ({
+  mergeChangeset: jest.fn().mockResolvedValue({}),
+  rejectChangeset: jest.fn().mockResolvedValue({}),
+  SYSTEM_ACCOUNT_ID: 'system',
+}));
 jest.mock('../reputation', () => ({
   awardDeliberationBonus: jest.fn().mockResolvedValue({}),
   recalculateChunkTrust: jest.fn().mockResolvedValue(0.5),
@@ -34,19 +39,19 @@ describe('formal-vote — suggestion chunk awareness', () => {
 
   describe('startCommitPhase', () => {
     it('uses longer timers for suggestion chunks', async () => {
-      // chunk_type lookup
+      // suggestion detection (changeset_operations JOIN chunks) — found suggestion
       mockPool.query.mockResolvedValueOnce({ rows: [{ chunk_type: 'suggestion' }] });
-      // UPDATE
+      // UPDATE changesets
       mockPool.query.mockResolvedValueOnce({
         rows: [{
-          id: 'chunk-1',
+          id: 'cs-1',
           vote_phase: 'commit',
           commit_deadline_at: new Date(),
           reveal_deadline_at: new Date(),
         }],
       });
 
-      const result = await formalVoteService.startCommitPhase('chunk-1');
+      const result = await formalVoteService.startCommitPhase('cs-1');
 
       expect(result.vote_phase).toBe('commit');
 
@@ -60,12 +65,13 @@ describe('formal-vote — suggestion chunk awareness', () => {
     });
 
     it('uses standard timers for knowledge chunks', async () => {
-      mockPool.query.mockResolvedValueOnce({ rows: [{ chunk_type: 'knowledge' }] });
+      // suggestion detection — no suggestion found
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: 'chunk-1', vote_phase: 'commit', commit_deadline_at: new Date(), reveal_deadline_at: new Date() }],
+        rows: [{ id: 'cs-1', vote_phase: 'commit', commit_deadline_at: new Date(), reveal_deadline_at: new Date() }],
       });
 
-      await formalVoteService.startCommitPhase('chunk-1');
+      await formalVoteService.startCommitPhase('cs-1');
 
       const updateCall = mockPool.query.mock.calls[1];
       const commitDeadline = updateCall[1][1];
@@ -78,9 +84,9 @@ describe('formal-vote — suggestion chunk awareness', () => {
 
   describe('commitVote — tier gate for suggestions', () => {
     it('rejects T0/T1 voter on suggestion chunk', async () => {
-      // chunk lookup
+      // changeset lookup (with is_suggestion subquery)
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: 'chunk-1', vote_phase: 'commit', commit_deadline_at: new Date(Date.now() + 100000), created_by: 'other', chunk_type: 'suggestion' }],
+        rows: [{ id: 'cs-1', vote_phase: 'commit', commit_deadline_at: new Date(Date.now() + 100000), proposed_by: 'other', is_suggestion: true }],
       });
       // account lookup
       mockPool.query.mockResolvedValueOnce({
@@ -90,14 +96,14 @@ describe('formal-vote — suggestion chunk awareness', () => {
       mockPool.query.mockResolvedValueOnce({ rows: [{ tier: 1 }] });
 
       await expect(
-        formalVoteService.commitVote({ accountId: 'acc-1', chunkId: 'chunk-1', commitHash: 'abc123' })
+        formalVoteService.commitVote({ accountId: 'acc-1', changesetId: 'cs-1', commitHash: 'abc123' })
       ).rejects.toThrow('Tier 2+');
     });
 
     it('allows T2 voter on suggestion chunk', async () => {
-      // chunk lookup
+      // changeset lookup
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: 'chunk-1', vote_phase: 'commit', commit_deadline_at: new Date(Date.now() + 100000), created_by: 'other', chunk_type: 'suggestion' }],
+        rows: [{ id: 'cs-1', vote_phase: 'commit', commit_deadline_at: new Date(Date.now() + 100000), proposed_by: 'other', is_suggestion: true }],
       });
       // account lookup
       mockPool.query.mockResolvedValueOnce({
@@ -108,15 +114,15 @@ describe('formal-vote — suggestion chunk awareness', () => {
       // upsert vote
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'vote-1', weight: 1.0 }] });
 
-      const result = await formalVoteService.commitVote({ accountId: 'acc-1', chunkId: 'chunk-1', commitHash: 'abc123' });
+      const result = await formalVoteService.commitVote({ accountId: 'acc-1', changesetId: 'cs-1', commitHash: 'abc123' });
 
       expect(result.id).toBe('vote-1');
     });
 
     it('does not check tier for knowledge chunks', async () => {
-      // chunk lookup — knowledge type
+      // changeset lookup — not a suggestion
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: 'chunk-1', vote_phase: 'commit', commit_deadline_at: new Date(Date.now() + 100000), created_by: 'other', chunk_type: 'knowledge' }],
+        rows: [{ id: 'cs-1', vote_phase: 'commit', commit_deadline_at: new Date(Date.now() + 100000), proposed_by: 'other', is_suggestion: false }],
       });
       // account lookup
       mockPool.query.mockResolvedValueOnce({
@@ -125,20 +131,22 @@ describe('formal-vote — suggestion chunk awareness', () => {
       // upsert vote (no tier check query expected)
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'vote-1', weight: 0.75 }] });
 
-      const result = await formalVoteService.commitVote({ accountId: 'acc-1', chunkId: 'chunk-1', commitHash: 'abc123' });
+      const result = await formalVoteService.commitVote({ accountId: 'acc-1', changesetId: 'cs-1', commitHash: 'abc123' });
 
       expect(result.id).toBe('vote-1');
-      // Should be 3 queries total (chunk + account + upsert), not 4 (no tier check)
+      // Should be 3 queries total (changeset + account + upsert), not 4 (no tier check)
       expect(mockPool.query).toHaveBeenCalledTimes(3);
     });
   });
 
   describe('tallyAndResolve — suggestion thresholds', () => {
     it('uses higher quorum and threshold for suggestions', async () => {
-      // Lock chunk
+      // Lock changeset
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
-        .mockResolvedValueOnce({ rows: [{ id: 'chunk-1', status: 'under_review', vote_phase: 'reveal', chunk_type: 'suggestion' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'cs-1', status: 'under_review', vote_phase: 'reveal', proposed_by: 'author-1' }] })
+        // suggestion detection — found suggestion
+        .mockResolvedValueOnce({ rows: [{ chunk_type: 'suggestion' }] })
         // Fetch revealed votes — 4 voters (below Q_SUGGESTION_MIN=5)
         .mockResolvedValueOnce({
           rows: [
@@ -148,14 +156,14 @@ describe('formal-vote — suggestion chunk awareness', () => {
             { vote_value: 1, weight: 1.0 },
           ],
         })
-        // UPDATE (indeterminate — below quorum)
+        // UPDATE changesets (vote_phase + vote_score)
         .mockResolvedValueOnce({})
         // activity_log
         .mockResolvedValueOnce({})
         // COMMIT
         .mockResolvedValueOnce({});
 
-      const result = await formalVoteService.tallyAndResolve('chunk-1');
+      const result = await formalVoteService.tallyAndResolve('cs-1');
 
       // 4 voters all +1 gives score 1.0 which exceeds TAU but quorum is 5
       expect(result.decision).toBe('no_quorum');

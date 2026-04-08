@@ -55,6 +55,10 @@ describe('Suggestion chunks', () => {
       mockClient.query.mockResolvedValueOnce({});
       // INSERT activity_log
       mockClient.query.mockResolvedValueOnce({});
+      // INSERT changesets
+      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 'mock-changeset-id' }] });
+      // INSERT changeset_operations
+      mockClient.query.mockResolvedValueOnce({});
       // COMMIT
       mockClient.query.mockResolvedValueOnce({});
 
@@ -77,11 +81,13 @@ describe('Suggestion chunks', () => {
     });
 
     it('logs suggestion_proposed activity', async () => {
-      mockClient.query.mockResolvedValueOnce({});
-      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 'sug-1' }] });
-      mockClient.query.mockResolvedValueOnce({});
-      mockClient.query.mockResolvedValueOnce({});
-      mockClient.query.mockResolvedValueOnce({});
+      mockClient.query.mockResolvedValueOnce({}); // BEGIN
+      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 'sug-1' }] }); // INSERT chunk
+      mockClient.query.mockResolvedValueOnce({}); // INSERT chunk_topics
+      mockClient.query.mockResolvedValueOnce({}); // INSERT activity_log
+      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 'mock-changeset-id' }] }); // INSERT changesets
+      mockClient.query.mockResolvedValueOnce({}); // INSERT changeset_operations
+      mockClient.query.mockResolvedValueOnce({}); // COMMIT
 
       await chunkService.createSuggestion({
         content: 'Improve UX',

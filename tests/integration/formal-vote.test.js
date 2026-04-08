@@ -10,6 +10,15 @@ jest.mock('../../src/config/trust', () => ({
   NEW_ACCOUNT_THRESHOLD_DAYS: 14,
   VOTER_REP_BASE: 0.5,
 }));
+jest.mock('../../src/services/changeset', () => ({
+  mergeChangeset: jest.fn().mockResolvedValue({}),
+  rejectChangeset: jest.fn().mockResolvedValue({}),
+  SYSTEM_ACCOUNT_ID: 'system',
+}));
+jest.mock('../../src/services/reputation', () => ({
+  awardDeliberationBonus: jest.fn().mockResolvedValue({}),
+  recalculateChunkTrust: jest.fn().mockResolvedValue(0.5),
+}));
 
 const { getPool } = require('../../src/config/database');
 const { hashCommitment } = require('../../build/domain/formal-vote');
@@ -69,8 +78,9 @@ describe('formal vote timeout enforcer', () => {
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce({
-          rows: [{ id: 'chunk-1', status: 'under_review', vote_phase: 'reveal' }],
-        }) // FOR UPDATE SKIP LOCKED
+          rows: [{ id: 'cs-1', status: 'under_review', vote_phase: 'reveal', proposed_by: 'author-1' }],
+        }) // FOR UPDATE SKIP LOCKED on changesets
+        .mockResolvedValueOnce({ rows: [] }) // suggestion detection (not a suggestion)
         .mockResolvedValueOnce({
           rows: [
             { vote_value: 1, weight: 1.0 },
@@ -78,7 +88,7 @@ describe('formal vote timeout enforcer', () => {
             { vote_value: 1, weight: 1.0 },
           ],
         }) // revealed votes
-        .mockResolvedValueOnce({}) // combined UPDATE (vote_phase + status)
+        .mockResolvedValueOnce({}) // UPDATE changesets (vote_phase + vote_score)
         .mockResolvedValueOnce({}) // activity log
         .mockResolvedValueOnce({}); // COMMIT
 
