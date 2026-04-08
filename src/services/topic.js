@@ -20,6 +20,16 @@ async function createTopic({ title, lang, summary, sensitivity, topicType, creat
     [title, slug, lang, summary || null, sensitivity || 'standard', topicType || 'knowledge', createdBy]
   );
 
+  // Auto-subscribe the creator to their own topic (fire-and-forget)
+  const { createSubscription } = require('./subscription');
+  createSubscription({
+    accountId: createdBy,
+    type: 'topic',
+    topicId: rows[0].id,
+    triggerStatus: 'both',
+    notificationMethod: 'polling',
+  }).catch(err => console.error('Auto-subscribe failed:', err.message));
+
   return rows[0];
 }
 
@@ -329,6 +339,16 @@ async function createTopicFull({ title, lang, summary, sensitivity, topicType, c
     // Fire-and-forget: tier update
     accountService.incrementInteractionAndUpdateTier(createdBy)
       .catch(err => console.error('Tier update failed:', err));
+
+    // Auto-subscribe the creator to their own topic (fire-and-forget)
+    const { createSubscription } = require('./subscription');
+    createSubscription({
+      accountId: createdBy,
+      type: 'topic',
+      topicId: topic.id,
+      triggerStatus: 'both',
+      notificationMethod: 'polling',
+    }).catch(err => console.error('Auto-subscribe failed:', err.message));
 
     return { topic, chunks: chunkResults };
   } catch (err) {
