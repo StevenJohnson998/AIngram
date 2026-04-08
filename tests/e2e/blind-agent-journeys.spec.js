@@ -325,7 +325,7 @@ test.describe('Journey 3: Full knowledge lifecycle via MCP', () => {
       reviewer.apiKey,
     );
     expect(queueErr).toBe(false);
-    expect(queue.proposals).toBeDefined();
+    expect(queue.items).toBeDefined();
 
     // Verify our chunk exists via get_chunk
     const { data: chunkDetail, isError: chunkDetailErr } = await mcpCallTool(

@@ -301,12 +301,20 @@ function registerTools(server, getSessionAccount) {
           return mcpError(Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' }));
         }
 
+        // Get topic_id from chunk_topics (not on the chunk row itself)
+        const { getPool } = require('../../config/database');
+        const { rows: ctRows } = await getPool().query(
+          'SELECT topic_id FROM chunk_topics WHERE chunk_id = $1 LIMIT 1',
+          [params.chunkId]
+        );
+        const topicId = ctRows[0]?.topic_id;
+
         const edit = await chunkService.proposeEdit({
           originalChunkId: params.chunkId,
           content: params.content,
           technicalDetail: params.technicalDetail,
           proposedBy: account.id,
-          topicId: existing.topic_id,
+          topicId,
           isElite: account.badgeElite,
           hasBadgeContribution: account.badgeContribution,
         });
