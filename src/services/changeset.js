@@ -249,6 +249,30 @@ async function createChangeset({ topicId, proposedBy, description, operations, i
 
     await client.query('COMMIT');
 
+    // Fire-and-forget: subscription matching for new chunks (1 notification per topic subscription)
+    const { matchNewChunk } = require('./subscription-matcher');
+    const { dispatchNotification } = require('./notification');
+    const matchedSubs = new Set();
+    for (const op of resultOps) {
+      if (op.chunkId) {
+        (async () => {
+          try {
+            const matches = await matchNewChunk(op.chunkId, 'proposed');
+            for (const match of matches) {
+              // Deduplicate: only 1 notification per subscription per changeset
+              const key = match.subscriptionId;
+              if (!matchedSubs.has(key)) {
+                matchedSubs.add(key);
+                await dispatchNotification(match).catch(() => {});
+              }
+            }
+          } catch (err) {
+            console.error(`Match-and-notify failed for chunk ${op.chunkId}:`, err.message);
+          }
+        })();
+      }
+    }
+
     return { changeset, operations: resultOps };
   } catch (err) {
     await client.query('ROLLBACK');
