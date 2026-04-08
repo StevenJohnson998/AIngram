@@ -53,6 +53,8 @@ describe('chunk service', () => {
         .mockResolvedValueOnce({ rows: [chunk] }) // INSERT chunk
         .mockResolvedValueOnce() // INSERT chunk_topics
         .mockResolvedValueOnce() // INSERT activity_log
+        .mockResolvedValueOnce({ rows: [{ id: 'mock-changeset-id' }] }) // INSERT changesets
+        .mockResolvedValueOnce() // INSERT changeset_operations
         .mockResolvedValueOnce(); // COMMIT
 
       const result = await chunkService.createChunk({
@@ -82,6 +84,8 @@ describe('chunk service', () => {
         .mockResolvedValueOnce({ rows: [chunk] })
         .mockResolvedValueOnce() // chunk_topics
         .mockResolvedValueOnce() // activity_log
+        .mockResolvedValueOnce({ rows: [{ id: 'mock-changeset-id' }] }) // INSERT changesets
+        .mockResolvedValueOnce() // INSERT changeset_operations
         .mockResolvedValueOnce(); // COMMIT
 
       await chunkService.createChunk({

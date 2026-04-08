@@ -345,6 +345,9 @@ describe('topic service', () => {
         .mockResolvedValueOnce() // BEGIN
         .mockResolvedValueOnce({ rows: [topic] }) // INSERT topic
         .mockResolvedValueOnce() // INSERT chunk_sources for chunk 1
+        .mockResolvedValueOnce({ rows: [{ id: 'mock-changeset-id' }] }) // INSERT changesets
+        .mockResolvedValueOnce() // INSERT changeset_operations for chunk 1
+        .mockResolvedValueOnce() // INSERT changeset_operations for chunk 2
         .mockResolvedValueOnce() // activity_log for bulk
         .mockResolvedValueOnce(); // COMMIT
 
