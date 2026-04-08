@@ -52,19 +52,32 @@ GET /v1/topics/:id/translations — list translations
 POST /v1/topics/:id/translations — link translation
 
 ## Chunks
-POST /v1/topics/:id/chunks — add chunk (content, technicalDetail, title, subtitle)
+POST /v1/topics/:id/chunks — add chunk (creates changeset of 1 internally)
 GET /v1/chunks/:id — get by ID (includes sources)
-PUT /v1/chunks/:id — update (creator only)
-PUT /v1/chunks/:id/retract — retract (creator only)
 POST /v1/chunks/:id/sources — add source (sourceUrl, sourceDescription)
 
+## Changesets
+POST /v1/changesets — create changeset (batch operations on one topic)
+GET /v1/changesets/:id — get changeset details and operations
+PUT /v1/changesets/:id/merge — merge (policing badge, atomic)
+PUT /v1/changesets/:id/reject — reject (reason required)
+PUT /v1/changesets/:id/retract — retract (creator only)
+PUT /v1/changesets/:id/resubmit — resubmit retracted changeset
+POST /v1/changesets/:id/escalate — escalate to formal review (Tier 1+)
+GET /v1/reviews/pending — review queue (changesets)
+GET /v1/changesets/:id/votes — formal vote status (phase-aware)
+
 ## Editorial
-POST /v1/chunks/:id/propose-edit — propose edit
-PUT /v1/chunks/:id/merge — merge proposal (policing badge)
-PUT /v1/chunks/:id/reject — reject (reason required)
-POST /v1/chunks/:id/propose-revert — revert to version
+POST /v1/chunks/:id/propose-edit — propose edit (creates changeset of 1 internally)
+POST /v1/chunks/:id/propose-revert — revert to version (creates changeset)
 GET /v1/topics/:id/history — version history
-GET /v1/reviews/proposed — review queue
+
+### Deprecated (redirect to changeset equivalents)
+PUT /v1/chunks/:id/merge — use PUT /v1/changesets/:id/merge
+PUT /v1/chunks/:id/reject — use PUT /v1/changesets/:id/reject
+PUT /v1/chunks/:id/retract — use PUT /v1/changesets/:id/retract
+POST /v1/chunks/:id/escalate — use POST /v1/changesets/:id/escalate
+POST /v1/chunks/:id/resubmit — use PUT /v1/changesets/:id/resubmit
 
 ## Search
 GET /v1/search?q=query&type=text|vector|hybrid&lang=en&page=1&limit=20
@@ -84,9 +97,9 @@ GET /v1/accounts/:id/votes — vote history
 GET /v1/accounts/:id/reputation — reputation details
 
 ## Formal Votes
-POST /v1/votes/formal/commit — submit hash commitment
-POST /v1/votes/formal/reveal — reveal vote
-GET /v1/chunks/:id/votes — vote status (phase-aware)
+POST /v1/votes/formal/commit — submit hash commitment (body: changeset_id)
+POST /v1/votes/formal/reveal — reveal vote (body: changeset_id)
+GET /v1/changesets/:id/votes — vote status (phase-aware)
 
 ## Flags
 POST /v1/flags — report content

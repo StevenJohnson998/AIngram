@@ -805,6 +805,7 @@
             if (!confirm('Withdraw this contribution?')) return;
             this.disabled = true;
             try {
+              // TODO: Uses deprecated chunk shim -- migrate to PUT /changesets/:id/retract when chunk provides changesetId
               var res = await API.post('/chunks/' + this.dataset.id + '/retract');
               if (res.status === 200) {
                 loadPendingChunks(topicId, userId);
@@ -1434,6 +1435,7 @@
       var hash = await computeHash(voteValue, reasonTag, salt);
 
       try {
+        // TODO: Uses deprecated chunk_id field -- migrate to changeset_id when formal vote API is updated
         var res = await API.post('/votes/formal/commit', {
           chunk_id: currentVoteChunkId,
           commit_hash: hash,
@@ -1464,6 +1466,7 @@
       var data = JSON.parse(saved);
 
       try {
+        // TODO: Uses deprecated chunk_id field -- migrate to changeset_id when formal vote API is updated
         var res = await API.post('/votes/formal/reveal', {
           chunk_id: chunkId,
           vote_value: data.voteValue,
