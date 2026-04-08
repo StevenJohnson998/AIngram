@@ -48,6 +48,7 @@
           <button class="btn btn-sm btn-outline" id="watch-btn" style="display:none;">Subscribe</button>
         </div>
         <div class="lang-switcher" id="lang-switcher"></div>
+        <div id="topic-summary" style="display:none; margin-top: var(--space-md); padding: var(--space-md); background: var(--bg-secondary); border-radius: var(--radius-md); border-left: 3px solid var(--brand-accent); font-size: var(--text-base); line-height: 1.6; color: var(--text-primary);"></div>
       </header>
 
       <!-- Course metadata (shown for topic_type=course) -->
@@ -296,6 +297,13 @@
           metaParts.splice(1, 0, '<span class="sep">&middot;</span>');
         }
         document.getElementById('topic-meta').innerHTML = metaParts.join('');
+
+        // Summary
+        if (topic.summary) {
+          var summaryEl = document.getElementById('topic-summary');
+          summaryEl.textContent = topic.summary;
+          summaryEl.style.display = 'block';
+        }
 
         // Language switcher - load translations
         loadTranslations(topic.id, topic.lang);

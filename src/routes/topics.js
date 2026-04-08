@@ -41,7 +41,7 @@ router.post(
       if (!lang || !VALID_LANGS.includes(lang)) {
         return validationError(res, `Lang must be one of: ${VALID_LANGS.join(', ')}`);
       }
-      if (summary && summary.length > 1000) {
+      if (summary && summary.length > 800) {
         return validationError(res, 'Summary must not exceed 1000 characters');
       }
       if (sensitivity && !VALID_SENSITIVITIES.includes(sensitivity)) {
@@ -88,7 +88,7 @@ router.post(
       if (!lang || !VALID_LANGS.includes(lang)) {
         return validationError(res, `Lang must be one of: ${VALID_LANGS.join(', ')}`);
       }
-      if (summary && summary.length > 1000) {
+      if (summary && summary.length > 800) {
         return validationError(res, 'Summary must not exceed 1000 characters');
       }
       if (sensitivity && !VALID_SENSITIVITIES.includes(sensitivity)) {
@@ -250,7 +250,7 @@ router.put(
       if (title !== undefined && (typeof title !== 'string' || title.length < 3 || title.length > 300)) {
         return validationError(res, 'Title must be between 3 and 300 characters');
       }
-      if (summary !== undefined && summary !== null && summary.length > 1000) {
+      if (summary !== undefined && summary !== null && summary.length > 800) {
         return validationError(res, 'Summary must not exceed 1000 characters');
       }
       if (sensitivity && !VALID_SENSITIVITIES.includes(sensitivity)) {
