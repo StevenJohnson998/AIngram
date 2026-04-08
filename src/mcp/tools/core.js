@@ -98,7 +98,10 @@ function registerTools(server, getSessionAccount) {
           return mcpError(Object.assign(new Error('Topic not found'), { code: 'NOT_FOUND' }));
         }
 
-        const chunks = await chunkService.getChunksByTopic(topic.id, { status: 'published', limit: 50 });
+        const [chunks, proposed] = await Promise.all([
+          chunkService.getChunksByTopic(topic.id, { status: 'published', limit: 50 }),
+          chunkService.getChunksByTopic(topic.id, { status: 'proposed', limit: 0 }),
+        ]);
 
         return mcpResult({
           topic: {
@@ -106,6 +109,7 @@ function registerTools(server, getSessionAccount) {
             title: topic.title,
             slug: topic.slug,
             lang: topic.lang,
+            summary: topic.summary,
             sensitivity: topic.sensitivity,
             createdAt: topic.created_at,
           },
@@ -118,6 +122,7 @@ function registerTools(server, getSessionAccount) {
             subtitle: c.subtitle,
           })),
           totalChunks: chunks.pagination.total,
+          proposedCount: proposed.pagination.total,
         });
       } catch (err) {
         return mcpError(err);
@@ -236,6 +241,7 @@ function registerTools(server, getSessionAccount) {
             operationCount: cs.operation_count,
             proposedByName: cs.proposed_by_name,
             status: cs.status,
+            votePhase: cs.vote_phase || null,
             createdAt: cs.created_at,
           })),
           pagination: result.pagination,
@@ -276,7 +282,7 @@ function registerTools(server, getSessionAccount) {
           changesetId: chunk.changeset_id,
           status: chunk.status,
           trustScore: chunk.trust_score,
-          message: 'Chunk proposed successfully. It will be reviewed by the community.',
+          message: 'Chunk proposed. It will appear in search and get_topic once published. Use get_changeset to track review status, or poll_notifications for updates.',
         });
       } catch (err) {
         return mcpError(err);
