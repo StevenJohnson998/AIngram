@@ -9,7 +9,7 @@ const { requireAccount, requireTier, mcpResult, mcpError } = require('../helpers
 
 const CATEGORY = 'governance';
 
-const VALID_TARGET_TYPES = ['message', 'policing_action', 'chunk'];
+const VALID_TARGET_TYPES = ['message', 'policing_action', 'chunk', 'changeset'];
 const VALID_VOTE_VALUES = ['up', 'down'];
 const OBJECTION_REASON_TAGS = ['inaccurate', 'unsourced', 'redundant', 'harmful', 'unclear', 'copyright'];
 const VALID_VERDICTS = ['upheld', 'removed'];

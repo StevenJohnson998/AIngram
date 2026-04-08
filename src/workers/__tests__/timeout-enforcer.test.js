@@ -4,10 +4,10 @@
  */
 
 jest.mock('../../config/database');
-jest.mock('../../services/chunk');
+jest.mock('../../services/changeset');
 
 const { getPool } = require('../../config/database');
-const chunkService = require('../../services/chunk');
+const changesetService = require('../../services/changeset');
 
 // Stable mock pool
 const mockClient = {
@@ -31,88 +31,95 @@ beforeEach(() => {
 });
 
 describe('enforceFastTrack', () => {
-  it('merges eligible proposed chunks past fast-track timeout', async () => {
-    const oldChunk = {
-      id: 'chunk-1',
+  it('merges eligible proposed changesets past fast-track timeout', async () => {
+    const oldChangeset = {
+      id: 'cs-1',
       created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4h ago
       sensitivity: 'standard', // 3h timeout
     };
 
     mockClient.query
       .mockResolvedValueOnce({}) // BEGIN
-      .mockResolvedValueOnce({ rows: [oldChunk] }) // SELECT candidates
+      .mockResolvedValueOnce({ rows: [oldChangeset] }) // SELECT candidates
       .mockResolvedValueOnce({ rows: [{ down_count: 0 }] }) // Check down-votes
       .mockResolvedValueOnce({}); // COMMIT
 
-    // mergeChunk succeeds
-    chunkService.mergeChunk.mockResolvedValueOnce({ id: 'chunk-1', status: 'published' });
+    // mergeChangeset succeeds
+    changesetService.mergeChangeset.mockResolvedValueOnce({ id: 'cs-1', status: 'published' });
 
     const count = await enforceFastTrack();
     expect(count).toBe(1);
-    expect(chunkService.mergeChunk).toHaveBeenCalledWith('chunk-1', '00000000-0000-0000-0000-000000000000');
+    expect(changesetService.mergeChangeset).toHaveBeenCalledWith('cs-1', '00000000-0000-0000-0000-000000000000');
   });
 
-  it('skips chunks with down-votes', async () => {
-    const oldChunk = {
-      id: 'chunk-2',
+  it('skips changesets with down-votes', async () => {
+    const oldChangeset = {
+      id: 'cs-2',
       created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
       sensitivity: 'standard',
     };
 
     mockClient.query
       .mockResolvedValueOnce({}) // BEGIN
-      .mockResolvedValueOnce({ rows: [oldChunk] }) // SELECT
+      .mockResolvedValueOnce({ rows: [oldChangeset] }) // SELECT
       .mockResolvedValueOnce({ rows: [{ down_count: 2 }] }) // Has down-votes
       .mockResolvedValueOnce({}); // COMMIT
 
     const count = await enforceFastTrack();
     expect(count).toBe(0);
-    expect(chunkService.mergeChunk).not.toHaveBeenCalled();
+    expect(changesetService.mergeChangeset).not.toHaveBeenCalled();
   });
 
   it('respects high sensitivity longer timeout', async () => {
-    const chunk = {
-      id: 'chunk-3',
+    const changeset = {
+      id: 'cs-3',
       created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4h ago
       sensitivity: 'sensitive', // 6h timeout — not yet expired
     };
 
     mockClient.query
       .mockResolvedValueOnce({}) // BEGIN
-      .mockResolvedValueOnce({ rows: [chunk] }) // SELECT
-      .mockResolvedValueOnce({}); // COMMIT (no vote check needed, chunk skipped by age)
+      .mockResolvedValueOnce({ rows: [changeset] }) // SELECT
+      .mockResolvedValueOnce({}); // COMMIT (no vote check needed, changeset skipped by age)
 
     const count = await enforceFastTrack();
     expect(count).toBe(0);
     // Should skip because 4h < 6h high-sensitivity timeout
-    expect(chunkService.mergeChunk).not.toHaveBeenCalled();
+    expect(changesetService.mergeChangeset).not.toHaveBeenCalled();
   });
 });
 
 describe('enforceReviewTimeout', () => {
-  it('retracts under_review chunks past T_REVIEW', async () => {
+  it('retracts under_review changesets past T_REVIEW', async () => {
     mockPool.query
-      .mockResolvedValueOnce({ rows: [{ id: 'chunk-r1' }, { id: 'chunk-r2' }] }) // UPDATE
-      .mockResolvedValueOnce({}) // activity_log chunk-r1
-      .mockResolvedValueOnce({}); // activity_log chunk-r2
+      .mockResolvedValueOnce({ rows: [{ id: 'cs-r1' }, { id: 'cs-r2' }] }) // UPDATE changesets
+      .mockResolvedValueOnce({}) // UPDATE chunks (retract belonging chunks)
+      .mockResolvedValueOnce({}) // activity_log cs-r1
+      .mockResolvedValueOnce({}); // activity_log cs-r2
 
     const count = await enforceReviewTimeout();
     expect(count).toBe(2);
 
-    // Verify UPDATE query targets under_review status
+    // Verify UPDATE query targets under_review status on changesets
     expect(mockPool.query).toHaveBeenCalledWith(
       expect.stringContaining("status = 'under_review'"),
       expect.any(Array)
     );
 
+    // Verify chunks belonging to changesets are also retracted
+    expect(mockPool.query).toHaveBeenCalledWith(
+      expect.stringContaining('changeset_operations'),
+      [['cs-r1', 'cs-r2']]
+    );
+
     // Verify activity logged
     expect(mockPool.query).toHaveBeenCalledWith(
-      expect.stringContaining('chunk_timeout'),
-      expect.arrayContaining(['00000000-0000-0000-0000-000000000000', 'chunk-r1', expect.any(String)])
+      expect.stringContaining('changeset_timeout'),
+      expect.arrayContaining(['00000000-0000-0000-0000-000000000000', 'cs-r1', expect.any(String)])
     );
   });
 
-  it('does nothing when no chunks expired', async () => {
+  it('does nothing when no changesets expired', async () => {
     mockPool.query.mockResolvedValueOnce({ rows: [] });
 
     const count = await enforceReviewTimeout();
@@ -137,8 +144,8 @@ describe('enforceDisputeTimeout', () => {
 });
 
 describe('enforceCommitDeadline', () => {
-  it('transitions chunks from commit to reveal phase', async () => {
-    mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'chunk-c1' }] });
+  it('transitions changesets from commit to reveal phase', async () => {
+    mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'cs-c1' }] });
 
     const count = await enforceCommitDeadline();
     expect(count).toBe(1);
@@ -147,20 +154,26 @@ describe('enforceCommitDeadline', () => {
       expect.stringContaining("vote_phase = 'reveal'"),
       expect.any(Array)
     );
+    // Verify it targets changesets table
+    expect(mockPool.query).toHaveBeenCalledWith(
+      expect.stringContaining('changesets'),
+      expect.any(Array)
+    );
   });
 });
 
 describe('enforceRevealDeadline', () => {
-  it('resolves chunks past reveal deadline', async () => {
-    // SELECT chunks past deadline
-    mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'chunk-rv1' }] });
+  it('resolves changesets past reveal deadline', async () => {
+    // SELECT changesets past deadline
+    mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'cs-rv1' }] });
 
     // tallyAndResolve internals (via mockClient transaction)
     mockClient.query
       .mockResolvedValueOnce({}) // BEGIN
-      .mockResolvedValueOnce({ rows: [{ id: 'chunk-rv1', status: 'under_review', vote_phase: 'reveal' }] }) // lock
+      .mockResolvedValueOnce({ rows: [{ id: 'cs-rv1', status: 'under_review', vote_phase: 'reveal', proposed_by: 'acc-1' }] }) // lock
+      .mockResolvedValueOnce({ rows: [] }) // suggestion check
       .mockResolvedValueOnce({ rows: [{ vote_value: 1, weight: 1.0 }, { vote_value: 1, weight: 1.0 }, { vote_value: 1, weight: 1.0 }] }) // votes
-      .mockResolvedValueOnce({}) // combined UPDATE (vote_phase + status)
+      .mockResolvedValueOnce({}) // UPDATE vote_phase
       .mockResolvedValueOnce({}) // activity log
       .mockResolvedValueOnce({}); // COMMIT
 

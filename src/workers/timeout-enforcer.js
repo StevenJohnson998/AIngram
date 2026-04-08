@@ -2,9 +2,12 @@
  * Timeout Enforcer — background job that enforces time-based lifecycle transitions.
  *
  * Runs every TIMEOUT_CHECK_MS (default 5 min) and handles:
- * 1. Fast-track merge: proposed chunks past T_FAST with no down-votes → active
- * 2. Review timeout: under_review chunks past T_REVIEW → retracted (reason: timeout)
- * 3. Dispute timeout: disputed chunks past T_DISPUTE → retracted (reason: timeout)
+ * 1. Fast-track merge: proposed changesets past T_FAST with no down-votes → merged
+ * 2. Review timeout: under_review changesets past T_REVIEW → retracted (reason: timeout)
+ * 3. Commit deadline: changesets in commit phase → reveal phase
+ * 4. Reveal deadline: changesets past reveal → tally and resolve
+ * 5. Dispute timeout: disputed chunks past T_DISPUTE → retracted (chunk-level)
+ * 6. Copyright review deadline: pending copyright reports → auto-hide (chunk-level)
  *
  * All queries use FOR UPDATE SKIP LOCKED to prevent duplicate processing.
  */
@@ -17,14 +20,15 @@ const {
   T_DISPUTE_MS,
   T_COPYRIGHT_REVIEW_DEADLINE_MS,
 } = require('../config/protocol');
-const chunkService = require('../services/chunk');
+const changesetService = require('../services/changeset');
 const formalVoteService = require('../services/formal-vote');
 const reportService = require('../services/report');
 
 const SYSTEM_ACCOUNT_ID = '00000000-0000-0000-0000-000000000000';
 
 /**
- * Fast-track merge: auto-accept proposed chunks with no objections after timeout.
+ * Fast-track merge: auto-accept proposed changesets with no objections after timeout.
+ * Only knowledge-only changesets (no suggestions) are eligible for fast-track.
  */
 async function enforceFastTrack() {
   const pool = getPool();
@@ -34,19 +38,29 @@ async function enforceFastTrack() {
   try {
     await client.query('BEGIN');
 
-    // Find proposed chunks older than the shortest fast-track timeout
+    // Find proposed changesets older than the shortest fast-track timeout
     const minAge = Math.min(T_FAST_LOW_MS, T_FAST_HIGH_MS);
     const cutoff = new Date(Date.now() - minAge);
 
     const { rows: candidates } = await client.query(
-      `SELECT c.id, c.created_at, t.sensitivity
-       FROM chunks c
-       JOIN chunk_topics ct ON ct.chunk_id = c.id
-       JOIN topics t ON t.id = ct.topic_id
-       WHERE c.status = 'proposed' AND c.chunk_type = 'knowledge' AND c.created_at < $1
-         AND c.content NOT LIKE '%![%](%' -- chunks with images require human review
-       ORDER BY c.created_at ASC
-       FOR UPDATE OF c SKIP LOCKED`,
+      `SELECT cs.id, cs.created_at, t.sensitivity
+       FROM changesets cs
+       JOIN topics t ON t.id = cs.topic_id
+       WHERE cs.status = 'proposed' AND cs.created_at < $1
+         -- Only fast-track changesets where ALL chunks are knowledge (no suggestions)
+         AND NOT EXISTS (
+           SELECT 1 FROM changeset_operations co
+           JOIN chunks c ON c.id = co.chunk_id
+           WHERE co.changeset_id = cs.id AND c.chunk_type != 'knowledge'
+         )
+         -- Skip changesets where any chunk contains images (require human review)
+         AND NOT EXISTS (
+           SELECT 1 FROM changeset_operations co
+           JOIN chunks c ON c.id = co.chunk_id
+           WHERE co.changeset_id = cs.id AND c.content LIKE '%![%](%'
+         )
+       ORDER BY cs.created_at ASC
+       FOR UPDATE OF cs SKIP LOCKED`,
       [cutoff]
     );
 
@@ -55,29 +69,29 @@ async function enforceFastTrack() {
       const age = Date.now() - new Date(candidate.created_at).getTime();
       if (age < timeout) continue;
 
-      // Check for down-votes (objections already escalate, but down-votes block auto-merge)
+      // Check for down-votes on the changeset
       const { rows: voteRows } = await client.query(
         `SELECT COUNT(*)::int AS down_count
          FROM votes
-         WHERE target_type = 'chunk' AND target_id = $1 AND value = 'down'`,
+         WHERE target_type = 'changeset' AND target_id = $1 AND value = 'down'`,
         [candidate.id]
       );
 
       if (voteRows[0].down_count > 0) continue;
 
       try {
-        await chunkService.mergeChunk(candidate.id, SYSTEM_ACCOUNT_ID);
+        await changesetService.mergeChangeset(candidate.id, SYSTEM_ACCOUNT_ID);
         mergedCount++;
       } catch (err) {
         if (err.code === 'NOT_FOUND') continue; // benign race
-        console.error(`Fast-track merge failed for chunk ${candidate.id}:`, err.message);
+        console.error(`Fast-track merge failed for changeset ${candidate.id}:`, err.message);
       }
     }
 
     await client.query('COMMIT');
 
     if (mergedCount > 0) {
-      console.log(`Timeout enforcer: fast-track merged ${mergedCount} chunk(s)`);
+      console.log(`Timeout enforcer: fast-track merged ${mergedCount} changeset(s)`);
     }
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch {}
@@ -90,31 +104,42 @@ async function enforceFastTrack() {
 }
 
 /**
- * Review timeout: retract under_review chunks that exceeded T_REVIEW.
- * Skips chunks with active formal vote phases (those have their own deadlines).
+ * Review timeout: retract under_review changesets that exceeded T_REVIEW.
+ * Skips changesets with active formal vote phases (those have their own deadlines).
+ * Uses direct SQL since retractChangeset requires proposer ownership check.
  */
 async function enforceReviewTimeout() {
   const pool = getPool();
   const cutoff = new Date(Date.now() - T_REVIEW_MS);
 
+  // Retract changesets past the review deadline with no active vote phase
   const { rows } = await pool.query(
-    `UPDATE chunks SET status = 'retracted', retract_reason = 'timeout', updated_at = now()
+    `UPDATE changesets SET status = 'retracted', retract_reason = 'timeout', updated_at = now()
      WHERE status = 'under_review' AND under_review_at IS NOT NULL AND under_review_at < $1
        AND vote_phase IS NULL
      RETURNING id`,
     [cutoff]
   );
 
-  for (const chunk of rows) {
-    await pool.query(
-      `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
-       VALUES ($1, 'chunk_timeout', 'chunk', $2, $3)`,
-      [SYSTEM_ACCOUNT_ID, chunk.id, JSON.stringify({ reason: 'review_timeout', timeout_ms: T_REVIEW_MS })]
-    );
-  }
-
   if (rows.length > 0) {
-    console.log(`Timeout enforcer: retracted ${rows.length} chunk(s) from review timeout`);
+    const changesetIds = rows.map(r => r.id);
+
+    // Retract all chunks belonging to those changesets
+    await pool.query(
+      `UPDATE chunks SET status = 'retracted', updated_at = now()
+       WHERE id IN (SELECT chunk_id FROM changeset_operations WHERE changeset_id = ANY($1) AND chunk_id IS NOT NULL)`,
+      [changesetIds]
+    );
+
+    for (const cs of rows) {
+      await pool.query(
+        `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+         VALUES ($1, 'changeset_timeout', 'changeset', $2, $3)`,
+        [SYSTEM_ACCOUNT_ID, cs.id, JSON.stringify({ reason: 'review_timeout', timeout_ms: T_REVIEW_MS })]
+      );
+    }
+
+    console.log(`Timeout enforcer: retracted ${rows.length} changeset(s) from review timeout`);
   }
 
   return rows.length;
@@ -150,7 +175,7 @@ async function enforceDisputeTimeout() {
 }
 
 /**
- * Commit deadline: transition chunks from commit phase to reveal phase.
+ * Commit deadline: transition changesets from commit phase to reveal phase.
  * Voters who missed the commit window simply don't participate.
  */
 async function enforceCommitDeadline() {
@@ -158,21 +183,21 @@ async function enforceCommitDeadline() {
   const now = new Date();
 
   const { rows } = await pool.query(
-    `UPDATE chunks SET vote_phase = 'reveal', updated_at = now()
+    `UPDATE changesets SET vote_phase = 'reveal', updated_at = now()
      WHERE vote_phase = 'commit' AND commit_deadline_at IS NOT NULL AND commit_deadline_at < $1
      RETURNING id`,
     [now]
   );
 
   if (rows.length > 0) {
-    console.log(`Timeout enforcer: transitioned ${rows.length} chunk(s) from commit to reveal phase`);
+    console.log(`Timeout enforcer: transitioned ${rows.length} changeset(s) from commit to reveal phase`);
   }
 
   return rows.length;
 }
 
 /**
- * Reveal deadline: tally votes and resolve chunks past the reveal deadline.
+ * Reveal deadline: tally votes and resolve changesets past the reveal deadline.
  * Non-revealers are excluded from the tally (their vote doesn't count).
  */
 async function enforceRevealDeadline() {
@@ -180,23 +205,23 @@ async function enforceRevealDeadline() {
   const now = new Date();
 
   const { rows } = await pool.query(
-    `SELECT id FROM chunks
+    `SELECT id FROM changesets
      WHERE vote_phase = 'reveal' AND reveal_deadline_at IS NOT NULL AND reveal_deadline_at < $1`,
     [now]
   );
 
   let resolvedCount = 0;
-  for (const chunk of rows) {
+  for (const changeset of rows) {
     try {
-      const result = await formalVoteService.tallyAndResolve(chunk.id);
+      const result = await formalVoteService.tallyAndResolve(changeset.id);
       if (result) resolvedCount++;
     } catch (err) {
-      console.error(`Tally failed for chunk ${chunk.id}:`, err.message);
+      console.error(`Tally failed for changeset ${changeset.id}:`, err.message);
     }
   }
 
   if (resolvedCount > 0) {
-    console.log(`Timeout enforcer: resolved ${resolvedCount} chunk(s) from reveal deadline`);
+    console.log(`Timeout enforcer: resolved ${resolvedCount} changeset(s) from reveal deadline`);
   }
 
   return resolvedCount;

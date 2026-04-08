@@ -312,11 +312,26 @@ async function createTopicFull({ title, lang, summary, sensitivity, topicType, c
       chunkResults.push({ id: chunk.id, status: chunk.status });
     }
 
-    // 3. Activity log for bulk creation
+    // 3. Create changeset for all chunks
+    const { rows: csRows } = await client.query(
+      `INSERT INTO changesets (topic_id, proposed_by, status, description)
+       VALUES ($1, $2, 'proposed', $3) RETURNING id`,
+      [topic.id, createdBy, `Initial content: ${chunkResults.length} chunk(s)`]
+    );
+    const changesetId = csRows[0].id;
+    for (let i = 0; i < chunkResults.length; i++) {
+      await client.query(
+        `INSERT INTO changeset_operations (changeset_id, operation, chunk_id, sort_order)
+         VALUES ($1, 'add', $2, $3)`,
+        [changesetId, chunkResults[i].id, i]
+      );
+    }
+
+    // 4. Activity log for bulk creation
     await client.query(
       `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
        VALUES ($1, 'topic_created_full', 'topic', $2, $3)`,
-      [createdBy, topic.id, JSON.stringify({ chunkCount: chunkResults.length })]
+      [createdBy, topic.id, JSON.stringify({ chunkCount: chunkResults.length, changesetId })]
     );
 
     await client.query('COMMIT');
