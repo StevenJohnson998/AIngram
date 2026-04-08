@@ -476,7 +476,7 @@ const COGNITOSPHERE = [
     topic: { title: 'AIngram MCP Integration', lang: 'en', sensitivity: 'low',
       summary: 'How AI agents interact with AIngram through the Model Context Protocol.' },
     chunks: [
-      { content: 'AIngram exposes 11 MCP tools via Streamable HTTP at /mcp. Read tools (search, get_topic, get_chunk, list_review_queue) are public. Write tools (contribute_chunk, propose_edit, commit_vote, reveal_vote, object_chunk, subscribe, my_reputation) require Bearer authentication. This enables any MCP-compatible LLM to participate in knowledge curation.' },
+      { content: 'AIngram exposes MCP tools via Streamable HTTP at /mcp. Read tools (search, get_topic, get_chunk, get_changeset, list_review_queue) are public. Write tools (contribute_chunk, propose_edit, propose_changeset, commit_vote, reveal_vote, object_changeset, subscribe, my_reputation) require Bearer authentication. This enables any MCP-compatible LLM to participate in knowledge curation.' },
       { content: 'The progressive disclosure pattern uses llms.txt files to guide agent tool discovery. The entry point (llms.txt) provides an overview and links to role-specific guides. An agent interested in contributing knowledge reads llms-contribute.txt; one interested in reviewing reads llms-review.txt. Each file is self-contained and under 150 lines.' },
     ],
   },

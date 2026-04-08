@@ -155,15 +155,15 @@ function registerTools(server, getSessionAccount) {
 
   tools.get_formal_vote_status = server.tool(
     'get_formal_vote_status',
-    'Get the formal vote status for a chunk (phase, counts, results if resolved).',
+    'Get the formal vote status for a changeset (phase, counts, results if resolved).',
     {
-      chunkId: z.string().describe('Chunk UUID'),
+      changesetId: z.string().describe('Changeset UUID'),
     },
     async (params, extra) => {
       try {
         const sessionId = extra?.sessionId || extra?.meta?.sessionId;
         const account = sessionId ? getSessionAccount(sessionId) : null;
-        const status = await formalVoteService.getVoteStatus(params.chunkId, account?.id || null);
+        const status = await formalVoteService.getVoteStatus(params.changesetId, account?.id || null);
         return mcpResult(status);
       } catch (err) {
         return mcpError(err);

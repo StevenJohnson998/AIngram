@@ -24,7 +24,8 @@ const NO_AUTH_SESSION = () => null;
 const CORE_TOOL_NAMES = [
   'search', 'get_topic', 'get_chunk', 'list_review_queue',
   'contribute_chunk', 'propose_edit', 'commit_vote', 'reveal_vote',
-  'object_chunk', 'subscribe', 'poll_notifications', 'my_reputation',
+  'object_changeset', 'subscribe', 'poll_notifications', 'my_reputation',
+  'get_changeset',
   'suggest_improvement', 'discover_related_topics', 'discover_related_chunks',
 ];
 
@@ -103,9 +104,9 @@ describe('MCP Server', () => {
     const writeTools = [
       ['contribute_chunk', { topicId: 't1', content: 'test content here' }],
       ['propose_edit', { chunkId: 'c1', content: 'new content here' }],
-      ['commit_vote', { chunkId: 'c1', commitHash: 'a'.repeat(64) }],
-      ['reveal_vote', { chunkId: 'c1', voteValue: 1, reasonTag: 'accurate', salt: 'abc' }],
-      ['object_chunk', { chunkId: 'c1' }],
+      ['commit_vote', { changesetId: 'c1', commitHash: 'a'.repeat(64) }],
+      ['reveal_vote', { changesetId: 'c1', voteValue: 1, reasonTag: 'accurate', salt: 'abc' }],
+      ['object_changeset', { changesetId: 'c1' }],
       ['subscribe', { type: 'topic', topicId: 't1' }],
       ['suggest_improvement', { topicId: 't1', content: 'a'.repeat(25), suggestionCategory: 'governance', title: 'Test' }],
     ];

@@ -3,6 +3,7 @@
 const { z } = require('zod');
 const topicService = require('../../services/topic');
 const chunkService = require('../../services/chunk');
+const changesetService = require('../../services/changeset');
 const { requireAccount, mcpResult, mcpError } = require('../helpers');
 
 const CATEGORY = 'knowledge_curation';
@@ -88,6 +89,7 @@ function registerTools(server, getSessionAccount) {
             title: result.topic.title,
             slug: result.topic.slug,
           },
+          changesetId: result.changesetId,
           chunks: result.chunks.map(c => ({ id: c.id, status: c.status })),
         });
       } catch (err) {
@@ -281,35 +283,44 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  // ─── CHUNK MANAGEMENT ─────────────────────────────────────────────
+  // ─── CHANGESET MANAGEMENT ──────────────────────────────────────────
 
-  tools.update_chunk = server.tool(
-    'update_chunk',
-    'Update a chunk you created. Only the creator can update, and only while in proposed status.',
+  tools.propose_changeset = server.tool(
+    'propose_changeset',
+    'Propose a changeset with one or more operations (add, replace, remove) on a single topic. The changeset is the unit of review.',
     {
-      chunkId: z.string().describe('Chunk UUID'),
-      content: z.string().min(10).max(5000).optional().describe('New content'),
-      technicalDetail: z.string().max(10000).optional().describe('New technical detail'),
+      topicId: z.string().describe('Topic UUID'),
+      description: z.string().optional().describe('Human-readable description of the changeset'),
+      operations: z.array(z.object({
+        operation: z.enum(['add', 'replace', 'remove']).describe('Operation type'),
+        content: z.string().optional().describe('Chunk content (required for add/replace)'),
+        technicalDetail: z.string().optional().describe('Technical detail (for add/replace)'),
+        title: z.string().optional().describe('Chunk title (for add/replace)'),
+        subtitle: z.string().optional().describe('Chunk subtitle (for add/replace)'),
+        targetChunkId: z.string().optional().describe('Target chunk UUID (required for replace/remove)'),
+      })).min(1).max(20).describe('Array of operations (1-20)'),
     },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
-        const existing = await chunkService.getChunkById(params.chunkId);
-        if (!existing) {
-          return mcpError(Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' }));
-        }
-        if (existing.created_by !== account.id) {
-          return mcpError(Object.assign(new Error('Only the creator can update this chunk'), { code: 'FORBIDDEN' }));
-        }
-        const updated = await chunkService.updateChunk(params.chunkId, {
-          content: params.content,
-          technicalDetail: params.technicalDetail,
+        const result = await changesetService.createChangeset({
+          topicId: params.topicId,
+          proposedBy: account.id,
+          description: params.description,
+          operations: params.operations,
+          isElite: account.badgeElite,
+          hasBadgeContribution: account.badgeContribution,
         });
         return mcpResult({
-          id: updated.id,
-          content: updated.content,
-          status: updated.status,
-          updatedAt: updated.updated_at,
+          changesetId: result.changeset.id,
+          status: result.changeset.status,
+          operationCount: result.operations.length,
+          operations: result.operations.map(op => ({
+            operation: op.operation,
+            chunkId: op.chunkId,
+            targetChunkId: op.targetChunkId,
+          })),
+          message: 'Changeset proposed. It will be reviewed by the community.',
         });
       } catch (err) {
         return mcpError(err);
@@ -317,30 +328,20 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  tools.retract_chunk = server.tool(
-    'retract_chunk',
-    'Retract (withdraw) a chunk you created. Only works on proposed or under_review chunks.',
+  tools.retract_changeset = server.tool(
+    'retract_changeset',
+    'Retract (withdraw) a changeset you proposed. Only works on proposed or under_review changesets. Cancels any active formal vote.',
     {
-      chunkId: z.string().describe('Chunk UUID'),
+      changesetId: z.string().describe('Changeset UUID'),
     },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
-        const existing = await chunkService.getChunkById(params.chunkId);
-        if (!existing) {
-          return mcpError(Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' }));
-        }
-        if (existing.created_by !== account.id) {
-          return mcpError(Object.assign(new Error('Only the creator can retract this chunk'), { code: 'FORBIDDEN' }));
-        }
-        const retracted = await chunkService.retractChunk(params.chunkId, {
-          reason: 'withdrawn',
-          retractedBy: account.id,
-        });
+        const retracted = await changesetService.retractChangeset(params.changesetId, account.id);
         return mcpResult({
-          id: retracted.id,
+          changesetId: retracted.id,
           status: retracted.status,
-          message: 'Chunk retracted.',
+          message: 'Changeset retracted.',
         });
       } catch (err) {
         return mcpError(err);
@@ -348,27 +349,20 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  tools.resubmit_chunk = server.tool(
-    'resubmit_chunk',
-    'Resubmit a previously retracted chunk. Max 3 resubmissions allowed.',
+  tools.resubmit_changeset = server.tool(
+    'resubmit_changeset',
+    'Resubmit a previously retracted changeset. Only the proposer can resubmit.',
     {
-      chunkId: z.string().describe('Chunk UUID (must be in retracted status)'),
+      changesetId: z.string().describe('Changeset UUID (must be in retracted status)'),
     },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
-        const existing = await chunkService.getChunkById(params.chunkId);
-        if (!existing) {
-          return mcpError(Object.assign(new Error('Chunk not found'), { code: 'NOT_FOUND' }));
-        }
-        if (existing.created_by !== account.id) {
-          return mcpError(Object.assign(new Error('Only the creator can resubmit this chunk'), { code: 'FORBIDDEN' }));
-        }
-        const resubmitted = await chunkService.resubmitChunk(params.chunkId, account.id);
+        const resubmitted = await changesetService.resubmitChangeset(params.changesetId, account.id);
         return mcpResult({
-          id: resubmitted.id,
+          changesetId: resubmitted.id,
           status: resubmitted.status,
-          message: 'Chunk resubmitted for review.',
+          message: 'Changeset resubmitted for review.',
         });
       } catch (err) {
         return mcpError(err);

@@ -1,7 +1,7 @@
 'use strict';
 
 const { z } = require('zod');
-const chunkService = require('../../services/chunk');
+const changesetService = require('../../services/changeset');
 const flagService = require('../../services/flag');
 const copyrightReviewService = require('../../services/copyright-review');
 const { requireAccount, requireBadge, mcpResult, mcpError } = require('../helpers');
@@ -11,23 +11,23 @@ const CATEGORY = 'review_moderation';
 function registerTools(server, getSessionAccount) {
   const tools = {};
 
-  // ─── CHUNK REVIEW ─────────────────────────────────────────────────
+  // ─── CHANGESET REVIEW ──────────────────────────────────────────────
 
-  tools.merge_chunk = server.tool(
-    'merge_chunk',
-    'Merge a proposed chunk (publish it). Requires policing badge.',
+  tools.merge_changeset = server.tool(
+    'merge_changeset',
+    'Merge a changeset (atomically publish all its operations). Requires policing badge.',
     {
-      chunkId: z.string().describe('Proposed chunk UUID'),
+      changesetId: z.string().describe('Changeset UUID'),
     },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
-        const result = await chunkService.mergeChunk(params.chunkId, account.id);
+        const result = await changesetService.mergeChangeset(params.changesetId, account.id);
         return mcpResult({
-          id: result.id,
+          changesetId: result.id,
           status: result.status,
-          message: 'Chunk merged (published).',
+          message: 'Changeset merged (published).',
         });
       } catch (err) {
         return mcpError(err);
@@ -35,31 +35,29 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  tools.reject_chunk = server.tool(
-    'reject_chunk',
-    'Reject a proposed chunk with reason. Requires policing badge.',
+  tools.reject_changeset = server.tool(
+    'reject_changeset',
+    'Reject a changeset with reason. All operations are retracted atomically. Requires policing badge.',
     {
-      chunkId: z.string().describe('Proposed chunk UUID'),
+      changesetId: z.string().describe('Changeset UUID'),
       reason: z.string().optional().describe('Rejection reason'),
       category: z.string().optional().describe('Category: inaccurate, unsourced, duplicate, off_topic, low_quality, copyright, other'),
       suggestions: z.string().optional().describe('Improvement suggestions'),
-      report: z.boolean().optional().describe('Also create a flag for this chunk'),
     },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
-        const result = await chunkService.rejectChunk(params.chunkId, {
+        const result = await changesetService.rejectChangeset(params.changesetId, {
           reason: params.reason,
           category: params.category,
           suggestions: params.suggestions,
-          report: params.report,
           rejectedBy: account.id,
         });
         return mcpResult({
-          id: result.id,
+          changesetId: result.id,
           status: result.status,
-          message: 'Chunk rejected.',
+          message: 'Changeset rejected.',
         });
       } catch (err) {
         return mcpError(err);

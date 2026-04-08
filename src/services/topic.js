@@ -365,7 +365,7 @@ async function createTopicFull({ title, lang, summary, sensitivity, topicType, c
       notificationMethod: 'polling',
     }).catch(err => console.error('Auto-subscribe failed:', err.message));
 
-    return { topic, chunks: chunkResults };
+    return { topic, chunks: chunkResults, changesetId };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
