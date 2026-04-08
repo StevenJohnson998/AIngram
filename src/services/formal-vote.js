@@ -5,10 +5,8 @@
  * Flow: changeset enters under_review → startCommitPhase → voters commit hashes →
  *       commit deadline → reveal phase → voters reveal → tally → decision
  *
- * NOTE: The formal_votes table still uses a `chunk_id` column, which now stores
- * the changesetId. This is a deliberate repurposing — a proper column rename
- * will be done in a later step if needed. All references to `chunk_id` in SQL
- * within this file actually hold a changeset UUID.
+ * The formal_votes table uses a `changeset_id` column to reference the changeset
+ * being voted on. The legacy `chunk_id` column is kept for backward compatibility.
  */
 
 const { getPool } = require('../config/database');
@@ -189,11 +187,11 @@ async function commitVote({ accountId, changesetId, commitHash }) {
   const weight = clampWeight(rawWeight, W_MIN, W_MAX);
 
   // Upsert formal vote (commit phase only stores hash + weight)
-  // NOTE: chunk_id column stores the changesetId (column rename deferred)
+  // NOTE: using changeset_id column
   const { rows } = await pool.query(
-    `INSERT INTO formal_votes (chunk_id, account_id, commit_hash, weight)
+    `INSERT INTO formal_votes (changeset_id, account_id, commit_hash, weight)
      VALUES ($1, $2, $3, $4)
-     ON CONFLICT (chunk_id, account_id)
+     ON CONFLICT (changeset_id, account_id)
      DO UPDATE SET commit_hash = $3, weight = $4, committed_at = now(),
                    vote_value = NULL, reason_tag = NULL, salt = NULL, revealed_at = NULL
      RETURNING *`,
@@ -257,9 +255,9 @@ async function revealVote({ accountId, changesetId, voteValue, reasonTag, salt }
   }
 
   // Fetch the committed vote
-  // NOTE: chunk_id column stores the changesetId (column rename deferred)
+  // NOTE: using changeset_id column
   const { rows: voteRows } = await pool.query(
-    `SELECT * FROM formal_votes WHERE chunk_id = $1 AND account_id = $2`,
+    `SELECT * FROM formal_votes WHERE changeset_id = $1 AND account_id = $2`,
     [changesetId, accountId]
   );
   if (voteRows.length === 0) {
@@ -286,11 +284,11 @@ async function revealVote({ accountId, changesetId, voteValue, reasonTag, salt }
   }
 
   // Update vote with revealed data
-  // NOTE: chunk_id column stores the changesetId (column rename deferred)
+  // NOTE: using changeset_id column
   const { rows } = await pool.query(
     `UPDATE formal_votes
      SET vote_value = $3, reason_tag = $4, salt = $5, revealed_at = now()
-     WHERE chunk_id = $1 AND account_id = $2
+     WHERE changeset_id = $1 AND account_id = $2
      RETURNING *`,
     [changesetId, accountId, voteValue, reasonTag, salt]
   );
@@ -335,10 +333,10 @@ async function tallyAndResolve(changesetId) {
     const isSuggestionChangeset = suggestionRows.length > 0;
 
     // Fetch all revealed votes
-    // NOTE: chunk_id column stores the changesetId (column rename deferred)
+    // NOTE: using changeset_id column
     const { rows: votes } = await client.query(
       `SELECT vote_value, weight FROM formal_votes
-       WHERE chunk_id = $1 AND revealed_at IS NOT NULL`,
+       WHERE changeset_id = $1 AND revealed_at IS NOT NULL`,
       [changesetId]
     );
 
@@ -454,12 +452,12 @@ async function getVoteStatus(changesetId, requestingAccountId) {
   const isSug = suggestionRows.length > 0;
 
   // Count totals
-  // NOTE: chunk_id column stores the changesetId (column rename deferred)
+  // NOTE: using changeset_id column
   const { rows: countRows } = await pool.query(
     `SELECT
        COUNT(*)::int AS commit_count,
        COUNT(*) FILTER (WHERE revealed_at IS NOT NULL)::int AS revealed_count
-     FROM formal_votes WHERE chunk_id = $1`,
+     FROM formal_votes WHERE changeset_id = $1`,
     [changesetId]
   );
   const { commit_count, revealed_count } = countRows[0];
@@ -470,7 +468,7 @@ async function getVoteStatus(changesetId, requestingAccountId) {
   if (requestingAccountId) {
     const { rows: myVote } = await pool.query(
       `SELECT revealed_at FROM formal_votes
-       WHERE chunk_id = $1 AND account_id = $2`,
+       WHERE changeset_id = $1 AND account_id = $2`,
       [changesetId, requestingAccountId]
     );
     if (myVote.length > 0) {
@@ -510,7 +508,7 @@ async function getVoteStatus(changesetId, requestingAccountId) {
             a.name AS voter_name
      FROM formal_votes fv
      JOIN accounts a ON a.id = fv.account_id
-     WHERE fv.chunk_id = $1 AND fv.revealed_at IS NOT NULL
+     WHERE fv.changeset_id = $1 AND fv.revealed_at IS NOT NULL
      ORDER BY fv.weight DESC`,
     [changesetId]
   );
