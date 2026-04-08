@@ -83,7 +83,7 @@ function createChunkInDB(topicId, authorId, content) {
   return raw;
 }
 
-/** Create a proposed chunk (for review/vote tests). */
+/** Create a proposed chunk with changeset (for review/vote tests). Returns { chunkId, changesetId }. */
 function createProposedChunkInDB(topicId, authorId) {
   const raw = execSync(
     `docker exec ${DB_CONTAINER} psql -U admin -d ${DB_NAME} -t -A -c "
@@ -96,7 +96,19 @@ function createProposedChunkInDB(topicId, authorId) {
     `docker exec ${DB_CONTAINER} psql -U admin -d ${DB_NAME} -c "INSERT INTO chunk_topics (chunk_id, topic_id) VALUES ('${raw}', '${topicId}');"`,
     { encoding: 'utf-8' }
   );
-  return raw;
+  // Create changeset for this chunk
+  const csId = execSync(
+    `docker exec ${DB_CONTAINER} psql -U admin -d ${DB_NAME} -t -A -c "
+      INSERT INTO changesets (topic_id, proposed_by, status)
+      VALUES ('${topicId}', '${authorId}', 'proposed')
+      RETURNING id;"`,
+    { encoding: 'utf-8' }
+  ).trim().split('\n')[0].trim();
+  execSync(
+    `docker exec ${DB_CONTAINER} psql -U admin -d ${DB_NAME} -c "INSERT INTO changeset_operations (changeset_id, operation, chunk_id, sort_order) VALUES ('${csId}', 'add', '${raw}', 0);"`,
+    { encoding: 'utf-8' }
+  );
+  return csId;
 }
 
 // ─── MCP Protocol Helpers ────────────────────────────────────────────
@@ -291,8 +303,8 @@ test.describe('MCP Tool Discovery', () => {
     const names = tools.map(t => t.name).sort();
     expect(names).toEqual([
       'commit_vote', 'contribute_chunk', 'discover_related_chunks', 'discover_related_topics',
-      'enable_tools', 'get_chunk', 'get_topic',
-      'get_changeset', 'list_capabilities', 'list_review_queue', 'my_reputation', 'object_changeset',
+      'enable_tools', 'get_changeset', 'get_chunk', 'get_topic',
+      'list_capabilities', 'list_review_queue', 'my_reputation', 'object_changeset',
       'poll_notifications', 'propose_edit', 'reveal_vote', 'search', 'subscribe', 'suggest_improvement',
     ]);
   });
@@ -405,7 +417,7 @@ test.describe('MCP Read Tools', () => {
       limit: 5,
     });
     expect(isError).toBe(false);
-    expect(Array.isArray(data.proposals)).toBe(true);
+    expect(Array.isArray(data.items)).toBe(true);
     expect(data.pagination).toBeDefined();
     expect(data.pagination.limit).toBe(5);
   });
@@ -566,21 +578,21 @@ test.describe('MCP Write Tools', () => {
 // =====================================================================
 
 test.describe('MCP Commit-Reveal Vote', () => {
-  let underReviewChunkId;
+  let underReviewChangesetId;
 
   test.beforeAll(async () => {
-    // Create a proposed chunk and escalate it to under_review with proper vote state
-    underReviewChunkId = createProposedChunkInDB(testTopic.id, agent.id);
+    // Create a proposed chunk+changeset and escalate the changeset to under_review
+    underReviewChangesetId = createProposedChunkInDB(testTopic.id, agent.id);
     const script = `
       const { Pool } = require('pg');
       const pool = new Pool({ host: process.env.DB_HOST || 'postgres', database: process.env.DB_NAME, user: process.env.DB_USER, password: process.env.DB_PASSWORD });
       (async () => {
         await pool.query(
-          "UPDATE chunks SET status = 'under_review', vote_phase = 'commit', " +
+          "UPDATE changesets SET status = 'under_review', vote_phase = 'commit', " +
           "under_review_at = NOW(), commit_deadline_at = NOW() + interval '24 hours', " +
           "reveal_deadline_at = NOW() + interval '48 hours' " +
           "WHERE id = $1",
-          ['${underReviewChunkId}']
+          ['${underReviewChangesetId}']
         );
         await pool.end();
         console.log('OK');
@@ -601,7 +613,7 @@ test.describe('MCP Commit-Reveal Vote', () => {
       .digest('hex');
 
     const commitResult = await mcpCallTool(request, sessionId, 'commit_vote', {
-      chunkId: underReviewChunkId,
+      changesetId: underReviewChangesetId,
       commitHash,
     }, agentT1.apiKey);
     expect(commitResult.isError).toBe(false);
@@ -613,7 +625,7 @@ test.describe('MCP Commit-Reveal Vote', () => {
       const { Pool } = require('pg');
       const pool = new Pool({ host: process.env.DB_HOST || 'postgres', database: process.env.DB_NAME, user: process.env.DB_USER, password: process.env.DB_PASSWORD });
       (async () => {
-        await pool.query("UPDATE chunks SET vote_phase = 'reveal' WHERE id = $1", ['${underReviewChunkId}']);
+        await pool.query("UPDATE changesets SET vote_phase = 'reveal' WHERE id = $1", ['${underReviewChangesetId}']);
         await pool.end();
         console.log('OK');
       })();
@@ -622,7 +634,7 @@ test.describe('MCP Commit-Reveal Vote', () => {
 
     // Reveal phase
     const revealResult = await mcpCallTool(request, sessionId, 'reveal_vote', {
-      chunkId: underReviewChunkId,
+      changesetId: underReviewChangesetId,
       voteValue,
       reasonTag,
       salt,
