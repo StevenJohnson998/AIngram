@@ -193,10 +193,16 @@ router.post(
   auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
-      const { chunk_id, commit_hash } = req.body;
+      const { changeset_id, chunk_id, commit_hash } = req.body;
 
-      if (!chunk_id || !UUID_RE.test(chunk_id)) {
-        return validationError(res, 'chunk_id must be a valid UUID');
+      // Support changeset_id (new) with chunk_id as deprecated fallback
+      const targetId = changeset_id || chunk_id;
+      if (chunk_id && !changeset_id) {
+        console.warn('DEPRECATED: POST /votes/formal/commit with chunk_id — use changeset_id instead');
+      }
+
+      if (!targetId || !UUID_RE.test(targetId)) {
+        return validationError(res, 'changeset_id must be a valid UUID');
       }
       if (!commit_hash || typeof commit_hash !== 'string' || commit_hash.length < 32) {
         return validationError(res, 'commit_hash must be a SHA-256 hex string');
@@ -204,7 +210,7 @@ router.post(
 
       const vote = await formalVoteService.commitVote({
         accountId: req.account.id,
-        chunkId: chunk_id,
+        changesetId: targetId,
         commitHash: commit_hash,
       });
 
@@ -231,10 +237,16 @@ router.post(
   auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
-      const { chunk_id, vote_value, reason_tag, salt } = req.body;
+      const { changeset_id, chunk_id, vote_value, reason_tag, salt } = req.body;
 
-      if (!chunk_id || !UUID_RE.test(chunk_id)) {
-        return validationError(res, 'chunk_id must be a valid UUID');
+      // Support changeset_id (new) with chunk_id as deprecated fallback
+      const targetId = changeset_id || chunk_id;
+      if (chunk_id && !changeset_id) {
+        console.warn('DEPRECATED: POST /votes/formal/reveal with chunk_id — use changeset_id instead');
+      }
+
+      if (!targetId || !UUID_RE.test(targetId)) {
+        return validationError(res, 'changeset_id must be a valid UUID');
       }
       if (vote_value === undefined || vote_value === null) {
         return validationError(res, 'vote_value is required (-1, 0, or 1)');
@@ -245,7 +257,7 @@ router.post(
 
       const vote = await formalVoteService.revealVote({
         accountId: req.account.id,
-        chunkId: chunk_id,
+        changesetId: targetId,
         voteValue: vote_value,
         reasonTag: reason_tag,
         salt,
@@ -265,18 +277,56 @@ router.post(
   }
 );
 
-// GET /chunks/:id/votes — formal vote status (phase-aware visibility)
+// GET /changesets/:id/votes — formal vote status for changeset (phase-aware visibility)
+router.get(
+  '/changesets/:id/votes',
+  auth.authenticateOptional,
+  async (req, res) => {
+    try {
+      if (!UUID_RE.test(req.params.id)) {
+        return validationError(res, 'Changeset ID must be a valid UUID');
+      }
+
+      const requestingAccountId = req.account ? req.account.id : null;
+      const status = await formalVoteService.getVoteStatus(req.params.id, requestingAccountId);
+
+      return res.json(status);
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
+      console.error('Error getting changeset vote status:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get vote status' } });
+    }
+  }
+);
+
+// GET /chunks/:id/votes — formal vote status (DEPRECATED: use /changesets/:id/votes)
 router.get(
   '/chunks/:id/votes',
   auth.authenticateOptional,
   async (req, res) => {
     try {
+      console.warn('DEPRECATED: GET /chunks/:id/votes — use GET /changesets/:id/votes instead');
+
       if (!UUID_RE.test(req.params.id)) {
         return validationError(res, 'Chunk ID must be a valid UUID');
       }
 
+      // Look up the changeset for this chunk
+      const { getPool } = require('../config/database');
+      const { rows } = await getPool().query(
+        'SELECT changeset_id FROM changeset_operations WHERE chunk_id = $1 LIMIT 1',
+        [req.params.id]
+      );
+
+      if (rows.length === 0) {
+        // Fallback: try direct lookup (pre-migration chunks)
+        const requestingAccountId = req.account ? req.account.id : null;
+        const status = await formalVoteService.getVoteStatus(req.params.id, requestingAccountId);
+        return res.json(status);
+      }
+
       const requestingAccountId = req.account ? req.account.id : null;
-      const status = await formalVoteService.getVoteStatus(req.params.id, requestingAccountId);
+      const status = await formalVoteService.getVoteStatus(rows[0].changeset_id, requestingAccountId);
 
       return res.json(status);
     } catch (err) {

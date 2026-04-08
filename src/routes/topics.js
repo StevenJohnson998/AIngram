@@ -442,12 +442,27 @@ router.put(
   }
 );
 
-// PUT /chunks/:id/retract — retract chunk (creator only)
+// PUT /chunks/:id/retract — DEPRECATED: use PUT /changesets/:id/retract
 router.put(
   '/chunks/:id/retract',
   auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
+      console.warn('DEPRECATED: PUT /chunks/:id/retract — use PUT /changesets/:id/retract instead');
+
+      // Look up the changeset for this chunk
+      const { rows } = await getPool().query(
+        'SELECT changeset_id FROM changeset_operations WHERE chunk_id = $1 LIMIT 1',
+        [req.params.id]
+      );
+
+      if (rows.length > 0) {
+        const changesetService = require('../services/changeset');
+        const changeset = await changesetService.retractChangeset(rows[0].changeset_id, req.account.id);
+        return res.json(changeset);
+      }
+
+      // Fallback: no changeset found, use legacy path
       const existing = await chunkService.getChunkById(req.params.id);
       if (!existing) return notFoundError(res, 'Chunk not found');
       if (existing.created_by !== req.account.id) {
@@ -457,7 +472,8 @@ router.put(
       const chunk = await chunkService.retractChunk(req.params.id, { reason: 'withdrawn', retractedBy: req.account.id });
       return res.json(chunk);
     } catch (err) {
-      if (err.name === 'LifecycleError') {
+      if (err.code === 'FORBIDDEN') return forbiddenError(res, err.message);
+      if (err.name === 'LifecycleError' || err.code === 'INVALID_TRANSITION') {
         return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: err.message } });
       }
       console.error('Error retracting chunk:', err);
@@ -466,18 +482,33 @@ router.put(
   }
 );
 
-// POST /chunks/:id/escalate — escalate proposed chunk to formal review (Tier 1+)
+// POST /chunks/:id/escalate — DEPRECATED: use POST /changesets/:id/escalate
 router.post(
   '/chunks/:id/escalate',
   auth.authenticateRequired, authenticatedLimiter,
   requireTier(1),
   async (req, res) => {
     try {
+      console.warn('DEPRECATED: POST /chunks/:id/escalate — use POST /changesets/:id/escalate instead');
+
+      // Look up the changeset for this chunk
+      const { rows } = await getPool().query(
+        'SELECT changeset_id FROM changeset_operations WHERE chunk_id = $1 LIMIT 1',
+        [req.params.id]
+      );
+
+      if (rows.length > 0) {
+        const changesetService = require('../services/changeset');
+        const changeset = await changesetService.escalateToReview(rows[0].changeset_id, req.account.id);
+        return res.json(changeset);
+      }
+
+      // Fallback: no changeset found, use legacy path
       const chunk = await chunkService.escalateToReview(req.params.id, req.account.id);
       return res.json(chunk);
     } catch (err) {
       if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
-      if (err.name === 'LifecycleError') {
+      if (err.name === 'LifecycleError' || err.code === 'INVALID_TRANSITION') {
         return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: err.message } });
       }
       console.error('Error escalating chunk:', err);
@@ -520,12 +551,27 @@ router.post(
   }
 );
 
-// POST /chunks/:id/resubmit — resubmit a retracted chunk (creator only)
+// POST /chunks/:id/resubmit — DEPRECATED: use PUT /changesets/:id/resubmit
 router.post(
   '/chunks/:id/resubmit',
   auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
+      console.warn('DEPRECATED: POST /chunks/:id/resubmit — use PUT /changesets/:id/resubmit instead');
+
+      // Look up the changeset for this chunk
+      const { rows } = await getPool().query(
+        'SELECT changeset_id FROM changeset_operations WHERE chunk_id = $1 LIMIT 1',
+        [req.params.id]
+      );
+
+      if (rows.length > 0) {
+        const changesetService = require('../services/changeset');
+        const changeset = await changesetService.resubmitChangeset(rows[0].changeset_id, req.account.id);
+        return res.json(changeset);
+      }
+
+      // Fallback: no changeset found, use legacy path
       const existing = await chunkService.getChunkById(req.params.id);
       if (!existing) return notFoundError(res, 'Chunk not found');
       if (existing.created_by !== req.account.id) {
@@ -536,7 +582,8 @@ router.post(
       return res.json(chunk);
     } catch (err) {
       if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
-      if (err.name === 'LifecycleError') {
+      if (err.code === 'FORBIDDEN') return forbiddenError(res, err.message);
+      if (err.name === 'LifecycleError' || err.code === 'INVALID_TRANSITION') {
         return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: err.message } });
       }
       console.error('Error resubmitting chunk:', err);
@@ -655,18 +702,33 @@ router.post(
   }
 );
 
-// PUT /chunks/:id/merge — merge proposed chunk (Tier 1+ and policing badge required)
+// PUT /chunks/:id/merge — DEPRECATED: use PUT /changesets/:id/merge
 router.put(
   '/chunks/:id/merge',
   auth.authenticateRequired, authenticatedLimiter,
   requireTier(1), requireBadge('policing'),
   async (req, res) => {
     try {
+      console.warn('DEPRECATED: PUT /chunks/:id/merge — use PUT /changesets/:id/merge instead');
+
+      // Look up the changeset for this chunk
+      const { rows } = await getPool().query(
+        'SELECT changeset_id FROM changeset_operations WHERE chunk_id = $1 LIMIT 1',
+        [req.params.id]
+      );
+
+      if (rows.length > 0) {
+        const changesetService = require('../services/changeset');
+        const merged = await changesetService.mergeChangeset(rows[0].changeset_id, req.account.id);
+        return res.json(merged);
+      }
+
+      // Fallback: no changeset found, use legacy path
       const merged = await chunkService.mergeChunk(req.params.id, req.account.id);
       return res.json(merged);
     } catch (err) {
       if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
-      if (err.name === 'LifecycleError') {
+      if (err.name === 'LifecycleError' || err.code === 'INVALID_TRANSITION') {
         return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: err.message } });
       }
       console.error('Error merging chunk:', err);
@@ -675,13 +737,15 @@ router.put(
   }
 );
 
-// PUT /chunks/:id/reject — reject proposed chunk (Tier 1+ and policing badge required)
+// PUT /chunks/:id/reject — DEPRECATED: use PUT /changesets/:id/reject
 router.put(
   '/chunks/:id/reject',
   auth.authenticateRequired, authenticatedLimiter,
   requireTier(1), requireBadge('policing'),
   async (req, res) => {
     try {
+      console.warn('DEPRECATED: PUT /chunks/:id/reject — use PUT /changesets/:id/reject instead');
+
       const { reason, report, category, suggestions } = req.body || {};
       if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
         return validationError(res, 'reason is required');
@@ -697,6 +761,25 @@ router.put(
           return validationError(res, `suggestions must be at most ${REJECTION_SUGGESTIONS_MAX_LENGTH} characters`);
         }
       }
+
+      // Look up the changeset for this chunk
+      const { rows } = await getPool().query(
+        'SELECT changeset_id FROM changeset_operations WHERE chunk_id = $1 LIMIT 1',
+        [req.params.id]
+      );
+
+      if (rows.length > 0) {
+        const changesetService = require('../services/changeset');
+        const rejected = await changesetService.rejectChangeset(rows[0].changeset_id, {
+          reason: reason.trim(),
+          category: category || null,
+          suggestions: suggestions ? suggestions.trim() : null,
+          rejectedBy: req.account.id,
+        });
+        return res.json(rejected);
+      }
+
+      // Fallback: no changeset found, use legacy path
       const rejected = await chunkService.rejectChunk(req.params.id, {
         reason: reason.trim(),
         report: !!report,
@@ -707,7 +790,7 @@ router.put(
       return res.json(rejected);
     } catch (err) {
       if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
-      if (err.name === 'LifecycleError') {
+      if (err.name === 'LifecycleError' || err.code === 'INVALID_TRANSITION') {
         return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: err.message } });
       }
       console.error('Error rejecting chunk:', err);
