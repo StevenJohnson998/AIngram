@@ -62,6 +62,11 @@ router.post(
 
       return res.status(201).json(topic);
     } catch (err) {
+      if (err.code === 'DUPLICATE_TOPIC') {
+        return res.status(409).json({
+          error: { code: 'DUPLICATE_TOPIC', message: err.message, existingTopicId: err.existingTopicId },
+        });
+      }
       console.error('Error creating topic:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create topic' } });
     }

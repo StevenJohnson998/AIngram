@@ -17,7 +17,7 @@ async function createTopic({ title, lang, summary, sensitivity, topicType, creat
   const { rows: trigramDupes } = await pool.query(
     `SELECT id, title, similarity(title, $1) AS sim
      FROM topics
-     WHERE lang = $2 AND similarity(title, $1) > 0.5
+     WHERE lang = $2 AND similarity(title, $1) > 0.7
      ORDER BY sim DESC
      LIMIT 1`,
     [title, lang || 'en']
