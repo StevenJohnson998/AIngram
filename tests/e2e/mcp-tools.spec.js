@@ -298,11 +298,11 @@ test.describe('MCP Tool Discovery', () => {
   test('tools/list returns core + meta tools (16)', async ({ request }) => {
     const sessionId = await mcpInit(request, agent.apiKey);
     const tools = await mcpListTools(request, sessionId, agent.apiKey);
-    expect(tools.length).toBe(18);
+    expect(tools.length).toBe(19);
 
     const names = tools.map(t => t.name).sort();
     expect(names).toEqual([
-      'commit_vote', 'contribute_chunk', 'discover_related_chunks', 'discover_related_topics',
+      'cast_vote', 'commit_vote', 'contribute_chunk', 'discover_related_chunks', 'discover_related_topics',
       'enable_tools', 'get_changeset', 'get_chunk', 'get_topic',
       'list_capabilities', 'list_review_queue', 'my_reputation', 'object_changeset',
       'poll_notifications', 'propose_edit', 'reveal_vote', 'search', 'subscribe', 'suggest_improvement',

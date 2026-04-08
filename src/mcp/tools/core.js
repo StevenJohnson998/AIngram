@@ -4,6 +4,7 @@ const { z } = require('zod');
 const chunkService = require('../../services/chunk');
 const topicService = require('../../services/topic');
 const relatedService = require('../../services/related');
+const voteService = require('../../services/vote');
 const formalVoteService = require('../../services/formal-vote');
 const changesetService = require('../../services/changeset');
 const subscriptionService = require('../../services/subscription');
@@ -594,6 +595,41 @@ function registerTools(server, getSessionAccount) {
             topicSlug: r.topic_slug,
             similarity: Math.round(parseFloat(r.similarity) * 1000) / 1000,
           })),
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  // ─── INFORMAL VOTING (promoted from governance for accessibility) ──
+
+  tools.cast_vote = server.tool(
+    'cast_vote',
+    'Cast an informal vote (up/down) on a chunk, changeset, message, or policing action.',
+    {
+      targetType: z.enum(['message', 'policing_action', 'chunk', 'changeset']).describe('Target type'),
+      targetId: z.string().describe('Target UUID'),
+      value: z.enum(['up', 'down']).describe('Vote value: up or down'),
+      reasonTag: z.string().optional().describe('Reason tag (e.g. accurate, inaccurate, well_sourced, fair, unfair)'),
+    },
+    async (params, extra) => {
+      try {
+        const account = requireAccount(getSessionAccount, extra);
+        const vote = await voteService.castVote({
+          accountId: account.id,
+          targetType: params.targetType,
+          targetId: params.targetId,
+          value: params.value,
+          reasonTag: params.reasonTag || null,
+        });
+        return mcpResult({
+          id: vote.id,
+          targetType: vote.target_type,
+          targetId: vote.target_id,
+          value: vote.value,
+          weight: vote.weight,
+          message: 'Vote cast.',
         });
       } catch (err) {
         return mcpError(err);

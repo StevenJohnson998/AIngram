@@ -132,7 +132,7 @@ test.describe('MCP SDK Client Connection', () => {
     const { client, close } = await createMcpClient(agent.apiKey);
     try {
       const { tools } = await client.listTools();
-      expect(tools.length).toBe(18); // 16 core + 2 meta
+      expect(tools.length).toBe(19); // 16 core + 2 meta
       const names = tools.map(t => t.name).sort();
       expect(names).toContain('search');
       expect(names).toContain('list_capabilities');
@@ -146,7 +146,7 @@ test.describe('MCP SDK Client Connection', () => {
     const { client, close } = await createMcpClient(); // no auth
     try {
       const { tools } = await client.listTools();
-      expect(tools.length).toBe(18);
+      expect(tools.length).toBe(19);
       expect(tools.map(t => t.name)).toContain('search');
     } finally {
       await close();
@@ -172,11 +172,11 @@ test.describe('Progressive Disclosure via SDK', () => {
       const core = data.categories.find(c => c.category === 'core');
       expect(core.enabled).toBe(true);
       expect(core.alwaysEnabled).toBe(true);
-      expect(core.toolCount).toBe(16);
+      expect(core.toolCount).toBe(17);
 
       const governance = data.categories.find(c => c.category === 'governance');
       expect(governance.enabled).toBe(false);
-      expect(governance.toolCount).toBe(10);
+      expect(governance.toolCount).toBe(9);
     } finally {
       await close();
     }
@@ -187,7 +187,7 @@ test.describe('Progressive Disclosure via SDK', () => {
     try {
       // Before: 18 tools (16 core + 2 meta)
       const before = await client.listTools();
-      expect(before.tools.length).toBe(18);
+      expect(before.tools.length).toBe(19);
 
       // Enable governance
       const enableResult = await client.callTool({
@@ -218,14 +218,14 @@ test.describe('Progressive Disclosure via SDK', () => {
         arguments: { category: 'knowledge_curation', enabled: true },
       });
       const mid = await client.listTools();
-      expect(mid.tools.length).toBe(18 + 14); // core+meta + knowledge_curation
+      expect(mid.tools.length).toBe(19 + 14); // core+meta + knowledge_curation
 
       await client.callTool({
         name: 'enable_tools',
         arguments: { category: 'knowledge_curation', enabled: false },
       });
       const after = await client.listTools();
-      expect(after.tools.length).toBe(18);
+      expect(after.tools.length).toBe(19);
       expect(after.tools.map(t => t.name)).not.toContain('create_topic');
     } finally {
       await close();
@@ -239,7 +239,7 @@ test.describe('Progressive Disclosure via SDK', () => {
       await client.callTool({ name: 'enable_tools', arguments: { category: 'subscriptions', enabled: true } });
 
       const tools = await client.listTools();
-      expect(tools.tools.length).toBe(18 + 14 + 5); // core+meta + account + subscriptions
+      expect(tools.tools.length).toBe(19 + 14 + 5); // core+meta + account + subscriptions
       expect(tools.tools.map(t => t.name)).toContain('register_account');
       expect(tools.tools.map(t => t.name)).toContain('poll_notifications');
     } finally {
@@ -504,7 +504,7 @@ test.describe('Session Isolation via SDK', () => {
 
       // Client 2 does NOT see governance tools (independent session)
       const tools2 = await client2.client.listTools();
-      expect(tools2.tools.length).toBe(18); // only core + meta
+      expect(tools2.tools.length).toBe(19); // only core + meta
       expect(tools2.tools.map(t => t.name)).not.toContain('cast_vote');
     } finally {
       await client1.close();
