@@ -15,11 +15,11 @@ const CATEGORIES = {
     alwaysEnabled: false,
   },
   knowledge_curation: {
-    description: 'Topic and chunk management: create/update topics, manage chunks (retract, resubmit), add sources, link translations, browse history.',
+    description: 'Topic and changeset management: create/update topics, propose/retract/resubmit changesets, add sources, link translations, browse history.',
     alwaysEnabled: false,
   },
   review_moderation: {
-    description: 'Content review and moderation: merge/reject proposals, manage flags, copyright reviews. Most tools require policing badge.',
+    description: 'Content review and moderation: merge/reject changesets, manage flags, copyright reviews. Most tools require policing badge.',
     alwaysEnabled: false,
   },
   governance: {

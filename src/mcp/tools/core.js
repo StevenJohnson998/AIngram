@@ -5,13 +5,14 @@ const chunkService = require('../../services/chunk');
 const topicService = require('../../services/topic');
 const relatedService = require('../../services/related');
 const formalVoteService = require('../../services/formal-vote');
+const changesetService = require('../../services/changeset');
 const subscriptionService = require('../../services/subscription');
 const notificationService = require('../../services/notification');
 const reputationService = require('../../services/reputation');
 const vectorSearch = require('../../services/vector-search');
 const { generateEmbedding } = require('../../services/ollama');
 const { getPool } = require('../../config/database');
-const { requireAccount, mcpResult, mcpError } = require('../helpers');
+const { requireAccount, requireTier, mcpResult, mcpError } = require('../helpers');
 
 const CATEGORY = 'core';
 
@@ -157,31 +158,85 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
+  tools.get_changeset = server.tool(
+    'get_changeset',
+    'Get a changeset by ID, including its operations with chunk content and diffs.',
+    {
+      changesetId: z.string().describe('Changeset UUID'),
+    },
+    async ({ changesetId }) => {
+      try {
+        const changeset = await changesetService.getChangesetById(changesetId);
+        if (!changeset) {
+          return mcpError(Object.assign(new Error('Changeset not found'), { code: 'NOT_FOUND' }));
+        }
+
+        return mcpResult({
+          id: changeset.id,
+          topicId: changeset.topic_id,
+          proposedBy: changeset.proposed_by,
+          description: changeset.description,
+          status: changeset.status,
+          votePhase: changeset.vote_phase,
+          commitDeadlineAt: changeset.commit_deadline_at,
+          revealDeadlineAt: changeset.reveal_deadline_at,
+          voteScore: changeset.vote_score,
+          mergedAt: changeset.merged_at,
+          mergedBy: changeset.merged_by,
+          rejectedBy: changeset.rejected_by,
+          rejectReason: changeset.reject_reason,
+          rejectionCategory: changeset.rejection_category,
+          initialTrustScore: changeset.initial_trust_score,
+          createdAt: changeset.created_at,
+          updatedAt: changeset.updated_at,
+          operations: (changeset.operations || []).map(op => ({
+            id: op.id,
+            operation: op.operation,
+            chunkId: op.chunk_id,
+            targetChunkId: op.target_chunk_id,
+            sortOrder: op.sort_order,
+            content: op.content,
+            technicalDetail: op.technical_detail,
+            title: op.title,
+            subtitle: op.subtitle,
+            chunkStatus: op.chunk_status,
+            version: op.version,
+            parentChunkId: op.parent_chunk_id,
+            targetContent: op.target_content,
+            targetTitle: op.target_title,
+            targetSubtitle: op.target_subtitle,
+          })),
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
   tools.list_review_queue = server.tool(
     'list_review_queue',
-    'List pending chunk proposals awaiting review. Returns proposed chunks with topic context.',
+    'List pending changesets awaiting review. Returns changesets with topic context and operation counts.',
     {
       page: z.number().optional().describe('Page number (default 1)'),
       limit: z.number().optional().describe('Results per page (1-50, default 20)'),
     },
     async ({ page, limit }) => {
       try {
-        const result = await chunkService.listPendingProposals({
+        const result = await changesetService.listPendingChangesets({
           page: page || 1,
           limit: Math.min(Math.max(limit || 20, 1), 50),
         });
 
         return mcpResult({
-          proposals: result.data.map(c => ({
-            chunkId: c.id,
-            content: c.content,
-            status: c.status,
-            topicTitle: c.topic_title,
-            topicSlug: c.topic_slug,
-            proposedByName: c.proposed_by_name,
-            createdAt: c.created_at,
-            parentChunkId: c.parent_chunk_id,
-            originalContent: c.original_content,
+          items: result.data.map(cs => ({
+            changesetId: cs.id,
+            topicId: cs.topic_id,
+            topicTitle: cs.topic_title,
+            description: cs.description,
+            operationCount: cs.operation_count,
+            proposedByName: cs.proposed_by_name,
+            status: cs.status,
+            createdAt: cs.created_at,
           })),
           pagination: result.pagination,
         });
@@ -218,6 +273,7 @@ function registerTools(server, getSessionAccount) {
         });
         return mcpResult({
           id: chunk.id,
+          changesetId: chunk.changeset_id,
           status: chunk.status,
           trustScore: chunk.trust_score,
           message: 'Chunk proposed successfully. It will be reviewed by the community.',
@@ -257,6 +313,7 @@ function registerTools(server, getSessionAccount) {
 
         return mcpResult({
           id: edit.id,
+          changesetId: edit.changeset_id,
           status: edit.status,
           parentChunkId: edit.parent_chunk_id,
           message: edit.status === 'published'
@@ -273,7 +330,7 @@ function registerTools(server, getSessionAccount) {
     'commit_vote',
     'Submit a hashed vote commitment during formal review (commit-reveal protocol). Hash format: SHA-256 of "voteValue|reasonTag|salt".',
     {
-      chunkId: z.string().describe('Chunk UUID (must be in commit phase)'),
+      changesetId: z.string().describe('Changeset UUID (must be in commit phase)'),
       commitHash: z.string().length(64).describe('SHA-256 hex hash of "voteValue|reasonTag|salt"'),
     },
     async (params, extra) => {
@@ -281,7 +338,7 @@ function registerTools(server, getSessionAccount) {
         const account = requireAccount(getSessionAccount, extra);
         const vote = await formalVoteService.commitVote({
           accountId: account.id,
-          chunkId: params.chunkId,
+          changesetId: params.changesetId,
           commitHash: params.commitHash,
         });
         return mcpResult({
@@ -300,7 +357,7 @@ function registerTools(server, getSessionAccount) {
     'reveal_vote',
     'Reveal a previously committed vote during the reveal phase. Must match the original commitment hash.',
     {
-      chunkId: z.string().describe('Chunk UUID (must be in reveal phase)'),
+      changesetId: z.string().describe('Changeset UUID (must be in reveal phase)'),
       voteValue: z.number().int().min(-1).max(1).describe('Vote: -1 (reject), 0 (abstain), 1 (accept)'),
       reasonTag: z.string().describe('Reason: accurate, well_sourced, novel, redundant, inaccurate, unsourced, harmful, unclear'),
       salt: z.string().describe('Salt used when computing the commitment hash'),
@@ -310,7 +367,7 @@ function registerTools(server, getSessionAccount) {
         const account = requireAccount(getSessionAccount, extra);
         const vote = await formalVoteService.revealVote({
           accountId: account.id,
-          chunkId: params.chunkId,
+          changesetId: params.changesetId,
           voteValue: params.voteValue,
           reasonTag: params.reasonTag,
           salt: params.salt,
@@ -329,20 +386,21 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  tools.object_chunk = server.tool(
-    'object_chunk',
-    'Object to a proposed chunk, escalating it from fast-track to formal review. Requires Tier 1+.',
+  tools.object_changeset = server.tool(
+    'object_changeset',
+    'Object to a proposed changeset, escalating it from fast-track to formal review. Requires Tier 1+.',
     {
-      chunkId: z.string().describe('Chunk UUID (must be in "proposed" status)'),
+      changesetId: z.string().describe('Changeset UUID (must be in "proposed" status)'),
     },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
-        const chunk = await chunkService.escalateToReview(params.chunkId, account.id);
+        requireTier(account, 1);
+        const changeset = await changesetService.escalateToReview(params.changesetId, account.id);
         return mcpResult({
-          id: chunk.id,
-          status: chunk.status,
-          message: 'Chunk escalated to formal review. Commit phase has started.',
+          changesetId: changeset.id,
+          status: changeset.status,
+          message: 'Changeset escalated to formal review. Commit phase has started.',
         });
       } catch (err) {
         return mcpError(err);
@@ -426,6 +484,7 @@ function registerTools(server, getSessionAccount) {
         });
         return mcpResult({
           id: suggestion.id,
+          changesetId: suggestion.changeset_id,
           status: suggestion.status,
           category: suggestion.suggestion_category,
           message: 'Suggestion proposed. A Tier 2 sponsor must escalate it to formal vote.',

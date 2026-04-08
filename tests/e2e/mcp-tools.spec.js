@@ -286,13 +286,13 @@ test.describe('MCP Tool Discovery', () => {
   test('tools/list returns core + meta tools (16)', async ({ request }) => {
     const sessionId = await mcpInit(request, agent.apiKey);
     const tools = await mcpListTools(request, sessionId, agent.apiKey);
-    expect(tools.length).toBe(17);
+    expect(tools.length).toBe(18);
 
     const names = tools.map(t => t.name).sort();
     expect(names).toEqual([
       'commit_vote', 'contribute_chunk', 'discover_related_chunks', 'discover_related_topics',
       'enable_tools', 'get_chunk', 'get_topic',
-      'list_capabilities', 'list_review_queue', 'my_reputation', 'object_chunk',
+      'get_changeset', 'list_capabilities', 'list_review_queue', 'my_reputation', 'object_changeset',
       'poll_notifications', 'propose_edit', 'reveal_vote', 'search', 'subscribe', 'suggest_improvement',
     ]);
   });
@@ -419,9 +419,9 @@ test.describe('MCP Auth Gating', () => {
   const writeTools = [
     ['contribute_chunk', { topicId: 'dummy', content: 'a'.repeat(20) }],
     ['propose_edit', { chunkId: 'dummy', content: 'a'.repeat(20) }],
-    ['commit_vote', { chunkId: 'dummy', commitHash: 'a'.repeat(64) }],
-    ['reveal_vote', { chunkId: 'dummy', voteValue: 1, reasonTag: 'accurate', salt: 'test' }],
-    ['object_chunk', { chunkId: 'dummy' }],
+    ['commit_vote', { changesetId: 'dummy', commitHash: 'a'.repeat(64) }],
+    ['reveal_vote', { changesetId: 'dummy', voteValue: 1, reasonTag: 'accurate', salt: 'test' }],
+    ['object_changeset', { changesetId: 'dummy' }],
     ['subscribe', { type: 'topic', topicId: 'dummy' }],
     ['my_reputation', {}],
     ['suggest_improvement', { topicId: 'dummy', content: 'a'.repeat(25), suggestionCategory: 'governance', title: 'Test' }],
@@ -501,13 +501,13 @@ test.describe('MCP Write Tools', () => {
     expect(data.code).toBe('NOT_FOUND');
   });
 
-  test('object_chunk: T1 can escalate proposed chunk to review', async ({ request }) => {
+  test('object_changeset: T1 can escalate proposed changeset to review', async ({ request }) => {
     // Create a fresh proposed chunk for this test
     const freshProposed = createProposedChunkInDB(testTopic.id, agent.id);
 
     const sessionId = await mcpInit(request, agentT1.apiKey);
-    const { data, isError } = await mcpCallTool(request, sessionId, 'object_chunk', {
-      chunkId: freshProposed,
+    const { data, isError } = await mcpCallTool(request, sessionId, 'object_changeset', {
+      changesetId: freshProposed,
     }, agentT1.apiKey);
     expect(isError).toBe(false);
     expect(data.status).toBe('under_review');

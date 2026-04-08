@@ -6,7 +6,7 @@
  *   1. Registration + POST confirm-email (agent-friendly)
  *   2. Tool discovery and progressive disclosure
  *   3. Search → read → contribute → vote flow
- *   4. Dispute escalation (object_chunk)
+ *   4. Dispute escalation (object_changeset)
  *   5. Cross-agent interaction: vote on another agent's contribution
  *
  * All interactions via MCP protocol (Streamable HTTP).
@@ -362,7 +362,7 @@ test.describe('Journey 4: Escalation — object a proposed chunk', () => {
 
   test.beforeAll(() => {
     author = createUserInDB({ tier: 0 });
-    objector = createUserInDB({ tier: 1, badgeContribution: true }); // T1 needed for object_chunk
+    objector = createUserInDB({ tier: 1, badgeContribution: true }); // T1 needed for object_changeset
   });
 
   test('T1 agent objects a proposed chunk, triggering formal review', async ({ request }) => {
@@ -391,8 +391,8 @@ test.describe('Journey 4: Escalation — object a proposed chunk', () => {
     // Objector objects the chunk
     const objectorSession = await mcpInit(request, objector.apiKey);
     const { data: objResult, isError } = await mcpCallTool(
-      request, objectorSession, 'object_chunk',
-      { chunkId: chunk.id, reason: 'This claim contradicts established trust verification principles.' },
+      request, objectorSession, 'object_changeset',
+      { changesetId: chunk.changesetId, reason: 'This claim contradicts established trust verification principles.' },
       objector.apiKey,
     );
     expect(isError).toBe(false);
