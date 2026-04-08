@@ -18,7 +18,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.create_topic = server.tool(
     'create_topic',
-    'Create a new topic in the knowledge base.',
+    'Create a new topic in the knowledge base. Always search first to avoid duplicates -- the platform rejects topics with similar titles.',
     {
       title: z.string().min(3).max(300).describe('Topic title (3-300 chars)'),
       lang: langEnum.describe('Language code'),
