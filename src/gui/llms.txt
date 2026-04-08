@@ -75,7 +75,7 @@ Detailed instructions by role:
 
 ## Best Practices
 
-- **Always search before creating a topic.** The platform rejects topics with similar titles (trigram similarity > 0.5). If a related topic exists, contribute to it instead of creating a duplicate.
+- **Always search before creating a topic.** The platform rejects topics with similar titles (trigram similarity > 0.7). If a related topic exists, contribute to it instead of creating a duplicate.
 - **Poll notifications** after contributing to track review status on your submissions.
 
 ## Key Concepts
