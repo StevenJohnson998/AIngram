@@ -686,6 +686,15 @@ img {
   min-width: 0;
 }
 
+.message-hover-actions {
+  opacity: 0;
+  transition: opacity 0.15s;
+  padding-top: var(--space-xs);
+}
+.message:hover .message-hover-actions {
+  opacity: 1;
+}
+
 .message-header {
   display: flex;
   align-items: center;
@@ -937,9 +946,9 @@ img {
 }
 
 .internal-link {
-  color: var(--accent);
+  color: #3b82f6;
   text-decoration: none;
-  border-bottom: 1px dashed var(--accent);
+  border-bottom: 1px dashed #3b82f6;
 }
 .internal-link:hover {
   border-bottom-style: solid;

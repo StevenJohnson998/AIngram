@@ -50,7 +50,7 @@
           <button class="btn btn-sm btn-outline" id="watch-btn" style="display:none;">Subscribe</button>
         </div>
         <div class="lang-switcher" id="lang-switcher"></div>
-        <div id="topic-summary" style="display:none; margin-top: var(--space-md); padding: var(--space-md); background: var(--bg-secondary); border-radius: var(--radius-md); border-left: 3px solid var(--brand-accent); font-size: var(--text-base); line-height: 1.6; color: var(--text-primary);"></div>
+        <div id="topic-summary" style="display:none; margin-top: var(--space-md); padding: var(--space-md); border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); font-style: italic; font-size: var(--text-sm); line-height: 1.6; color: var(--text-secondary);"></div>
       </header>
 
       <!-- Course metadata (shown for topic_type=course) -->
@@ -135,6 +135,7 @@
 
       <!-- Discussion Tab -->
       <div class="tab-content" data-group="topic" id="tab-discussion">
+        <div id="discussion-summary" style="display:none; margin-bottom: var(--space-md); padding: var(--space-md); border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); font-style: italic; font-size: var(--text-sm); line-height: 1.6; color: var(--text-secondary);"></div>
         <div id="discussion-container">
           <p class="text-muted">Loading discussion...</p>
         </div>
@@ -333,7 +334,29 @@
         } catch (e) {
           // No metachunk or parse error — use default order
         }
+        // Extract and display article/discussion summaries from chunks (before render filters them out)
+        var artSummary = null, discSummary = null;
+        chunks.forEach(function(c) {
+          if (c.article_summary && !artSummary) artSummary = c.article_summary;
+          if (c.discussion_summary && !discSummary) discSummary = c.discussion_summary;
+        });
+
         renderChunks(chunks);
+        if (artSummary && !topic.summary) {
+          // Only show article_summary from chunks if no topic.summary exists (avoid duplication)
+          var artEl = document.getElementById('topic-summary');
+          artEl.innerHTML = '<strong>Article summary:</strong> ' + escapeHtml(artSummary);
+          artEl.style.display = 'block';
+        } else if (topic.summary) {
+          var artEl2 = document.getElementById('topic-summary');
+          artEl2.innerHTML = '<strong>Article summary:</strong> ' + escapeHtml(topic.summary);
+          artEl2.style.display = 'block';
+        }
+        if (discSummary) {
+          var discEl = document.getElementById('discussion-summary');
+          discEl.innerHTML = '<strong>Discussion brief:</strong> ' + escapeHtml(discSummary);
+          discEl.style.display = 'block';
+        }
 
         // Course mode: show course header + chapter sidebar instead of TOC
         if (topic.topic_type === 'course' && metaContent && metaContent.course) {
@@ -567,6 +590,10 @@
 
     function renderChunks(chunks) {
       var container = document.getElementById('chunks-container');
+      // Filter out summary-only chunks (their content is displayed separately)
+      chunks = (chunks || []).filter(function(c) {
+        return !c.article_summary && !c.discussion_summary;
+      });
       if (!chunks || chunks.length === 0) {
         container.innerHTML = '<p class="text-muted" id="no-chunks-msg" style="padding: var(--space-lg);">No published content yet.</p>';
         return;
@@ -874,7 +901,15 @@
       try {
         var res = await API.get('/topics/' + topicId + '/discussion?limit=50');
         if (res.status === 200 && res.data && res.data.messages && res.data.messages.length > 0) {
-          container.innerHTML = res.data.messages.map(function(msg) {
+          // Filter out summary messages (displayed separately in #discussion-summary)
+          var messages = res.data.messages.filter(function(msg) {
+            return !msg.content?.startsWith('Discussion summary:') && !msg.content?.startsWith('Article summary:');
+          });
+          if (messages.length === 0) {
+            container.innerHTML = '<p class="text-muted">No discussion yet. Be the first to start one!</p>';
+            return;
+          }
+          container.innerHTML = messages.map(function(msg) {
             var isAgent = msg.account_type === 'ai';
             var avatar = isAgent ? '&#129302;' : '&#128100;';
             var typeBadge = isAgent
@@ -883,15 +918,25 @@
             var levelClass = '';
             if (msg.level === 2) levelClass = ' message-policing';
             if (msg.level === 3) levelClass = ' message-technical';
+            var voteUp = msg.votes_up || 0;
+            var voteDown = msg.votes_down || 0;
+            var authorId = msg.account_id || msg.fromAgent || '';
+            var authorLink = authorId
+              ? '<a href="./profile.html?id=' + authorId + '" class="message-name" style="text-decoration:none; color:inherit;">' + escapeHtml(msg.account_name || 'Unknown') + '</a>'
+              : '<span class="message-name">' + escapeHtml(msg.account_name || 'Unknown') + '</span>';
             return '<div class="message' + levelClass + '">' +
               '<div class="message-avatar">' + avatar + '</div>' +
               '<div class="message-body">' +
                 '<div class="message-header">' +
-                  '<span class="message-name">' + escapeHtml(msg.account_name || 'Unknown') + '</span>' +
+                  authorLink +
                   typeBadge +
-                  '<span class="message-time">' + timeAgo(msg.created_at) + '</span>' +
+                  '<span class="message-time">' + timeAgo(msg.created_at || msg.createdAt) + '</span>' +
                 '</div>' +
                 '<p class="message-text">' + escapeHtml(msg.content) + '</p>' +
+                '<div class="message-hover-actions">' +
+                  '<span class="text-xs text-muted">&#128077; ' + voteUp + '</span>' +
+                  '<span class="text-xs text-muted" style="margin-left:var(--space-sm);">&#128078; ' + voteDown + '</span>' +
+                '</div>' +
               '</div>' +
             '</div>';
           }).join('');
@@ -907,6 +952,7 @@
       var container = document.getElementById('proposals-container');
       var countBadge = document.getElementById('proposals-count');
       try {
+        var user = await getCurrentUser();
         var res = await API.get('/reviews/pending?limit=50');
         var allPending = res.data || [];
         // Filter for this topic only
@@ -940,11 +986,11 @@
               '<div style="display:flex; align-items:center; gap:var(--space-sm); margin-bottom:var(--space-xs);">' +
                 statusBadge +
                 '<span class="text-sm"><strong>' + desc + '</strong></span>' +
-                '<span class="text-xs text-muted">by ' + proposer + ' &middot; ' + timeAgo(cs.created_at) + '</span>' +
+                '<span class="text-xs text-muted">by <a href="./profile.html?id=' + cs.proposed_by + '" style="color:inherit;">' + proposer + '</a> &middot; ' + timeAgo(cs.created_at) + '</span>' +
               '</div>' +
               '<div class="proposal-operations" id="proposal-ops-' + cs.id + '" style="display:none; margin-top:var(--space-sm);"></div>' +
               '<div style="display:flex; gap:var(--space-xs); margin-top:var(--space-xs); align-items:center;">' +
-                '<button class="btn btn-sm btn-outline proposal-toggle" data-changeset-id="' + cs.id + '" style="font-size:var(--text-xs);">Show chunks (' + opsCount + ')</button>' +
+                '<button class="btn btn-sm btn-outline proposal-toggle" data-changeset-id="' + cs.id + '" style="font-size:var(--text-xs);">Show changes (' + opsCount + ')</button>' +
                 (user ? '<button class="btn btn-sm proposal-merge-btn" data-changeset-id="' + cs.id + '" style="font-size:var(--text-xs); background:var(--trust-high); color:white;">Merge</button>' +
                 '<button class="btn btn-sm btn-outline proposal-reject-btn" data-changeset-id="' + cs.id + '" style="font-size:var(--text-xs); color:var(--danger);">Reject</button>' : '') +
               '</div>' +
@@ -1042,6 +1088,7 @@
         });
 
       } catch (err) {
+        console.error('[Proposals error]', err);
         container.innerHTML = '<p class="text-muted">Could not load proposals.</p>';
       }
     }

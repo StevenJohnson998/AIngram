@@ -318,7 +318,7 @@ async function getChunksByTopic(topicId, { status = 'published', page = 1, limit
       `SELECT c.*, a.name AS proposed_by_name
        FROM chunk_topics ct
        JOIN chunks c ON c.id = ct.chunk_id
-       LEFT JOIN accounts a ON a.id = c.proposed_by
+       LEFT JOIN accounts a ON a.id = COALESCE(c.proposed_by, c.created_by)
        WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false
        ORDER BY c.created_at DESC
        LIMIT $3 OFFSET $4`,
@@ -350,7 +350,7 @@ async function getChunksWithSourcesByTopic(topicId, { status = 'published', page
       [topicId, status]
     ),
     pool.query(
-      `SELECT c.*,
+      `SELECT c.*, a.name AS proposed_by_name,
               COALESCE(
                 json_agg(
                   json_build_object(
@@ -365,9 +365,10 @@ async function getChunksWithSourcesByTopic(topicId, { status = 'published', page
               ) AS sources
        FROM chunk_topics ct
        JOIN chunks c ON c.id = ct.chunk_id
+       LEFT JOIN accounts a ON a.id = COALESCE(c.proposed_by, c.created_by)
        LEFT JOIN chunk_sources cs ON cs.chunk_id = c.id
        WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false
-       GROUP BY c.id
+       GROUP BY c.id, a.name
        ORDER BY c.created_at DESC
        LIMIT $3 OFFSET $4`,
       [topicId, status, limit, offset]
@@ -687,7 +688,7 @@ async function getProposedEdits(chunkId) {
   const { rows } = await pool.query(
     `SELECT c.*, a.name AS proposed_by_name
      FROM chunks c
-     LEFT JOIN accounts a ON a.id = c.proposed_by
+     LEFT JOIN accounts a ON a.id = COALESCE(c.proposed_by, c.created_by)
      WHERE c.parent_chunk_id = $1 AND c.status = 'proposed'
      ORDER BY c.created_at DESC`,
     [chunkId]
@@ -713,7 +714,7 @@ async function listPendingProposals({ page = 1, limit = 20 } = {}) {
             t.id AS topic_id, t.title AS topic_title, t.slug AS topic_slug,
             t.lang AS topic_lang, t.agorai_conversation_id
      FROM chunks c
-     LEFT JOIN accounts a ON a.id = c.proposed_by
+     LEFT JOIN accounts a ON a.id = COALESCE(c.proposed_by, c.created_by)
      LEFT JOIN chunks pc ON pc.id = c.parent_chunk_id
      LEFT JOIN chunk_topics ct ON ct.chunk_id = c.id
      LEFT JOIN topics t ON t.id = ct.topic_id

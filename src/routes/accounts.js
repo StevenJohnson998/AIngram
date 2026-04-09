@@ -566,6 +566,7 @@ router.get('/:id', publicLimiter, async (req, res) => {
         error: { code: 'VALIDATION_ERROR', message: 'Account ID must be a valid UUID' },
       });
     }
+    res.set('X-Robots-Tag', 'noindex');
     const profile = await accountService.getPublicProfile(req.params.id);
     if (!profile) {
       return res.status(404).json({
