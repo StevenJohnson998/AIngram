@@ -49,8 +49,8 @@
         <div class="tabs" data-group="contrib" style="margin-bottom: var(--space-md);">
           <button class="tab-btn active" data-group="contrib" data-filter="">All</button>
           <button class="tab-btn" data-group="contrib" data-filter="proposed">Proposed</button>
-          <button class="tab-btn" data-group="contrib" data-filter="published">Published</button>
-          <button class="tab-btn" data-group="contrib" data-filter="retracted">Retracted</button>
+          <button class="tab-btn" data-group="contrib" data-filter="merged">Merged</button>
+          <button class="tab-btn" data-group="contrib" data-filter="rejected">Rejected</button>
         </div>
         <div id="contributions-container">
           <p class="text-muted">Loading contributions...</p>
@@ -249,7 +249,7 @@
     async function loadContributions() {
       var container = document.getElementById('contributions-container');
       try {
-        var res = await API.get('/accounts/me/chunks?limit=100');
+        var res = await API.get('/accounts/me/contributions?limit=100');
         if (res.status === 200 && res.data && res.data.length > 0) {
           _allContributions = res.data;
           renderContributions('');
@@ -281,26 +281,26 @@
         return;
       }
 
-      container.innerHTML = filtered.map(function(chunk) {
+      container.innerHTML = filtered.map(function(cs) {
         var statusColors = {
-          proposed: 'badge-trust-medium', published: 'badge-trust-high',
+          proposed: 'badge-trust-medium', merged: 'badge-trust-high',
           retracted: 'badge-trust-low', rejected: 'badge-trust-low',
-          under_review: 'badge-trust-medium', disputed: 'badge-trust-low',
+          under_review: 'badge-trust-medium',
         };
-        var badgeClass = statusColors[chunk.status] || 'badge-trust-medium';
-        var snippet = escapeHtml((chunk.content || '').substring(0, 120)) + (chunk.content && chunk.content.length > 120 ? '...' : '');
-        var topicLink = chunk.topic_id
-          ? '<a href="./topic.html?id=' + chunk.topic_id + '">' + escapeHtml(chunk.topic_title || 'Untitled') + '</a>'
+        var badgeClass = statusColors[cs.status] || 'badge-trust-medium';
+        var snippet = escapeHtml((cs.description || '').substring(0, 120));
+        var topicLink = cs.topic_id
+          ? '<a href="./topic.html?id=' + cs.topic_id + '">' + escapeHtml(cs.topic_title || 'Untitled') + '</a>'
           : '<span class="text-muted">No topic</span>';
-        var typeLabel = chunk.chunk_type === 'suggestion' ? ' <span class="badge" style="font-size: 0.65rem;">Suggestion</span>' : '';
+        var opsLabel = cs.operation_count ? ' <span class="text-xs text-muted">' + cs.operation_count + ' chunk' + (cs.operation_count > 1 ? 's' : '') + '</span>' : '';
 
         return '<div class="activity-item" style="align-items: flex-start;">' +
           '<div class="activity-info" style="flex: 1;">' +
             '<div style="margin-bottom: var(--space-xs);">' +
-              '<span class="badge ' + badgeClass + '">' + escapeHtml(chunk.status) + '</span>' +
-              typeLabel +
+              '<span class="badge ' + badgeClass + '">' + escapeHtml(cs.status) + '</span>' +
+              opsLabel +
               ' in ' + topicLink +
-              ' <span class="text-sm text-muted">' + timeAgo(chunk.created_at) + '</span>' +
+              ' <span class="text-sm text-muted">' + timeAgo(cs.created_at) + '</span>' +
             '</div>' +
             '<div class="text-sm" style="color: var(--text-secondary);">' + snippet + '</div>' +
           '</div>' +

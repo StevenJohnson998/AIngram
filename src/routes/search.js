@@ -125,7 +125,8 @@ function generateSearchGuidance(query, modeUsed) {
  */
 router.get('/search', auth.authenticateOptional, async (req, res) => {
   try {
-    const { q, lang: langParam, type = 'text', topicType } = req.query;
+    const { q, lang: langParam, type: requestedType = 'text', topicType } = req.query;
+    let type = requestedType;
     let page = parseInt(req.query.page, 10) || 1;
     let limit = parseInt(req.query.limit, 10) || 20;
     if (page < 1) page = 1;
@@ -151,16 +152,21 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
     if (type === 'vector') {
       const embedding = await require('../services/ollama').generateEmbedding(q);
       if (!embedding) {
-        return res.status(503).json({
-          error: { code: 'EMBEDDING_UNAVAILABLE', message: 'Embedding service unavailable. Try type=text instead.' },
+        // Fallback to text search when embedding service is unavailable
+        console.warn('[SEARCH] Embedding unavailable, falling back to text search');
+        type = 'text';
+        // Fall through to text search below
+      } else {
+        const results = await vectorSearch.searchByVector(embedding, { limit, minSimilarity: 0.3 });
+        return res.json({
+          data: results,
+          pagination: { page, limit, total: results.length },
+          search_guidance: {
+            ...generateSearchGuidance(q, 'vector'),
+            fallback: false,
+          },
         });
       }
-      const results = await vectorSearch.searchByVector(embedding, { limit, minSimilarity: 0.3 });
-      return res.json({
-        data: results,
-        pagination: { page, limit, total: results.length },
-        search_guidance: generateSearchGuidance(q, 'vector'),
-      });
     }
 
     if (type === 'hybrid') {
@@ -243,11 +249,18 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
       params
     );
 
+    const guidance = generateSearchGuidance(q, 'text');
+    // If we got here via fallback from vector/hybrid, indicate it
+    if (requestedType !== 'text' && type === 'text') {
+      guidance.fallback = true;
+      guidance.fallback_reason = 'Embedding service unavailable, results are from text search.';
+    }
+
     return res.json({
       data: dataResult.rows,
       pagination: { page, limit, total },
       searchLangs: searchConfigs,
-      search_guidance: generateSearchGuidance(q, 'text'),
+      search_guidance: guidance,
     });
   } catch (err) {
     console.error('Error searching:', err);

@@ -2,6 +2,7 @@ const { Router } = require('express');
 const jwt = require('jsonwebtoken');
 const accountService = require('../services/account');
 const chunkService = require('../services/chunk');
+const changesetService = require('../services/changeset');
 const connectionTokenService = require('../services/connection-token');
 const { authenticateRequired } = require('../middleware/auth');
 const { registrationLimiter, publicLimiter, authenticatedLimiter } = require('../middleware/rate-limit');
@@ -331,7 +332,7 @@ router.get('/me/agents', authenticateRequired, async (req, res) => {
 });
 
 /**
- * GET /accounts/me/chunks — list chunks proposed by the current account
+ * GET /accounts/me/chunks — list chunks proposed by the current account (legacy, pre-changeset)
  */
 router.get('/me/chunks', authenticateRequired, async (req, res) => {
   try {
@@ -350,6 +351,32 @@ router.get('/me/chunks', authenticateRequired, async (req, res) => {
     return res.status(200).json({ data: result.data, pagination: result.pagination });
   } catch (err) {
     console.error('List account chunks error:', err.message);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    });
+  }
+});
+
+/**
+ * GET /accounts/me/contributions — list changesets proposed by the current account
+ */
+router.get('/me/contributions', authenticateRequired, async (req, res) => {
+  try {
+    const { status, page, limit } = req.query;
+    const validStatuses = ['proposed', 'merged', 'rejected', 'retracted', 'under_review'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({
+        error: { code: 'INVALID_STATUS', message: 'Invalid status filter. Use: ' + validStatuses.join(', ') },
+      });
+    }
+    const result = await changesetService.listChangesetsByAccount(req.account.id, {
+      status: status || undefined,
+      page: parseInt(page) || 1,
+      limit: Math.min(parseInt(limit) || 20, 100),
+    });
+    return res.status(200).json({ data: result.data, pagination: result.pagination });
+  } catch (err) {
+    console.error('List account contributions error:', err.message);
     return res.status(500).json({
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
     });

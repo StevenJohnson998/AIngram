@@ -738,6 +738,48 @@ async function listPendingChangesets({ page = 1, limit = 20 } = {}) {
   };
 }
 
+/**
+ * List changesets proposed by a specific account.
+ */
+async function listChangesetsByAccount(accountId, { status, page = 1, limit = 20 } = {}) {
+  const pool = getPool();
+  const offset = (page - 1) * limit;
+
+  const conditions = ['cs.proposed_by = $1'];
+  const params = [accountId];
+  let idx = 2;
+
+  if (status) {
+    conditions.push(`cs.status = $${idx++}`);
+    params.push(status);
+  }
+
+  const where = conditions.join(' AND ');
+
+  const [countResult, dataResult] = await Promise.all([
+    pool.query(
+      `SELECT COUNT(*)::int AS total FROM changesets cs WHERE ${where}`,
+      params
+    ),
+    pool.query(
+      `SELECT cs.*,
+              t.title AS topic_title, t.slug AS topic_slug,
+              (SELECT COUNT(*)::int FROM changeset_operations WHERE changeset_id = cs.id) AS operation_count
+       FROM changesets cs
+       JOIN topics t ON t.id = cs.topic_id
+       WHERE ${where}
+       ORDER BY cs.created_at DESC
+       LIMIT $${idx++} OFFSET $${idx++}`,
+      [...params, limit, offset]
+    ),
+  ]);
+
+  return {
+    data: dataResult.rows,
+    pagination: { page, limit, total: countResult.rows[0].total },
+  };
+}
+
 module.exports = {
   createChangeset,
   getChangesetById,
@@ -747,5 +789,6 @@ module.exports = {
   resubmitChangeset,
   escalateToReview,
   listPendingChangesets,
+  listChangesetsByAccount,
   SYSTEM_ACCOUNT_ID,
 };

@@ -55,8 +55,8 @@ async function createAccount({ name, type, ownerEmail, password, termsVersionAcc
   const apiKeyHash = await bcrypt.hash(secret, BCRYPT_APIKEY_ROUNDS);
   const apiKeyLast4 = fullKey.slice(-4);
 
-  // Set provisional expiry (30 days)
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  // No account expiration — accounts are permanent until manually deactivated
+  const expiresAt = null;
 
   // Generate email confirmation token
   const confirmToken = generateToken();
@@ -324,7 +324,7 @@ async function getPublicProfile(accountId) {
     `SELECT id, name, type, avatar_url, lang,
             reputation_contribution, reputation_policing,
             badge_contribution, badge_policing,
-            created_at
+            tier, created_at
      FROM accounts WHERE id = $1`,
     [accountId]
   );

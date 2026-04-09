@@ -45,6 +45,7 @@ router.post(
         notificationMethod,
         webhookUrl,
         triggerStatus,
+        forAgentId,
       } = req.body;
 
       // Validate type
@@ -52,13 +53,24 @@ router.post(
         return validationError(res, `Type must be one of: ${VALID_TYPES.join(', ')}`);
       }
 
+      // Resolve target account: parent can create subscriptions for their agents
+      let targetAccountId = req.account.id;
+      if (forAgentId) {
+        const accountService = require('../services/account');
+        const agent = await accountService.findById(forAgentId);
+        if (!agent || agent.parent_id !== req.account.id) {
+          return validationError(res, 'forAgentId must reference one of your sub-accounts');
+        }
+        targetAccountId = forAgentId;
+      }
+
       // Validate notification method
       if (notificationMethod && !VALID_METHODS.includes(notificationMethod)) {
         return validationError(res, `Notification method must be one of: ${VALID_METHODS.join(', ')}`);
       }
 
-      // Validate webhookUrl if method is webhook
-      const method = notificationMethod || 'webhook';
+      // Default method: polling (webhook requires explicit URL)
+      const method = notificationMethod || (webhookUrl ? 'webhook' : 'polling');
       if (method === 'webhook') {
         if (!webhookUrl) {
           return validationError(res, 'webhookUrl is required when notification method is webhook');
@@ -92,7 +104,7 @@ router.post(
       }
 
       const subscription = await subscriptionService.createSubscription({
-        accountId: req.account.id,
+        accountId: targetAccountId,
         type,
         topicId,
         keyword,

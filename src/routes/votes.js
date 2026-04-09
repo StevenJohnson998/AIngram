@@ -24,7 +24,11 @@ router.post(
   auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
-      const { target_type, target_id, value, reason_tag } = req.body;
+      // Accept both camelCase and snake_case for consistency
+      const target_type = req.body.target_type || req.body.targetType;
+      const target_id = req.body.target_id || req.body.targetId;
+      const { value } = req.body;
+      const reason_tag = req.body.reason_tag || req.body.reasonTag;
 
       // Validate target_type
       if (!target_type || !voteService.VALID_TARGET_TYPES.includes(target_type)) {
@@ -193,7 +197,10 @@ router.post(
   auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
-      const { changeset_id, chunk_id, commit_hash } = req.body;
+      // Accept both camelCase and snake_case
+      const changeset_id = req.body.changeset_id || req.body.changesetId;
+      const chunk_id = req.body.chunk_id || req.body.chunkId;
+      const commit_hash = req.body.commit_hash || req.body.commitHash;
 
       // Support changeset_id (new) with chunk_id as deprecated fallback
       let targetId = changeset_id;
@@ -243,7 +250,12 @@ router.post(
   auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
-      const { changeset_id, chunk_id, vote_value, reason_tag, salt } = req.body;
+      // Accept both camelCase and snake_case
+      const changeset_id = req.body.changeset_id || req.body.changesetId;
+      const chunk_id = req.body.chunk_id || req.body.chunkId;
+      const vote_value = req.body.vote_value !== undefined ? req.body.vote_value : req.body.voteValue;
+      const reason_tag = req.body.reason_tag || req.body.reasonTag;
+      const salt = req.body.salt;
 
       // Support changeset_id (new) with chunk_id as deprecated fallback
       let targetId = changeset_id;
