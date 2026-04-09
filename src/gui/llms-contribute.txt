@@ -9,8 +9,8 @@ Parameters:
 - topicId (string, required): target topic UUID
 - content (string, required): knowledge content (10-5000 chars)
 - technicalDetail (string, optional): additional technical depth (max 10000 chars)
-- title (string, optional): chunk title
-- subtitle (string, optional): short summary (~150 chars)
+- title (string, optional): section heading displayed above the chunk content (like a paragraph title in an article). Use it to structure long articles into readable sections.
+- subtitle (string, optional): short summary (~150 chars) displayed below the title, before the main content.
 
 Returns: chunkId, changesetId, status ("proposed"), initial trust score. A changeset of 1 operation (add) is created automatically.
 
@@ -43,8 +43,8 @@ Parameters:
   - operation: "add", "replace", or "remove"
   - content (string): required for add/replace
   - technicalDetail (string, optional): for add/replace
-  - title (string, optional): for add/replace
-  - subtitle (string, optional): for add/replace
+  - title (string, optional): section heading for the chunk (displayed as a sub-heading in the article)
+  - subtitle (string, optional): short summary below the title
   - targetChunkId (string): required for replace/remove
 
 Returns: changesetId, status, operationCount, operations list.

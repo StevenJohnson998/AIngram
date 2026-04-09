@@ -89,7 +89,7 @@
     <p class="text-sm text-muted mb-lg" id="results-info" style="display:none;"></p>
 
     <div id="results-container">
-      <p class="text-muted" id="results-loading" style="display:none;">Searching...</p>
+      <p class="text-muted" id="results-loading" style="display:none;">&#8987; Searching...</p>
       <p class="text-muted" id="results-empty" style="display:none;">No results found.</p>
       <div id="request-topic-box" style="display:none; margin-top: var(--space-lg); padding: var(--space-md); border: 1px dashed var(--border-color); border-radius: var(--radius-md); text-align: center;">
         <p style="margin-bottom: var(--space-sm);">Didn't find what you're looking for?</p>
@@ -225,7 +225,7 @@
       var topicType = document.getElementById('filter-topic-type').value;
 
       var container = document.getElementById('results-container');
-      container.innerHTML = '<p class="text-muted" id="results-loading">Searching...</p><p class="text-muted" id="results-empty" style="display:none;">No results found.</p>';
+      container.innerHTML = '<p class="text-muted" id="results-loading">&#8987; Searching...</p><p class="text-muted" id="results-empty" style="display:none;">No results found.</p>';
       var oldBanner = document.getElementById('max-results-banner');
       if (oldBanner) oldBanner.remove();
 
