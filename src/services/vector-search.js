@@ -43,14 +43,19 @@ async function searchByVector(embedding, { limit = 20, minSimilarity = 0.5 } = {
   const vectorStr = `[${embedding.join(',')}]`;
 
   const { rows } = await pool.query(
-    `SELECT id, content, technical_detail, has_technical_detail, trust_score, status,
-            created_by, valid_as_of, created_at, updated_at,
-            (1 - (embedding <=> $1::vector)) * COALESCE(trust_score, 0.5) as similarity
-     FROM chunks
-     WHERE embedding IS NOT NULL
-       AND hidden = false
-       AND 1 - (embedding <=> $1::vector) >= $2
-     ORDER BY similarity DESC
+    `SELECT DISTINCT ON (c.id)
+            c.id, c.content, c.technical_detail, c.has_technical_detail, c.trust_score, c.status,
+            c.created_by, c.valid_as_of, c.created_at, c.updated_at,
+            (1 - (c.embedding <=> $1::vector)) * COALESCE(c.trust_score, 0.5) as similarity,
+            t.id AS topic_id, t.title AS topic_title, t.slug AS topic_slug,
+            t.lang AS topic_lang, t.topic_type AS topic_type
+     FROM chunks c
+     JOIN chunk_topics ct ON ct.chunk_id = c.id
+     JOIN topics t ON t.id = ct.topic_id
+     WHERE c.embedding IS NOT NULL
+       AND c.hidden = false
+       AND 1 - (c.embedding <=> $1::vector) >= $2
+     ORDER BY c.id, similarity DESC
      LIMIT $3`,
     [vectorStr, minSimilarity, limit]
   );
@@ -74,24 +79,31 @@ async function searchByText(query, { limit = 20, langs = ['en'] } = {}) {
   // Build OR condition across all language configs
   // unaccent() normalizes accented characters (e.g. mémoire → memoire) for consistent matching
   const matchParts = configs.map(
-    (cfg) => `to_tsvector('${cfg}', unaccent(content)) @@ plainto_tsquery('${cfg}', unaccent($1))`
+    (cfg) => `to_tsvector('${cfg}', unaccent(c.content)) @@ plainto_tsquery('${cfg}', unaccent($1))`
   );
   const matchCondition = matchParts.length === 1 ? matchParts[0] : `(${matchParts.join(' OR ')})`;
 
   // Use GREATEST for rank across configs
   const rankParts = configs.map(
-    (cfg) => `ts_rank(to_tsvector('${cfg}', unaccent(content)), plainto_tsquery('${cfg}', unaccent($1)))`
+    (cfg) => `ts_rank(to_tsvector('${cfg}', unaccent(c.content)), plainto_tsquery('${cfg}', unaccent($1)))`
   );
   const rankExpr = rankParts.length === 1 ? rankParts[0] : `GREATEST(${rankParts.join(', ')})`;
 
   const { rows } = await pool.query(
-    `SELECT id, content, technical_detail, has_technical_detail, trust_score, status,
-            created_by, valid_as_of, created_at, updated_at,
-            (${rankExpr}) * COALESCE(trust_score, 0.5) as rank
-     FROM chunks
-     WHERE hidden = false
-       AND ${matchCondition}
-     ORDER BY rank DESC
+    `SELECT * FROM (
+       SELECT DISTINCT ON (c.id)
+              c.id, c.content, c.technical_detail, c.has_technical_detail, c.trust_score, c.status,
+              c.created_by, c.valid_as_of, c.created_at, c.updated_at,
+              (${rankExpr}) * COALESCE(c.trust_score, 0.5) as rank,
+              t.id AS topic_id, t.title AS topic_title, t.slug AS topic_slug,
+              t.lang AS topic_lang, t.topic_type AS topic_type
+       FROM chunks c
+       JOIN chunk_topics ct ON ct.chunk_id = c.id
+       JOIN topics t ON t.id = ct.topic_id
+       WHERE c.hidden = false
+         AND ${matchCondition}
+       ORDER BY c.id
+     ) sub ORDER BY rank DESC
      LIMIT $2`,
     [query, limit]
   );
