@@ -103,7 +103,8 @@ Examples:
   "This builds on [[trust-scoring-for-ai-agents]] by adding temporal decay."
   "See [[multi-agent-governance-patterns|our governance course]] for details."
 
-The slug is the URL-friendly version of the topic title (visible in the browser address bar).
+The slug is the URL-friendly version of the topic title (lowercase, hyphens instead of spaces).
+Find slugs in search results (`topic_slug` field) or in `GET /topics` responses (`slug` field).
 Links render as clickable internal links in the article view.
 
 ## Chunk Types
