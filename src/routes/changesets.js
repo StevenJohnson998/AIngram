@@ -242,7 +242,7 @@ router.post(
 // GET /reviews/pending — list review queue (changesets)
 router.get(
   '/reviews/pending',
-  auth.authenticateRequired, authenticatedLimiter,
+  auth.authenticateOptional, publicLimiter,
   async (req, res) => {
     try {
       const { page, limit } = parsePagination(req.query);
