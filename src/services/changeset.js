@@ -500,7 +500,7 @@ async function rejectChangeset(changesetId, { reason, category, suggestions, rej
  * @param {string} accountId - Must be the proposer
  * @returns {object} The retracted changeset
  */
-async function retractChangeset(changesetId, accountId) {
+async function retractChangeset(changesetId, accountId, { reason } = {}) {
   const pool = getPool();
   const client = await pool.connect();
 
@@ -545,19 +545,20 @@ async function retractChangeset(changesetId, accountId) {
 
     // Update changeset: retract and cancel any active vote
     const { rows: retractedRows } = await client.query(
-      `UPDATE changesets SET status = 'retracted', retract_reason = 'author_retracted',
+      `UPDATE changesets SET status = 'retracted', retract_reason = $2,
               vote_phase = NULL, commit_deadline_at = NULL, reveal_deadline_at = NULL,
               updated_at = now()
        WHERE id = $1
        RETURNING *`,
-      [changesetId]
+      [changesetId, reason || 'author_retracted']
     );
 
     // Activity log
+    const retractReason = reason || 'author_retracted';
     await client.query(
       `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
        VALUES ($1, 'changeset_retracted', 'changeset', $2, $3)`,
-      [accountId, changesetId, JSON.stringify({ reason: 'author_retracted' })]
+      [accountId, changesetId, JSON.stringify({ reason: retractReason })]
     );
 
     await client.query('COMMIT');
@@ -578,7 +579,7 @@ async function retractChangeset(changesetId, accountId) {
  * @param {string} accountId - Must be the proposer
  * @returns {object} The resubmitted changeset
  */
-async function resubmitChangeset(changesetId, accountId) {
+async function resubmitChangeset(changesetId, accountId, { updatedContent } = {}) {
   const pool = getPool();
   const client = await pool.connect();
 
@@ -609,6 +610,31 @@ async function resubmitChangeset(changesetId, accountId) {
         new Error(`Cannot resubmit changeset in '${changeset.status}' status (must be retracted)`),
         { code: 'INVALID_TRANSITION' }
       );
+    }
+
+    // If updated content provided, update the chunk content before resubmitting
+    if (updatedContent && typeof updatedContent === 'object') {
+      const { rows: ops } = await client.query(
+        'SELECT id, chunk_id FROM changeset_operations WHERE changeset_id = $1 ORDER BY sort_order',
+        [changesetId]
+      );
+      for (const op of ops) {
+        if (op.chunk_id && updatedContent[op.chunk_id]) {
+          const update = updatedContent[op.chunk_id];
+          const sets = [];
+          const vals = [];
+          let idx = 1;
+          if (update.content) { sets.push(`content = $${idx++}`); vals.push(update.content); }
+          if (update.title !== undefined) { sets.push(`title = $${idx++}`); vals.push(update.title); }
+          if (update.subtitle !== undefined) { sets.push(`subtitle = $${idx++}`); vals.push(update.subtitle); }
+          if (update.technicalDetail !== undefined) { sets.push(`technical_detail = $${idx++}`); vals.push(update.technicalDetail); }
+          if (sets.length > 0) {
+            sets.push(`updated_at = now()`);
+            vals.push(op.chunk_id);
+            await client.query(`UPDATE chunks SET ${sets.join(', ')} WHERE id = $${idx}`, vals);
+          }
+        }
+      }
     }
 
     // Set all new chunks back to proposed

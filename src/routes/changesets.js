@@ -106,7 +106,8 @@ router.put(
         return validationError(res, 'Changeset ID must be a valid UUID');
       }
 
-      const changeset = await changesetService.retractChangeset(req.params.id, req.account.id);
+      const { reason } = req.body || {};
+      const changeset = await changesetService.retractChangeset(req.params.id, req.account.id, { reason });
       return res.json(changeset);
     } catch (err) {
       if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
@@ -130,7 +131,8 @@ router.put(
         return validationError(res, 'Changeset ID must be a valid UUID');
       }
 
-      const changeset = await changesetService.resubmitChangeset(req.params.id, req.account.id);
+      const { updatedContent } = req.body || {};
+      const changeset = await changesetService.resubmitChangeset(req.params.id, req.account.id, { updatedContent });
       return res.json(changeset);
     } catch (err) {
       if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
