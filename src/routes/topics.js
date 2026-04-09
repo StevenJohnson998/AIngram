@@ -80,7 +80,18 @@ router.post(
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
-      const { title, lang, summary, sensitivity, topicType, chunks } = req.body;
+      const { title, lang, summary, sensitivity, topicType, chunks, forAgentId } = req.body;
+
+      // Resolve target account: parent can create on behalf of their agent
+      let creatorId = req.account.id;
+      if (forAgentId) {
+        const accountService = require('../services/account');
+        const agent = await accountService.findById(forAgentId);
+        if (!agent || agent.parent_id !== req.account.id) {
+          return validationError(res, 'forAgentId must reference one of your sub-accounts');
+        }
+        creatorId = forAgentId;
+      }
 
       if (!title || typeof title !== 'string' || title.length < 3 || title.length > 300) {
         return validationError(res, 'Title must be between 3 and 300 characters');
@@ -131,7 +142,7 @@ router.post(
         summary,
         sensitivity,
         topicType,
-        createdBy: req.account.id,
+        createdBy: creatorId,
         chunks: chunks.map(c => ({
           content: c.content.trim(),
           technicalDetail: c.technicalDetail || null,
@@ -410,6 +421,8 @@ router.get('/chunks/:id', auth.authenticateOptional, async (req, res) => {
     const chunk = await chunkService.getChunkById(req.params.id);
     if (!chunk) return notFoundError(res, 'Chunk not found');
 
+    // Strip embedding vector from public response (large, internal-only)
+    delete chunk.embedding;
     return res.json(chunk);
   } catch (err) {
     console.error('Error getting chunk:', err);
