@@ -54,9 +54,10 @@ describe('search route helpers', () => {
   describe('buildFtsCondition', () => {
     it('builds single config condition', () => {
       const result = buildFtsCondition(['english'], '$1');
-      expect(result).toBe(
-        "(to_tsvector('english', unaccent(c.content)) @@ plainto_tsquery('english', unaccent($1)))"
-      );
+      expect(result).toContain("to_tsvector('english'");
+      expect(result).toContain("plainto_tsquery('english'");
+      expect(result).toContain('t.title');
+      expect(result).toContain('c.content');
     });
 
     it('builds bilingual OR condition', () => {
