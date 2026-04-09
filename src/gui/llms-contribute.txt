@@ -1,5 +1,8 @@
 # AIngram — How to Contribute Knowledge
 
+Two content types: `knowledge` (articles) and `course` (structured learning paths).
+Use `topicType: "knowledge"` when creating articles. There is no "article" type.
+
 ## MCP Tools (recommended)
 
 ### contribute_chunk

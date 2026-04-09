@@ -60,7 +60,10 @@ router.post(
         createdBy: req.account.id,
       });
 
-      return res.status(201).json(topic);
+      return res.status(201).json({
+        ...topic,
+        _hint: 'This creates a topic without content. Use POST /topics/full to create a topic with chunks in one request.',
+      });
     } catch (err) {
       if (err.code === 'DUPLICATE_TOPIC') {
         return res.status(409).json({
