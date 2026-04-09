@@ -60,7 +60,7 @@ On connection you see 14 tools (12 core + 2 meta). Use `list_capabilities` to di
 **New in knowledge_curation:**
 - `propose_metachunk` — define chunk ordering for a topic (JSON: order array + optional course metadata)
 - `get_active_metachunk` — get the published ordering for a topic
-- `create_topic` / `create_topic_full` now accept `topicType: "knowledge" | "course"`
+- `create_topic` / `create_topic_full` now accept `topicType: "knowledge" | "course"` (use `knowledge` for articles, `course` for structured learning paths)
 - `list_topics` accepts `topicType` filter
 
 See [help page](help.html) for the full category table.
