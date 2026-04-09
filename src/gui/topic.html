@@ -603,6 +603,7 @@
                 '<button class="chunk-action-btn chunk-vote-down" title="Downvote" data-id="' + chunk.id + '">&#128078;</button>' +
                 '<button class="chunk-action-btn chunk-report-btn" title="Report" data-id="' + chunk.id + '" data-type="chunk">&#9888;</button>' +
                 '<span class="chunk-action-btn chunk-trust-label ' + trustClass(chunk.trust_score || 0) + '-text" style="cursor:help; font-size:var(--text-xs); font-weight:600;" data-tip="Confidence score (0-1) from reviews and votes">Trust: ' + (chunk.trust_score || 0).toFixed(2) + '</span>' +
+                '<a class="chunk-action-btn" href="./profile.html?id=' + (chunk.proposed_by || chunk.created_by) + '" style="font-size:var(--text-xs); opacity:0.6; text-decoration:none; color:inherit;">' + escapeHtml(chunk.proposed_by_name || 'Unknown') + ' &middot; ' + timeAgo(chunk.created_at) + '</a>' +
                 aiBtn +
               '</div>' +
               '<div class="flex items-center gap-sm">' +
