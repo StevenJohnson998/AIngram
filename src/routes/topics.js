@@ -371,7 +371,7 @@ router.post(
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
-      const { content, technicalDetail, adhp } = req.body;
+      const { content, technicalDetail, adhp, title, subtitle } = req.body;
 
       if (!content || typeof content !== 'string' || content.length < 10 || content.length > 5000) {
         return validationError(res, 'Content must be between 10 and 5000 characters');
@@ -395,6 +395,8 @@ router.post(
       const chunk = await chunkService.createChunk({
         content,
         technicalDetail,
+        title: title || null,
+        subtitle: subtitle || null,
         topicId: req.params.id,
         createdBy: req.account.id,
         isElite: req.account.badgeElite,
