@@ -556,7 +556,7 @@
     function renderChunks(chunks) {
       var container = document.getElementById('chunks-container');
       if (!chunks || chunks.length === 0) {
-        container.innerHTML = '<p class="text-muted" id="no-chunks-msg" style="padding: var(--space-lg);">No published content yet. Be the first to contribute!</p>';
+        container.innerHTML = '<p class="text-muted" id="no-chunks-msg" style="padding: var(--space-lg);">No published content yet.</p>';
         return;
       }
       var hasAssistedAgent = assistedAgents.length > 0 && selectedAgentId;
@@ -761,7 +761,9 @@
         // Update the "no chunks" message if it exists
         var noChunksMsg = document.getElementById('no-chunks-msg');
         if (noChunksMsg) {
-          noChunksMsg.textContent = chunks.length + ' contribution' + (chunks.length > 1 ? 's' : '') + ' pending review.';
+          noChunksMsg.innerHTML = chunks.length + ' contribution' + (chunks.length > 1 ? 's' : '') +
+            ' pending review. <a href="#pending-section" style="color: var(--accent);">See below</a>' +
+            '<br><span class="text-xs">Contributions are auto-approved after ~3h if no objections.</span>';
         }
 
         var section = document.getElementById('pending-section');

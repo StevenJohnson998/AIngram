@@ -272,6 +272,13 @@
               <div id="sub-message"></div>
               <form id="new-sub-form">
                 <div class="form-group">
+                  <label for="sub-agent">Agent</label>
+                  <select id="sub-agent" class="form-input" style="width: auto;">
+                    <option value="" disabled selected>Loading agents...</option>
+                  </select>
+                  <p class="text-sm text-muted" id="sub-agent-hint"></p>
+                </div>
+                <div class="form-group">
                   <label for="sub-type">Type</label>
                   <select id="sub-type" class="form-input" style="width: auto;">
                     <option value="keyword">Keyword</option>
@@ -300,7 +307,7 @@
                     <option value="zh">ZH</option>
                   </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="sub-webhook-group" style="display:none;">
                   <label for="sub-webhook">Webhook URL</label>
                   <input type="url" id="sub-webhook" class="form-input" placeholder="https://your-agent.example.com/webhook">
                 </div>
@@ -683,6 +690,39 @@
       // Load subscriptions
       loadSubscriptions();
 
+      // Load agents for subscription dropdown
+      var subAgentsCache = [];
+      async function loadSubAgentsForSubscription() {
+        var select = document.getElementById('sub-agent');
+        try {
+          var res = await API.get('/accounts/me/agents');
+          if (res.status === 200 && res.data && res.data.length > 0) {
+            subAgentsCache = res.data;
+            select.innerHTML = res.data.map(function(a) {
+              var label = escapeHtml(a.name) + (a.autonomous ? ' (autonomous)' : ' (assisted)');
+              return '<option value="' + a.id + '" data-autonomous="' + a.autonomous + '">' + label + '</option>';
+            }).join('');
+            updateSubAgentHint();
+          } else {
+            select.innerHTML = '<option value="" disabled>No agents yet</option>';
+            document.getElementById('sub-agent-hint').innerHTML = '<a href="#agents">Create an agent first</a>';
+          }
+        } catch (err) {
+          select.innerHTML = '<option value="" disabled>Could not load agents</option>';
+        }
+      }
+      function updateSubAgentHint() {
+        var select = document.getElementById('sub-agent');
+        var opt = select.options[select.selectedIndex];
+        var isAutonomous = opt && opt.dataset.autonomous === 'true';
+        document.getElementById('sub-webhook-group').style.display = isAutonomous ? 'block' : 'none';
+        document.getElementById('sub-agent-hint').textContent = isAutonomous
+          ? 'Autonomous agent — notifications via webhook'
+          : 'Assisted agent — notifications via polling';
+      }
+      loadSubAgentsForSubscription();
+      document.getElementById('sub-agent').addEventListener('change', updateSubAgentHint);
+
       // Subscription type toggle
       document.getElementById('sub-type').addEventListener('change', function() {
         var type = this.value;
@@ -696,8 +736,21 @@
         e.preventDefault();
         document.getElementById('sub-message').innerHTML = '';
 
+        var agentId = document.getElementById('sub-agent').value;
+        if (!agentId) {
+          showAlert(document.getElementById('sub-message'), 'warning', 'Select an agent first.');
+          return;
+        }
+
+        var agentOpt = document.getElementById('sub-agent').options[document.getElementById('sub-agent').selectedIndex];
+        var isAutonomous = agentOpt && agentOpt.dataset.autonomous === 'true';
+
         var type = document.getElementById('sub-type').value;
-        var body = { type: type, notificationMethod: 'webhook' };
+        var body = {
+          type: type,
+          forAgentId: agentId,
+          notificationMethod: isAutonomous ? 'webhook' : 'polling',
+        };
 
         if (type === 'topic') {
           body.topicId = document.getElementById('sub-topic-id').value.trim();
@@ -711,15 +764,18 @@
         var lang = document.getElementById('sub-lang').value;
         if (lang) body.lang = lang;
 
-        var webhook = document.getElementById('sub-webhook').value.trim();
-        if (webhook) body.webhookUrl = webhook;
+        if (isAutonomous) {
+          var webhook = document.getElementById('sub-webhook').value.trim();
+          if (webhook) body.webhookUrl = webhook;
+        }
 
         try {
           var res = await API.post('/subscriptions', body);
           if (res.status === 201) {
-            showAlert(document.getElementById('sub-message'), 'success', 'Subscription created!');
+            showAlert(document.getElementById('sub-message'), 'success', 'Subscription created for ' + escapeHtml(agentOpt.textContent) + '!');
             loadSubscriptions();
             document.getElementById('new-sub-form').reset();
+            loadSubAgentsForSubscription();
           } else {
             var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed';
             showAlert(document.getElementById('sub-message'), 'warning', msg);
@@ -1159,23 +1215,31 @@
     async function loadSubscriptions() {
       var container = document.getElementById('sub-list');
       try {
+        // Load subscriptions for all agents
         var res = await API.get('/subscriptions/me?limit=50');
-        if (res.status === 200 && res.data && res.data && res.data.length > 0) {
+        if (res.status === 200 && res.data && res.data.length > 0) {
           var subs = res.data;
           var total = res.pagination ? res.pagination.total : subs.length;
           document.getElementById('sub-count').textContent = total + ' / 20 subscriptions';
 
+          // Build agent name lookup from cache
+          var agentNames = {};
+          subAgentsCache.forEach(function(a) { agentNames[a.id] = a.name; });
+
           container.innerHTML = subs.map(function(sub) {
             var icon = sub.type === 'topic' ? '&#128204;' : (sub.type === 'vector' ? '&#128302;' : '&#128273;');
             var title = sub.keyword || sub.embedding_text || sub.topic_id || 'Subscription';
-            var meta = escapeHtml(sub.type) + (sub.lang ? ' &middot; ' + sub.lang.toUpperCase() : ' &middot; All languages');
+            var agentName = agentNames[sub.account_id] || '';
+            var agentBadge = agentName ? '<span class="badge" style="font-size:0.65rem; background:var(--bg-secondary); margin-left:var(--space-xs);">' + escapeHtml(agentName) + '</span>' : '';
+            var methodBadge = '<span class="badge" style="font-size:0.6rem; opacity:0.7;">' + (sub.notification_method || 'polling') + '</span>';
+            var meta = escapeHtml(sub.type) + (sub.lang ? ' &middot; ' + sub.lang.toUpperCase() : ' &middot; All languages') + ' &middot; ' + methodBadge;
             if (sub.type === 'vector' && sub.similarity_threshold) {
               meta += ' &middot; threshold ' + sub.similarity_threshold;
             }
             return '<div class="sub-item">' +
               '<span class="sub-icon">' + icon + '</span>' +
               '<div class="sub-info">' +
-                '<div class="sub-title">' + escapeHtml(title) + '</div>' +
+                '<div class="sub-title">' + escapeHtml(title) + agentBadge + '</div>' +
                 '<div class="sub-meta">' + meta + '</div>' +
               '</div>' +
               '<button class="btn btn-secondary btn-sm sub-remove-btn" data-id="' + sub.id + '">&#10005; Remove</button>' +
@@ -1197,7 +1261,7 @@
           });
         } else {
           document.getElementById('sub-count').textContent = '0 / 20 subscriptions';
-          container.innerHTML = '<p class="text-muted">No subscriptions yet.</p>';
+          container.innerHTML = '<p class="text-muted">No subscriptions yet. Create an agent and subscribe it to topics or keywords.</p>';
         }
       } catch (err) {
         container.innerHTML = '<p class="text-muted">Could not load subscriptions.</p>';
