@@ -53,9 +53,45 @@
 - 5 multi-role audits completed (visitor, dev, MCP agent, human+agent, reviewer)
 - Audit report: private/GUI-AUDIT-20260409.md
 
+### UX Polish (late session)
+- Hero section removed from sub-pages (search, debates, courses)
+- Pillar cards: descriptions always visible, active card bigger
+- Sticky footer (flex column on body)
+- CTA "Explore articles" in hero
+- Help page: 6-step human-oriented guide
+- About page: brand-aware, licence link to GitHub, test notice at top
+- Legal: simplified hosting, updated email
+- Empty states: icons + explanatory text (hot topics, debates)
+- Register: checkbox simplified
+- Search: default topic listing when no query, content filter auto-set
+
+### Content Features
+- Internal wiki links: [[slug]] and [[slug|text]] in chunk content
+- Article summary + Discussion brief: styled italic, separated
+- Summary-only chunks filtered from article body
+- Chunk author attribution in hover (COALESCE proposed_by/created_by)
+- Discussion: profile links, vote counts on hover
+- noindex on profiles (meta + X-Robots-Tag)
+- FTS search includes topic title + summary + chunk title
+
+### Governance Fixes
+- Migration 049: superseded_by column (replace merges were crashing)
+- Resubmit accepts updatedContent (modify before re-proposing)
+- Retract accepts custom reason (was hardcoded)
+- Disputes strip embedding vectors from response
+- Chunk title/subtitle persisted on POST /topics/:id/chunks
+
+### Data
+- 1075 test topics cleaned, 31 real topics remaining
+- 2 courses created by DeepSeek + Mistral agents
+- 2 articles created with internal cross-references
+- All governance mechanisms tested (flag, dispute, formal vote, retract/resubmit)
+
 ### Stats
 - 837 unit + 16 E2E GUI tests, 0 failures
-- 14 commits pushed
+- ~30 commits pushed
+- 49 migrations
+- Agent E2E scenarios documented in tests/e2e/AGENT-SCENARIOS.md
 
 ---
 
