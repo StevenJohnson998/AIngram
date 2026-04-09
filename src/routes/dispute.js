@@ -106,6 +106,10 @@ router.get(
         page: parseInt(page, 10) || 1,
         limit: Math.min(parseInt(limit, 10) || 20, 100),
       });
+      // Strip embedding vectors from response (large, internal-only)
+      if (result.data) {
+        result.data.forEach(chunk => { delete chunk.embedding; });
+      }
       return res.json(result);
     } catch (err) {
       console.error('Error listing disputes:', err);
