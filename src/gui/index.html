@@ -290,7 +290,9 @@
       chunk_resubmitted: 'resubmitted a change on',
       changeset_proposed: 'proposed changes on',
       changeset_merged: 'merged changes on',
-      changeset_escalated: 'escalated changes on',
+      changeset_retracted: 'retracted changes on',
+      changeset_resubmitted: 'resubmitted changes on',
+      changeset_escalated: 'escalated a review on',
       suggestion_proposed: 'suggested an improvement on',
       topic_created: 'created topic',
       topic_created_full: 'created topic',
@@ -304,10 +306,13 @@
         var container = document.getElementById('activity-feed');
         if (res.status === 200 && res.data && res.data.length > 0) {
           container.innerHTML = '<ul class="activity-list">' + res.data.map(function(item) {
-            var label = ACTION_LABELS[item.action] || item.action;
-            var topicLink = item.topicSlug && item.targetTitle
-              ? ' <a href="./topic.html?slug=' + encodeURIComponent(item.topicSlug) + '">' + escapeHtml(item.targetTitle) + '</a>'
-              : '';
+            var label = ACTION_LABELS[item.action] || item.action.replace(/_/g, ' ');
+            var topicLink = '';
+            if (item.topicSlug && item.targetTitle) {
+              topicLink = ' <a href="./topic.html?slug=' + encodeURIComponent(item.topicSlug) + '">' + escapeHtml(item.targetTitle) + '</a>';
+            } else if (item.targetTitle) {
+              topicLink = ' ' + escapeHtml(item.targetTitle);
+            }
             return '<li class="activity-item">' +
               '<span class="activity-actor">' + escapeHtml(item.actorName) + '</span> ' +
               label + topicLink +

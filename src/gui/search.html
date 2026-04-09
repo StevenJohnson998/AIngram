@@ -98,7 +98,6 @@
 
   <script src="api.js"></script>
   <script>
-    var currentPage = 1;
     var currentQuery = '';
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -107,7 +106,7 @@
       var q = getParam('q') || '';
       if (q) {
         document.getElementById('search-input').value = q;
-        doSearch(q, 1);
+        doSearch(q);
       }
 
       document.getElementById('search-form').addEventListener('submit', function(e) {
@@ -116,51 +115,88 @@
         if (q) {
           // Update URL without reload
           history.pushState(null, '', './search.html?q=' + encodeURIComponent(q));
-          doSearch(q, 1);
+          doSearch(q);
         }
       });
 
       document.getElementById('filter-type').addEventListener('change', function() {
         var q = document.getElementById('search-input').value.trim();
-        if (q) doSearch(q, 1);
+        if (q) doSearch(q);
       });
 
       document.getElementById('filter-lang').addEventListener('change', function() {
         var q = document.getElementById('search-input').value.trim();
-        if (q) doSearch(q, 1);
+        if (q) doSearch(q);
       });
 
       document.getElementById('filter-topic-type').addEventListener('change', function() {
         var q = document.getElementById('search-input').value.trim();
-        if (q) doSearch(q, 1);
+        if (q) doSearch(q);
       });
 
       document.getElementById('load-more-btn').addEventListener('click', function() {
-        if (currentQuery) doSearch(currentQuery, currentPage + 1, true);
+        if (!window._searchResults) return;
+        var container = document.getElementById('results-container');
+        container.innerHTML = renderResultCards(window._searchResults, currentQuery);
+        this.parentElement.style.display = 'none';
+        if (window._searchResults.length >= 50) {
+          showMaxBanner(container);
+        }
       });
     });
 
     var user = null;
     getCurrentUser().then(function(u) { user = u; });
 
-    async function doSearch(q, page, append) {
+    function renderResultCards(items, q) {
+      return items.map(function(item) {
+        var tc = trustClass(item.trust_score || 0);
+        var topicLink = item.topic_id ? './topic.html?id=' + item.topic_id : '#';
+        var topicTitle = item.topic_title || 'Unknown topic';
+        var topicLang = (item.topic_lang || 'en').toUpperCase();
+        return '<div class="card trust-border ' + tc + ' mb-md">' +
+          '<div class="flex items-center justify-between flex-wrap gap-sm mb-md">' +
+            '<div>' +
+              '<a href="' + topicLink + '" style="font-size: var(--text-lg); font-weight: 600;">' + escapeHtml(topicTitle) + '</a>' +
+              '<div class="meta-row mt-sm">' +
+                '<span class="badge badge-lang">' + escapeHtml(topicLang) + '</span>' +
+                '<span class="sep">&middot;</span>' +
+                '<span>' + trustBadge(item.trust_score || 0) + '</span>' +
+                '<span class="sep">&middot;</span>' +
+                '<span>' + timeAgo(item.updated_at || item.created_at) + '</span>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<p class="text-sm text-muted">' + escapeHtml(truncate(item.content, 250)) + '</p>' +
+          (user ? '<button class="btn btn-xs btn-outline mt-sm subscribe-similar-btn" data-query="' + escapeHtml(q).replace(/"/g, '&quot;') + '">Subscribe to similar</button>' : '') +
+        '</div>';
+      }).join('');
+    }
+
+    function showMaxBanner(container) {
+      var banner = document.createElement('div');
+      banner.id = 'max-results-banner';
+      banner.className = 'alert alert-info';
+      banner.style.marginTop = 'var(--space-lg)';
+      banner.textContent = 'Maximum of 50 results reached. Please refine your search for more specific results.';
+      container.after(banner);
+    }
+
+    async function doSearch(q) {
       currentQuery = q;
-      currentPage = page;
 
       var type = document.getElementById('filter-type').value;
       var lang = document.getElementById('filter-lang').value;
       var topicType = document.getElementById('filter-topic-type').value;
 
-      var loadingEl = document.getElementById('results-loading');
-      var emptyEl = document.getElementById('results-empty');
-      if (loadingEl) loadingEl.style.display = 'block';
-      if (emptyEl) emptyEl.style.display = 'none';
-      if (!append) {
-        var container = document.getElementById('results-container');
-        container.innerHTML = '<p class="text-muted" id="results-loading">Searching...</p><p class="text-muted" id="results-empty" style="display:none;">No results found.</p>';
-      }
+      var container = document.getElementById('results-container');
+      container.innerHTML = '<p class="text-muted" id="results-loading">Searching...</p><p class="text-muted" id="results-empty" style="display:none;">No results found.</p>';
+      var oldBanner = document.getElementById('max-results-banner');
+      if (oldBanner) oldBanner.remove();
 
-      var url = '/search?q=' + encodeURIComponent(q) + '&type=' + type + '&page=' + page + '&limit=20';
+      var SEARCH_MAX = 50;
+      var INITIAL_DISPLAY = 15;
+      var url = '/search?q=' + encodeURIComponent(q) + '&type=' + type + '&page=1&limit=' + SEARCH_MAX;
       if (lang) url += '&lang=' + lang;
       if (topicType) url += '&topicType=' + topicType;
 
@@ -171,15 +207,20 @@
 
         if (res.status === 200 && res.data && res.data) {
           var results = res.data;
-          var total = res.pagination ? res.pagination.total : results.length;
+          var hitMax = results.length >= SEARCH_MAX;
 
+          // Info line
           var infoEl = document.getElementById('results-info');
           if (infoEl) {
             infoEl.style.display = 'block';
-            infoEl.textContent = total + ' result' + (total !== 1 ? 's' : '');
+            if (hitMax) {
+              infoEl.textContent = 'Too many results \u2014 showing top ' + SEARCH_MAX;
+            } else {
+              infoEl.textContent = results.length + ' result' + (results.length !== 1 ? 's' : '');
+            }
           }
 
-          if (results.length === 0 && !append) {
+          if (results.length === 0) {
             var emptyAfter = document.getElementById('results-empty');
             if (emptyAfter) emptyAfter.style.display = 'block';
             var reqBox = document.getElementById('request-topic-box');
@@ -193,41 +234,29 @@
           var reqBoxHide = document.getElementById('request-topic-box');
           if (reqBoxHide) reqBoxHide.style.display = 'none';
 
+          // Store all results, show first INITIAL_DISPLAY
+          window._searchResults = results;
+          var visible = results.slice(0, INITIAL_DISPLAY);
+
           var container = document.getElementById('results-container');
-          var html = results.map(function(item) {
-            var tc = trustClass(item.trust_score || 0);
-            var topicLink = item.topic_id ? './topic.html?id=' + item.topic_id : '#';
-            var topicTitle = item.topic_title || 'Unknown topic';
-            var topicLang = (item.topic_lang || 'en').toUpperCase();
+          container.innerHTML = renderResultCards(visible, q);
 
-            return '<div class="card trust-border ' + tc + ' mb-md">' +
-              '<div class="flex items-center justify-between flex-wrap gap-sm mb-md">' +
-                '<div>' +
-                  '<a href="' + topicLink + '" style="font-size: var(--text-lg); font-weight: 600;">' + escapeHtml(topicTitle) + '</a>' +
-                  '<div class="meta-row mt-sm">' +
-                    '<span class="badge badge-lang">' + escapeHtml(topicLang) + '</span>' +
-                    '<span class="sep">&middot;</span>' +
-                    '<span>' + trustBadge(item.trust_score || 0) + '</span>' +
-                    '<span class="sep">&middot;</span>' +
-                    '<span>' + timeAgo(item.updated_at || item.created_at) + '</span>' +
-                  '</div>' +
-                '</div>' +
-              '</div>' +
-              '<p class="text-sm text-muted">' + escapeHtml(truncate(item.content, 250)) + '</p>' +
-              (user ? '<button class="btn btn-xs btn-outline mt-sm subscribe-similar-btn" data-query="' + escapeHtml(q).replace(/"/g, '&quot;') + '">Subscribe to similar</button>' : '') +
-            '</div>';
-          }).join('');
-
-          if (append) {
-            container.innerHTML += html;
-          } else {
-            container.innerHTML = html;
-          }
-
-          // Show/hide load more
-          var totalLoaded = page * 20;
+          // Load more button
           var loadMoreEl = document.getElementById('load-more-container');
-          if (loadMoreEl) loadMoreEl.style.display = totalLoaded < total ? 'block' : 'none';
+          var maxBanner = document.getElementById('max-results-banner');
+          if (maxBanner) maxBanner.remove();
+
+          if (loadMoreEl) {
+            if (results.length > INITIAL_DISPLAY) {
+              loadMoreEl.style.display = 'block';
+              document.getElementById('load-more-btn').textContent = 'Show all ' + results.length + ' results';
+            } else {
+              loadMoreEl.style.display = 'none';
+            }
+          }
+          if (hitMax && results.length <= INITIAL_DISPLAY) {
+            showMaxBanner(container);
+          }
         } else {
           var emptyFinal = document.getElementById('results-empty');
           if (emptyFinal) emptyFinal.style.display = 'block';
