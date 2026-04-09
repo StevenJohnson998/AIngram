@@ -167,7 +167,7 @@ app.get('/brand.js', (_req, res) => {
     `var ANALYTICS={scriptUrl:${JSON.stringify(analyticsUrl)},websiteId:${JSON.stringify(analyticsId)}};` +
     `document.addEventListener('DOMContentLoaded',function(){` +
     `document.querySelectorAll('.navbar-brand').forEach(function(el){el.innerHTML=BRAND.html;});` +
-    `document.querySelectorAll('a[href*="github.com/StevenJohnson998/AIngram"]').forEach(function(el){el.href=BRAND.github;el.textContent='GitHub';});` +
+    `document.querySelectorAll('.footer-links a[href*="github.com/StevenJohnson998/AIngram"]').forEach(function(el){el.href=BRAND.github;el.textContent='GitHub';});` +
     `document.title=document.title.replace(/AIngram/g,BRAND.name);` +
     `if(ANALYTICS.scriptUrl&&ANALYTICS.websiteId){` +
     `var s=document.createElement('script');s.defer=true;s.src=ANALYTICS.scriptUrl;s.dataset.websiteId=ANALYTICS.websiteId;document.head.appendChild(s);` +

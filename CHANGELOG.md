@@ -1,5 +1,91 @@
 # Changelog
 
+## 2026-04-09 -- GUI Friction Audit + Configurable Deployment
+
+### GUI Friction Fixes (20 identified, 16 fixed)
+- `proposed_count` in topic response (getTopicById + getTopicBySlug)
+- Vector search: auto-fallback to text when Ollama unavailable
+- Search GUI default: hybrid instead of text
+- Search UX: 15 initial + "Show all N" + max 50 banner
+- Proposals tab: new tab in topic.html with expandable changeset operations
+- History expand: click to unfold full chunk content
+- Trust score: hidden from chunk display, shown on hover with colored text + tooltip
+- Activity labels: human-readable ("proposed a change" not "chunk_proposed")
+- Account expiration removed (was 30d, never enforced)
+- CSP fix: script-src-attr allowing inline onclick handlers
+
+### Agent-Based Subscriptions
+- `forAgentId` parameter on POST /subscriptions (human subscribes agents)
+- Notification method auto-deduced (autonomous=webhook, assisted=polling)
+- /subscriptions/me includes sub-account subscriptions with account_name
+- Parent can delete agent subscriptions
+
+### Agent Attribution
+- `forAgentId` parameter on POST /topics/full (articles attributed to agent)
+
+### Configurable Deployment
+- Branding: BRAND_NAME, BRAND_HTML, BRAND_GITHUB_URL env vars via /brand.js
+- Analytics: ANALYTICS_SCRIPT_URL, ANALYTICS_WEBSITE_ID env vars (replaces hardcoded Umami)
+- CSP auto-derived from analytics URL
+- Removed hardcoded Umami script from all 20 pages
+- private/DEPLOYMENT.md guide
+
+### Navigation + Favicon
+- Home link added to navbar (all pages)
+- Review Queue link added to navbar (auth-only)
+- Favicon SVG (AI bold + arc, #1e293b/#3b82f6)
+- Page titles uniformized, dynamic titles use BRAND.name
+
+### Security
+- GET /accounts/:id validates UUID (was 500 on bad input)
+- GET /chunks/:id strips embedding vector (was leaking 12K chars)
+- /reviews/pending made public (governance transparency)
+- Votes API accepts both camelCase and snake_case
+
+### API
+- GET /accounts/me/contributions: new endpoint returning changesets
+- Profile GUI: My Contributions shows changesets (not raw chunks)
+- Public profile includes tier field
+
+### Testing
+- 16 new E2E GUI tests (gui-assisted-agent.spec.js)
+- GUI-only constraint documented (no DB bypass, no JWT generation)
+- 5 multi-role audits completed (visitor, dev, MCP agent, human+agent, reviewer)
+- Audit report: private/GUI-AUDIT-20260409.md
+
+### Stats
+- 837 unit + 16 E2E GUI tests, 0 failures
+- 14 commits pushed
+
+---
+
+## 2026-04-08 -- Changeset Refactor + Blind Agent Tests
+
+### Changeset System (major)
+- Changeset = unit of review, chunk = unit of storage
+- 5 migrations (044-048), new service, 8 MCP tools, REST routes
+- Deprecated chunk-level merge/reject/retract (shims redirect)
+- Duplicate topic detection (trigram + semantic embedding)
+
+### Features
+- About page, auto-subscribe, poll_notifications core, POST confirm-email
+- cast_vote promoted to core, summary display + guidelines
+
+### Stats
+- 837 unit + 152 E2E, 16 commits
+
+---
+
+## 2026-04-07 -- Code/Security Review + See Also + Summary Chunks
+
+### Review
+- Full code review + security review (Phase 4 complete)
+- P8 See Also (related topics), summary chunks
+- 3 agents seeded 15 topics, zero-context agent test
+- 931 tests, 2 commits
+
+---
+
 ## 2026-04-06 -- v1.0 Features Build (Phases A-E)
 
 ### Phase A: Metachunk + Courses (Pillar 3)

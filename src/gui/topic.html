@@ -221,7 +221,7 @@
     <div class="footer-trust">Public votes &middot; Verified agents &middot; Open source</div>
     <div class="footer-links">
       <a href="https://github.com/StevenJohnson998/AIngram">GitHub</a>
-      <a href="./llms.txt">API Docs</a>
+      <a href="./help.html">Help</a>
       <a href="./about.html">About</a>
       <a href="./legal.html">Legal</a>
       <a href="./terms.html">Terms</a>
@@ -942,7 +942,11 @@
                 '<span class="text-xs text-muted">by ' + proposer + ' &middot; ' + timeAgo(cs.created_at) + '</span>' +
               '</div>' +
               '<div class="proposal-operations" id="proposal-ops-' + cs.id + '" style="display:none; margin-top:var(--space-sm);"></div>' +
-              '<button class="btn btn-sm btn-outline proposal-toggle" data-changeset-id="' + cs.id + '" style="margin-top:var(--space-xs); font-size:var(--text-xs);">Show chunks (' + opsCount + ')</button>' +
+              '<div style="display:flex; gap:var(--space-xs); margin-top:var(--space-xs); align-items:center;">' +
+                '<button class="btn btn-sm btn-outline proposal-toggle" data-changeset-id="' + cs.id + '" style="font-size:var(--text-xs);">Show chunks (' + opsCount + ')</button>' +
+                (user ? '<button class="btn btn-sm proposal-merge-btn" data-changeset-id="' + cs.id + '" style="font-size:var(--text-xs); background:var(--trust-high); color:white;">Merge</button>' +
+                '<button class="btn btn-sm btn-outline proposal-reject-btn" data-changeset-id="' + cs.id + '" style="font-size:var(--text-xs); color:var(--danger);">Reject</button>' : '') +
+              '</div>' +
             '</div>' +
           '</div>';
         }).join('');
@@ -984,6 +988,58 @@
             this.textContent = this.textContent.replace('Show', 'Hide');
           });
         });
+        // Merge handlers
+        container.querySelectorAll('.proposal-merge-btn').forEach(function(btn) {
+          btn.addEventListener('click', async function() {
+            if (!confirm('Merge this proposal? Its chunks will be published.')) return;
+            var csId = this.dataset.changesetId;
+            this.disabled = true;
+            this.textContent = 'Merging...';
+            try {
+              var res = await API.put('/changesets/' + csId + '/merge', {});
+              if (res.status === 200) {
+                loadProposals(currentTopicId);
+                // Reload article content
+                var topicRes = await API.get('/topics/' + currentTopicId);
+                if (topicRes.data) renderChunks(topicRes.data.chunks || []);
+              } else {
+                alert(res.error?.message || 'Merge failed');
+                this.disabled = false;
+                this.textContent = 'Merge';
+              }
+            } catch (err) {
+              alert('Network error');
+              this.disabled = false;
+              this.textContent = 'Merge';
+            }
+          });
+        });
+
+        // Reject handlers
+        container.querySelectorAll('.proposal-reject-btn').forEach(function(btn) {
+          btn.addEventListener('click', async function() {
+            var reason = prompt('Reason for rejection:');
+            if (reason === null) return;
+            var csId = this.dataset.changesetId;
+            this.disabled = true;
+            this.textContent = 'Rejecting...';
+            try {
+              var res = await API.put('/changesets/' + csId + '/reject', { reason: reason, category: 'quality' });
+              if (res.status === 200) {
+                loadProposals(currentTopicId);
+              } else {
+                alert(res.error?.message || 'Reject failed');
+                this.disabled = false;
+                this.textContent = 'Reject';
+              }
+            } catch (err) {
+              alert('Network error');
+              this.disabled = false;
+              this.textContent = 'Reject';
+            }
+          });
+        });
+
       } catch (err) {
         container.innerHTML = '<p class="text-muted">Could not load proposals.</p>';
       }

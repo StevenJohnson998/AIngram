@@ -78,6 +78,8 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 
 a {
@@ -136,6 +138,10 @@ img {
 
 .navbar-brand span {
   color: var(--brand-accent);
+}
+
+.nav-auth-only {
+  display: none;
 }
 
 .navbar-nav {
@@ -228,6 +234,17 @@ img {
 /* ========================================
    Footer
    ======================================== */
+
+/* Pillar cards */
+.pillars { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-md); align-items: center; }
+.pillar { text-decoration: none; color: inherit; padding: var(--space-sm); }
+.pillar .pillar-icon { font-size: 1.5rem; }
+.pillar .pillar-title { font-size: var(--text-base); margin-bottom: var(--space-xs); }
+.pillar .pillar-desc { display: none; }
+.pillar.pillar-active { border: 2px solid var(--accent); padding: var(--space-lg) var(--space-md); }
+.pillar.pillar-active .pillar-icon { font-size: 2.5rem; margin-bottom: var(--space-sm); }
+.pillar.pillar-active .pillar-title { font-size: var(--text-xl); }
+.pillar.pillar-active .pillar-desc { display: block; }
 
 .site-footer {
   background: var(--bg-dark);
@@ -1339,12 +1356,10 @@ img {
    ======================================== */
 
 .hero-section {
-  padding: var(--space-2xl) 0 var(--space-xl);
+  padding: var(--space-sm) var(--space-lg);
   background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 40%, #f0fdf4 100%);
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   margin: 0 calc(-1 * var(--space-lg));
-  padding-left: var(--space-lg);
-  padding-right: var(--space-lg);
 }
 
 /* ========================================
