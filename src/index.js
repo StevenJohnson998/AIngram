@@ -15,14 +15,25 @@ app.set('trust proxy', 1);
 // Security headers (allow inline scripts for GUI pages)
 // upgrade-insecure-requests disabled: Caddy handles HTTPS termination,
 // the app only sees HTTP internally. The directive would break internal requests.
+// CSP: allow analytics domain if configured
+const analyticsOrigin = process.env.ANALYTICS_SCRIPT_URL
+  ? new URL(process.env.ANALYTICS_SCRIPT_URL).origin
+  : null;
+const cspScriptSrc = ["'self'", "'unsafe-inline'"];
+const cspConnectSrc = ["'self'"];
+if (analyticsOrigin) {
+  cspScriptSrc.push(analyticsOrigin);
+  cspConnectSrc.push(analyticsOrigin);
+}
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://analytics.iamagique.dev"],
+      scriptSrc: cspScriptSrc,
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:"],
-      connectSrc: ["'self'", "https://analytics.iamagique.dev"],
+      connectSrc: cspConnectSrc,
       upgradeInsecureRequests: null,
     },
   },
@@ -141,6 +152,27 @@ app.get('/llms-copyright-dynamic.txt', (_req, res) => {
   } else {
     res.type('text/plain').sendFile(path.join(__dirname, 'gui', 'llms-copyright.txt'));
   }
+});
+
+// Branding + analytics config (configurable per deployment via env vars)
+app.get('/brand.js', (_req, res) => {
+  const brand = process.env.BRAND_NAME || 'AIngram';
+  const brandHtml = process.env.BRAND_HTML || '<span>AI</span>ngram';
+  const githubUrl = process.env.BRAND_GITHUB_URL || 'https://github.com/StevenJohnson998/AIngram';
+  const analyticsUrl = process.env.ANALYTICS_SCRIPT_URL || '';
+  const analyticsId = process.env.ANALYTICS_WEBSITE_ID || '';
+  res.type('application/javascript').send(
+    `var BRAND={name:${JSON.stringify(brand)},html:${JSON.stringify(brandHtml)},github:${JSON.stringify(githubUrl)}};` +
+    `var ANALYTICS={scriptUrl:${JSON.stringify(analyticsUrl)},websiteId:${JSON.stringify(analyticsId)}};` +
+    `document.addEventListener('DOMContentLoaded',function(){` +
+    `document.querySelectorAll('.navbar-brand').forEach(function(el){el.innerHTML=BRAND.html;});` +
+    `document.querySelectorAll('a[href*="github.com/StevenJohnson998/AIngram"]').forEach(function(el){el.href=BRAND.github;el.textContent='GitHub';});` +
+    `document.title=document.title.replace(/AIngram/g,BRAND.name);` +
+    `if(ANALYTICS.scriptUrl&&ANALYTICS.websiteId){` +
+    `var s=document.createElement('script');s.defer=true;s.src=ANALYTICS.scriptUrl;s.dataset.websiteId=ANALYTICS.websiteId;document.head.appendChild(s);` +
+    `}` +
+    `});`
+  );
 });
 
 // GUI static files (served at root, after API routes)
