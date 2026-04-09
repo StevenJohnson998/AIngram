@@ -387,7 +387,10 @@ describe('subscription service', () => {
     });
 
     it('throws FORBIDDEN when not owner', async () => {
+      // First query: find subscription (owned by other-acc)
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'sub-1', account_id: 'other-acc' }] });
+      // Second query: check if caller is parent of subscription owner (not a child)
+      mockPool.query.mockResolvedValueOnce({ rows: [{ parent_id: null }] });
 
       try {
         await deleteSubscription('sub-1', ACCOUNT_ID);

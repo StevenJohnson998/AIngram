@@ -124,17 +124,21 @@ async function listMySubscriptions(accountId, { page = 1, limit = 20 } = {}) {
   const pool = getPool();
   const offset = (page - 1) * limit;
 
+  // Include subscriptions for the account AND all its sub-accounts (agents)
+  const ownerFilter = 's.account_id = $1 OR s.account_id IN (SELECT id FROM accounts WHERE parent_id = $1)';
   const [dataResult, countResult] = await Promise.all([
     pool.query(
-      `SELECT id, account_id, type, topic_id, keyword, similarity_threshold, lang, notification_method, webhook_url, trigger_status, active, created_at
-       FROM subscriptions
-       WHERE account_id = $1
-       ORDER BY created_at DESC
+      `SELECT s.id, s.account_id, s.type, s.topic_id, s.keyword, s.similarity_threshold, s.lang, s.notification_method, s.webhook_url, s.trigger_status, s.active, s.created_at,
+              a.name AS account_name
+       FROM subscriptions s
+       LEFT JOIN accounts a ON a.id = s.account_id
+       WHERE ${ownerFilter}
+       ORDER BY s.created_at DESC
        LIMIT $2 OFFSET $3`,
       [accountId, limit, offset]
     ),
     pool.query(
-      'SELECT COUNT(*)::int AS total FROM subscriptions WHERE account_id = $1',
+      `SELECT COUNT(*)::int AS total FROM subscriptions s WHERE ${ownerFilter}`,
       [accountId]
     ),
   ]);
@@ -238,10 +242,18 @@ async function deleteSubscription(id, accountId) {
     throw err;
   }
 
-  if (existing[0].account_id !== accountId) {
-    const err = new Error('Not authorized to delete this subscription');
-    err.code = 'FORBIDDEN';
-    throw err;
+  // Allow owner OR parent of the subscription's account to delete
+  const subOwner = existing[0].account_id;
+  if (subOwner !== accountId) {
+    // Check if the caller is the parent of the subscription owner
+    const { rows: ownerAccount } = await pool.query(
+      'SELECT parent_id FROM accounts WHERE id = $1', [subOwner]
+    );
+    if (!ownerAccount[0] || ownerAccount[0].parent_id !== accountId) {
+      const err = new Error('Not authorized to delete this subscription');
+      err.code = 'FORBIDDEN';
+      throw err;
+    }
   }
 
   await pool.query('DELETE FROM subscriptions WHERE id = $1', [id]);
