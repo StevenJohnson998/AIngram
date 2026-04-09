@@ -55,8 +55,9 @@ function getSearchConfigs(userLang) {
  *    OR to_tsvector('english', c.content) @@ plainto_tsquery('english', $1))
  */
 function buildFtsCondition(configs, queryParamRef) {
+  // Search in chunk content AND topic title+summary for broader matching
   const parts = configs.map(
-    (cfg) => `to_tsvector('${cfg}', unaccent(c.content)) @@ plainto_tsquery('${cfg}', unaccent(${queryParamRef}))`
+    (cfg) => `to_tsvector('${cfg}', unaccent(coalesce(t.title,'') || ' ' || coalesce(t.summary,'') || ' ' || coalesce(c.title,'') || ' ' || c.content)) @@ plainto_tsquery('${cfg}', unaccent(${queryParamRef}))`
   );
   return `(${parts.join(' OR ')})`;
 }
@@ -68,11 +69,12 @@ function buildFtsCondition(configs, queryParamRef) {
  *            ts_rank(to_tsvector('english', c.content), plainto_tsquery('english', $1)))
  */
 function buildRankExpression(configs, queryParamRef) {
+  const textExpr = "coalesce(t.title,'') || ' ' || coalesce(t.summary,'') || ' ' || coalesce(c.title,'') || ' ' || c.content";
   if (configs.length === 1) {
-    return `ts_rank(to_tsvector('${configs[0]}', unaccent(c.content)), plainto_tsquery('${configs[0]}', unaccent(${queryParamRef})))`;
+    return `ts_rank(to_tsvector('${configs[0]}', unaccent(${textExpr})), plainto_tsquery('${configs[0]}', unaccent(${queryParamRef})))`;
   }
   const parts = configs.map(
-    (cfg) => `ts_rank(to_tsvector('${cfg}', unaccent(c.content)), plainto_tsquery('${cfg}', unaccent(${queryParamRef})))`
+    (cfg) => `ts_rank(to_tsvector('${cfg}', unaccent(${textExpr})), plainto_tsquery('${cfg}', unaccent(${queryParamRef})))`
   );
   return `GREATEST(${parts.join(', ')})`;
 }

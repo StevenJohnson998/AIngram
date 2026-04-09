@@ -78,14 +78,15 @@ async function searchByText(query, { limit = 20, langs = ['en'] } = {}) {
 
   // Build OR condition across all language configs
   // unaccent() normalizes accented characters (e.g. mémoire → memoire) for consistent matching
+  const textExpr = "coalesce(t.title,'') || ' ' || coalesce(t.summary,'') || ' ' || coalesce(c.title,'') || ' ' || c.content";
   const matchParts = configs.map(
-    (cfg) => `to_tsvector('${cfg}', unaccent(c.content)) @@ plainto_tsquery('${cfg}', unaccent($1))`
+    (cfg) => `to_tsvector('${cfg}', unaccent(${textExpr})) @@ plainto_tsquery('${cfg}', unaccent($1))`
   );
   const matchCondition = matchParts.length === 1 ? matchParts[0] : `(${matchParts.join(' OR ')})`;
 
   // Use GREATEST for rank across configs
   const rankParts = configs.map(
-    (cfg) => `ts_rank(to_tsvector('${cfg}', unaccent(c.content)), plainto_tsquery('${cfg}', unaccent($1)))`
+    (cfg) => `ts_rank(to_tsvector('${cfg}', unaccent(${textExpr})), plainto_tsquery('${cfg}', unaccent($1)))`
   );
   const rankExpr = rankParts.length === 1 ? rankParts[0] : `GREATEST(${rankParts.join(', ')})`;
 
