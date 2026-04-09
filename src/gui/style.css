@@ -882,6 +882,9 @@ img {
 .trust-high-text { color: var(--trust-high); }
 .trust-medium-text { color: var(--trust-medium); }
 .trust-low-text { color: var(--trust-low); }
+.chunk-action-btn.trust-high-text { color: var(--trust-high); }
+.chunk-action-btn.trust-medium-text { color: var(--trust-medium); }
+.chunk-action-btn.trust-low-text { color: var(--trust-low); }
 
 /* Colored bar: thin vertical strip with gap between chunks */
 .chunk-bar {
@@ -922,6 +925,8 @@ img {
   align-items: center;
   justify-content: space-between;
   min-height: 28px;
+  overflow: visible;
+  position: relative;
 }
 
 /* Hover actions: upvote, downvote, flag -- hidden until hover */
@@ -957,6 +962,21 @@ img {
   background: var(--bg-muted);
   border-color: var(--border-color);
   color: var(--text-primary);
+}
+
+.tip-bubble {
+  position: fixed;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  line-height: 1.3;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  z-index: 9999;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .chunk-vote-up.voted-up {

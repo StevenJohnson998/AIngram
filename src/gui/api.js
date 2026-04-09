@@ -256,7 +256,9 @@ function trustClass(score) {
  */
 function trustBadge(score) {
   const cls = trustClass(score);
-  return '<span class="badge badge-' + cls + '">' + (typeof score === 'number' ? score.toFixed(2) : score) + '</span>';
+  const label = score >= 0.7 ? 'High' : score >= 0.4 ? 'Medium' : 'Low';
+  const val = typeof score === 'number' ? score.toFixed(2) : score;
+  return '<span class="badge badge-' + cls + '" title="Trust score: ' + val + '">' + label + '</span>';
 }
 
 /**
