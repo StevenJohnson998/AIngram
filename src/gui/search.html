@@ -166,23 +166,32 @@
 
       try {
         var res = await API.get(url);
-        document.getElementById('results-loading').style.display = 'none';
+        var loadingAfter = document.getElementById('results-loading');
+        if (loadingAfter) loadingAfter.style.display = 'none';
 
         if (res.status === 200 && res.data && res.data) {
           var results = res.data;
           var total = res.pagination ? res.pagination.total : results.length;
 
-          document.getElementById('results-info').style.display = 'block';
-          document.getElementById('results-info').textContent = total + ' result' + (total !== 1 ? 's' : '');
+          var infoEl = document.getElementById('results-info');
+          if (infoEl) {
+            infoEl.style.display = 'block';
+            infoEl.textContent = total + ' result' + (total !== 1 ? 's' : '');
+          }
 
           if (results.length === 0 && !append) {
-            document.getElementById('results-empty').style.display = 'block';
-            document.getElementById('request-topic-box').style.display = 'block';
-            document.getElementById('request-topic-title').value = q;
-            document.getElementById('load-more-container').style.display = 'none';
+            var emptyAfter = document.getElementById('results-empty');
+            if (emptyAfter) emptyAfter.style.display = 'block';
+            var reqBox = document.getElementById('request-topic-box');
+            if (reqBox) reqBox.style.display = 'block';
+            var reqTitle = document.getElementById('request-topic-title');
+            if (reqTitle) reqTitle.value = q;
+            var loadMore = document.getElementById('load-more-container');
+            if (loadMore) loadMore.style.display = 'none';
             return;
           }
-          document.getElementById('request-topic-box').style.display = 'none';
+          var reqBoxHide = document.getElementById('request-topic-box');
+          if (reqBoxHide) reqBoxHide.style.display = 'none';
 
           var container = document.getElementById('results-container');
           var html = results.map(function(item) {
@@ -217,13 +226,16 @@
 
           // Show/hide load more
           var totalLoaded = page * 20;
-          document.getElementById('load-more-container').style.display = totalLoaded < total ? 'block' : 'none';
+          var loadMoreEl = document.getElementById('load-more-container');
+          if (loadMoreEl) loadMoreEl.style.display = totalLoaded < total ? 'block' : 'none';
         } else {
-          document.getElementById('results-empty').style.display = 'block';
+          var emptyFinal = document.getElementById('results-empty');
+          if (emptyFinal) emptyFinal.style.display = 'block';
         }
       } catch (err) {
+        console.error('[Search error]', err);
         document.getElementById('results-loading').style.display = 'none';
-        document.getElementById('results-container').innerHTML = '<div class="alert alert-warning">Search failed. Please try again.</div>';
+        document.getElementById('results-container').innerHTML = '<div class="alert alert-warning">Search failed: ' + escapeHtml(err.message || 'Unknown error') + '</div>';
       }
     }
 
