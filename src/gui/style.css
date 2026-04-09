@@ -936,6 +936,15 @@ img {
   color: var(--text-primary);
 }
 
+.internal-link {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+.internal-link:hover {
+  border-bottom-style: solid;
+}
+
 /* Actions row: hover actions left, expand right */
 .chunk-actions-row {
   display: flex;

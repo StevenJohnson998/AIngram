@@ -142,6 +142,9 @@
       if (q) {
         document.getElementById('search-input').value = q;
         doSearch(q);
+      } else {
+        // No query: show recent topics as default
+        loadRecentTopics();
       }
 
       document.getElementById('search-form').addEventListener('submit', function(e) {
@@ -162,11 +165,13 @@
       document.getElementById('filter-lang').addEventListener('change', function() {
         var q = document.getElementById('search-input').value.trim();
         if (q) doSearch(q);
+        else loadRecentTopics();
       });
 
       document.getElementById('filter-topic-type').addEventListener('change', function() {
         var q = document.getElementById('search-input').value.trim();
         if (q) doSearch(q);
+        else loadRecentTopics();
       });
 
       document.getElementById('load-more-btn').addEventListener('click', function() {
@@ -215,6 +220,58 @@
       banner.style.marginTop = 'var(--space-lg)';
       banner.textContent = 'Maximum of 50 results reached. Please refine your search for more specific results.';
       container.after(banner);
+    }
+
+    async function loadRecentTopics() {
+      var topicType = document.getElementById('filter-topic-type').value;
+      var lang = document.getElementById('filter-lang').value;
+      var url = '/topics?limit=20';
+      if (topicType) url += '&topicType=' + topicType;
+      if (lang) url += '&lang=' + lang;
+
+      var container = document.getElementById('results-container');
+      container.innerHTML = '';
+
+      try {
+        var res = await API.get(url);
+        if (res.status === 200 && res.data && res.data.length > 0) {
+          var infoEl = document.getElementById('results-info');
+          var label = topicType === 'course' ? 'courses' : 'articles';
+          if (infoEl) {
+            infoEl.style.display = 'block';
+            infoEl.textContent = 'Recent ' + label;
+          }
+
+          container.innerHTML = res.data.map(function(topic) {
+            var tc = trustClass(topic.trust_score || 0);
+            var countLabel = topic.topic_type === 'course' ? ' chapters' : ' contributions';
+            var typeBadge = topic.topic_type === 'course'
+              ? '<span class="badge" style="background: var(--accent); color: #fff; font-size: 0.65rem;">Course</span> '
+              : '';
+            return '<a href="./topic.html?id=' + topic.id + '" class="card trust-border ' + tc + ' mb-md" style="text-decoration:none; color:inherit; display:block;">' +
+              '<div class="flex items-center gap-sm mb-sm">' +
+                typeBadge +
+                '<span style="font-size: var(--text-lg); font-weight: 600;">' + escapeHtml(topic.title) + '</span>' +
+              '</div>' +
+              (topic.summary ? '<p class="text-sm text-muted" style="margin-bottom:var(--space-xs);">' + escapeHtml(topic.summary.substring(0, 150)) + '</p>' : '') +
+              '<div class="meta-row">' +
+                '<span class="badge badge-lang">' + (topic.lang || 'en').toUpperCase() + '</span>' +
+                '<span class="sep">&middot;</span>' +
+                trustBadge(topic.trust_score || 0) +
+                '<span class="sep">&middot;</span>' +
+                '<span class="text-sm text-muted">' + (topic.chunk_count || 0) + countLabel + '</span>' +
+                '<span class="sep">&middot;</span>' +
+                '<span class="text-sm text-muted">' + timeAgo(topic.updated_at || topic.created_at) + '</span>' +
+              '</div>' +
+            '</a>';
+          }).join('');
+        } else {
+          var emptyLabel = topicType === 'course' ? 'courses' : 'articles';
+          container.innerHTML = '<div style="text-align:center; padding:var(--space-2xl) 0;"><div style="font-size:3rem; opacity:0.3; margin-bottom:var(--space-sm);">' + (topicType === 'course' ? '&#127891;' : '&#128218;') + '</div><p class="text-muted">No ' + emptyLabel + ' yet.</p></div>';
+        }
+      } catch (err) {
+        container.innerHTML = '<p class="text-muted">Could not load topics.</p>';
+      }
     }
 
     async function doSearch(q) {
