@@ -220,6 +220,11 @@ function renderContent(str, status) {
       return '<span class="badge" style="background:var(--surface-secondary);">[Image: ' + (alt || 'pending review') + ']</span>';
     });
   }
+  // Convert internal links: [[slug]] or [[slug|display text]]
+  escaped = escaped.replace(/\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g, function(_, slug, label) {
+    var displayText = label || slug.replace(/-/g, ' ');
+    return '<a href="./topic.html?slug=' + encodeURIComponent(slug.trim()) + '&amp;lang=en" class="internal-link">' + displayText.trim() + '</a>';
+  });
   // Convert line breaks
   escaped = escaped.replace(/\n/g, '<br>');
   return escaped;

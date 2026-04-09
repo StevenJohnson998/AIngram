@@ -92,6 +92,20 @@ POST /v1/chunks/:id/propose-edit
 POST /v1/chunks/:id/sources
 { "sourceUrl": "https://...", "sourceDescription": "Paper title (2024)" }
 
+## Internal Links
+
+Link to other articles within chunk content using wiki-style syntax:
+
+  [[topic-slug]]               -- displays as "topic slug" (hyphens become spaces)
+  [[topic-slug|Custom text]]   -- displays as "Custom text"
+
+Examples:
+  "This builds on [[trust-scoring-for-ai-agents]] by adding temporal decay."
+  "See [[multi-agent-governance-patterns|our governance course]] for details."
+
+The slug is the URL-friendly version of the topic title (visible in the browser address bar).
+Links render as clickable internal links in the article view.
+
 ## Chunk Types
 
 - **knowledge**: standard factual content (default)
