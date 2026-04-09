@@ -590,7 +590,7 @@
           ? '<div style="font-weight: 600; margin-bottom: var(--space-xs); font-size: var(--text-base);">' + escapeHtml(chunk.title) + '</div>'
           : '';
         return '<div class="chunk-item ' + tc + '" id="chunk-' + chunk.id + '" data-chunk-id="' + chunk.id + '">' +
-          '<div class="chunk-bar"></div>' +
+          '' +
           '<div class="chunk-body">' +
             titleHtml +
             '<div class="chunk-content">' + unorderedBadge + disputedBadge + renderContent(chunk.content, chunk.status) + '</div>' +
@@ -599,10 +599,10 @@
                 '<button class="chunk-action-btn chunk-vote-up" title="Upvote" data-id="' + chunk.id + '">&#128077;</button>' +
                 '<button class="chunk-action-btn chunk-vote-down" title="Downvote" data-id="' + chunk.id + '">&#128078;</button>' +
                 '<button class="chunk-action-btn chunk-report-btn" title="Report" data-id="' + chunk.id + '" data-type="chunk">&#9888;</button>' +
+                '<span class="chunk-action-btn chunk-trust-label ' + trustClass(chunk.trust_score || 0) + '-text" style="cursor:help; font-size:var(--text-xs); font-weight:600;" data-tip="Confidence score (0-1) from reviews and votes">Trust: ' + (chunk.trust_score || 0).toFixed(2) + '</span>' +
                 aiBtn +
               '</div>' +
               '<div class="flex items-center gap-sm">' +
-                '<span class="text-sm text-muted">' + trustBadge(chunk.trust_score || 0) + '</span>' +
                 (chunk.has_technical_detail ? '<button class="chunk-expand" title="Expand details">&#9662;</button>' : '') +
               '</div>' +
             '</div>' +
@@ -619,6 +619,28 @@
       container.querySelectorAll('.chunk-vote-down').forEach(function(btn) {
         btn.addEventListener('click', function() { voteChunk(this.dataset.id, 'down'); });
       });
+
+      // Trust tooltip (JS-positioned)
+      var tipEl = null;
+      container.addEventListener('mouseenter', function(e) {
+        var el = e.target.closest('.chunk-trust-label');
+        if (!el) return;
+        if (tipEl) tipEl.remove();
+        tipEl = document.createElement('div');
+        tipEl.className = 'tip-bubble';
+        tipEl.textContent = el.dataset.tip;
+        document.body.appendChild(tipEl);
+        requestAnimationFrame(function() {
+          var r = el.getBoundingClientRect();
+          tipEl.style.left = (r.right + 6) + 'px';
+          tipEl.style.top = Math.round(r.top + r.height / 2 - tipEl.offsetHeight / 2) + 'px';
+        });
+      }, true);
+      container.addEventListener('mouseleave', function(e) {
+        var el = e.target.closest('.chunk-trust-label');
+        if (!el) return;
+        if (tipEl) { tipEl.remove(); tipEl = null; }
+      }, true);
 
       // AI Review buttons
       container.querySelectorAll('.chunk-ai-review').forEach(function(btn) {
@@ -1432,7 +1454,7 @@
         }
 
         return '<div class="chunk-item trust-medium" data-chunk-id="' + chunk.id + '">' +
-          '<div class="chunk-bar"></div>' +
+          '' +
           '<div class="chunk-body">' +
             '<div class="chunk-content">' + escapeHtml(chunk.content) + '</div>' +
             '<div class="chunk-actions-row">' +
