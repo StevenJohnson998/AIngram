@@ -70,6 +70,7 @@
       <!-- Tabs -->
       <div class="tabs" data-group="topic">
         <button class="tab-btn active" data-group="topic" data-target="tab-article">&#128196; Article</button>
+        <button class="tab-btn" data-group="topic" data-target="tab-proposals" id="tab-proposals-btn">&#128203; Proposals <span id="proposals-count" class="badge" style="font-size:0.6rem; padding:1px 5px; display:none;">0</span></button>
         <button class="tab-btn" data-group="topic" data-target="tab-discussion">&#128172; Discussion</button>
         <button class="tab-btn" data-group="topic" data-target="tab-history">&#128337; History</button>
       </div>
@@ -150,6 +151,13 @@
               </button>
             </div>
           </form>
+        </div>
+      </div>
+
+      <!-- Proposals Tab -->
+      <div class="tab-content" data-group="topic" id="tab-proposals">
+        <div id="proposals-container">
+          <p class="text-muted">Loading proposals...</p>
         </div>
       </div>
 
@@ -362,8 +370,9 @@
           }
         }
 
-        // Load discussion, history, and related topics
+        // Load discussion, proposals, history, and related topics
         loadDiscussion(topic.id);
+        loadProposals(topic.id);
         loadHistory(topic.id);
         loadRelatedTopics(topic.id);
 
@@ -868,12 +877,99 @@
       }
     }
 
+    async function loadProposals(topicId) {
+      var container = document.getElementById('proposals-container');
+      var countBadge = document.getElementById('proposals-count');
+      try {
+        var res = await API.get('/reviews/pending?limit=50');
+        var allPending = res.data || [];
+        // Filter for this topic only
+        var all = allPending.filter(function(cs) { return cs.topic_id === topicId; });
+
+        if (countBadge) {
+          if (all.length > 0) {
+            countBadge.textContent = all.length;
+            countBadge.style.display = 'inline';
+          } else {
+            countBadge.style.display = 'none';
+          }
+        }
+
+        if (all.length === 0) {
+          container.innerHTML = '<p class="text-muted" style="padding: var(--space-lg);">No pending proposals. Contributions are welcome!</p>';
+          return;
+        }
+
+        container.innerHTML = all.map(function(cs) {
+          var statusBadge = cs.status === 'proposed'
+            ? '<span class="badge badge-trust-medium">Pending</span>'
+            : '<span class="badge" style="background:#f59e0b;color:#000;">Under Review</span>';
+          var proposer = cs.proposed_by_name ? escapeHtml(cs.proposed_by_name) : 'Unknown';
+          var opsCount = cs.operation_count || 0;
+          var desc = cs.description ? escapeHtml(cs.description) : opsCount + ' chunk(s)';
+
+          return '<div class="review-item" style="margin-bottom: var(--space-md);">' +
+            '<div class="review-bar"></div>' +
+            '<div class="review-body">' +
+              '<div style="display:flex; align-items:center; gap:var(--space-sm); margin-bottom:var(--space-xs);">' +
+                statusBadge +
+                '<span class="text-sm"><strong>' + desc + '</strong></span>' +
+                '<span class="text-xs text-muted">by ' + proposer + ' &middot; ' + timeAgo(cs.created_at) + '</span>' +
+              '</div>' +
+              '<div class="proposal-operations" id="proposal-ops-' + cs.id + '" style="display:none; margin-top:var(--space-sm);"></div>' +
+              '<button class="btn btn-sm btn-outline proposal-toggle" data-changeset-id="' + cs.id + '" style="margin-top:var(--space-xs); font-size:var(--text-xs);">Show chunks (' + opsCount + ')</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+
+        // Toggle handlers: load operations on first click
+        container.querySelectorAll('.proposal-toggle').forEach(function(btn) {
+          btn.addEventListener('click', async function() {
+            var csId = this.dataset.changesetId;
+            var opsDiv = document.getElementById('proposal-ops-' + csId);
+            if (opsDiv.style.display !== 'none') {
+              opsDiv.style.display = 'none';
+              this.textContent = this.textContent.replace('Hide', 'Show');
+              return;
+            }
+            // Load if empty
+            if (!opsDiv.innerHTML) {
+              opsDiv.innerHTML = '<p class="text-xs text-muted">Loading...</p>';
+              try {
+                var csRes = await API.get('/changesets/' + csId);
+                var csData = csRes.data || {};
+                var ops = csData.operations || [];
+                if (ops.length === 0) {
+                  opsDiv.innerHTML = '<p class="text-xs text-muted">No operations found.</p>';
+                } else {
+                  opsDiv.innerHTML = ops.map(function(op) {
+                    var content = op.content || '';
+                    var opType = op.operation || 'add';
+                    var opBadge = '<span class="badge" style="font-size:0.6rem;">' + opType + '</span>';
+                    return '<div style="padding:var(--space-sm); margin-bottom:var(--space-xs); background:var(--bg-secondary); border-radius:var(--radius-sm); font-size:var(--text-sm);">' +
+                      opBadge + ' ' + renderContent(content, 'proposed') +
+                    '</div>';
+                  }).join('');
+                }
+              } catch (err) {
+                opsDiv.innerHTML = '<p class="text-xs text-muted">Could not load operations.</p>';
+              }
+            }
+            opsDiv.style.display = 'block';
+            this.textContent = this.textContent.replace('Show', 'Hide');
+          });
+        });
+      } catch (err) {
+        container.innerHTML = '<p class="text-muted">Could not load proposals.</p>';
+      }
+    }
+
     async function loadHistory(topicId) {
       var container = document.getElementById('history-container');
       try {
         var res = await API.get('/topics/' + topicId + '/history?limit=50');
         if (res.status === 200 && res.data && res.data && res.data.length > 0) {
-          container.innerHTML = res.data.map(function(entry) {
+          container.innerHTML = res.data.map(function(entry, idx) {
             var statusBadge = '<span class="badge badge-trust-medium">' + escapeHtml(entry.status) + '</span>';
             if (entry.status === 'proposed') statusBadge = '<span class="badge badge-trust-low">Pending</span>';
             if (entry.status === 'published') statusBadge = '<span class="badge badge-trust-high">Published</span>';
@@ -884,11 +980,18 @@
 
             var proposer = entry.proposedBy ? escapeHtml(entry.proposedBy.name) : 'Unknown';
             var merger = entry.mergedBy ? ' merged by ' + escapeHtml(entry.mergedBy.name) : '';
+            var preview = escapeHtml(entry.content.substring(0, 150)) + (entry.content.length > 150 ? '...' : '');
+            var fullContent = renderContent(entry.content, entry.status);
+            var hasMore = entry.content.length > 150;
 
             return '<div class="review-item" style="margin-bottom: var(--space-md);">' +
               '<div class="review-bar"></div>' +
               '<div class="review-body">' +
-                '<div class="review-content" style="font-size: var(--text-sm);">' + escapeHtml(entry.content.substring(0, 200)) + (entry.content.length > 200 ? '...' : '') + '</div>' +
+                '<div class="review-content" style="font-size: var(--text-sm);">' +
+                  '<span class="history-preview-' + idx + '">' + preview + '</span>' +
+                  '<div class="history-full-' + idx + '" style="display:none;">' + fullContent + '</div>' +
+                '</div>' +
+                (hasMore ? '<button class="btn-link text-xs history-expand" data-idx="' + idx + '" style="background:none; border:none; color:var(--accent); cursor:pointer; padding:0; margin-top:var(--space-xs);">Expand</button>' : '') +
                 '<div class="review-meta">' +
                   '<span>v' + entry.version + '</span>' +
                   '<span class="sep">&middot;</span>' +
@@ -901,6 +1004,24 @@
               '</div>' +
             '</div>';
           }).join('');
+
+          // Expand/collapse handlers
+          container.querySelectorAll('.history-expand').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              var idx = this.dataset.idx;
+              var preview = container.querySelector('.history-preview-' + idx);
+              var full = container.querySelector('.history-full-' + idx);
+              if (full.style.display === 'none') {
+                preview.style.display = 'none';
+                full.style.display = 'block';
+                this.textContent = 'Collapse';
+              } else {
+                preview.style.display = '';
+                full.style.display = 'none';
+                this.textContent = 'Expand';
+              }
+            });
+          });
         } else {
           container.innerHTML = '<p class="text-muted">No history yet.</p>';
         }
