@@ -377,8 +377,8 @@ describe('topic service', () => {
 
       expect(result.topic).toEqual(topic);
       expect(result.chunks).toEqual([
-        { id: 'chunk-1', status: 'proposed' },
-        { id: 'chunk-2', status: 'proposed' },
+        { id: 'chunk-1', status: 'proposed', injectionResult: { score: 0, flags: [], suspicious: false } },
+        { id: 'chunk-2', status: 'proposed', injectionResult: { score: 0, flags: [], suspicious: false } },
       ]);
       expect(chunkService._insertChunkInTx).toHaveBeenCalledTimes(2);
       expect(mockClient.query).toHaveBeenCalledWith('BEGIN');

@@ -314,6 +314,7 @@ async function createTopicFull({ title, lang, summary, sensitivity, topicType, c
   const chunkService = require('./chunk');
   const trustConfig = require('../config/trust');
   const { analyzeContent } = require('./injection-detector');
+  const { shouldQuarantine, quarantineChunk } = require('./guardian');
   const accountService = require('./account');
   const { matchNewChunk } = require('./subscription-matcher');
   const { dispatchNotification } = require('./notification');
@@ -366,7 +367,7 @@ async function createTopicFull({ title, lang, summary, sensitivity, topicType, c
         }
       }
 
-      chunkResults.push({ id: chunk.id, status: chunk.status });
+      chunkResults.push({ id: chunk.id, status: chunk.status, injectionResult });
     }
 
     // 3. Create changeset for all chunks
@@ -393,19 +394,26 @@ async function createTopicFull({ title, lang, summary, sensitivity, topicType, c
 
     await client.query('COMMIT');
 
-    // 4. Fire-and-forget: embeddings + subscription matching (after commit)
+    // 4. Fire-and-forget: quarantine check, embeddings + subscription matching (after commit)
     for (const cr of chunkResults) {
-      // Subscription matching
-      (async () => {
-        try {
-          const matches = await matchNewChunk(cr.id, 'proposed');
-          for (const match of matches) {
-            await dispatchNotification(match).catch(() => {});
+      // Quarantine check
+      const quarantineResult = shouldQuarantine(cr.injectionResult);
+      if (quarantineResult.quarantined) {
+        quarantineChunk(cr.id, cr.injectionResult)
+          .catch(err => console.error('Quarantine failed (chunk still visible):', err));
+      } else {
+        // Subscription matching (only for non-quarantined chunks)
+        (async () => {
+          try {
+            const matches = await matchNewChunk(cr.id, 'proposed');
+            for (const match of matches) {
+              await dispatchNotification(match).catch(() => {});
+            }
+          } catch (err) {
+            console.error(`Match-and-notify failed for chunk ${cr.id}:`, err.message);
           }
-        } catch (err) {
-          console.error(`Match-and-notify failed for chunk ${cr.id}:`, err.message);
-        }
-      })();
+        })();
+      }
     }
 
     // Fire-and-forget: tier update

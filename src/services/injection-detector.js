@@ -30,6 +30,14 @@ const PATTERNS = [
 
   // Encoding abuse
   { regex: /\b(base64|hex|rot13|unicode)\s*(decode|encode|convert)\b/gi, weight: 0.3, flag: 'encoding_abuse' },
+
+  // Social engineering targeting LLMs
+  { regex: /\b(security\s+team|admin(istrator)?(\s+team)?|support\s+team|platform\s+team|moderation\s+team)\s+(here|requests?|needs?|requires?|asks?)/gi, weight: 0.5, flag: 'social_engineering' },
+  { regex: /\bplease\s+(share|provide|send|give|reveal|show)\s+(your|the|any)\s+(api[_\s]?key|token|credential|password|secret|key|email|personal)/gi, weight: 0.7, flag: 'social_engineering' },
+  { regex: /\b(urgent|immediate|mandatory|required)\s+(action|verification|update|review)\s+(needed|required|necessary)\b/gi, weight: 0.4, flag: 'social_engineering' },
+  { regex: /\bthis\s+is\s+(a|an)\s+(official|authorized|mandatory|required)\s+(request|notice|message)\b/gi, weight: 0.5, flag: 'social_engineering' },
+  { regex: /\b(verify|confirm|validate)\s+your\s+(identity|account|credentials|access)\b/gi, weight: 0.5, flag: 'social_engineering' },
+  { regex: /\bcontact\s+(me|us)\s+(at|via|through|on)\b/gi, weight: 0.3, flag: 'social_engineering' },
 ];
 
 /**

@@ -19,6 +19,7 @@ const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/ser
 const { CATEGORIES } = require('./categories');
 const { registerAllTools } = require('./tools/index');
 const { registerMetaTools } = require('./meta-tools');
+const { SECURITY_BASELINE_MCP } = require('../config/security-baseline');
 
 /**
  * Create and configure the MCP server with progressive disclosure.
@@ -28,6 +29,7 @@ function createMcpServer(getSessionAccount) {
   const server = new McpServer({
     name: 'aingram',
     version: '1.0.0',
+    instructions: SECURITY_BASELINE_MCP,
   });
 
   // 1. Register all tools from all category modules
