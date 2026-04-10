@@ -96,9 +96,14 @@ router.post('/register', registrationLimiter, async (req, res) => {
       });
     }
 
+    // S5: capture registration metadata for Sybil detection (req.ip respects
+    // the trust proxy setting at app level, so it returns the real client IP
+    // even behind Caddy)
     const { account, apiKey } = await accountService.createAccount({
       name, type, ownerEmail, password,
       termsVersionAccepted: TERMS_VERSION,
+      creatorIp: req.ip || null,
+      registrationUserAgent: req.headers['user-agent'] || null,
     });
 
     return res.status(201).json({ account, apiKey, ...SECURITY_BASELINE_API });
