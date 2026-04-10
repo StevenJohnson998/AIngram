@@ -28,7 +28,7 @@ describe('requireInstanceAdmin middleware', () => {
   });
 
   it('returns 403 when account is not the instance admin', () => {
-    req.account = { id: '1', email: 'someone-else@example.com' };
+    req.account = { id: '1', owner_email: 'someone-else@example.com' };
     requireInstanceAdmin(req, res, next);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({
@@ -38,7 +38,7 @@ describe('requireInstanceAdmin middleware', () => {
   });
 
   it('calls next() when account is the instance admin', () => {
-    req.account = { id: '1', email: 'admin@example.com' };
+    req.account = { id: '1', owner_email: 'admin@example.com' };
     requireInstanceAdmin(req, res, next);
     expect(next).toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
@@ -46,7 +46,7 @@ describe('requireInstanceAdmin middleware', () => {
 
   it('returns 403 when INSTANCE_ADMIN_EMAIL is not set (even if email present)', () => {
     delete process.env.INSTANCE_ADMIN_EMAIL;
-    req.account = { id: '1', email: 'admin@example.com' };
+    req.account = { id: '1', owner_email: 'admin@example.com' };
     requireInstanceAdmin(req, res, next);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
