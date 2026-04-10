@@ -9,6 +9,7 @@ const chunkService = require('../services/chunk');
 const auth = require('../middleware/auth');
 const { authenticatedLimiter, publicLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
+const { requireInstanceAdmin } = require('../middleware/instance-admin');
 const { requireTier } = require('../middleware/tier-gate');
 const { validationError, notFoundError, forbiddenError } = require('../utils/http-errors');
 const { parsePagination } = require('../utils/pagination');
@@ -991,30 +992,94 @@ router.post(
   }
 );
 
-// --- QuarantineValidator endpoints ---
-// Note: gating revisited in task #7 (instance admin) — these stay on policing badge for now.
+// --- QuarantineValidator endpoints (instance admin only) ---
+// Health and ops surface for the instance operator. Not exposed to community
+// moderators (policing badge) -- the validator queue is internal and they
+// can't act on it. Their work is the human review queue, which is separate.
 
-// GET /quarantine-validator/stats — quarantine queue stats
+/**
+ * GET /quarantine-validator/health
+ * Returns the operational health of the QuarantineValidator subsystem.
+ * status: 'ok' | 'warning' | 'critical'
+ *  - critical: validator not configured (no API key)
+ *  - warning: configured but degraded (circuit breaker open, daily budget
+ *    exhausted, or queue more than 50% full)
+ *  - ok: configured and healthy
+ */
 router.get(
-  '/quarantine-validator/stats',
+  '/quarantine-validator/health',
   auth.authenticateRequired,
-  requireBadge('policing'),
+  requireInstanceAdmin,
   async (_req, res) => {
     try {
       const stats = await getQuarantineQueueStats();
-      return res.json({ data: stats });
+      const issues = [];
+
+      if (!stats.configured) {
+        issues.push({
+          code: 'not_configured',
+          severity: 'critical',
+          message: 'QUARANTINE_VALIDATOR_API_KEY not set. User content is not sandboxed.',
+        });
+      } else {
+        if (stats.circuitBreakerOpen) {
+          issues.push({
+            code: 'circuit_breaker_open',
+            severity: 'warning',
+            message: 'Circuit breaker open. Submissions are temporarily blocked.',
+          });
+        }
+        if (stats.dailyTokensUsed >= stats.dailyTokensBudget) {
+          issues.push({
+            code: 'budget_exhausted',
+            severity: 'warning',
+            message: 'Daily token budget exhausted. Validator paused until tomorrow.',
+          });
+        }
+        const pendingCount = parseInt(stats.queue.pending, 10);
+        // Re-import the threshold from env (default 100, default warning at 50%)
+        const maxQueue = parseInt(process.env.QUARANTINE_VALIDATOR_MAX_QUEUE_SIZE || '100', 10);
+        if (pendingCount > maxQueue / 2) {
+          issues.push({
+            code: 'queue_filling',
+            severity: 'warning',
+            message: `Queue is ${Math.round((pendingCount / maxQueue) * 100)}% full (${pendingCount}/${maxQueue}). Submissions may be rate-limited soon.`,
+          });
+        }
+      }
+
+      const hasCritical = issues.some(i => i.severity === 'critical');
+      const hasWarning = issues.some(i => i.severity === 'warning');
+      const status = hasCritical ? 'critical' : hasWarning ? 'warning' : 'ok';
+
+      return res.json({
+        data: {
+          status,
+          issues,
+          stats: {
+            configured: stats.configured,
+            circuitBreakerOpen: stats.circuitBreakerOpen,
+            dailyTokensUsed: stats.dailyTokensUsed,
+            dailyTokensBudget: stats.dailyTokensBudget,
+            queue: stats.queue,
+          },
+        },
+      });
     } catch (err) {
-      console.error('QuarantineValidator stats error:', err.message);
-      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get quarantine validator stats' } });
+      console.error('QuarantineValidator health error:', err.message);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get quarantine validator health' } });
     }
   }
 );
 
-// POST /quarantine-validator/reset-circuit-breaker — manual circuit breaker reset
+/**
+ * POST /quarantine-validator/reset-circuit-breaker
+ * Manual circuit breaker reset by the instance admin.
+ */
 router.post(
   '/quarantine-validator/reset-circuit-breaker',
   auth.authenticateRequired,
-  requireBadge('policing'),
+  requireInstanceAdmin,
   async (_req, res) => {
     try {
       resetCircuitBreaker();
