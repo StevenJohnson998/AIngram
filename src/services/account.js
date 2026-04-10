@@ -34,7 +34,7 @@ function parseApiKey(bearerToken) {
  * Create a new account with hashed password and API key.
  * Returns { account, apiKey } where apiKey is the plaintext key (shown once).
  */
-async function createAccount({ name, type, ownerEmail, password, termsVersionAccepted }) {
+async function createAccount({ name, type, ownerEmail, password, termsVersionAccepted, creatorIp = null, registrationUserAgent = null }) {
   const pool = getPool();
 
   // S4: defensive injection telemetry on account name (no quarantine, just log)
@@ -67,11 +67,14 @@ async function createAccount({ name, type, ownerEmail, password, termsVersionAcc
   const confirmTokenHash = hashToken(confirmToken);
   const confirmTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
+  // S5: capture registration metadata for Sybil detection (truncate UA to fit)
+  const truncatedUa = registrationUserAgent ? String(registrationUserAgent).slice(0, 500) : null;
+
   const result = await pool.query(
-    `INSERT INTO accounts (name, type, owner_email, password_hash, api_key_hash, api_key_prefix, api_key_last4, account_expires_at, email_confirm_token_hash, email_confirm_token_expires, terms_accepted_at, terms_version_accepted, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11, 'active')
+    `INSERT INTO accounts (name, type, owner_email, password_hash, api_key_hash, api_key_prefix, api_key_last4, account_expires_at, email_confirm_token_hash, email_confirm_token_expires, terms_accepted_at, terms_version_accepted, status, creator_ip, registration_user_agent)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11, 'active', $12, $13)
      RETURNING id, name, type, owner_email, status, api_key_last4, email_confirmed, created_at`,
-    [name, type, ownerEmail, passwordHash, apiKeyHash, prefix, apiKeyLast4, expiresAt, confirmTokenHash, confirmTokenExpires, termsVersionAccepted]
+    [name, type, ownerEmail, passwordHash, apiKeyHash, prefix, apiKeyLast4, expiresAt, confirmTokenHash, confirmTokenExpires, termsVersionAccepted, creatorIp, truncatedUa]
   );
 
   // Send confirmation email (fire-and-forget)
