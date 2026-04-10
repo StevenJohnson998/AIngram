@@ -15,13 +15,14 @@
 
 /**
  * Returns true if the given account is the instance admin for this deployment.
- * @param {object|null} account - account object (must have an `email` field)
+ * @param {object|null} account - account object (must have an `owner_email` field;
+ *   the column is `owner_email` on the accounts table, not `email`)
  */
 function isInstanceAdmin(account) {
-  if (!account || !account.email) return false;
+  if (!account || !account.owner_email) return false;
   const adminEmail = process.env.INSTANCE_ADMIN_EMAIL;
   if (!adminEmail) return false;
-  return account.email.toLowerCase() === adminEmail.toLowerCase();
+  return account.owner_email.toLowerCase() === adminEmail.toLowerCase();
 }
 
 module.exports = { isInstanceAdmin };
