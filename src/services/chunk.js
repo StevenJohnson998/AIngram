@@ -12,7 +12,7 @@ const { matchNewChunk } = require('./subscription-matcher');
 const { dispatchNotification } = require('./notification');
 const flagService = require('./flag');
 const { analyzeContent } = require('./injection-detector');
-const { shouldQuarantine, quarantineChunk } = require('./guardian');
+const { shouldQuarantine, quarantineChunk } = require('./quarantine-validator');
 
 /**
  * Match subscriptions and dispatch notifications for a chunk.

@@ -314,7 +314,7 @@ async function createTopicFull({ title, lang, summary, sensitivity, topicType, c
   const chunkService = require('./chunk');
   const trustConfig = require('../config/trust');
   const { analyzeContent } = require('./injection-detector');
-  const { shouldQuarantine, quarantineChunk } = require('./guardian');
+  const { shouldQuarantine, quarantineChunk } = require('./quarantine-validator');
   const accountService = require('./account');
   const { matchNewChunk } = require('./subscription-matcher');
   const { dispatchNotification } = require('./notification');

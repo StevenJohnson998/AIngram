@@ -1,6 +1,6 @@
-const { TokenBucket, CircuitBreaker, shouldQuarantine } = require('../guardian');
+const { TokenBucket, CircuitBreaker, shouldQuarantine } = require('../quarantine-validator');
 
-describe('Guardian', () => {
+describe('QuarantineValidator', () => {
   describe('TokenBucket', () => {
     it('allows burst up to burstSize', () => {
       const bucket = new TokenBucket(5, 3);
@@ -67,7 +67,7 @@ describe('Guardian', () => {
     const originalEnv = process.env;
 
     beforeEach(() => {
-      process.env = { ...originalEnv, GUARDIAN_API_KEY: 'test-key' };
+      process.env = { ...originalEnv, QUARANTINE_VALIDATOR_API_KEY: 'test-key' };
     });
 
     afterEach(() => {
@@ -75,7 +75,7 @@ describe('Guardian', () => {
     });
 
     it('returns quarantined=false when no API key', () => {
-      delete process.env.GUARDIAN_API_KEY;
+      delete process.env.QUARANTINE_VALIDATOR_API_KEY;
       const result = shouldQuarantine({ score: 0.9, flags: ['instruction_override'] });
       expect(result.quarantined).toBe(false);
     });
@@ -96,7 +96,7 @@ describe('Guardian', () => {
     });
 
     it('respects custom threshold via env var', () => {
-      process.env.GUARDIAN_INJECTION_THRESHOLD = '0.8';
+      process.env.QUARANTINE_VALIDATOR_INJECTION_THRESHOLD = '0.8';
       const result = shouldQuarantine({ score: 0.6, flags: ['instruction_override'] });
       expect(result.quarantined).toBe(false);
 

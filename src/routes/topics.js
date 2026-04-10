@@ -16,7 +16,7 @@ const { VALID_LANGS } = require('../config/constants');
 const { REJECTION_CATEGORIES, REJECTION_SUGGESTIONS_MAX_LENGTH, BULK_MAX_CHUNKS } = require('../config/protocol');
 const { getPool } = require('../config/database');
 const { OBJECTION_REASON_TAGS } = require('../config/protocol');
-const { checkBackpressure, getQueueStats, resetCircuitBreaker } = require('../services/guardian');
+const { checkBackpressure, getQuarantineQueueStats, resetCircuitBreaker } = require('../services/quarantine-validator');
 
 const router = Router();
 
@@ -140,7 +140,7 @@ router.post(
         }
       }
 
-      // Guardian backpressure check
+      // QuarantineValidator backpressure check
       const bp = await checkBackpressure();
       if (bp.blocked) {
         return res.status(503).json({
@@ -402,7 +402,7 @@ router.post(
         }
       }
 
-      // Guardian backpressure check
+      // QuarantineValidator backpressure check
       const bpChunk = await checkBackpressure();
       if (bpChunk.blocked) {
         return res.status(503).json({
@@ -991,27 +991,28 @@ router.post(
   }
 );
 
-// --- Guardian endpoints ---
+// --- QuarantineValidator endpoints ---
+// Note: gating revisited in task #7 (instance admin) — these stay on policing badge for now.
 
-// GET /guardian/stats — quarantine queue stats (policing badge required)
+// GET /quarantine-validator/stats — quarantine queue stats
 router.get(
-  '/guardian/stats',
+  '/quarantine-validator/stats',
   auth.authenticateRequired,
   requireBadge('policing'),
   async (_req, res) => {
     try {
-      const stats = await getQueueStats();
+      const stats = await getQuarantineQueueStats();
       return res.json({ data: stats });
     } catch (err) {
-      console.error('Guardian stats error:', err.message);
-      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get guardian stats' } });
+      console.error('QuarantineValidator stats error:', err.message);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get quarantine validator stats' } });
     }
   }
 );
 
-// POST /guardian/reset-circuit-breaker — manual circuit breaker reset (policing badge required)
+// POST /quarantine-validator/reset-circuit-breaker — manual circuit breaker reset
 router.post(
-  '/guardian/reset-circuit-breaker',
+  '/quarantine-validator/reset-circuit-breaker',
   auth.authenticateRequired,
   requireBadge('policing'),
   async (_req, res) => {
@@ -1019,7 +1020,7 @@ router.post(
       resetCircuitBreaker();
       return res.json({ message: 'Circuit breaker reset' });
     } catch (err) {
-      console.error('Guardian reset error:', err.message);
+      console.error('QuarantineValidator reset error:', err.message);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to reset circuit breaker' } });
     }
   }

@@ -27,7 +27,7 @@ const { T_RESTORATION_CHECK_MS, T_ANALYTICS_REFRESH_MS, T_DIRECTIVES_REGEN_MS, T
 const { refreshViews } = require('../services/copyright-analytics');
 const { generateCopyrightDirective } = require('../services/dynamic-directives');
 const { retryPendingEmbeddings } = require('../services/embedding');
-const { processPendingReviews } = require('../services/guardian');
+const { processPendingReviews } = require('../services/quarantine-validator');
 
 // Timeout enforcer: every 5 minutes (fast-track merge + review/dispute timeouts)
 const timeoutInterval = setInterval(checkTimeouts, TIMEOUT_CHECK_MS);
@@ -64,10 +64,10 @@ console.log(`Worker: dynamic directives regen started (interval: ${T_DIRECTIVES_
 const embeddingRetryInterval = setInterval(retryPendingEmbeddings, T_EMBEDDING_RETRY_MS);
 console.log(`Worker: embedding retry job started (interval: ${T_EMBEDDING_RETRY_MS}ms)`);
 
-// Guardian quarantine review: process pending reviews every 10 seconds
-const GUARDIAN_POLL_MS = parseInt(process.env.GUARDIAN_POLL_MS || '10000', 10);
-const guardianInterval = setInterval(processPendingReviews, GUARDIAN_POLL_MS);
-console.log(`Worker: guardian review job started (interval: ${GUARDIAN_POLL_MS}ms)`);
+// QuarantineValidator: process pending reviews every 10 seconds
+const QUARANTINE_VALIDATOR_POLL_MS = parseInt(process.env.QUARANTINE_VALIDATOR_POLL_MS || '10000', 10);
+const quarantineValidatorInterval = setInterval(processPendingReviews, QUARANTINE_VALIDATOR_POLL_MS);
+console.log(`Worker: quarantine validator job started (interval: ${QUARANTINE_VALIDATOR_POLL_MS}ms)`);
 
 // Health check endpoint
 const http = require('http');
@@ -96,7 +96,7 @@ async function shutdown() {
   clearInterval(analyticsInterval);
   clearInterval(directivesInterval);
   clearInterval(embeddingRetryInterval);
-  clearInterval(guardianInterval);
+  clearInterval(quarantineValidatorInterval);
   server.close();
   await closePool();
   process.exit(0);
