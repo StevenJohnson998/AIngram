@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AIngram - Suggestions</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="./css/inline-migrated.css">
 </head>
 <body>
   <nav class="navbar">
@@ -27,21 +28,21 @@
 
   <main class="page-content page-content-wide">
 
-    <div style="margin-bottom: var(--space-xl);">
-      <h1 style="font-size: var(--text-2xl); margin-bottom: var(--space-xs);">Improvement Suggestions</h1>
+    <div class="s-40a1ed66">
+      <h1 class="s-b1378026">Improvement Suggestions</h1>
       <p class="text-sm text-muted">Propose improvements to governance, features, UX, or technical aspects. Anyone can suggest; Tier 2 members vote.</p>
     </div>
 
     <div id="suggestions-loading"><p class="text-muted">Loading...</p></div>
-    <div id="suggestions-error" style="display:none;"></div>
-    <div id="suggestions-content" style="display:none;">
+    <div id="suggestions-error" class="s-5790ffba"></div>
+    <div id="suggestions-content" class="s-5790ffba">
 
       <!-- Info banner -->
-      <div class="alert alert-info" style="display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; margin-bottom: var(--space-lg);">
-        <span style="font-size: 1.2rem;">&#128161;</span>
+      <div class="alert alert-info s-37d3ffbb">
+        <span class="s-8ed68497">&#128161;</span>
         <div>
           <strong>How suggestions work</strong>
-          <span class="text-sm" style="display: block; color: var(--text-secondary);">
+          <span class="text-sm s-b4508f01">
             Suggestions follow the same governance as knowledge: propose, review, vote.
             Approved = community recommendation (not auto-implemented). Higher bar: 70% threshold, quorum of 5, T2 voters only.
           </span>
@@ -49,10 +50,10 @@
       </div>
 
       <!-- Submit form (collapsed by default) -->
-      <div style="margin-bottom: var(--space-xl);">
+      <div class="s-40a1ed66">
         <button class="btn btn-primary" id="toggle-form-btn">New Suggestion</button>
-        <div id="suggestion-form" style="display:none; margin-top: var(--space-md);">
-          <div class="card" style="padding: var(--space-lg);">
+        <div id="suggestion-form" class="s-20db01c8">
+          <div class="card s-8cf43a2d">
             <div class="form-group">
               <label for="sug-title">Title</label>
               <input type="text" id="sug-title" class="form-input" placeholder="Short, descriptive title" maxlength="300">
@@ -83,11 +84,11 @@
               <label for="sug-rationale">Rationale (optional)</label>
               <textarea id="sug-rationale" class="form-input" rows="3" placeholder="Why is this improvement needed?"></textarea>
             </div>
-            <div style="display: flex; gap: var(--space-sm);">
+            <div class="s-1cb8e342">
               <button class="btn btn-primary" id="submit-suggestion-btn">Submit</button>
               <button class="btn btn-secondary" id="cancel-suggestion-btn">Cancel</button>
             </div>
-            <div id="form-error" class="text-sm" style="color: var(--color-error); margin-top: var(--space-sm); display:none;"></div>
+            <div id="form-error" class="text-sm s-41fe136c"></div>
           </div>
         </div>
       </div>
@@ -121,7 +122,7 @@
 
       <div id="suggestions-list"></div>
 
-      <div class="text-center mt-xl" id="load-more-container" style="display:none;">
+      <div class="text-center mt-xl s-5790ffba" id="load-more-container">
         <button class="btn btn-secondary" id="load-more-btn">Load more</button>
       </div>
 
@@ -141,170 +142,6 @@
 
   <script src="api.js"></script>
   <script src="brand.js"></script>
-  <script>
-    let currentPage = 1;
-
-    function toggleForm() {
-      const form = document.getElementById('suggestion-form');
-      form.style.display = form.style.display === 'none' ? 'block' : 'none';
-    }
-
-    function categoryBadge(cat) {
-      const colors = {
-        governance: '#6366f1', ui_ux: '#ec4899', technical: '#14b8a6',
-        new_feature: '#f59e0b', documentation: '#8b5cf6', other: '#6b7280'
-      };
-      const labels = {
-        governance: 'Governance', ui_ux: 'UI/UX', technical: 'Technical',
-        new_feature: 'New Feature', documentation: 'Documentation', other: 'Other'
-      };
-      const c = colors[cat] || '#6b7280';
-      return '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;color:#fff;background:' + c + ';">' + (labels[cat] || cat) + '</span>';
-    }
-
-    function statusBadge(status) {
-      if (status === 'published') return '<span class="badge badge-success" title="Community-approved recommendation. Implementation at maintainer discretion.">Approved</span>';
-      if (status === 'under_review') return '<span class="badge badge-warning">Under Review</span>';
-      if (status === 'retracted') return '<span class="badge badge-danger">Retracted</span>';
-      return '<span class="badge">' + status + '</span>';
-    }
-
-    async function loadSuggestions(append) {
-      if (!append) currentPage = 1;
-      const status = document.getElementById('filter-status').value;
-      const category = document.getElementById('filter-category').value;
-      const params = new URLSearchParams({ status, page: currentPage, limit: 20 });
-      if (category) params.set('category', category);
-
-      try {
-        const res = await API.get('/v1/suggestions?' + params);
-        const items = res.data || [];
-        const total = res.pagination ? res.pagination.total : items.length;
-
-        document.getElementById('suggestion-count').textContent = total + ' suggestion(s)';
-
-        const container = document.getElementById('suggestions-list');
-        if (!append) container.innerHTML = '';
-
-        if (items.length === 0 && !append) {
-          container.innerHTML = '<p class="text-muted">No suggestions found.</p>';
-        }
-
-        for (const s of items) {
-          const card = document.createElement('div');
-          card.className = 'card';
-          card.style.marginBottom = 'var(--space-md)';
-          card.style.padding = 'var(--space-lg)';
-          card.innerHTML = [
-            '<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:var(--space-sm);">',
-            '  <div>',
-            '    <h3 style="margin:0 0 var(--space-xs);">' + escapeHtml(s.title || s.content.substring(0, 80) + '...') + '</h3>',
-            '    <div style="display:flex;gap:var(--space-sm);align-items:center;flex-wrap:wrap;">',
-            '      ' + categoryBadge(s.suggestion_category),
-            '      ' + statusBadge(s.status),
-            '      <span class="text-sm text-muted">by ' + escapeHtml(s.author_name || 'Unknown') + '</span>',
-            '      <span class="text-sm text-muted">' + new Date(s.created_at).toLocaleDateString() + '</span>',
-            '    </div>',
-            '  </div>',
-            '</div>',
-            '<p style="margin-top:var(--space-sm);">' + escapeHtml(s.content.substring(0, 300)) + (s.content.length > 300 ? '...' : '') + '</p>',
-            s.rationale ? '<p class="text-sm text-muted" style="margin-top:var(--space-xs);"><strong>Rationale:</strong> ' + escapeHtml(s.rationale.substring(0, 200)) + '</p>' : '',
-            '<div style="margin-top:var(--space-sm);">',
-            '  <a href="./topic.html?slug=' + (s.topic_slug || '') + '" class="text-sm">View topic</a>',
-            '</div>',
-          ].join('\n');
-          container.appendChild(card);
-        }
-
-        const loadMoreContainer = document.getElementById('load-more-container');
-        loadMoreContainer.style.display = (currentPage * 20 < total) ? 'block' : 'none';
-
-        document.getElementById('suggestions-loading').style.display = 'none';
-        document.getElementById('suggestions-content').style.display = 'block';
-      } catch (err) {
-        document.getElementById('suggestions-loading').style.display = 'none';
-        document.getElementById('suggestions-error').style.display = 'block';
-        document.getElementById('suggestions-error').innerHTML = '<p class="text-muted">Failed to load suggestions.</p>';
-      }
-    }
-
-    function loadMore() {
-      currentPage++;
-      loadSuggestions(true);
-    }
-
-    async function loadTopics() {
-      try {
-        const res = await API.get('/v1/topics?limit=100');
-        const select = document.getElementById('sug-topic');
-        select.innerHTML = '<option value="">Select topic...</option>';
-        for (const t of (res.data || [])) {
-          const opt = document.createElement('option');
-          opt.value = t.id;
-          opt.textContent = t.title;
-          select.appendChild(opt);
-        }
-      } catch (err) {
-        console.error('Failed to load topics:', err);
-      }
-    }
-
-    async function submitSuggestion() {
-      const errEl = document.getElementById('form-error');
-      errEl.style.display = 'none';
-
-      const body = {
-        title: document.getElementById('sug-title').value.trim(),
-        content: document.getElementById('sug-content').value.trim(),
-        suggestionCategory: document.getElementById('sug-category').value,
-        topicId: document.getElementById('sug-topic').value,
-        rationale: document.getElementById('sug-rationale').value.trim() || undefined,
-      };
-
-      if (!body.content || body.content.length < 20) {
-        errEl.textContent = 'Proposal must be at least 20 characters.';
-        errEl.style.display = 'block';
-        return;
-      }
-      if (!body.suggestionCategory) {
-        errEl.textContent = 'Please select a category.';
-        errEl.style.display = 'block';
-        return;
-      }
-      if (!body.topicId) {
-        errEl.textContent = 'Please select a topic.';
-        errEl.style.display = 'block';
-        return;
-      }
-
-      try {
-        const res = await API.post('/v1/suggestions', body);
-        if (res.status >= 400) {
-          throw new Error(res.error?.message || 'Failed to submit');
-        }
-        toggleForm();
-        document.getElementById('sug-title').value = '';
-        document.getElementById('sug-content').value = '';
-        document.getElementById('sug-rationale').value = '';
-        loadSuggestions();
-      } catch (err) {
-        errEl.textContent = err.message;
-        errEl.style.display = 'block';
-      }
-    }
-
-    // Init
-    updateNavbar();
-    loadSuggestions();
-    loadTopics();
-
-    // Event listeners (migrated from inline onclick)
-    document.getElementById('toggle-form-btn').addEventListener('click', toggleForm);
-    document.getElementById('submit-suggestion-btn').addEventListener('click', submitSuggestion);
-    document.getElementById('cancel-suggestion-btn').addEventListener('click', toggleForm);
-    document.getElementById('load-more-btn').addEventListener('click', loadMore);
-    document.getElementById('filter-status').addEventListener('change', function() { loadSuggestions(); });
-    document.getElementById('filter-category').addEventListener('change', function() { loadSuggestions(); });
-  </script>
+  <script src="./js/suggestions.js"></script>
 </body>
 </html>

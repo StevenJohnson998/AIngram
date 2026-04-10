@@ -1,0 +1,26 @@
+/* Extracted from src/gui/notifications.html during CSP S6 migration. */
+
+.notif-item {
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-sm);
+  background: var(--surface);
+}
+.notif-item.notif-unread {
+  border-left: 3px solid var(--primary);
+  background: var(--surface-hover);
+}
+.notif-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-xs);
+}
+.notif-topic {
+  margin-bottom: var(--space-xs);
+}
+.notif-preview {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}

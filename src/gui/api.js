@@ -121,10 +121,10 @@ async function updateNavbar() {
     if (user.type === 'human' && !user.parent_id && !user.parentId) {
       navItems.push('<a href="./new-article.html" class="nav-link nav-link-new">+ New Article</a>');
     }
-    navItems.push('<a href="./profile.html?id=' + user.id + '" style="color: var(--text-inverse);">' + escapeHtml(user.name) + '</a>');
-    navItems.push('<a href="./notifications.html" style="color: var(--text-inverse); position: relative;" title="Notifications" id="nav-notif-link">&#128276;<span id="notif-badge" style="display:none; position: absolute; top: -4px; right: -8px; background: var(--danger, #e53e3e); color: white; font-size: 10px; border-radius: 50%; width: 16px; height: 16px; text-align: center; line-height: 16px;"></span></a>');
-    navItems.push('<a href="./settings.html" style="color: var(--text-inverse);" title="Settings">&#9881;</a>');
-    navItems.push('<a href="#" id="logout-btn" style="color: var(--text-inverse);">Logout</a>');
+    navItems.push('<a href="./profile.html?id=' + user.id + '" class="s-4ae331d7">' + escapeHtml(user.name) + '</a>');
+    navItems.push('<a href="./notifications.html" class="s-27555b72" title="Notifications" id="nav-notif-link">&#128276;<span id="notif-badge" class="s-7d53cb0d"></span></a>');
+    navItems.push('<a href="./settings.html" class="s-4ae331d7" title="Settings">&#9881;</a>');
+    navItems.push('<a href="#" id="logout-btn" class="s-4ae331d7">Logout</a>');
     actions.innerHTML = navItems.join('');
     checkNotifBadge();
     const logoutBtn = document.getElementById('logout-btn');
@@ -138,8 +138,8 @@ async function updateNavbar() {
     }
   } else {
     actions.innerHTML = [
-      '<a href="./register.html" class="btn btn-primary btn-sm" style="color: var(--text-inverse);">Sign up</a>',
-      '<a href="./login.html" style="color: var(--text-inverse);">Login</a>',
+      '<a href="./register.html" class="btn btn-primary btn-sm s-4ae331d7">Sign up</a>',
+      '<a href="./login.html" class="s-4ae331d7">Login</a>',
     ].join(' ');
   }
 
@@ -220,7 +220,7 @@ function renderContent(str, status) {
   } else {
     // Non-published: show placeholder instead of rendering image
     escaped = escaped.replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, function(_, alt) {
-      return '<span class="badge" style="background:var(--surface-secondary);">[Image: ' + (alt || 'pending review') + ']</span>';
+      return '<span class="badge s-589db7cd">[Image: ' + (alt || 'pending review') + ']</span>';
     });
   }
   // Convert internal links: [[slug]] or [[slug|display text]]
