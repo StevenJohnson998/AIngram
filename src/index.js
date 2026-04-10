@@ -7,6 +7,20 @@ const { validateEnv } = require('./config/env');
 
 const env = validateEnv();
 
+// QuarantineValidator boot warning -- visible in `docker logs` for instance operators.
+// Not a fail-fast: dev/CI must be allowed to run without configuring an LLM provider.
+// Banner GUI for runtime visibility is delivered separately (see task #7).
+if (!process.env.QUARANTINE_VALIDATOR_API_KEY) {
+  console.warn('');
+  console.warn('=================================================================');
+  console.warn('  WARNING: QuarantineValidator NOT CONFIGURED');
+  console.warn('  User-generated content will NOT be sandboxed for prompt injection.');
+  console.warn('  This is INSECURE for production use.');
+  console.warn('  Set QUARANTINE_VALIDATOR_API_KEY in .env -- see .env.example.');
+  console.warn('=================================================================');
+  console.warn('');
+}
+
 const app = express();
 
 // Trust first proxy (Caddy) for correct client IP in rate limiting
