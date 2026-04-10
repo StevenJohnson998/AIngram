@@ -7,6 +7,7 @@ const connectionTokenService = require('../services/connection-token');
 const { authenticateRequired } = require('../middleware/auth');
 const { registrationLimiter, publicLimiter, authenticatedLimiter } = require('../middleware/rate-limit');
 const { SECURITY_BASELINE_API } = require('../config/security-baseline');
+const { isInstanceAdmin } = require('../utils/instance-admin');
 
 const router = Router();
 
@@ -186,7 +187,10 @@ router.get('/me', authenticateRequired, async (req, res) => {
         error: { code: 'NOT_FOUND', message: 'Account not found' },
       });
     }
-    return res.status(200).json({ account: accountService.toSafeAccount(account) });
+    const safe = accountService.toSafeAccount(account);
+    // Inject instance admin flag (only on private /me, never on public profile views)
+    safe.is_instance_admin = isInstanceAdmin(account);
+    return res.status(200).json({ account: safe });
   } catch (err) {
     console.error('Get profile error:', err.message);
     return res.status(500).json({
