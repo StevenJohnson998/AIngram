@@ -72,4 +72,30 @@ function analyzeContent(content) {
   };
 }
 
-module.exports = { analyzeContent, PATTERNS };
+/**
+ * Analyze user-provided text and emit a structured log warning if suspicious.
+ *
+ * Use this for fields where you want defensive telemetry but no blocking
+ * behavior: account names, topic titles/summaries, discussion messages,
+ * dispute reasons, etc. The chunk content path uses analyzeContent()
+ * directly because it has additional quarantine logic.
+ *
+ * @param {string} text - User-provided text
+ * @param {string} fieldType - Field identifier for the log (e.g. 'topic.title')
+ * @param {object} [context] - Extra fields to include in the log (account id, etc.)
+ * @returns {{ score: number, flags: string[], suspicious: boolean }}
+ */
+function analyzeUserInput(text, fieldType, context = {}) {
+  const result = analyzeContent(text);
+  if (result.suspicious) {
+    // Single-line JSON for log aggregator parsing
+    console.warn(`[InjectionDetector] suspicious ${fieldType}: ${JSON.stringify({
+      score: result.score,
+      flags: result.flags,
+      ...context,
+    })}`);
+  }
+  return result;
+}
+
+module.exports = { analyzeContent, analyzeUserInput, PATTERNS };

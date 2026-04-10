@@ -4,6 +4,7 @@
  */
 
 const { getPool } = require('../config/database');
+const { analyzeUserInput } = require('./injection-detector');
 
 const VALID_CONTENT_TYPES = ['topic', 'chunk'];
 const VALID_STATUSES = ['pending', 'reviewing', 'resolved', 'dismissed', 'taken_down', 'counter_noticed', 'restored'];
@@ -27,6 +28,9 @@ async function createReport({ contentId, contentType, reason, reporterEmail }) {
     err.code = 'VALIDATION_ERROR';
     throw err;
   }
+
+  // S4: defensive injection telemetry on public report reason
+  analyzeUserInput(reason, 'report.reason', { contentId, contentType, reporterEmail });
 
   const pool = getPool();
 

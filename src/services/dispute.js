@@ -6,6 +6,7 @@
 const { getPool } = require('../config/database');
 const { transition, retractReasonForEvent } = require('../domain');
 const { OBJECTION_REASON_TAGS } = require('../config/protocol');
+const { analyzeUserInput } = require('./injection-detector');
 
 const VALID_REASON_TAGS = [...OBJECTION_REASON_TAGS];
 const VALID_VERDICTS = ['upheld', 'removed'];
@@ -25,6 +26,9 @@ async function fileDispute(chunkId, { disputedBy, reason, reasonTag }) {
     err.code = 'VALIDATION_ERROR';
     throw err;
   }
+
+  // S4: defensive injection telemetry on dispute reason
+  analyzeUserInput(reason, 'dispute.reason', { chunkId, disputedBy });
 
   const pool = getPool();
 

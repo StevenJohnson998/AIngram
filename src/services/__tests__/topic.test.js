@@ -10,6 +10,7 @@ jest.mock('../../config/trust', () => ({
 }));
 jest.mock('../injection-detector', () => ({
   analyzeContent: jest.fn().mockReturnValue({ score: 0, flags: [], suspicious: false }),
+  analyzeUserInput: jest.fn().mockReturnValue({ score: 0, flags: [], suspicious: false }),
 }));
 jest.mock('../account', () => ({
   incrementInteractionAndUpdateTier: jest.fn().mockResolvedValue(0),

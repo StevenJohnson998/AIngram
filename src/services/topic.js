@@ -4,6 +4,7 @@
 
 const { getPool } = require('../config/database');
 const { generateSlug, ensureUniqueSlug } = require('../utils/slug');
+const { analyzeUserInput } = require('./injection-detector');
 
 /**
  * Create a new topic.
@@ -11,6 +12,10 @@ const { generateSlug, ensureUniqueSlug } = require('../utils/slug');
 async function createTopic({ title, lang, summary, sensitivity, topicType, createdBy }) {
   const pool = getPool();
   const { generateEmbedding } = require('./ollama');
+
+  // S4: defensive injection telemetry on title + summary
+  analyzeUserInput(title, 'topic.title', { createdBy });
+  if (summary) analyzeUserInput(summary, 'topic.summary', { createdBy });
 
   // Duplicate topic detection — two complementary checks:
   // 1. Trigram similarity (textual overlap, fast, no Ollama needed)
@@ -195,6 +200,10 @@ async function listTopics({ lang, status, sensitivity, topicType, page = 1, limi
  */
 async function updateTopic(id, { title, summary, sensitivity, topicType }) {
   const pool = getPool();
+
+  // S4: defensive injection telemetry
+  if (title) analyzeUserInput(title, 'topic.title.update', { topicId: id });
+  if (summary) analyzeUserInput(summary, 'topic.summary.update', { topicId: id });
 
   // Get current topic to check if title changed
   const { rows: current } = await pool.query(
