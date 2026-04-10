@@ -12,6 +12,7 @@ const { matchNewChunk } = require('./subscription-matcher');
 const { dispatchNotification } = require('./notification');
 const flagService = require('./flag');
 const { analyzeContent } = require('./injection-detector');
+const { shouldQuarantine, quarantineChunk } = require('./guardian');
 
 /**
  * Match subscriptions and dispatch notifications for a chunk.
@@ -168,8 +169,16 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
     accountService.incrementInteractionAndUpdateTier(createdBy)
       .catch(err => console.error('Tier update failed:', err));
 
-    // Fire-and-forget: match subscriptions and dispatch notifications
-    matchAndNotify(chunk.id, 'proposed');
+    // Quarantine check: if injection score is above threshold, quarantine the chunk
+    const quarantineResult = shouldQuarantine(injectionResult);
+    if (quarantineResult.quarantined) {
+      quarantineChunk(chunk.id, injectionResult)
+        .catch(err => console.error('Quarantine failed (chunk still visible):', err));
+      chunk.quarantine_status = 'quarantined';
+    } else {
+      // Fire-and-forget: match subscriptions and dispatch notifications
+      matchAndNotify(chunk.id, 'proposed');
+    }
 
     return chunk;
   } catch (err) {
@@ -311,7 +320,7 @@ async function getChunksByTopic(topicId, { status = 'published', page = 1, limit
       `SELECT COUNT(*)::int AS total
        FROM chunk_topics ct
        JOIN chunks c ON c.id = ct.chunk_id
-       WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false`,
+       WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false AND (c.quarantine_status IS NULL OR c.quarantine_status = 'cleared')`,
       [topicId, status]
     ),
     pool.query(
@@ -319,7 +328,7 @@ async function getChunksByTopic(topicId, { status = 'published', page = 1, limit
        FROM chunk_topics ct
        JOIN chunks c ON c.id = ct.chunk_id
        LEFT JOIN accounts a ON a.id = COALESCE(c.proposed_by, c.created_by)
-       WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false
+       WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false AND (c.quarantine_status IS NULL OR c.quarantine_status = 'cleared')
        ORDER BY c.created_at DESC
        LIMIT $3 OFFSET $4`,
       [topicId, status, limit, offset]
@@ -346,7 +355,7 @@ async function getChunksWithSourcesByTopic(topicId, { status = 'published', page
       `SELECT COUNT(DISTINCT c.id)::int AS total
        FROM chunk_topics ct
        JOIN chunks c ON c.id = ct.chunk_id
-       WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false`,
+       WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false AND (c.quarantine_status IS NULL OR c.quarantine_status = 'cleared')`,
       [topicId, status]
     ),
     pool.query(
@@ -367,7 +376,7 @@ async function getChunksWithSourcesByTopic(topicId, { status = 'published', page
        JOIN chunks c ON c.id = ct.chunk_id
        LEFT JOIN accounts a ON a.id = COALESCE(c.proposed_by, c.created_by)
        LEFT JOIN chunk_sources cs ON cs.chunk_id = c.id
-       WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false
+       WHERE ct.topic_id = $1 AND c.status = $2 AND c.hidden = false AND (c.quarantine_status IS NULL OR c.quarantine_status = 'cleared')
        GROUP BY c.id, a.name
        ORDER BY c.created_at DESC
        LIMIT $3 OFFSET $4`,
@@ -442,6 +451,15 @@ async function proposeEdit({ originalChunkId, content, technicalDetail, proposed
     chunk.changeset_id = csRows[0].id;
 
     await client.query('COMMIT');
+
+    // Quarantine check (same as createChunk)
+    const quarantineResult = shouldQuarantine(injectionResult);
+    if (quarantineResult.quarantined) {
+      quarantineChunk(chunk.id, injectionResult)
+        .catch(err => console.error('Quarantine failed (chunk still visible):', err));
+      chunk.quarantine_status = 'quarantined';
+    }
+
     return chunk;
   } catch (err) {
     await client.query('ROLLBACK');

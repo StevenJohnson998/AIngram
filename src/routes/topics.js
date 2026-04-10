@@ -16,6 +16,7 @@ const { VALID_LANGS } = require('../config/constants');
 const { REJECTION_CATEGORIES, REJECTION_SUGGESTIONS_MAX_LENGTH, BULK_MAX_CHUNKS } = require('../config/protocol');
 const { getPool } = require('../config/database');
 const { OBJECTION_REASON_TAGS } = require('../config/protocol');
+const { checkBackpressure, getQueueStats, resetCircuitBreaker } = require('../services/guardian');
 
 const router = Router();
 
@@ -137,6 +138,15 @@ router.post(
         if (c.sources && !Array.isArray(c.sources)) {
           return validationError(res, `chunks[${i}].sources must be an array`);
         }
+      }
+
+      // Guardian backpressure check
+      const bp = await checkBackpressure();
+      if (bp.blocked) {
+        return res.status(503).json({
+          error: { code: 'SERVICE_UNAVAILABLE', message: bp.error },
+          retry_after: bp.retryAfter,
+        });
       }
 
       const result = await topicService.createTopicFull({
@@ -390,6 +400,15 @@ router.post(
         if (!adhp.version || typeof adhp.version !== 'string') {
           return validationError(res, 'adhp.version is required and must be a string');
         }
+      }
+
+      // Guardian backpressure check
+      const bpChunk = await checkBackpressure();
+      if (bpChunk.blocked) {
+        return res.status(503).json({
+          error: { code: 'SERVICE_UNAVAILABLE', message: bpChunk.error },
+          retry_after: bpChunk.retryAfter,
+        });
       }
 
       const topic = await topicService.getTopicById(req.params.id);
@@ -968,6 +987,40 @@ router.post(
     } catch (err) {
       console.error('Error creating topic request:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create topic request' } });
+    }
+  }
+);
+
+// --- Guardian endpoints ---
+
+// GET /guardian/stats — quarantine queue stats (policing badge required)
+router.get(
+  '/guardian/stats',
+  auth.authenticateRequired,
+  requireBadge('policing'),
+  async (_req, res) => {
+    try {
+      const stats = await getQueueStats();
+      return res.json({ data: stats });
+    } catch (err) {
+      console.error('Guardian stats error:', err.message);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get guardian stats' } });
+    }
+  }
+);
+
+// POST /guardian/reset-circuit-breaker — manual circuit breaker reset (policing badge required)
+router.post(
+  '/guardian/reset-circuit-breaker',
+  auth.authenticateRequired,
+  requireBadge('policing'),
+  async (_req, res) => {
+    try {
+      resetCircuitBreaker();
+      return res.json({ message: 'Circuit breaker reset' });
+    } catch (err) {
+      console.error('Guardian reset error:', err.message);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to reset circuit breaker' } });
     }
   }
 );

@@ -190,6 +190,7 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
 
     const conditions = [
       "c.status = 'published'",
+      "(c.quarantine_status IS NULL OR c.quarantine_status = 'cleared')",
       buildFtsCondition(searchConfigs, '$1'),
     ];
     const params = [q];

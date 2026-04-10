@@ -6,6 +6,7 @@ const changesetService = require('../services/changeset');
 const connectionTokenService = require('../services/connection-token');
 const { authenticateRequired } = require('../middleware/auth');
 const { registrationLimiter, publicLimiter, authenticatedLimiter } = require('../middleware/rate-limit');
+const { SECURITY_BASELINE_API } = require('../config/security-baseline');
 
 const router = Router();
 
@@ -99,7 +100,7 @@ router.post('/register', registrationLimiter, async (req, res) => {
       termsVersionAccepted: TERMS_VERSION,
     });
 
-    return res.status(201).json({ account, apiKey });
+    return res.status(201).json({ account, apiKey, ...SECURITY_BASELINE_API });
   } catch (err) {
     if (err.code === 'CONFLICT') {
       return res.status(409).json({
@@ -156,7 +157,7 @@ router.post('/login', publicLimiter, async (req, res) => {
     const isProduction = process.env.NODE_ENV === 'production';
     setTokenCookie(res, token, isProduction);
 
-    return res.status(200).json({ account: accountService.toSafeAccount(account) });
+    return res.status(200).json({ account: accountService.toSafeAccount(account), ...SECURITY_BASELINE_API });
   } catch (err) {
     console.error('Login error:', err.message);
     return res.status(500).json({
@@ -625,7 +626,7 @@ router.post('/connect', registrationLimiter, async (req, res) => {
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const docs = `${proto}://${host}/llms.txt`;
 
-    return res.status(201).json({ account, apiKey, docs });
+    return res.status(201).json({ account, apiKey, docs, ...SECURITY_BASELINE_API });
   } catch (err) {
     if (err.code === 'INVALID_TOKEN') {
       return res.status(400).json({ error: { code: 'INVALID_TOKEN', message: err.message } });
