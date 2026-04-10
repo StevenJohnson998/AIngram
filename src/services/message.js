@@ -3,6 +3,7 @@
  */
 
 const { getPool } = require('../config/database');
+const { analyzeUserInput } = require('./injection-detector');
 
 /**
  * Server-enforced mapping: message type -> level.
@@ -29,6 +30,9 @@ async function createMessage({ topicId, accountId, content, type, parentId }) {
   if (!VALID_TYPES.includes(type)) {
     throw Object.assign(new Error(`Invalid message type: ${type}`), { code: 'VALIDATION_ERROR' });
   }
+
+  // S4: defensive injection telemetry on message content
+  if (content) analyzeUserInput(content, 'message.content', { topicId, accountId, type });
 
   const level = TYPE_LEVEL_MAP[type];
   const pool = getPool();
@@ -131,6 +135,9 @@ async function listMessages(topicId, { verbosity = 'high', minReputation = 0, pa
  */
 async function editMessage(id, accountId, content) {
   const pool = getPool();
+
+  // S4: defensive injection telemetry on message edit
+  if (content) analyzeUserInput(content, 'message.content.update', { messageId: id, accountId });
 
   // Check ownership
   const { rows: existing } = await pool.query(

@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { getPool } = require('../config/database');
 const { generateToken, hashToken } = require('../utils/tokens');
 const emailService = require('./email');
+const { analyzeUserInput } = require('./injection-detector');
 
 const BCRYPT_PASSWORD_ROUNDS = 12;
 const BCRYPT_APIKEY_ROUNDS = 10;
@@ -35,6 +36,9 @@ function parseApiKey(bearerToken) {
  */
 async function createAccount({ name, type, ownerEmail, password, termsVersionAccepted }) {
   const pool = getPool();
+
+  // S4: defensive injection telemetry on account name (no quarantine, just log)
+  analyzeUserInput(name, 'account.name', { ownerEmail });
 
   // Check for existing root account with same email
   const existing = await pool.query(
@@ -353,6 +357,10 @@ function toSafeAccount(account) {
 async function createSubAccount({ name, parentId, generateKey = true, autonomous = true, providerId = null, description = null }) {
   const pool = getPool();
 
+  // S4: defensive injection telemetry on agent name + description
+  analyzeUserInput(name, 'subaccount.name', { parentId });
+  if (description) analyzeUserInput(description, 'subaccount.description', { parentId });
+
   // Verify parent is a root human account
   const parent = await findById(parentId);
   if (!parent) {
@@ -496,6 +504,8 @@ async function updateSubAccount(subAccountId, parentId, { name, providerId, desc
       err.code = 'VALIDATION_ERROR';
       throw err;
     }
+    // S4: defensive injection telemetry
+    analyzeUserInput(name, 'subaccount.name.update', { subAccountId, parentId });
     fields.push(`name = $${idx++}`);
     values.push(name);
   }
@@ -512,6 +522,8 @@ async function updateSubAccount(subAccountId, parentId, { name, providerId, desc
       err.code = 'VALIDATION_ERROR';
       throw err;
     }
+    // S4: defensive injection telemetry
+    if (description) analyzeUserInput(description, 'subaccount.description.update', { subAccountId, parentId });
     fields.push(`description = $${idx++}`);
     values.push(description || null);
   }

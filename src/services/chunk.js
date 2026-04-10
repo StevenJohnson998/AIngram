@@ -11,7 +11,7 @@ const accountService = require('./account');
 const { matchNewChunk } = require('./subscription-matcher');
 const { dispatchNotification } = require('./notification');
 const flagService = require('./flag');
-const { analyzeContent } = require('./injection-detector');
+const { analyzeContent, analyzeUserInput } = require('./injection-detector');
 const { shouldQuarantine, quarantineChunk } = require('./quarantine-validator');
 
 /**
@@ -224,6 +224,11 @@ async function getChunkById(id) {
 async function updateChunk(id, { content, technicalDetail }) {
   const pool = getPool();
 
+  // S4: defensive injection telemetry on chunk content updates
+  // (initial creation already runs the full quarantine pipeline; updates only log)
+  if (content) analyzeUserInput(content, 'chunk.content.update', { chunkId: id });
+  if (technicalDetail) analyzeUserInput(technicalDetail, 'chunk.technicalDetail.update', { chunkId: id });
+
   // Build dynamic update
   const setClauses = ['updated_at = now()'];
   const params = [];
@@ -298,6 +303,10 @@ async function retractChunk(id, { reason = 'withdrawn', retractedBy = null } = {
  */
 async function addSource(chunkId, { sourceUrl, sourceDescription, addedBy }) {
   const pool = getPool();
+
+  // S4: defensive injection telemetry on source description (URL is structurally validated elsewhere)
+  if (sourceDescription) analyzeUserInput(sourceDescription, 'chunk.source.description', { chunkId, addedBy });
+
   const { rows } = await pool.query(
     `INSERT INTO chunk_sources (chunk_id, source_url, source_description, added_by)
      VALUES ($1, $2, $3, $4)

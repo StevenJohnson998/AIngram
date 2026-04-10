@@ -5,6 +5,7 @@
 const { getPool } = require('../config/database');
 const flagService = require('./flag');
 const { recalculateChunkTrust } = require('./reputation');
+const { analyzeUserInput } = require('./injection-detector');
 
 /**
  * Escalation rules: determine sanction type based on prior active minor sanctions.
@@ -15,6 +16,9 @@ const { determineSanctionType } = require('../domain');
  * Create a sanction with automatic escalation.
  */
 async function createSanction({ accountId, severity, reason, issuedBy }) {
+  // S4: defensive injection telemetry on sanction reason
+  if (reason) analyzeUserInput(reason, 'sanction.reason', { accountId, issuedBy, severity });
+
   const pool = getPool();
   const client = await pool.connect();
 
