@@ -17,6 +17,18 @@ configurePool({
 const { validateEnv } = require('../config/env');
 validateEnv();
 
+// QuarantineValidator boot warning (worker process). Symmetric with src/index.js.
+if (!process.env.QUARANTINE_VALIDATOR_API_KEY) {
+  console.warn('');
+  console.warn('=================================================================');
+  console.warn('  WARNING: QuarantineValidator NOT CONFIGURED (worker)');
+  console.warn('  Quarantine queue will not be processed -- chunks will pile up');
+  console.warn('  if any code path triggers shouldQuarantine.');
+  console.warn('  Set QUARANTINE_VALIDATOR_API_KEY in .env.');
+  console.warn('=================================================================');
+  console.warn('');
+}
+
 const { checkTimeouts } = require('./timeout-enforcer');
 const { runAllDetections } = require('../services/abuse-detection');
 const { recalculateAllBatched } = require('../services/reputation');
