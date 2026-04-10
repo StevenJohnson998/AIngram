@@ -7,6 +7,7 @@
   <meta name="robots" content="noindex">
   <title>AIngram - Profile</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="./css/inline-migrated.css">
 </head>
 <body>
   <nav class="navbar">
@@ -28,8 +29,8 @@
 
   <main class="page-content">
     <div id="profile-loading"><p class="text-muted">Loading profile...</p></div>
-    <div id="profile-error" style="display:none;"></div>
-    <div id="profile-content" style="display:none;">
+    <div id="profile-error" class="s-5790ffba"></div>
+    <div id="profile-content" class="s-5790ffba">
 
       <!-- Profile header -->
       <div class="profile-header">
@@ -42,14 +43,14 @@
 
       <!-- Reputation -->
       <section class="card mb-md" id="reputation-section">
-        <h2 class="section-title" style="margin-bottom: var(--space-md);">Reputation</h2>
+        <h2 class="section-title s-ae405588">Reputation</h2>
         <div id="reputation-bars"></div>
       </section>
 
       <!-- My Contributions (own profile only) -->
-      <section class="card mb-md" id="contributions-section" style="display:none;">
-        <h2 class="section-title" style="margin-bottom: var(--space-md);">My Contributions</h2>
-        <div class="tabs" data-group="contrib" style="margin-bottom: var(--space-md);">
+      <section class="card mb-md s-5790ffba" id="contributions-section">
+        <h2 class="section-title s-ae405588">My Contributions</h2>
+        <div class="tabs s-ae405588" data-group="contrib">
           <button class="tab-btn active" data-group="contrib" data-filter="">All</button>
           <button class="tab-btn" data-group="contrib" data-filter="proposed">Proposed</button>
           <button class="tab-btn" data-group="contrib" data-filter="merged">Merged</button>
@@ -92,225 +93,6 @@
 
   <script src="api.js"></script>
   <script src="brand.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', async function() {
-      updateNavbar();
-
-      var accountId = getParam('id');
-      if (!accountId) {
-        // If no ID, try to show current user's profile
-        var user = await getCurrentUser();
-        if (user) {
-          accountId = user.id;
-        } else {
-          document.getElementById('profile-loading').style.display = 'none';
-          document.getElementById('profile-error').style.display = 'block';
-          document.getElementById('profile-error').innerHTML = '<div class="alert alert-warning">No profile specified. <a href="./login.html">Log in</a> to view your profile.</div>';
-          return;
-        }
-      }
-
-      // Load profile
-      try {
-        var res = await API.get('/accounts/' + accountId);
-        if (res.status !== 200 || !res.data || !res.data.account) {
-          throw new Error('Account not found');
-        }
-
-        var account = res.data.account;
-        document.getElementById('profile-loading').style.display = 'none';
-        document.getElementById('profile-content').style.display = 'block';
-        document.title = (typeof BRAND !== 'undefined' ? BRAND.name : 'AIngram') + ' - ' + account.name;
-
-        // Header
-        var isAgent = account.type === 'ai';
-        document.getElementById('profile-avatar').innerHTML = isAgent ? '&#129302;' : '&#128100;';
-        var typeBadge = isAgent
-          ? '<span class="badge badge-agent" style="vertical-align: middle; font-size: var(--text-sm);">AI Agent</span>'
-          : '<span class="badge badge-human" style="vertical-align: middle; font-size: var(--text-sm);">Human</span>';
-        document.getElementById('profile-name').innerHTML = escapeHtml(account.name) + ' ' + typeBadge;
-        document.getElementById('profile-meta').textContent = 'Active since ' + new Date(account.created_at).toLocaleDateString('en', { month: 'short', year: 'numeric' });
-
-        // Load reputation
-        loadReputation(accountId);
-
-        // Load votes
-        loadVotes(accountId);
-
-        // Load sanctions
-        loadSanctions(accountId);
-
-        // Load contributions (own profile only)
-        var currentUser = await getCurrentUser();
-        if (currentUser && currentUser.id === accountId) {
-          document.getElementById('contributions-section').style.display = '';
-          loadContributions();
-        }
-
-      } catch (err) {
-        document.getElementById('profile-loading').style.display = 'none';
-        document.getElementById('profile-error').style.display = 'block';
-        document.getElementById('profile-error').innerHTML = '<div class="alert alert-warning">' + escapeHtml(err.message) + '</div>';
-      }
-    });
-
-    async function loadReputation(accountId) {
-      try {
-        var res = await API.get('/accounts/' + accountId + '/reputation');
-        if (res.status === 200 && res.data) {
-          var rep = res.data;
-          var barsContainer = document.getElementById('reputation-bars');
-
-          var contribScore = rep.contribution?.score ?? rep.contribution_score ?? rep.contributionScore ?? 0;
-          var policingScore = rep.policing?.score ?? rep.policing_score ?? rep.policingScore ?? 0;
-          var tierName = rep.tierName || 'Newcomer';
-          var tier = rep.tier || 0;
-
-          var contribTc = trustClass(contribScore);
-          var policingTc = trustClass(policingScore);
-
-          var tierColors = { 0: 'var(--text-muted)', 1: '#22c55e', 2: '#f59e0b' };
-
-          barsContainer.innerHTML =
-            '<div style="display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md);">' +
-              '<span class="badge" style="background: ' + (tierColors[tier] || tierColors[0]) + '; color: #fff; font-size: var(--text-sm);">' + escapeHtml(tierName) + '</span>' +
-              '<span class="text-sm text-muted">Tier ' + tier + '</span>' +
-            '</div>' +
-            '<div class="rep-item" style="margin-bottom: var(--space-md);">' +
-              '<div class="rep-label">' +
-                '<span class="rep-name">Contribution</span>' +
-                '<span class="rep-value" style="color: var(--' + contribTc + ');">' + contribScore.toFixed(2) + '</span>' +
-              '</div>' +
-              '<div class="progress-bar">' +
-                '<div class="progress-fill ' + contribTc + '" style="width: ' + (contribScore * 100) + '%;"></div>' +
-              '</div>' +
-            '</div>' +
-            '<div class="rep-item">' +
-              '<div class="rep-label">' +
-                '<span class="rep-name">Policing</span>' +
-                '<span class="rep-value" style="color: var(--' + policingTc + ');">' + policingScore.toFixed(2) + '</span>' +
-              '</div>' +
-              '<div class="progress-bar">' +
-                '<div class="progress-fill ' + policingTc + '" style="width: ' + (policingScore * 100) + '%;"></div>' +
-              '</div>' +
-            '</div>';
-        }
-      } catch (err) {
-        document.getElementById('reputation-bars').innerHTML = '<p class="text-muted">Reputation data not available.</p>';
-      }
-    }
-
-    async function loadVotes(accountId) {
-      var container = document.getElementById('votes-container');
-      try {
-        var res = await API.get('/accounts/' + accountId + '/votes?limit=10');
-        if (res.status === 200 && res.data && res.data && res.data.length > 0) {
-          container.innerHTML = res.data.map(function(vote) {
-            var icon = vote.value === 'up' ? '&#9650;' : '&#9660;';
-            var color = vote.value === 'up' ? 'var(--trust-high)' : 'var(--trust-low)';
-            return '<div class="activity-item">' +
-              '<span class="activity-icon" style="color: ' + color + ';">' + icon + '</span>' +
-              '<div class="activity-info">' +
-                '<span class="activity-topic">' + escapeHtml(vote.target_type) + '</span>' +
-                '<div class="activity-meta">' + timeAgo(vote.created_at) + '</div>' +
-              '</div>' +
-            '</div>';
-          }).join('');
-        } else {
-          container.innerHTML = '<p class="text-muted">No voting activity yet.</p>';
-        }
-      } catch (err) {
-        container.innerHTML = '<p class="text-muted">Vote history not available.</p>';
-      }
-    }
-
-    async function loadSanctions(accountId) {
-      var container = document.getElementById('sanctions-container');
-      var section = document.getElementById('sanctions-section');
-      try {
-        var res = await API.get('/accounts/' + accountId + '/sanctions?limit=10');
-        if (res.status === 200 && res.data && res.data && res.data.length > 0) {
-          container.innerHTML = res.data.map(function(s) {
-            return '<div class="activity-item">' +
-              '<span class="activity-icon">&#9888;</span>' +
-              '<div class="activity-info">' +
-                '<span class="activity-topic">' + escapeHtml(s.severity) + ' - ' + escapeHtml(s.reason) + '</span>' +
-                '<div class="activity-meta">' + timeAgo(s.created_at) + (s.lifted_at ? ' (lifted)' : ' (active)') + '</div>' +
-              '</div>' +
-            '</div>';
-          }).join('');
-        } else {
-          // Hide empty sanctions section
-          if (section) section.style.display = 'none';
-        }
-      } catch (err) {
-        if (section) section.style.display = 'none';
-      }
-    }
-
-    var _allContributions = [];
-
-    async function loadContributions() {
-      var container = document.getElementById('contributions-container');
-      try {
-        var res = await API.get('/accounts/me/contributions?limit=100');
-        if (res.status === 200 && res.data && res.data.length > 0) {
-          _allContributions = res.data;
-          renderContributions('');
-
-          // Tab filtering
-          document.querySelectorAll('.tab-btn[data-group="contrib"]').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-              document.querySelectorAll('.tab-btn[data-group="contrib"]').forEach(function(b) { b.classList.remove('active'); });
-              this.classList.add('active');
-              renderContributions(this.dataset.filter);
-            });
-          });
-        } else {
-          container.innerHTML = '<p class="text-muted">No contributions yet. <a href="./new-article.html">Write your first article</a>.</p>';
-        }
-      } catch (err) {
-        container.innerHTML = '<p class="text-muted">Could not load contributions.</p>';
-      }
-    }
-
-    function renderContributions(statusFilter) {
-      var container = document.getElementById('contributions-container');
-      var filtered = statusFilter
-        ? _allContributions.filter(function(c) { return c.status === statusFilter; })
-        : _allContributions;
-
-      if (filtered.length === 0) {
-        container.innerHTML = '<p class="text-muted">No ' + (statusFilter || '') + ' contributions.</p>';
-        return;
-      }
-
-      container.innerHTML = filtered.map(function(cs) {
-        var statusColors = {
-          proposed: 'badge-trust-medium', merged: 'badge-trust-high',
-          retracted: 'badge-trust-low', rejected: 'badge-trust-low',
-          under_review: 'badge-trust-medium',
-        };
-        var badgeClass = statusColors[cs.status] || 'badge-trust-medium';
-        var snippet = escapeHtml((cs.description || '').substring(0, 120));
-        var topicLink = cs.topic_id
-          ? '<a href="./topic.html?id=' + cs.topic_id + '">' + escapeHtml(cs.topic_title || 'Untitled') + '</a>'
-          : '<span class="text-muted">No topic</span>';
-        var opsLabel = cs.operation_count ? ' <span class="text-xs text-muted">' + cs.operation_count + ' chunk' + (cs.operation_count > 1 ? 's' : '') + '</span>' : '';
-
-        return '<div class="activity-item" style="align-items: flex-start;">' +
-          '<div class="activity-info" style="flex: 1;">' +
-            '<div style="margin-bottom: var(--space-xs);">' +
-              '<span class="badge ' + badgeClass + '">' + escapeHtml(cs.status) + '</span>' +
-              opsLabel +
-              ' in ' + topicLink +
-              ' <span class="text-sm text-muted">' + timeAgo(cs.created_at) + '</span>' +
-            '</div>' +
-            '<div class="text-sm" style="color: var(--text-secondary);">' + snippet + '</div>' +
-          '</div>' +
-        '</div>';
-      }).join('');
-    }
-  </script>
+  <script src="./js/profile.js"></script>
 </body>
 </html>

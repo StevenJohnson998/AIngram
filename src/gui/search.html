@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AIngram - Search Results</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="./css/inline-migrated.css">
 </head>
 <body>
   <nav class="navbar">
@@ -86,22 +87,22 @@
       </div>
     </div>
 
-    <p class="text-sm text-muted mb-lg" id="results-info" style="display:none;"></p>
+    <p class="text-sm text-muted mb-lg s-5790ffba" id="results-info"></p>
 
     <div id="results-container">
-      <p class="text-muted" id="results-loading" style="display:none;">&#8987; Searching...</p>
-      <p class="text-muted" id="results-empty" style="display:none;">No results found.</p>
-      <div id="request-topic-box" style="display:none; margin-top: var(--space-lg); padding: var(--space-md); border: 1px dashed var(--border-color); border-radius: var(--radius-md); text-align: center;">
-        <p style="margin-bottom: var(--space-sm);">Didn't find what you're looking for?</p>
-        <form id="request-topic-form" style="display: flex; gap: var(--space-sm); justify-content: center; flex-wrap: wrap; max-width: 500px; margin: 0 auto;">
-          <input type="text" id="request-topic-title" class="form-input" placeholder="Suggest a topic title" style="flex: 1; min-width: 200px;">
+      <p class="text-muted s-5790ffba" id="results-loading">&#8987; Searching...</p>
+      <p class="text-muted s-5790ffba" id="results-empty">No results found.</p>
+      <div id="request-topic-box" class="s-57aa73c6">
+        <p class="s-569a942f">Didn't find what you're looking for?</p>
+        <form id="request-topic-form" class="s-86754aff">
+          <input type="text" id="request-topic-title" class="form-input s-df3bb6c3" placeholder="Suggest a topic title">
           <button type="submit" class="btn btn-primary btn-sm">Request topic</button>
         </form>
-        <p class="text-sm text-muted mt-sm" id="request-topic-feedback" style="display:none;"></p>
+        <p class="text-sm text-muted mt-sm s-5790ffba" id="request-topic-feedback"></p>
       </div>
     </div>
 
-    <div class="text-center mt-xl" id="load-more-container" style="display:none;">
+    <div class="text-center mt-xl s-5790ffba" id="load-more-container">
       <button class="btn btn-secondary" id="load-more-btn">Load more results</button>
     </div>
 
@@ -120,318 +121,6 @@
 
   <script src="api.js"></script>
   <script src="brand.js"></script>
-  <script>
-    var currentQuery = '';
-
-    document.addEventListener('DOMContentLoaded', function() {
-      updateNavbar();
-
-      // Highlight active pillar and set content filter based on topicType param
-      var topicTypeParam = getParam('topicType');
-      if (topicTypeParam === 'course') {
-        var articles = document.querySelector('.pillar-articles');
-        var courses = document.querySelector('.pillar-courses');
-        if (articles) articles.classList.remove('pillar-active');
-        if (courses) courses.classList.add('pillar-active');
-        document.getElementById('filter-topic-type').value = 'course';
-      } else if (!topicTypeParam) {
-        document.getElementById('filter-topic-type').value = 'knowledge';
-      }
-
-      var q = getParam('q') || '';
-      if (q) {
-        document.getElementById('search-input').value = q;
-        doSearch(q);
-      } else {
-        // No query: show recent topics as default
-        loadRecentTopics();
-      }
-
-      document.getElementById('search-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        var q = document.getElementById('search-input').value.trim();
-        if (q) {
-          // Update URL without reload
-          history.pushState(null, '', './search.html?q=' + encodeURIComponent(q));
-          doSearch(q);
-        }
-      });
-
-      document.getElementById('filter-type').addEventListener('change', function() {
-        var q = document.getElementById('search-input').value.trim();
-        if (q) doSearch(q);
-      });
-
-      document.getElementById('filter-lang').addEventListener('change', function() {
-        var q = document.getElementById('search-input').value.trim();
-        if (q) doSearch(q);
-        else loadRecentTopics();
-      });
-
-      document.getElementById('filter-topic-type').addEventListener('change', function() {
-        var q = document.getElementById('search-input').value.trim();
-        if (q) doSearch(q);
-        else loadRecentTopics();
-      });
-
-      document.getElementById('load-more-btn').addEventListener('click', function() {
-        if (!window._searchResults) return;
-        var container = document.getElementById('results-container');
-        container.innerHTML = renderResultCards(window._searchResults, currentQuery);
-        this.parentElement.style.display = 'none';
-        if (window._searchResults.length >= 50) {
-          showMaxBanner(container);
-        }
-      });
-    });
-
-    var user = null;
-    getCurrentUser().then(function(u) { user = u; });
-
-    function renderResultCards(items, q) {
-      return items.map(function(item) {
-        var tc = trustClass(item.trust_score || 0);
-        var topicLink = item.topic_id ? './topic.html?id=' + item.topic_id : '#';
-        var topicTitle = item.topic_title || 'Unknown topic';
-        var topicLang = (item.topic_lang || 'en').toUpperCase();
-        return '<div class="card trust-border ' + tc + ' mb-md">' +
-          '<div class="flex items-center justify-between flex-wrap gap-sm mb-md">' +
-            '<div>' +
-              '<a href="' + topicLink + '" style="font-size: var(--text-lg); font-weight: 600;">' + escapeHtml(topicTitle) + '</a>' +
-              '<div class="meta-row mt-sm">' +
-                '<span class="badge badge-lang">' + escapeHtml(topicLang) + '</span>' +
-                '<span class="sep">&middot;</span>' +
-                '<span>' + trustBadge(item.trust_score || 0) + '</span>' +
-                '<span class="sep">&middot;</span>' +
-                '<span>' + timeAgo(item.updated_at || item.created_at) + '</span>' +
-              '</div>' +
-            '</div>' +
-          '</div>' +
-          '<p class="text-sm text-muted">' + escapeHtml(truncate(item.content, 250)) + '</p>' +
-          (user ? '<button class="btn btn-xs btn-outline mt-sm subscribe-similar-btn" data-query="' + escapeHtml(q).replace(/"/g, '&quot;') + '">Subscribe to similar</button>' : '') +
-        '</div>';
-      }).join('');
-    }
-
-    function showMaxBanner(container) {
-      var banner = document.createElement('div');
-      banner.id = 'max-results-banner';
-      banner.className = 'alert alert-info';
-      banner.style.marginTop = 'var(--space-lg)';
-      banner.textContent = 'Maximum of 50 results reached. Please refine your search for more specific results.';
-      container.after(banner);
-    }
-
-    async function loadRecentTopics() {
-      var topicType = document.getElementById('filter-topic-type').value;
-      var lang = document.getElementById('filter-lang').value;
-      var url = '/topics?limit=20';
-      if (topicType) url += '&topicType=' + topicType;
-      if (lang) url += '&lang=' + lang;
-
-      var container = document.getElementById('results-container');
-      container.innerHTML = '';
-
-      try {
-        var res = await API.get(url);
-        if (res.status === 200 && res.data && res.data.length > 0) {
-          var infoEl = document.getElementById('results-info');
-          var label = topicType === 'course' ? 'courses' : 'articles';
-          if (infoEl) {
-            infoEl.style.display = 'block';
-            infoEl.textContent = 'Recent ' + label;
-          }
-
-          container.innerHTML = res.data.map(function(topic) {
-            var tc = trustClass(topic.trust_score || 0);
-            var countLabel = topic.topic_type === 'course' ? ' chapters' : ' contributions';
-            var typeBadge = topic.topic_type === 'course'
-              ? '<span class="badge" style="background: var(--accent); color: #fff; font-size: 0.65rem;">Course</span> '
-              : '';
-            return '<a href="./topic.html?id=' + topic.id + '" class="card trust-border ' + tc + ' mb-md" style="text-decoration:none; color:inherit; display:block;">' +
-              '<div class="flex items-center gap-sm mb-sm">' +
-                typeBadge +
-                '<span style="font-size: var(--text-lg); font-weight: 600;">' + escapeHtml(topic.title) + '</span>' +
-              '</div>' +
-              (topic.summary ? '<p class="text-sm text-muted" style="margin-bottom:var(--space-xs);">' + escapeHtml(topic.summary.substring(0, 150)) + '</p>' : '') +
-              '<div class="meta-row">' +
-                '<span class="badge badge-lang">' + (topic.lang || 'en').toUpperCase() + '</span>' +
-                '<span class="sep">&middot;</span>' +
-                trustBadge(topic.trust_score || 0) +
-                '<span class="sep">&middot;</span>' +
-                '<span class="text-sm text-muted">' + (topic.chunk_count || 0) + countLabel + '</span>' +
-                '<span class="sep">&middot;</span>' +
-                '<span class="text-sm text-muted">' + timeAgo(topic.updated_at || topic.created_at) + '</span>' +
-              '</div>' +
-            '</a>';
-          }).join('');
-        } else {
-          var emptyLabel = topicType === 'course' ? 'courses' : 'articles';
-          container.innerHTML = '<div style="text-align:center; padding:var(--space-2xl) 0;"><div style="font-size:3rem; opacity:0.3; margin-bottom:var(--space-sm);">' + (topicType === 'course' ? '&#127891;' : '&#128218;') + '</div><p class="text-muted">No ' + emptyLabel + ' yet.</p></div>';
-        }
-      } catch (err) {
-        container.innerHTML = '<p class="text-muted">Could not load topics.</p>';
-      }
-    }
-
-    async function doSearch(q) {
-      currentQuery = q;
-
-      var type = document.getElementById('filter-type').value;
-      var lang = document.getElementById('filter-lang').value;
-      var topicType = document.getElementById('filter-topic-type').value;
-
-      var container = document.getElementById('results-container');
-      container.innerHTML = '<p class="text-muted" id="results-loading">&#8987; Searching...</p><p class="text-muted" id="results-empty" style="display:none;">No results found.</p>';
-      var oldBanner = document.getElementById('max-results-banner');
-      if (oldBanner) oldBanner.remove();
-
-      var SEARCH_MAX = 50;
-      var INITIAL_DISPLAY = 15;
-      var url = '/search?q=' + encodeURIComponent(q) + '&type=' + type + '&page=1&limit=' + SEARCH_MAX;
-      if (lang) url += '&lang=' + lang;
-      if (topicType) url += '&topicType=' + topicType;
-
-      try {
-        var res = await API.get(url);
-        var loadingAfter = document.getElementById('results-loading');
-        if (loadingAfter) loadingAfter.style.display = 'none';
-
-        if (res.status === 200 && res.data && res.data) {
-          var results = res.data;
-          var hitMax = results.length >= SEARCH_MAX;
-
-          // Info line
-          var infoEl = document.getElementById('results-info');
-          if (infoEl) {
-            infoEl.style.display = 'block';
-            if (hitMax) {
-              infoEl.textContent = 'Too many results \u2014 showing top ' + SEARCH_MAX;
-            } else {
-              infoEl.textContent = results.length + ' result' + (results.length !== 1 ? 's' : '');
-            }
-          }
-
-          if (results.length === 0) {
-            var emptyAfter = document.getElementById('results-empty');
-            if (emptyAfter) emptyAfter.style.display = 'block';
-            var reqBox = document.getElementById('request-topic-box');
-            if (reqBox) reqBox.style.display = 'block';
-            var reqTitle = document.getElementById('request-topic-title');
-            if (reqTitle) reqTitle.value = q;
-            var loadMore = document.getElementById('load-more-container');
-            if (loadMore) loadMore.style.display = 'none';
-            return;
-          }
-          var reqBoxHide = document.getElementById('request-topic-box');
-          if (reqBoxHide) reqBoxHide.style.display = 'none';
-
-          // Store all results, show first INITIAL_DISPLAY
-          window._searchResults = results;
-          var visible = results.slice(0, INITIAL_DISPLAY);
-
-          var container = document.getElementById('results-container');
-          container.innerHTML = renderResultCards(visible, q);
-
-          // Load more button
-          var loadMoreEl = document.getElementById('load-more-container');
-          var maxBanner = document.getElementById('max-results-banner');
-          if (maxBanner) maxBanner.remove();
-
-          if (loadMoreEl) {
-            if (results.length > INITIAL_DISPLAY) {
-              loadMoreEl.style.display = 'block';
-              document.getElementById('load-more-btn').textContent = 'Show all ' + results.length + ' results';
-            } else {
-              loadMoreEl.style.display = 'none';
-            }
-          }
-          if (hitMax && results.length <= INITIAL_DISPLAY) {
-            showMaxBanner(container);
-          }
-        } else {
-          var emptyFinal = document.getElementById('results-empty');
-          if (emptyFinal) emptyFinal.style.display = 'block';
-        }
-      } catch (err) {
-        console.error('[Search error]', err);
-        document.getElementById('results-loading').style.display = 'none';
-        document.getElementById('results-container').innerHTML = '<div class="alert alert-warning">Search failed: ' + escapeHtml(err.message || 'Unknown error') + '</div>';
-      }
-    }
-
-    function truncate(str, len) {
-      if (!str) return '';
-      if (str.length <= len) return str;
-      return str.substring(0, len) + '...';
-    }
-
-    function showSearchToast(type, message) {
-      var existing = document.getElementById('search-toast');
-      if (existing) existing.remove();
-      var toast = document.createElement('div');
-      toast.id = 'search-toast';
-      toast.className = 'alert alert-' + type;
-      toast.style.marginBottom = 'var(--space-md)';
-      toast.textContent = message;
-      document.getElementById('results-container').prepend(toast);
-      setTimeout(function() { toast.remove(); }, 5000);
-    }
-
-    async function subscribeToSimilar(query) {
-      if (!user) { showSearchToast('warning', 'Please log in first.'); return; }
-      try {
-        var { status, data } = await API.post('/subscriptions', {
-          type: 'keyword',
-          keyword: query,
-          notificationMethod: 'polling',
-        });
-        if (status === 201) {
-          showSearchToast('success', 'Subscribed! You will see matches in your Notifications.');
-        } else if (data && data.error) {
-          showSearchToast('warning', data.error.message || 'Subscription failed.');
-        }
-      } catch (err) {
-        showSearchToast('warning', 'Failed to create subscription.');
-      }
-    }
-
-    // Event delegation for dynamically generated subscribe buttons
-    document.getElementById('results-container').addEventListener('click', function(e) {
-      var btn = e.target.closest('.subscribe-similar-btn');
-      if (btn) subscribeToSimilar(btn.dataset.query);
-    });
-
-    // Request-a-topic form
-    document.getElementById('request-topic-form').addEventListener('submit', async function(e) {
-      e.preventDefault();
-      var title = document.getElementById('request-topic-title').value.trim();
-      var feedback = document.getElementById('request-topic-feedback');
-      if (!title || title.length < 3) {
-        feedback.style.display = 'block';
-        feedback.textContent = 'Title must be at least 3 characters.';
-        feedback.style.color = 'var(--warning)';
-        return;
-      }
-      try {
-        var res = await API.post('/topic-requests', { title: title });
-        if (res.status === 201) {
-          feedback.style.display = 'block';
-          feedback.textContent = 'Topic requested! Contributors will see it.';
-          feedback.style.color = 'var(--success, #22c55e)';
-          document.getElementById('request-topic-title').value = '';
-        } else {
-          var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to submit request.';
-          feedback.style.display = 'block';
-          feedback.textContent = msg;
-          feedback.style.color = 'var(--warning)';
-        }
-      } catch (err) {
-        feedback.style.display = 'block';
-        feedback.textContent = 'Network error. Please try again.';
-        feedback.style.color = 'var(--warning)';
-      }
-    });
-  </script>
+  <script src="./js/search.js"></script>
 </body>
 </html>

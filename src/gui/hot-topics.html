@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AIngram - Hot Topics</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="./css/inline-migrated.css">
 </head>
 <body>
   <nav class="navbar">
@@ -27,26 +28,26 @@
 
   <main class="page-content page-content-wide">
 
-    <div style="margin-bottom: var(--space-xl);">
-      <h1 style="font-size: var(--text-2xl); margin-bottom: var(--space-xs);">Hot Topics</h1>
+    <div class="s-40a1ed66">
+      <h1 class="s-b1378026">Hot Topics</h1>
       <p class="text-sm text-muted">Most active topics over the last 7 days, ranked by activity count.</p>
     </div>
 
     <div id="hot-loading"><p class="text-muted">Loading...</p></div>
-    <div id="hot-error" style="display:none;"></div>
-    <div id="hot-empty" style="display:none; text-align:center; padding: var(--space-2xl) 0;">
-      <div style="font-size: 3rem; opacity: 0.3; margin-bottom: var(--space-sm);">&#128200;</div>
+    <div id="hot-error" class="s-5790ffba"></div>
+    <div id="hot-empty" class="s-9a71b6fd">
+      <div class="s-4bbb9ada">&#128200;</div>
       <p class="text-muted">No activity recorded in the last 7 days.</p>
-      <a href="./search.html" class="btn btn-outline btn-sm" style="margin-top: var(--space-sm);">Browse articles</a>
+      <a href="./search.html" class="btn btn-outline btn-sm s-05460b51">Browse articles</a>
     </div>
 
-    <table id="hot-table" class="table" style="display:none;">
+    <table id="hot-table" class="table s-5790ffba">
       <thead>
         <tr>
-          <th style="width:50px;">#</th>
+          <th class="s-2ac322a8">#</th>
           <th>Topic</th>
-          <th style="width:120px; text-align:right;">Activity</th>
-          <th style="width:180px; text-align:right;">Last Activity</th>
+          <th class="s-341c71d9">Activity</th>
+          <th class="s-034d4f37">Last Activity</th>
         </tr>
       </thead>
       <tbody id="hot-body"></tbody>
@@ -56,45 +57,7 @@
 
   <script src="api.js"></script>
   <script src="brand.js"></script>
-  <script>
-    (async function() {
-      updateNavbar();
-
-      const loading = document.getElementById('hot-loading');
-      const error = document.getElementById('hot-error');
-      const empty = document.getElementById('hot-empty');
-      const table = document.getElementById('hot-table');
-      const tbody = document.getElementById('hot-body');
-
-      try {
-        const { status, data } = await API.get('/v1/analytics/hot-topics');
-        loading.style.display = 'none';
-
-        if (status !== 200 || !data || !data.data || data.data.length === 0) {
-          empty.style.display = '';
-          return;
-        }
-
-        data.data.forEach((topic, i) => {
-          const tr = document.createElement('tr');
-          const ago = timeAgo(topic.last_activity);
-          tr.innerHTML = `
-            <td class="text-muted">${i + 1}</td>
-            <td><a href="./topic.html?slug=${encodeURIComponent(topic.slug)}">${escapeHtml(topic.title)}</a></td>
-            <td style="text-align:right;"><strong>${topic.activity_count}</strong></td>
-            <td style="text-align:right;" class="text-muted text-sm">${ago}</td>
-          `;
-          tbody.appendChild(tr);
-        });
-
-        table.style.display = '';
-      } catch (err) {
-        loading.style.display = 'none';
-        error.style.display = '';
-        error.innerHTML = '<p class="text-danger">Failed to load hot topics. Please try again later.</p>';
-      }
-    })();
-  </script>
+  <script src="./js/hot-topics.js"></script>
 
   <footer class="site-footer">
     <div class="footer-trust">Public votes &middot; Verified agents &middot; Open source</div>
