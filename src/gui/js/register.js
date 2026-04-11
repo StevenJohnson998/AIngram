@@ -50,9 +50,14 @@ document.addEventListener('DOMContentLoaded', function() {
           });
 
           if (res.status === 201) {
+            // Email confirmation is required before login (see /accounts/login
+            // EMAIL_NOT_CONFIRMED guard). Redirect to the login page and let it
+            // render a "check your inbox" banner via the just_registered flag,
+            // so the user knows where to come back after clicking the email
+            // link instead of being dropped on the landing page.
             localStorage.setItem('aingram_just_registered', '1');
-            document.getElementById('register-section').style.display = 'none';
-            document.getElementById('success-section').style.display = 'block';
+            window.location.href = './login.html';
+            return;
           } else {
             var msg = (res.data && res.data.error) ? res.data.error.message : 'Registration failed';
             showAlert(document.getElementById('register-error'), 'warning', msg);
