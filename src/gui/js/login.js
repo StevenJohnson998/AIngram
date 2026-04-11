@@ -2,6 +2,16 @@
 document.addEventListener('DOMContentLoaded', function() {
       updateNavbar();
 
+      // Post-registration banner: when arriving here right after a successful
+      // registration, surface the "check your inbox to confirm" message so the
+      // user knows what to do next. The flag is set by register.js and cleared
+      // here so a refresh doesn't keep showing the banner.
+      if (localStorage.getItem('aingram_just_registered') === '1') {
+        localStorage.removeItem('aingram_just_registered');
+        showAlert(document.getElementById('login-error'), 'success',
+          'Account created. Check your inbox to confirm your email, then log in below.');
+      }
+
       // Collapsibles
       document.querySelectorAll('.collapsible-trigger').forEach(function(trigger) {
         trigger.addEventListener('click', function() {
