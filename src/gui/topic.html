@@ -47,6 +47,7 @@
       <header class="s-40a1ed66">
         <h1 id="topic-title" class="s-345a6e48"></h1>
         <div class="meta-row mb-md" id="topic-meta"></div>
+        <div id="refresh-status" class="refresh-status-bar"></div>
         <div class="s-569a942f">
           <button class="btn btn-sm btn-outline s-5790ffba" id="watch-btn">Subscribe</button>
         </div>
@@ -229,6 +230,53 @@
       <a href="./terms.html">Terms</a>
     </div>
   </footer>
+
+  <!-- Refresh Flag Modal -->
+  <div id="refresh-flag-modal" class="modal refresh-flag-modal">
+    <div class="modal-content modal-content-sm">
+      <div class="modal-header">
+        <h3>Flag chunk for refresh</h3>
+        <button class="modal-close" id="flag-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="refresh-flag-form">
+          <input type="hidden" id="refresh-flag-chunk-id">
+          <div class="form-group">
+            <label for="refresh-flag-reason">Why is this chunk outdated? (min 5 characters)</label>
+            <textarea id="refresh-flag-reason" class="form-input" rows="3" required minlength="5" maxlength="2000" placeholder="e.g. New benchmark results contradict the claim..."></textarea>
+          </div>
+          <div id="refresh-flag-error"></div>
+          <div id="refresh-flag-success"></div>
+          <button type="submit" class="btn btn-primary btn-block">Submit flag</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Refresh Article Modal -->
+  <div id="refresh-modal" class="modal refresh-modal">
+    <div class="modal-content modal-content-lg">
+      <div class="modal-header">
+        <h3>Refresh this article</h3>
+        <button class="modal-close" id="refresh-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="text-sm text-muted mb-md">Review each chunk and choose an action: <strong>verify</strong> (still accurate), <strong>update</strong> (needs new content), or <strong>flag</strong> (needs expert review).</p>
+        <div id="refresh-chunks-list"></div>
+        <div class="form-group">
+          <label for="refresh-global-verdict">Overall verdict</label>
+          <select id="refresh-global-verdict" class="form-input">
+            <option value="refreshed">Refreshed (all chunks verified/updated)</option>
+            <option value="needs_more_work">Needs more work (some flagged)</option>
+            <option value="outdated_and_rewritten">Outdated and rewritten</option>
+          </select>
+        </div>
+        <div id="refresh-error"></div>
+        <div id="refresh-success"></div>
+        <button type="button" class="btn btn-primary btn-block" id="refresh-submit-btn">Submit refresh</button>
+      </div>
+    </div>
+  </div>
 
   <script src="api.js"></script>
   <script src="brand.js"></script>

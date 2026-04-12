@@ -124,12 +124,14 @@ const debateRoutes = require('./routes/debates');
 const analyticsRoutes = require('./routes/analytics');
 const changesetRoutes = require('./routes/changesets');
 const skillRoutes = require('./routes/skills');
+const refreshRoutes = require('./routes/refresh');
 const { mountMcp } = require('./mcp/server');
 
 // API v1 routes (versioned prefix)
 const v1 = express.Router();
 v1.use('/health', healthRoutes);
 v1.use('/accounts', accountRoutes);
+v1.use('/', refreshRoutes);
 v1.use('/', topicRoutes);
 v1.use('/', searchRoutes);
 v1.use('/', discussionRoutes);
