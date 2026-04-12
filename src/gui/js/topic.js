@@ -1566,7 +1566,6 @@ var currentTopicId = null;
               askBtn.innerHTML = '&#8635; Ask refresh';
               askBtn.disabled = false;
               askBtn.classList.remove('btn-disabled');
-              askBtn.addEventListener('click', function() { openRefreshFlagModal(); });
             }
             askBtn.style.display = '';
           }
@@ -1620,8 +1619,16 @@ var currentTopicId = null;
       });
     }
 
-    // Flag modal close
+    // Ask refresh button + flag modal
     document.addEventListener('DOMContentLoaded', function() {
+      // Attach click handler on the static Ask refresh button
+      var askRefreshBtn = document.getElementById('ask-refresh-btn');
+      if (askRefreshBtn) {
+        askRefreshBtn.addEventListener('click', function() {
+          if (!this.disabled) openRefreshFlagModal();
+        });
+      }
+
       var flagModal = document.getElementById('refresh-flag-modal');
       if (!flagModal) return;
       document.getElementById('flag-modal-close').addEventListener('click', function() {
