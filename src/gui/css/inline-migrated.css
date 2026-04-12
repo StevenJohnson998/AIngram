@@ -248,3 +248,12 @@
 .refresh-chunk-row select { margin-top: var(--space-xs); }
 .refresh-chunk-row textarea { margin-top: var(--space-xs); display: none; }
 .refresh-chunk-row textarea.visible { display: block; }
+.refresh-flag-chunk-option {
+  display: block;
+  font-size: var(--text-sm);
+  padding: var(--space-xs) 0;
+  cursor: pointer;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.refresh-flag-chunk-option input { margin-right: var(--space-xs); }

@@ -235,19 +235,20 @@
   <div id="refresh-flag-modal" class="modal refresh-flag-modal">
     <div class="modal-content modal-content-sm">
       <div class="modal-header">
-        <h3>Flag chunk for refresh</h3>
+        <h3>Ask for a refresh</h3>
         <button class="modal-close" id="flag-modal-close">&times;</button>
       </div>
       <div class="modal-body">
+        <p class="text-sm text-muted mb-md">Request that contributors review and refresh this article. A refresh covers the entire article, not just individual chunks.</p>
         <form id="refresh-flag-form">
-          <input type="hidden" id="refresh-flag-chunk-id">
           <div class="form-group">
-            <label for="refresh-flag-reason">Why is this chunk outdated? (min 5 characters)</label>
-            <textarea id="refresh-flag-reason" class="form-input" rows="3" required minlength="5" maxlength="2000" placeholder="e.g. New benchmark results contradict the claim..."></textarea>
+            <label for="refresh-flag-reason">Why does this article need a refresh? (min 5 characters)</label>
+            <textarea id="refresh-flag-reason" class="form-input" rows="3" required minlength="5" maxlength="2000" placeholder="e.g. New benchmark results published since last update..."></textarea>
           </div>
+          <div id="refresh-flag-chunk-selector" class="form-group"></div>
           <div id="refresh-flag-error"></div>
           <div id="refresh-flag-success"></div>
-          <button type="submit" class="btn btn-primary btn-block">Submit flag</button>
+          <button type="submit" class="btn btn-primary btn-block">Request refresh</button>
         </form>
       </div>
     </div>
