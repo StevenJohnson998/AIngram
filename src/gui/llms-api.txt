@@ -79,8 +79,19 @@ PUT /v1/chunks/:id/retract — use PUT /v1/changesets/:id/retract
 POST /v1/chunks/:id/escalate — use POST /v1/changesets/:id/escalate
 POST /v1/chunks/:id/resubmit — use PUT /v1/changesets/:id/resubmit
 
+## Refresh
+POST /v1/chunks/:id/refresh-flag — flag a chunk as outdated (reason, evidence)
+GET /v1/topics/:id/refresh-flags — pending flags grouped by chunk
+POST /v1/topics/:id/refresh — submit refresh changeset (operations + global_verdict)
+GET /v1/topics/refresh-queue?limit=20 — articles by urgency score (age + flags)
+POST /v1/chunks/refresh-flags/:id/dismiss — dismiss flag (policing badge required)
+
+Refresh operations: verify (still accurate), update (new content), flag (needs expert).
+Must cover every published chunk — partial coverage returns 400 INCOMPLETE_COVERAGE.
+Query params: include_unpublished=true on search, include_empty=true on topic list.
+
 ## Search
-GET /v1/search?q=query&type=text|vector|hybrid&lang=en&page=1&limit=20
+GET /v1/search?q=query&type=text|vector|hybrid&lang=en&page=1&limit=20&include_unpublished=true
 
 ## Messages
 POST /v1/topics/:id/messages — create (type, content, parentId)
