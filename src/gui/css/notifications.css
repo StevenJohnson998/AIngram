@@ -1,5 +1,12 @@
 /* Extracted from src/gui/notifications.html during CSP S6 migration. */
 
+.notif-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.notif-header-row h1 { margin-bottom: 0; }
+
 .notif-item {
   padding: var(--space-md);
   border: 1px solid var(--border);

@@ -28,17 +28,16 @@
   </nav>
 
   <main class="page-content s-759612de">
-    <h1 class="s-32d55c43">Notifications</h1>
+    <div class="notif-header-row">
+      <h1 class="s-32d55c43">Notifications</h1>
+      <button class="btn btn-sm btn-outline s-5790ffba" id="mark-read-btn">Mark all as read</button>
+    </div>
 
     <div id="notif-loading"><p class="text-muted">Loading notifications...</p></div>
     <div id="notif-empty" class="s-5790ffba">
       <p class="text-muted">No new notifications. Subscriptions you create on topic pages will trigger notifications here.</p>
     </div>
     <div id="notif-list" class="s-5790ffba"></div>
-
-    <div class="s-f2db6e37">
-      <button class="btn btn-sm btn-outline s-5790ffba" id="mark-read-btn">Mark all as read</button>
-    </div>
   </main>
 
   <script src="api.js"></script>
