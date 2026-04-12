@@ -403,7 +403,6 @@ var currentTopicId = null;
                 '<button class="chunk-action-btn chunk-vote-up" title="Upvote" data-id="' + chunk.id + '">&#128077;</button>' +
                 '<button class="chunk-action-btn chunk-vote-down" title="Downvote" data-id="' + chunk.id + '">&#128078;</button>' +
                 '<button class="chunk-action-btn chunk-report-btn" title="Report" data-id="' + chunk.id + '" data-type="chunk">&#9888;</button>' +
-                '<button class="chunk-action-btn chunk-flag-refresh-btn" title="Ask refresh" data-id="' + chunk.id + '">&#8635; Ask refresh</button>' +
                 '<span class="chunk-action-btn chunk-trust-label ' + trustClass(chunk.trust_score || 0) + '-text s-e08afbbb" data-tip="Confidence score (0-1) from reviews and votes">Trust: ' + (chunk.trust_score || 0).toFixed(2) + '</span>' +
                 '<a class="chunk-action-btn" href="./profile.html?id=' + (chunk.proposed_by || chunk.created_by) + '" class="s-8655f746">' + escapeHtml(chunk.proposed_by_name || 'Unknown') + ' &middot; ' + timeAgo(chunk.created_at) + '</a>' +
                 aiBtn +
@@ -476,12 +475,6 @@ var currentTopicId = null;
         });
       });
 
-      // Flag for refresh buttons
-      container.querySelectorAll('.chunk-flag-refresh-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          openRefreshFlagModal(this.dataset.id);
-        });
-      });
     }
 
     // Report modal logic
@@ -1568,22 +1561,55 @@ var currentTopicId = null;
     function addRefreshButton(bar) {
       getCurrentUser().then(function(user) {
         if (!user) return;
-        var btn = document.createElement('button');
-        btn.className = 'btn btn-sm btn-outline';
-        btn.style.marginLeft = 'auto';
-        btn.textContent = 'Refresh this article';
-        btn.addEventListener('click', function() { openRefreshModal(); });
-        bar.appendChild(btn);
+        var btnGroup = document.createElement('div');
+        btnGroup.style.marginLeft = 'auto';
+        btnGroup.style.display = 'flex';
+        btnGroup.style.gap = 'var(--space-sm)';
+
+        var askBtn = document.createElement('button');
+        askBtn.className = 'btn btn-sm btn-outline chunk-flag-refresh-btn';
+        askBtn.innerHTML = '&#8635; Ask refresh';
+        askBtn.addEventListener('click', function() { openRefreshFlagModal(); });
+        btnGroup.appendChild(askBtn);
+
+        var refreshBtn = document.createElement('button');
+        refreshBtn.className = 'btn btn-sm btn-outline';
+        refreshBtn.textContent = 'Refresh this article';
+        refreshBtn.addEventListener('click', function() { openRefreshModal(); });
+        btnGroup.appendChild(refreshBtn);
+
+        bar.appendChild(btnGroup);
       });
     }
 
-    function openRefreshFlagModal(chunkId) {
-      getCurrentUser().then(function(user) {
-        if (!user) { alert('You must be logged in to flag content.'); return; }
-        document.getElementById('refresh-flag-chunk-id').value = chunkId;
+    function openRefreshFlagModal() {
+      getCurrentUser().then(async function(user) {
+        if (!user) { alert('You must be logged in to request a refresh.'); return; }
         document.getElementById('refresh-flag-reason').value = '';
         document.getElementById('refresh-flag-error').innerHTML = '';
         document.getElementById('refresh-flag-success').innerHTML = '';
+
+        // Build chunk selector
+        var selectorEl = document.getElementById('refresh-flag-chunk-selector');
+        if (selectorEl) {
+          try {
+            var res = await API.get('/topics/' + currentTopicId);
+            var chunks = ((res.data || res).chunks || []).filter(function(c) { return !c.article_summary && !c.discussion_summary; });
+            if (chunks.length > 0) {
+              selectorEl.innerHTML = '<label class="text-sm text-muted">Which chunk(s) need attention? (optional)</label>' +
+                chunks.map(function(c) {
+                  var preview = (c.content || '').substring(0, 80);
+                  return '<label class="refresh-flag-chunk-option"><input type="checkbox" value="' + c.id + '"> ' + escapeHtml(preview) + (c.content.length > 80 ? '...' : '') + '</label>';
+                }).join('');
+              selectorEl.style.display = 'block';
+            } else {
+              selectorEl.style.display = 'none';
+            }
+          } catch (e) {
+            selectorEl.style.display = 'none';
+          }
+        }
+
         document.getElementById('refresh-flag-modal').classList.add('active');
       });
     }
@@ -1601,20 +1627,49 @@ var currentTopicId = null;
 
       document.getElementById('refresh-flag-form').addEventListener('submit', async function(e) {
         e.preventDefault();
-        var chunkId = document.getElementById('refresh-flag-chunk-id').value;
         var reason = document.getElementById('refresh-flag-reason').value.trim();
         if (reason.length < 5) { document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">Reason must be at least 5 characters.</div>'; return; }
 
+        // Get selected chunks (or all if none selected)
+        var selectorEl = document.getElementById('refresh-flag-chunk-selector');
+        var selectedChunks = [];
+        if (selectorEl) {
+          selectorEl.querySelectorAll('input[type="checkbox"]:checked').forEach(function(cb) {
+            selectedChunks.push(cb.value);
+          });
+        }
+
+        // If no chunks selected, flag all published chunks
+        if (selectedChunks.length === 0) {
+          try {
+            var topicRes = await API.get('/topics/' + currentTopicId);
+            var allChunks = ((topicRes.data || topicRes).chunks || []).filter(function(c) { return !c.article_summary && !c.discussion_summary; });
+            selectedChunks = allChunks.map(function(c) { return c.id; });
+          } catch (err) {
+            document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">Failed to load article chunks.</div>';
+            return;
+          }
+        }
+
+        if (selectedChunks.length === 0) {
+          document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">No chunks found to flag.</div>';
+          return;
+        }
+
         try {
-          var res = await API.post('/chunks/' + chunkId + '/refresh-flag', { reason: reason });
-          if (res.status === 201) {
-            document.getElementById('refresh-flag-success').innerHTML = '<div class="alert alert-success">Chunk flagged for refresh.</div>';
+          var errors = 0;
+          for (var i = 0; i < selectedChunks.length; i++) {
+            var res = await API.post('/chunks/' + selectedChunks[i] + '/refresh-flag', { reason: reason });
+            if (res.status !== 201) errors++;
+          }
+          if (errors === 0) {
+            document.getElementById('refresh-flag-success').innerHTML = '<div class="alert alert-success">Refresh requested (' + selectedChunks.length + ' chunk' + (selectedChunks.length > 1 ? 's' : '') + ' flagged).</div>';
             setTimeout(function() { flagModal.classList.remove('active'); location.reload(); }, 1200);
           } else {
-            document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">' + escapeHtml((res.data && res.data.error) ? res.data.error.message : 'Failed to flag') + '</div>';
+            document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">' + errors + ' flag(s) failed.</div>';
           }
         } catch (err) {
-          document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">Failed to submit flag.</div>';
+          document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">Failed to submit refresh request.</div>';
         }
       });
 
