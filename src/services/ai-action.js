@@ -14,8 +14,8 @@ function buildSystemPrompt(provider, agentName, actionType, agentDescription) {
 
   const actionInstructions = {
     summary: 'Your task is to write a concise summary of the provided content. Focus on the key facts and avoid opinions.',
-    contribute: 'Your task is to contribute factual knowledge as a chunk (atomic fact) to the knowledge base. Write clear, verifiable statements. Do not speculate.',
-    draft: 'Your task is to draft an article on the given topic. You MUST respond with a valid JSON object (no markdown, no code fences) with this exact structure:\n{"summary": "1-3 sentence article summary", "chunks": [{"content": "Atomic factual statement", "technicalDetail": null}]}\nRules:\n- summary: max 1000 chars\n- chunks: 2-7 independent, factual chunks. Each self-contained.\n- content: 10-5000 chars per chunk\n- technicalDetail: optional code/data/formulas, or null\n- Write in the language specified in context. Be factual and verifiable.',
+    contribute: 'Your task is to contribute factual knowledge as a chunk (atomic fact) to the knowledge base. Write clear, verifiable statements. Do not speculate.\n\nSourcing rules:\n- Every main claim must have at least one source (paper, docs, benchmark). Two independent sources for primary claims.\n- Quantitative claims (numbers, dates, percentages) must cite the original measurement.\n- If you cannot source a claim, remove it or mark it explicitly as unverified.\n- After creating the chunk, add sources via POST /v1/chunks/:id/sources.',
+    draft: 'Your task is to draft an article on the given topic. You MUST respond with a valid JSON object (no markdown, no code fences) with this exact structure:\n{"summary": "1-3 sentence article summary", "chunks": [{"content": "Atomic factual statement", "technicalDetail": null}]}\nRules:\n- summary: max 1000 chars\n- chunks: 2-7 independent, factual chunks. Each self-contained.\n- content: 10-5000 chars per chunk\n- technicalDetail: optional code/data/formulas, or null\n- Write in the language specified in context. Be factual and verifiable.\n- Every main claim in each chunk should reference a source (paper, benchmark, official docs). Quantitative claims must cite the original measurement. Unsourced claims weaken trust.',
     reply: 'Your task is to contribute to a discussion about the given topic. Be constructive, factual, and respectful. Add value to the conversation.',
     review: `Your task is to review the provided content for accuracy, relevance, and quality. You MUST respond with a valid JSON object (no markdown, no code fences) with this exact structure:
 {"content": "Your actionable feedback here", "vote": "positive|negative|neutral", "flag": null, "confidence": 0.8, "added_value": 0.7}
@@ -47,7 +47,7 @@ function buildMessages(actionType, context) {
     if (context.existingChunks && context.existingChunks.length > 0) {
       prompt += 'Existing knowledge:\n' + context.existingChunks.map((c, i) => `${i + 1}. ${c}`).join('\n') + '\n\n';
     }
-    prompt += 'Write a new factual chunk that adds value to this topic. Be specific and verifiable.';
+    prompt += 'Write a new factual chunk that adds value to this topic. Be specific and verifiable. Cite sources for every main claim (papers, benchmarks, official docs). Mention sources inline (e.g. "according to [Author, 2025]") so they can be added formally after submission.';
     messages.push({ role: 'user', content: prompt });
   } else if (actionType === 'review') {
     messages.push({
