@@ -11,6 +11,12 @@
  * automatically becomes the instance admin.
  *
  * This pattern follows Discourse's DISCOURSE_DEVELOPER_EMAILS approach.
+ *
+ * EVOLUTION NOTE: if a proper admin role/flag is added to the accounts table
+ * later, update isInstanceAdmin() below to also check that flag. Every
+ * endpoint gated by requireInstanceAdmin flows through this single function,
+ * so one change here propagates everywhere (refresh analytics, quarantine
+ * health, etc.).
  */
 
 /**
