@@ -9,6 +9,7 @@ const chunkService = require('../services/chunk');
 const auth = require('../middleware/auth');
 const { authenticatedLimiter, publicLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
+const { requireInstanceAdmin } = require('../middleware/instance-admin');
 const { requireTier } = require('../middleware/tier-gate');
 const { validationError, notFoundError, forbiddenError } = require('../utils/http-errors');
 const { parsePagination } = require('../utils/pagination');
@@ -16,6 +17,7 @@ const { VALID_LANGS } = require('../config/constants');
 const { REJECTION_CATEGORIES, REJECTION_SUGGESTIONS_MAX_LENGTH, BULK_MAX_CHUNKS } = require('../config/protocol');
 const { getPool } = require('../config/database');
 const { OBJECTION_REASON_TAGS } = require('../config/protocol');
+const { checkBackpressure, getQuarantineQueueStats, resetCircuitBreaker } = require('../services/quarantine-validator');
 
 const router = Router();
 
@@ -137,6 +139,15 @@ router.post(
         if (c.sources && !Array.isArray(c.sources)) {
           return validationError(res, `chunks[${i}].sources must be an array`);
         }
+      }
+
+      // QuarantineValidator backpressure check
+      const bp = await checkBackpressure();
+      if (bp.blocked) {
+        return res.status(503).json({
+          error: { code: 'SERVICE_UNAVAILABLE', message: bp.error },
+          retry_after: bp.retryAfter,
+        });
       }
 
       const result = await topicService.createTopicFull({
@@ -390,6 +401,15 @@ router.post(
         if (!adhp.version || typeof adhp.version !== 'string') {
           return validationError(res, 'adhp.version is required and must be a string');
         }
+      }
+
+      // QuarantineValidator backpressure check
+      const bpChunk = await checkBackpressure();
+      if (bpChunk.blocked) {
+        return res.status(503).json({
+          error: { code: 'SERVICE_UNAVAILABLE', message: bpChunk.error },
+          retry_after: bpChunk.retryAfter,
+        });
       }
 
       const topic = await topicService.getTopicById(req.params.id);
@@ -968,6 +988,105 @@ router.post(
     } catch (err) {
       console.error('Error creating topic request:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create topic request' } });
+    }
+  }
+);
+
+// --- QuarantineValidator endpoints (instance admin only) ---
+// Health and ops surface for the instance operator. Not exposed to community
+// moderators (policing badge) -- the validator queue is internal and they
+// can't act on it. Their work is the human review queue, which is separate.
+
+/**
+ * GET /quarantine-validator/health
+ * Returns the operational health of the QuarantineValidator subsystem.
+ * status: 'ok' | 'warning' | 'critical'
+ *  - critical: validator not configured (no API key)
+ *  - warning: configured but degraded (circuit breaker open, daily budget
+ *    exhausted, or queue more than 50% full)
+ *  - ok: configured and healthy
+ */
+router.get(
+  '/quarantine-validator/health',
+  auth.authenticateRequired,
+  requireInstanceAdmin,
+  async (_req, res) => {
+    try {
+      const stats = await getQuarantineQueueStats();
+      const issues = [];
+
+      if (!stats.configured) {
+        issues.push({
+          code: 'not_configured',
+          severity: 'critical',
+          message: 'QUARANTINE_VALIDATOR_API_KEY not set. User content is not sandboxed.',
+        });
+      } else {
+        if (stats.circuitBreakerOpen) {
+          issues.push({
+            code: 'circuit_breaker_open',
+            severity: 'warning',
+            message: 'Circuit breaker open. Submissions are temporarily blocked.',
+          });
+        }
+        if (stats.dailyTokensUsed >= stats.dailyTokensBudget) {
+          issues.push({
+            code: 'budget_exhausted',
+            severity: 'warning',
+            message: 'Daily token budget exhausted. Validator paused until tomorrow.',
+          });
+        }
+        const pendingCount = parseInt(stats.queue.pending, 10);
+        // Re-import the threshold from env (default 100, default warning at 50%)
+        const maxQueue = parseInt(process.env.QUARANTINE_VALIDATOR_MAX_QUEUE_SIZE || '100', 10);
+        if (pendingCount > maxQueue / 2) {
+          issues.push({
+            code: 'queue_filling',
+            severity: 'warning',
+            message: `Queue is ${Math.round((pendingCount / maxQueue) * 100)}% full (${pendingCount}/${maxQueue}). Submissions may be rate-limited soon.`,
+          });
+        }
+      }
+
+      const hasCritical = issues.some(i => i.severity === 'critical');
+      const hasWarning = issues.some(i => i.severity === 'warning');
+      const status = hasCritical ? 'critical' : hasWarning ? 'warning' : 'ok';
+
+      return res.json({
+        data: {
+          status,
+          issues,
+          stats: {
+            configured: stats.configured,
+            circuitBreakerOpen: stats.circuitBreakerOpen,
+            dailyTokensUsed: stats.dailyTokensUsed,
+            dailyTokensBudget: stats.dailyTokensBudget,
+            queue: stats.queue,
+          },
+        },
+      });
+    } catch (err) {
+      console.error('QuarantineValidator health error:', err.message);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get quarantine validator health' } });
+    }
+  }
+);
+
+/**
+ * POST /quarantine-validator/reset-circuit-breaker
+ * Manual circuit breaker reset by the instance admin.
+ */
+router.post(
+  '/quarantine-validator/reset-circuit-breaker',
+  auth.authenticateRequired,
+  requireInstanceAdmin,
+  async (_req, res) => {
+    try {
+      resetCircuitBreaker();
+      return res.json({ message: 'Circuit breaker reset' });
+    } catch (err) {
+      console.error('QuarantineValidator reset error:', err.message);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to reset circuit breaker' } });
     }
   }
 );

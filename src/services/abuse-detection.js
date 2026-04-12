@@ -106,6 +106,84 @@ async function checkNetworkClustering() {
   return [];
 }
 
+// ─── S5 Sybil helpers ────────────────────────────────────────────────
+//
+// Real-but-conservative helpers backing the existing checkCreatorClustering
+// stub. Designed to be called from policing tools, future moderation UI, or
+// the worker when we want stronger Sybil signal.
+//
+// Why these are stubs (not enforcing): the heuristics are coarse and the
+// test stack only has a handful of accounts -- a real threshold needs tuning
+// against production traffic. The functions return data; downstream code
+// decides whether to flag.
+
+/**
+ * Returns true if the account is younger than `minDays`.
+ * Used by gating logic to delay sensitive actions for new accounts.
+ */
+async function isAccountTooYoung(accountId, minDays = 7) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT created_at < now() - ($2 || ' days')::interval AS old_enough
+     FROM accounts WHERE id = $1`,
+    [accountId, String(minDays)]
+  );
+  if (rows.length === 0) return true; // unknown account treated as too young
+  return rows[0].old_enough === false;
+}
+
+/**
+ * Returns the list of other accounts that share the same registration IP.
+ * Excludes the input account itself. Returns an empty array when:
+ *   - the account has no creator_ip recorded (legacy accounts pre-S5)
+ *   - no other account shares that IP
+ *
+ * This is the building block for getCreatorClusterSize and any future
+ * clustering logic. It is intentionally conservative: same-IP correlation
+ * has known false positives (NAT, university networks, ISP CGNAT) so the
+ * threshold for action must be tuned with operational data.
+ */
+async function getRelatedAccountsByIp(accountId) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT a2.id, a2.name, a2.created_at, a2.status
+     FROM accounts a1
+     JOIN accounts a2 ON a2.creator_ip = a1.creator_ip
+     WHERE a1.id = $1
+       AND a1.creator_ip IS NOT NULL
+       AND a2.id != a1.id
+     ORDER BY a2.created_at DESC`,
+    [accountId]
+  );
+  return rows;
+}
+
+/**
+ * Cluster size = number of OTHER accounts sharing this account's registration IP.
+ * Convenience wrapper around getRelatedAccountsByIp.
+ */
+async function getCreatorClusterSize(accountId) {
+  const related = await getRelatedAccountsByIp(accountId);
+  return related.length;
+}
+
+/**
+ * Detect creator cluster around an account. Returns { size, related }
+ * when the cluster is non-trivial (more than `threshold` other accounts),
+ * or null when below threshold.
+ *
+ * Default threshold is intentionally high (5) -- below that, false positives
+ * from NAT/CGNAT are too common to act on.
+ */
+async function detectCreatorCluster(accountId, threshold = 5) {
+  const related = await getRelatedAccountsByIp(accountId);
+  if (related.length < threshold) return null;
+  return {
+    size: related.length,
+    related: related.map(r => ({ id: r.id, name: r.name, createdAt: r.created_at, status: r.status })),
+  };
+}
+
 /**
  * Run all detection methods.
  */
@@ -133,4 +211,9 @@ module.exports = {
   checkCreatorClustering,
   checkNetworkClustering,
   runAllDetections,
+  // S5 Sybil helpers
+  isAccountTooYoung,
+  getRelatedAccountsByIp,
+  getCreatorClusterSize,
+  detectCreatorCluster,
 };

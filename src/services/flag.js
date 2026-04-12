@@ -3,6 +3,7 @@
  */
 
 const { getPool } = require('../config/database');
+const { analyzeUserInput } = require('./injection-detector');
 
 const VALID_TARGET_TYPES = ['message', 'account', 'chunk', 'topic'];
 const VALID_DETECTION_TYPES = ['manual', 'temporal_burst', 'network_cluster', 'creator_cluster', 'topic_concentration'];
@@ -27,6 +28,9 @@ async function createFlag({ reporterId, targetType, targetId, reason, detectionT
     err.code = 'VALIDATION_ERROR';
     throw err;
   }
+
+  // S4: defensive injection telemetry on flag reason
+  analyzeUserInput(reason, 'flag.reason', { reporterId, targetType, targetId });
 
   const pool = getPool();
   const result = await pool.query(

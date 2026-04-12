@@ -121,10 +121,10 @@ async function updateNavbar() {
     if (user.type === 'human' && !user.parent_id && !user.parentId) {
       navItems.push('<a href="./new-article.html" class="nav-link nav-link-new">+ New Article</a>');
     }
-    navItems.push('<a href="./profile.html?id=' + user.id + '" style="color: var(--text-inverse);">' + escapeHtml(user.name) + '</a>');
-    navItems.push('<a href="./notifications.html" style="color: var(--text-inverse); position: relative;" title="Notifications" id="nav-notif-link">&#128276;<span id="notif-badge" style="display:none; position: absolute; top: -4px; right: -8px; background: var(--danger, #e53e3e); color: white; font-size: 10px; border-radius: 50%; width: 16px; height: 16px; text-align: center; line-height: 16px;"></span></a>');
-    navItems.push('<a href="./settings.html" style="color: var(--text-inverse);" title="Settings">&#9881;</a>');
-    navItems.push('<a href="#" id="logout-btn" style="color: var(--text-inverse);">Logout</a>');
+    navItems.push('<a href="./profile.html?id=' + user.id + '" class="s-4ae331d7">' + escapeHtml(user.name) + '</a>');
+    navItems.push('<a href="./notifications.html" class="s-27555b72" title="Notifications" id="nav-notif-link">&#128276;<span id="notif-badge" class="s-7d53cb0d"></span></a>');
+    navItems.push('<a href="./settings.html" class="s-4ae331d7" title="Settings">&#9881;</a>');
+    navItems.push('<a href="#" id="logout-btn" class="s-4ae331d7">Logout</a>');
     actions.innerHTML = navItems.join('');
     checkNotifBadge();
     const logoutBtn = document.getElementById('logout-btn');
@@ -138,8 +138,8 @@ async function updateNavbar() {
     }
   } else {
     actions.innerHTML = [
-      '<a href="./register.html" class="btn btn-primary btn-sm" style="color: var(--text-inverse);">Sign up</a>',
-      '<a href="./login.html" style="color: var(--text-inverse);">Login</a>',
+      '<a href="./register.html" class="btn btn-primary btn-sm s-4ae331d7">Sign up</a>',
+      '<a href="./login.html" class="s-4ae331d7">Login</a>',
     ].join(' ');
   }
 
@@ -154,6 +154,9 @@ async function updateNavbar() {
   });
 
   initHamburger();
+
+  // Instance admin health banner — only triggers polling if user is the admin
+  setupAdminHealthBanner();
 }
 
 /**
@@ -217,7 +220,7 @@ function renderContent(str, status) {
   } else {
     // Non-published: show placeholder instead of rendering image
     escaped = escaped.replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, function(_, alt) {
-      return '<span class="badge" style="background:var(--surface-secondary);">[Image: ' + (alt || 'pending review') + ']</span>';
+      return '<span class="badge s-589db7cd">[Image: ' + (alt || 'pending review') + ']</span>';
     });
   }
   // Convert internal links: [[slug]] or [[slug|display text]]
@@ -278,6 +281,60 @@ function getParam(name) {
  */
 function showAlert(container, type, message) {
   container.innerHTML = '<div class="alert alert-' + type + '">' + escapeHtml(message) + '</div>';
+}
+
+/**
+ * QuarantineValidator health banner — instance admin only.
+ *
+ * Visibility:
+ * - Only the user matching INSTANCE_ADMIN_EMAIL gets `is_instance_admin: true`
+ *   on /accounts/me. The polling is gated on that flag.
+ * - Non-admin users never trigger the polling (no GET /quarantine-validator/health
+ *   request from their browser, no banner DOM injected).
+ * - The endpoint itself is also gated server-side (requireInstanceAdmin) -- so
+ *   even a manual fetch from a non-admin returns 403.
+ *
+ * Polling interval: 60s. Status critical/warning shows the banner; ok hides it.
+ */
+function setupAdminHealthBanner() {
+  getCurrentUser().then(function(user) {
+    if (!user || !user.is_instance_admin) return;
+
+    // Inject banner element once
+    var banner = document.createElement('div');
+    banner.id = 'admin-health-banner';
+    banner.style.cssText = 'display:none;position:sticky;top:0;left:0;right:0;z-index:9999;padding:8px 16px;font-family:system-ui,sans-serif;font-size:14px;font-weight:500;text-align:center;border-bottom:2px solid;';
+    banner.setAttribute('role', 'status');
+    document.body.insertBefore(banner, document.body.firstChild);
+
+    function poll() {
+      API.get('/quarantine-validator/health').then(function(result) {
+        if (result.status !== 200 || !result.data) {
+          banner.style.display = 'none';
+          return;
+        }
+        var health = result.data;
+        if (health.status === 'ok') {
+          banner.style.display = 'none';
+          return;
+        }
+        var color = health.status === 'critical'
+          ? { bg: '#fee2e2', fg: '#991b1b', border: '#dc2626' }
+          : { bg: '#fef3c7', fg: '#92400e', border: '#d97706' };
+        banner.style.background = color.bg;
+        banner.style.color = color.fg;
+        banner.style.borderColor = color.border;
+        var msgs = (health.issues || []).map(function(i) { return i.message; }).join(' | ');
+        banner.textContent = '⚠ Instance health: ' + msgs;
+        banner.style.display = 'block';
+      }).catch(function() {
+        // Silent on transient errors -- keep last state
+      });
+    }
+
+    poll();
+    setInterval(poll, 60000);
+  });
 }
 
 /**

@@ -17,6 +17,36 @@ const { requireAccount, requireTier, mcpResult, mcpError } = require('../helpers
 
 const CATEGORY = 'core';
 
+/**
+ * S2: Build a trust metadata block for a chunk-like object exposed via MCP.
+ *
+ * Why this exists: every text field returned by these tools is consumed by
+ * downstream LLMs. The metadata tells the consuming agent (1) how the content
+ * has been validated by AIngram's pipelines and (2) that it is user-generated
+ * (so the LLM should treat it as data, not as instructions).
+ *
+ * Fields:
+ * - trust_score: community-derived trust (0-1), already a first-class signal
+ * - quarantine_status: pipeline state from QuarantineValidator
+ *   ('cleared'/'quarantined'/'blocked'/null when never inspected)
+ * - is_user_generated: always true for chunks; the field is explicit so the
+ *   consumer cannot mistake the content for system-authored
+ * - validated_by: name of the validator that cleared the content (or null)
+ *
+ * The block is added alongside existing fields (not as a replacement) to
+ * preserve backward compatibility with agents that already consume trustScore.
+ */
+function trustMetadata(chunkRow) {
+  if (!chunkRow) return null;
+  const status = chunkRow.quarantine_status || null;
+  return {
+    trust_score: chunkRow.trust_score ?? null,
+    quarantine_status: status,
+    is_user_generated: true,
+    validated_by: status === 'cleared' ? 'quarantine_validator' : null,
+  };
+}
+
 function registerTools(server, getSessionAccount) {
   const tools = {};
 
@@ -43,13 +73,14 @@ function registerTools(server, getSessionAccount) {
           const pool = getPool();
           const { rows } = await pool.query(
             `SELECT * FROM (
-               SELECT DISTINCT ON (c.id) c.id, c.content, c.trust_score, c.status,
+               SELECT DISTINCT ON (c.id) c.id, c.content, c.trust_score, c.status, c.quarantine_status,
                       t.title AS topic_title, t.slug AS topic_slug,
                       ts_rank(to_tsvector('english', c.content), plainto_tsquery('english', $1)) AS rank
                FROM chunks c
                JOIN chunk_topics ct ON ct.chunk_id = c.id
                JOIN topics t ON t.id = ct.topic_id
                WHERE c.status = 'published' AND c.hidden = false
+                 AND (c.quarantine_status IS NULL OR c.quarantine_status = 'cleared')
                  AND to_tsvector('english', c.content) @@ plainto_tsquery('english', $1)
                ORDER BY c.id, c.trust_score DESC
              ) sub ORDER BY sub.rank DESC, sub.trust_score DESC
@@ -68,6 +99,7 @@ function registerTools(server, getSessionAccount) {
             topicSlug: r.topic_slug,
             similarity: r.similarity,
             status: r.status,
+            trustMetadata: trustMetadata(r),
           })),
           total: (results || []).length,
         });
@@ -121,6 +153,7 @@ function registerTools(server, getSessionAccount) {
             version: c.version,
             title: c.title,
             subtitle: c.subtitle,
+            trustMetadata: trustMetadata(c),
           })),
           totalChunks: chunks.pagination.total,
           proposedCount: proposed.pagination.total,
@@ -157,6 +190,7 @@ function registerTools(server, getSessionAccount) {
           createdBy: chunk.created_by,
           createdAt: chunk.created_at,
           sources: chunk.sources || [],
+          trustMetadata: trustMetadata(chunk),
         });
       } catch (err) {
         return mcpError(err);
@@ -211,6 +245,16 @@ function registerTools(server, getSessionAccount) {
             targetContent: op.target_content,
             targetTitle: op.target_title,
             targetSubtitle: op.target_subtitle,
+            // S2: changeset operations carry user-generated text -- always flag it.
+            // quarantine_status is on the chunk row, not on the operation row, so
+            // it's not exposed here; consumers should follow chunkId to get_chunk
+            // for the full validation state.
+            trustMetadata: {
+              is_user_generated: true,
+              quarantine_status: null,
+              validated_by: null,
+              note: 'fetch get_chunk(chunkId) for full quarantine status',
+            },
           })),
         });
       } catch (err) {
@@ -640,4 +684,4 @@ function registerTools(server, getSessionAccount) {
   return tools;
 }
 
-module.exports = { CATEGORY, registerTools };
+module.exports = { CATEGORY, registerTools, trustMetadata };

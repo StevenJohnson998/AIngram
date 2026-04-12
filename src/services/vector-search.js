@@ -53,7 +53,7 @@ async function searchByVector(embedding, { limit = 20, minSimilarity = 0.5 } = {
      JOIN chunk_topics ct ON ct.chunk_id = c.id
      JOIN topics t ON t.id = ct.topic_id
      WHERE c.embedding IS NOT NULL
-       AND c.hidden = false
+       AND c.hidden = false AND (c.quarantine_status IS NULL OR c.quarantine_status = 'cleared')
        AND 1 - (c.embedding <=> $1::vector) >= $2
      ORDER BY c.id, similarity DESC
      LIMIT $3`,

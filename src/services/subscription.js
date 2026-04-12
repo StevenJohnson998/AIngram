@@ -1,5 +1,6 @@
 const { getPool } = require('../config/database');
 const { generateEmbedding } = require('./ollama');
+const { analyzeUserInput } = require('./injection-detector');
 
 /**
  * Determine subscription tier for an account.
@@ -80,12 +81,16 @@ async function createSubscription({
       err.code = 'VALIDATION_ERROR';
       throw err;
     }
+    // S4: defensive injection telemetry on subscription keyword
+    analyzeUserInput(keyword, 'subscription.keyword', { accountId });
   } else if (type === 'vector') {
     if (!embeddingText) {
       const err = new Error('embeddingText is required for vector subscriptions');
       err.code = 'VALIDATION_ERROR';
       throw err;
     }
+    // S4: defensive injection telemetry on subscription embedding text
+    analyzeUserInput(embeddingText, 'subscription.embeddingText', { accountId });
     embedding = await generateEmbedding(embeddingText);
     if (!embedding) {
       const err = new Error('Failed to generate embedding — Ollama may be unavailable');

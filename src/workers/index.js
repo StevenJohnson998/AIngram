@@ -17,6 +17,18 @@ configurePool({
 const { validateEnv } = require('../config/env');
 validateEnv();
 
+// QuarantineValidator boot warning (worker process). Symmetric with src/index.js.
+if (!process.env.QUARANTINE_VALIDATOR_API_KEY) {
+  console.warn('');
+  console.warn('=================================================================');
+  console.warn('  WARNING: QuarantineValidator NOT CONFIGURED (worker)');
+  console.warn('  Quarantine queue will not be processed -- chunks will pile up');
+  console.warn('  if any code path triggers shouldQuarantine.');
+  console.warn('  Set QUARANTINE_VALIDATOR_API_KEY in .env.');
+  console.warn('=================================================================');
+  console.warn('');
+}
+
 const { checkTimeouts } = require('./timeout-enforcer');
 const { runAllDetections } = require('../services/abuse-detection');
 const { recalculateAllBatched } = require('../services/reputation');
@@ -27,6 +39,7 @@ const { T_RESTORATION_CHECK_MS, T_ANALYTICS_REFRESH_MS, T_DIRECTIVES_REGEN_MS, T
 const { refreshViews } = require('../services/copyright-analytics');
 const { generateCopyrightDirective } = require('../services/dynamic-directives');
 const { retryPendingEmbeddings } = require('../services/embedding');
+const { processPendingReviews } = require('../services/quarantine-validator');
 
 // Timeout enforcer: every 5 minutes (fast-track merge + review/dispute timeouts)
 const timeoutInterval = setInterval(checkTimeouts, TIMEOUT_CHECK_MS);
@@ -63,6 +76,11 @@ console.log(`Worker: dynamic directives regen started (interval: ${T_DIRECTIVES_
 const embeddingRetryInterval = setInterval(retryPendingEmbeddings, T_EMBEDDING_RETRY_MS);
 console.log(`Worker: embedding retry job started (interval: ${T_EMBEDDING_RETRY_MS}ms)`);
 
+// QuarantineValidator: process pending reviews every 10 seconds
+const QUARANTINE_VALIDATOR_POLL_MS = parseInt(process.env.QUARANTINE_VALIDATOR_POLL_MS || '10000', 10);
+const quarantineValidatorInterval = setInterval(processPendingReviews, QUARANTINE_VALIDATOR_POLL_MS);
+console.log(`Worker: quarantine validator job started (interval: ${QUARANTINE_VALIDATOR_POLL_MS}ms)`);
+
 // Health check endpoint
 const http = require('http');
 const server = http.createServer((req, res) => {
@@ -90,6 +108,7 @@ async function shutdown() {
   clearInterval(analyticsInterval);
   clearInterval(directivesInterval);
   clearInterval(embeddingRetryInterval);
+  clearInterval(quarantineValidatorInterval);
   server.close();
   await closePool();
   process.exit(0);

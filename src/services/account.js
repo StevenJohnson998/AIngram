@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { getPool } = require('../config/database');
 const { generateToken, hashToken } = require('../utils/tokens');
 const emailService = require('./email');
+const { analyzeUserInput } = require('./injection-detector');
 
 const BCRYPT_PASSWORD_ROUNDS = 12;
 const BCRYPT_APIKEY_ROUNDS = 10;
@@ -33,8 +34,11 @@ function parseApiKey(bearerToken) {
  * Create a new account with hashed password and API key.
  * Returns { account, apiKey } where apiKey is the plaintext key (shown once).
  */
-async function createAccount({ name, type, ownerEmail, password, termsVersionAccepted }) {
+async function createAccount({ name, type, ownerEmail, password, termsVersionAccepted, creatorIp = null, registrationUserAgent = null }) {
   const pool = getPool();
+
+  // S4: defensive injection telemetry on account name (no quarantine, just log)
+  analyzeUserInput(name, 'account.name', { ownerEmail });
 
   // Check for existing root account with same email
   const existing = await pool.query(
@@ -63,11 +67,14 @@ async function createAccount({ name, type, ownerEmail, password, termsVersionAcc
   const confirmTokenHash = hashToken(confirmToken);
   const confirmTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
+  // S5: capture registration metadata for Sybil detection (truncate UA to fit)
+  const truncatedUa = registrationUserAgent ? String(registrationUserAgent).slice(0, 500) : null;
+
   const result = await pool.query(
-    `INSERT INTO accounts (name, type, owner_email, password_hash, api_key_hash, api_key_prefix, api_key_last4, account_expires_at, email_confirm_token_hash, email_confirm_token_expires, terms_accepted_at, terms_version_accepted, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11, 'active')
+    `INSERT INTO accounts (name, type, owner_email, password_hash, api_key_hash, api_key_prefix, api_key_last4, account_expires_at, email_confirm_token_hash, email_confirm_token_expires, terms_accepted_at, terms_version_accepted, status, creator_ip, registration_user_agent)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11, 'active', $12, $13)
      RETURNING id, name, type, owner_email, status, api_key_last4, email_confirmed, created_at`,
-    [name, type, ownerEmail, passwordHash, apiKeyHash, prefix, apiKeyLast4, expiresAt, confirmTokenHash, confirmTokenExpires, termsVersionAccepted]
+    [name, type, ownerEmail, passwordHash, apiKeyHash, prefix, apiKeyLast4, expiresAt, confirmTokenHash, confirmTokenExpires, termsVersionAccepted, creatorIp, truncatedUa]
   );
 
   // Send confirmation email (fire-and-forget)
@@ -353,6 +360,10 @@ function toSafeAccount(account) {
 async function createSubAccount({ name, parentId, generateKey = true, autonomous = true, providerId = null, description = null }) {
   const pool = getPool();
 
+  // S4: defensive injection telemetry on agent name + description
+  analyzeUserInput(name, 'subaccount.name', { parentId });
+  if (description) analyzeUserInput(description, 'subaccount.description', { parentId });
+
   // Verify parent is a root human account
   const parent = await findById(parentId);
   if (!parent) {
@@ -496,6 +507,8 @@ async function updateSubAccount(subAccountId, parentId, { name, providerId, desc
       err.code = 'VALIDATION_ERROR';
       throw err;
     }
+    // S4: defensive injection telemetry
+    analyzeUserInput(name, 'subaccount.name.update', { subAccountId, parentId });
     fields.push(`name = $${idx++}`);
     values.push(name);
   }
@@ -512,6 +525,8 @@ async function updateSubAccount(subAccountId, parentId, { name, providerId, desc
       err.code = 'VALIDATION_ERROR';
       throw err;
     }
+    // S4: defensive injection telemetry
+    if (description) analyzeUserInput(description, 'subaccount.description.update', { subAccountId, parentId });
     fields.push(`description = $${idx++}`);
     values.push(description || null);
   }

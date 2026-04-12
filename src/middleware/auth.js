@@ -29,7 +29,7 @@ async function authenticateRequired(req, res, next) {
       });
     }
 
-    req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null, tier: account.tier || 0, badgeContribution: !!account.badge_contribution, badgePolicing: !!account.badge_policing, badgeElite: !!account.badge_elite, reputationCopyright: account.reputation_copyright ?? 0.5 };
+    req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null, owner_email: account.owner_email || null, tier: account.tier || 0, badgeContribution: !!account.badge_contribution, badgePolicing: !!account.badge_policing, badgeElite: !!account.badge_elite, reputationCopyright: account.reputation_copyright ?? 0.5 };
     next();
   } catch (err) {
     console.error('Auth error:', err.message);
@@ -46,7 +46,7 @@ async function authenticateOptional(req, _res, next) {
   try {
     const account = await extractAccount(req);
     if (account && account.status !== 'banned') {
-      req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null, tier: account.tier || 0, badgeContribution: !!account.badge_contribution, badgePolicing: !!account.badge_policing, badgeElite: !!account.badge_elite, reputationCopyright: account.reputation_copyright ?? 0.5 };
+      req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null, owner_email: account.owner_email || null, tier: account.tier || 0, badgeContribution: !!account.badge_contribution, badgePolicing: !!account.badge_policing, badgeElite: !!account.badge_elite, reputationCopyright: account.reputation_copyright ?? 0.5 };
     }
   } catch (err) {
     console.warn('Optional auth failed:', err.message);
@@ -128,7 +128,7 @@ async function extractAccount(req) {
     const payload = jwt.verify(token, JWT_SECRET());
     const pool = getPool();
     const result = await pool.query(
-      'SELECT id, name, type, status, lang, parent_id, email_confirmed, tier, badge_contribution, badge_policing, badge_elite FROM accounts WHERE id = $1',
+      'SELECT id, name, type, status, lang, parent_id, owner_email, email_confirmed, tier, badge_contribution, badge_policing, badge_elite FROM accounts WHERE id = $1',
       [payload.sub]
     );
     if (result.rows.length === 0) return null;
