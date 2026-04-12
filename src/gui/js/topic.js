@@ -1553,6 +1553,24 @@ var currentTopicId = null;
           bar.innerHTML = 'Never refreshed';
           addRefreshButton(bar);
         }
+        // Show/update the "Ask refresh" button next to Subscribe
+        var askBtn = document.getElementById('ask-refresh-btn');
+        if (askBtn) {
+          var currentUser = await getCurrentUser();
+          if (currentUser) {
+            if (topic.to_be_refreshed && flagCount > 0) {
+              askBtn.innerHTML = '&#10003; Refresh asked';
+              askBtn.disabled = true;
+              askBtn.classList.add('btn-disabled');
+            } else {
+              askBtn.innerHTML = '&#8635; Ask refresh';
+              askBtn.disabled = false;
+              askBtn.classList.remove('btn-disabled');
+              askBtn.addEventListener('click', function() { openRefreshFlagModal(); });
+            }
+            askBtn.style.display = '';
+          }
+        }
       } catch (e) {
         // Non-critical, silently fail
       }
@@ -1561,24 +1579,12 @@ var currentTopicId = null;
     function addRefreshButton(bar) {
       getCurrentUser().then(function(user) {
         if (!user) return;
-        var btnGroup = document.createElement('div');
-        btnGroup.style.marginLeft = 'auto';
-        btnGroup.style.display = 'flex';
-        btnGroup.style.gap = 'var(--space-sm)';
-
-        var askBtn = document.createElement('button');
-        askBtn.className = 'btn btn-sm btn-outline chunk-flag-refresh-btn';
-        askBtn.innerHTML = '&#8635; Ask refresh';
-        askBtn.addEventListener('click', function() { openRefreshFlagModal(); });
-        btnGroup.appendChild(askBtn);
-
-        var refreshBtn = document.createElement('button');
-        refreshBtn.className = 'btn btn-sm btn-outline';
-        refreshBtn.textContent = 'Refresh this article';
-        refreshBtn.addEventListener('click', function() { openRefreshModal(); });
-        btnGroup.appendChild(refreshBtn);
-
-        bar.appendChild(btnGroup);
+        var btn = document.createElement('button');
+        btn.className = 'btn btn-sm btn-outline';
+        btn.style.marginLeft = 'auto';
+        btn.textContent = 'Refresh this article';
+        btn.addEventListener('click', function() { openRefreshModal(); });
+        bar.appendChild(btn);
       });
     }
 
@@ -1610,7 +1616,7 @@ var currentTopicId = null;
           }
         }
 
-        document.getElementById('refresh-flag-modal').classList.add('active');
+        document.getElementById('refresh-flag-modal').style.display = 'flex';
       });
     }
 
@@ -1619,10 +1625,10 @@ var currentTopicId = null;
       var flagModal = document.getElementById('refresh-flag-modal');
       if (!flagModal) return;
       document.getElementById('flag-modal-close').addEventListener('click', function() {
-        flagModal.classList.remove('active');
+        flagModal.style.display = 'none';
       });
       flagModal.addEventListener('click', function(e) {
-        if (e.target === flagModal) flagModal.classList.remove('active');
+        if (e.target === flagModal) flagModal.style.display = 'none';
       });
 
       document.getElementById('refresh-flag-form').addEventListener('submit', async function(e) {
@@ -1664,7 +1670,10 @@ var currentTopicId = null;
           }
           if (errors === 0) {
             document.getElementById('refresh-flag-success').innerHTML = '<div class="alert alert-success">Refresh requested (' + selectedChunks.length + ' chunk' + (selectedChunks.length > 1 ? 's' : '') + ' flagged).</div>';
-            setTimeout(function() { flagModal.classList.remove('active'); location.reload(); }, 1200);
+            // Update button state immediately
+            var askBtn2 = document.getElementById('ask-refresh-btn');
+            if (askBtn2) { askBtn2.innerHTML = '&#10003; Refresh asked'; askBtn2.disabled = true; askBtn2.classList.add('btn-disabled'); }
+            setTimeout(function() { flagModal.style.display = 'none'; location.reload(); }, 1200);
           } else {
             document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">' + errors + ' flag(s) failed.</div>';
           }
@@ -1677,10 +1686,10 @@ var currentTopicId = null;
       var refreshModal = document.getElementById('refresh-modal');
       if (!refreshModal) return;
       document.getElementById('refresh-modal-close').addEventListener('click', function() {
-        refreshModal.classList.remove('active');
+        refreshModal.style.display = 'none';
       });
       refreshModal.addEventListener('click', function(e) {
-        if (e.target === refreshModal) refreshModal.classList.remove('active');
+        if (e.target === refreshModal) refreshModal.style.display = 'none';
       });
 
       document.getElementById('refresh-submit-btn').addEventListener('click', async function() {
@@ -1707,7 +1716,7 @@ var currentTopicId = null;
           });
           if (res.status === 200) {
             document.getElementById('refresh-success').innerHTML = '<div class="alert alert-success">Article refreshed successfully!</div>';
-            setTimeout(function() { refreshModal.classList.remove('active'); location.reload(); }, 1200);
+            setTimeout(function() { refreshModal.style.display = 'none'; location.reload(); }, 1200);
           } else {
             document.getElementById('refresh-error').innerHTML = '<div class="alert alert-warning">' + escapeHtml((res.data && res.data.error) ? res.data.error.message : 'Refresh failed') + '</div>';
           }
@@ -1760,5 +1769,5 @@ var currentTopicId = null;
         });
       });
 
-      refreshModal.classList.add('active');
+      refreshModal.style.display = 'flex';
     }
