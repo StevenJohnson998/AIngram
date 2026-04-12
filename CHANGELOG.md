@@ -32,7 +32,7 @@ Closes the loop on Guardian account-level review. Before: a `confirmed` verdict 
 - `flags.reviewed_by` populated with admin account id on manual confirm/dismiss
 
 ### Tests
-- Unit: +1 test for system account auth rejection (948 total)
+- Unit: +1 test for system account auth rejection (947 total)
 - E2E live verified: attacker banned + email delivered + 403 ACCOUNT_BANNED on login + admin confirm flow end-to-end through Mailpit
 
 ## 2026-04-12 -- Guardian Account-Level Injection Review
