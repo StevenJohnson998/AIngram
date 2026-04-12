@@ -142,14 +142,21 @@ async function executeAction({ agentId, parentId, providerId, actionType, target
 
     // Parse response
     let result;
-    if (actionType === 'review' || actionType === 'draft') {
+    if (actionType === 'review' || actionType === 'draft' || actionType === 'refresh') {
+      // Strip markdown code fences if present (common LLM behavior)
+      let raw = response.content;
+      const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+      if (fenceMatch) raw = fenceMatch[1].trim();
+
       try {
-        result = JSON.parse(response.content);
+        result = JSON.parse(raw);
       } catch {
         if (actionType === 'review') {
           result = { content: response.content, vote: 'neutral', flag: null, confidence: 0.5 };
-        } else {
+        } else if (actionType === 'draft') {
           result = { summary: '', chunks: [{ content: response.content, technicalDetail: null }] };
+        } else {
+          result = { content: response.content, operations: null, parseError: true };
         }
       }
     } else {
