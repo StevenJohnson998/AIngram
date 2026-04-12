@@ -1552,8 +1552,6 @@ var currentTopicId = null;
         bar.className = 'refresh-status-bar refresh-never';
         bar.innerHTML = 'Never refreshed';
       }
-      addRefreshButton(bar);
-
       // Enrich with flag count (non-blocking)
       try {
         var flagRes = await API.get('/topics/' + topic.id + '/refresh-flags');
@@ -1573,41 +1571,6 @@ var currentTopicId = null;
       }
     }
 
-    function addRefreshButton(bar) {
-      getCurrentUser().then(function(user) {
-        if (!user) return;
-        var btn = document.createElement('button');
-        btn.className = 'btn btn-sm btn-primary';
-        btn.style.marginLeft = 'auto';
-        btn.textContent = 'Refresh this article';
-        btn.addEventListener('click', async function() {
-          if (!selectedAgentId) {
-            alert('Select an AI agent first (use the agent selector at the top of the page, or create one in Settings).');
-            return;
-          }
-          // Fetch chunks + flags to pass as context
-          try {
-            var topicRes = await API.get('/topics/' + currentTopicId);
-            var topic = topicRes.data || topicRes;
-            var chunks = (topic.chunks || []).filter(function(c) { return !c.article_summary && !c.discussion_summary; });
-            var flagRes = await API.get('/topics/' + currentTopicId + '/refresh-flags');
-            var flags = (flagRes.data || flagRes).flags || [];
-            var pendingFlags = [];
-            flags.forEach(function(g) { g.flags.forEach(function(f) { pendingFlags.push({ chunk_id: f.chunk_id, reason: f.reason }); }); });
-
-            triggerAiAction('refresh', 'topic', currentTopicId, {
-              topicId: currentTopicId,
-              topicTitle: currentTopicTitle,
-              chunks: chunks.map(function(c) { return { id: c.id, content: c.content }; }),
-              pendingFlags: pendingFlags,
-            }, btn);
-          } catch (err) {
-            alert('Failed to load article data for refresh.');
-          }
-        });
-        bar.appendChild(btn);
-      });
-    }
 
     function openRefreshFlagModal() {
       getCurrentUser().then(function(user) {
