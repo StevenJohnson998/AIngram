@@ -143,11 +143,6 @@ var currentTopicId = null;
         // Show add chunk form + watch button if authenticated
         var user = await getCurrentUser();
 
-        // Show author's pending chunks (proposed) if authenticated
-        if (user) {
-          loadPendingChunks(topic.id, user.id);
-        }
-
         if (user) {
           document.getElementById('add-chunk-section').style.display = 'block';
           document.getElementById('reply-section').style.display = 'block';
@@ -202,11 +197,9 @@ var currentTopicId = null;
             }
             // Reload pending chunks to show the new contribution
             var currentUser = await getCurrentUser();
-            if (currentUser) {
-              loadPendingChunks(currentTopicId, currentUser.id);
-            }
+            loadProposals(currentTopicId);
             showAlert(document.getElementById('add-chunk-error'), 'success',
-              'Contribution submitted! <a href="#pending-section" class="s-254a7a67">See it in Pending Contributions</a> below. It will be auto-approved in ~3h if no objections.');
+              'Contribution submitted! Check the Proposals tab to track its status.');
           } else {
             var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to add chunk';
             showAlert(document.getElementById('add-chunk-error'), 'warning', msg);
@@ -587,90 +580,6 @@ var currentTopicId = null;
       }
     }
 
-    async function loadPendingChunks(topicId, userId) {
-      try {
-        var res = await API.get('/topics/' + topicId + '/chunks?status=proposed');
-        if (res.status !== 200 || !res.data) return;
-
-        var chunks = (res.data.data || res.data || []);
-        if (chunks.length === 0) return;
-
-        // Update the "no chunks" message if it exists
-        var noChunksMsg = document.getElementById('no-chunks-msg');
-        if (noChunksMsg) {
-          noChunksMsg.innerHTML = chunks.length + ' contribution' + (chunks.length > 1 ? 's' : '') +
-            ' pending review. <a href="#pending-section" class="s-b68d4967">See below</a>' +
-            '<br><span class="text-xs">Contributions are auto-approved after ~3h if no objections.</span>';
-        }
-
-        var section = document.getElementById('pending-section');
-        var container = document.getElementById('pending-chunks-container');
-        section.style.display = 'block';
-
-        // Fast-track timeout: 3h for low sensitivity, 6h for high
-        var FAST_TRACK_MS = 3 * 60 * 60 * 1000;
-
-        container.innerHTML = chunks.map(function(chunk) {
-          var isMine = (chunk.created_by === userId || chunk.proposed_by === userId);
-          var proposerName = chunk.proposed_by_name || 'Unknown';
-
-          // Fast-track countdown
-          var createdAt = new Date(chunk.created_at).getTime();
-          var approvalTime = createdAt + FAST_TRACK_MS;
-          var remaining = approvalTime - Date.now();
-          var fastTrackInfo = '';
-          if (remaining > 0) {
-            var hours = Math.floor(remaining / 3600000);
-            var mins = Math.floor((remaining % 3600000) / 60000);
-            fastTrackInfo = '<span class="text-xs text-muted">Auto-approval in ~' + hours + 'h' + (mins > 0 ? mins + 'm' : '') + ' if no objections</span>';
-          } else {
-            fastTrackInfo = '<span class="text-xs text-muted">Awaiting auto-approval</span>';
-          }
-
-          var withdrawBtn = isMine
-            ? '<button class="btn btn-secondary btn-sm pending-withdraw-btn" data-id="' + chunk.id + '" class="s-7fd7ef73">Withdraw</button>'
-            : '';
-
-          var byLine = isMine ? 'Your contribution' : 'By ' + escapeHtml(proposerName);
-
-          return '<div class="chunk-item s-6fb58c74">' +
-            '<div class="chunk-body">' +
-              '<div class="s-e7b5fadd">' +
-                '<span class="badge badge-trust-medium s-2f787180">Pending review</span>' +
-                '<span class="text-xs text-muted">' + escapeHtml(byLine) + ' &middot; ' + timeAgo(chunk.created_at) + '</span>' +
-                fastTrackInfo +
-                withdrawBtn +
-              '</div>' +
-              '<div class="chunk-content text-sm">' + escapeHtml(chunk.content) + '</div>' +
-            '</div>' +
-          '</div>';
-        }).join('');
-
-        // Wire withdraw buttons
-        container.querySelectorAll('.pending-withdraw-btn').forEach(function(btn) {
-          btn.addEventListener('click', async function() {
-            if (!confirm('Withdraw this contribution?')) return;
-            this.disabled = true;
-            try {
-              // TODO: Uses deprecated chunk shim -- migrate to PUT /changesets/:id/retract when chunk provides changesetId
-              var res = await API.post('/chunks/' + this.dataset.id + '/retract');
-              if (res.status === 200) {
-                loadPendingChunks(topicId, userId);
-              } else {
-                var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to withdraw';
-                showAlert(document.getElementById('pending-chunks-container'), 'warning', msg);
-              }
-            } catch (err) {
-              showAlert(document.getElementById('pending-chunks-container'), 'warning', 'Network error.');
-            }
-            this.disabled = false;
-          });
-        });
-      } catch (err) {
-        console.warn('loadPendingChunks failed:', err);
-      }
-    }
-
     async function loadDiscussion(topicId) {
       var container = document.getElementById('discussion-container');
       try {
@@ -765,51 +674,76 @@ var currentTopicId = null;
               '</div>' +
               '<div class="proposal-operations" id="proposal-ops-' + cs.id + '" class="s-55c3fb23"></div>' +
               '<div class="s-c89db52a">' +
-                '<button class="btn btn-sm btn-outline proposal-toggle" data-changeset-id="' + cs.id + '" class="s-2f787180">Show changes (' + opsCount + ')</button>' +
-                (user ? '<button class="btn btn-sm proposal-merge-btn" data-changeset-id="' + cs.id + '" class="s-0503bae8">Merge</button>' +
+                '<button class="btn btn-sm btn-outline proposal-toggle" data-changeset-id="' + cs.id + '" class="s-2f787180">Hide changes (' + opsCount + ')</button>' +
+                (user ? '<button class="btn btn-sm btn-outline proposal-discuss-btn" data-changeset-id="' + cs.id + '" data-desc="' + escapeHtml(desc).replace(/"/g, '&quot;') + '">Discuss</button>' +
+                '<button class="btn btn-sm proposal-merge-btn" data-changeset-id="' + cs.id + '" class="s-0503bae8">Merge</button>' +
                 '<button class="btn btn-sm btn-outline proposal-reject-btn" data-changeset-id="' + cs.id + '" class="s-5e95cdd5">Reject</button>' : '') +
               '</div>' +
             '</div>' +
           '</div>';
         }).join('');
 
-        // Toggle handlers: load operations on first click
+        // Load operations for each proposal (expanded by default)
+        async function loadProposalOps(csId, opsDiv) {
+          opsDiv.innerHTML = '<p class="text-xs text-muted">Loading...</p>';
+          try {
+            var csRes = await API.get('/changesets/' + csId);
+            var csData = csRes.data || {};
+            var ops = csData.operations || [];
+            if (ops.length === 0) {
+              opsDiv.innerHTML = '<p class="text-xs text-muted">No operations found.</p>';
+            } else {
+              opsDiv.innerHTML = ops.map(function(op) {
+                var content = op.content || '';
+                var opType = op.operation || 'add';
+                var opBadge = '<span class="badge s-5aecb40b">' + opType + '</span>';
+                return '<div class="s-36b12895">' +
+                  opBadge + ' ' + renderContent(content, 'proposed') +
+                '</div>';
+              }).join('');
+            }
+          } catch (err) {
+            opsDiv.innerHTML = '<p class="text-xs text-muted">Could not load operations.</p>';
+          }
+          opsDiv.style.display = 'block';
+        }
+
+        // Auto-expand all proposals
         container.querySelectorAll('.proposal-toggle').forEach(function(btn) {
-          btn.addEventListener('click', async function() {
-            var csId = this.dataset.changesetId;
-            var opsDiv = document.getElementById('proposal-ops-' + csId);
+          var csId = btn.dataset.changesetId;
+          var opsDiv = document.getElementById('proposal-ops-' + csId);
+          loadProposalOps(csId, opsDiv);
+
+          // Toggle handler for collapse/expand
+          btn.addEventListener('click', function() {
             if (opsDiv.style.display !== 'none') {
               opsDiv.style.display = 'none';
               this.textContent = this.textContent.replace('Hide', 'Show');
-              return;
+            } else {
+              opsDiv.style.display = 'block';
+              this.textContent = this.textContent.replace('Show', 'Hide');
             }
-            // Load if empty
-            if (!opsDiv.innerHTML) {
-              opsDiv.innerHTML = '<p class="text-xs text-muted">Loading...</p>';
-              try {
-                var csRes = await API.get('/changesets/' + csId);
-                var csData = csRes.data || {};
-                var ops = csData.operations || [];
-                if (ops.length === 0) {
-                  opsDiv.innerHTML = '<p class="text-xs text-muted">No operations found.</p>';
-                } else {
-                  opsDiv.innerHTML = ops.map(function(op) {
-                    var content = op.content || '';
-                    var opType = op.operation || 'add';
-                    var opBadge = '<span class="badge s-5aecb40b">' + opType + '</span>';
-                    return '<div class="s-36b12895">' +
-                      opBadge + ' ' + renderContent(content, 'proposed') +
-                    '</div>';
-                  }).join('');
-                }
-              } catch (err) {
-                opsDiv.innerHTML = '<p class="text-xs text-muted">Could not load operations.</p>';
-              }
-            }
-            opsDiv.style.display = 'block';
-            this.textContent = this.textContent.replace('Show', 'Hide');
           });
         });
+        // Discuss handlers: copy ref to discussion textarea and switch to Discussion tab
+        container.querySelectorAll('.proposal-discuss-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var csId = this.dataset.changesetId;
+            var desc = this.dataset.desc || 'proposal ' + csId.substring(0, 8);
+            var replyInput = document.getElementById('reply-content');
+            if (replyInput) {
+              replyInput.value = 'Re: proposal "' + desc + '" (changeset ' + csId.substring(0, 8) + '): ';
+            }
+            // Switch to Discussion tab
+            var discTab = document.querySelector('.tab-btn[data-target="tab-discussion"]');
+            if (discTab) discTab.click();
+            // Focus the textarea
+            if (replyInput) {
+              setTimeout(function() { replyInput.focus(); replyInput.setSelectionRange(replyInput.value.length, replyInput.value.length); }, 100);
+            }
+          });
+        });
+
         // Merge handlers
         container.querySelectorAll('.proposal-merge-btn').forEach(function(btn) {
           btn.addEventListener('click', async function() {
@@ -1182,10 +1116,7 @@ var currentTopicId = null;
                 API.get('/topics/' + currentTopicId).then(function(r) {
                   if (r.status === 200) renderChunks(r.data.chunks || []);
                 });
-                // Also refresh pending chunks
-                getCurrentUser().then(function(u) {
-                  if (u) loadPendingChunks(currentTopicId, u.id);
-                });
+                loadProposals(currentTopicId);
               }
               if (actionType === 'reply' || actionType === 'review') {
                 loadDiscussion(currentTopicId);
@@ -1229,9 +1160,7 @@ var currentTopicId = null;
                   API.get('/topics/' + currentTopicId).then(function(r) {
                     if (r.status === 200) renderChunks(r.data.chunks || []);
                   });
-                  getCurrentUser().then(function(u) {
-                    if (u) loadPendingChunks(currentTopicId, u.id);
-                  });
+                  loadProposals(currentTopicId);
                 }
                 loadDiscussion(currentTopicId);
               }, 5000);
