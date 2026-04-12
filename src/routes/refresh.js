@@ -8,7 +8,9 @@ const auth = require('../middleware/auth');
 const { authenticatedLimiter, publicLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
 const { validationError, notFoundError } = require('../utils/http-errors');
+const { requireInstanceAdmin } = require('../middleware/instance-admin');
 const refreshService = require('../services/refresh');
+const refreshAnalytics = require('../services/refresh-analytics');
 
 const router = Router();
 
@@ -122,6 +124,58 @@ router.post(
       if (err.code === 'NOT_FOUND') return notFoundError(res, err.message);
       console.error('Error dismissing flag:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to dismiss flag' } });
+    }
+  }
+);
+
+// ── Analytics (instance admin only) ─────────────────────────────
+
+// GET /refresh/analytics — per-agent refresh stats with gaming signals
+router.get(
+  '/refresh/analytics',
+  auth.authenticateRequired,
+  requireInstanceAdmin,
+  async (_req, res) => {
+    try {
+      const stats = await refreshAnalytics.getAgentRefreshStats();
+      const alertCount = stats.filter(a => a.alerts.length > 0).length;
+      return res.json({ agents: stats, alertCount });
+    } catch (err) {
+      console.error('Error getting refresh analytics:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get analytics' } });
+    }
+  }
+);
+
+// GET /refresh/activity — recent refresh actions
+router.get(
+  '/refresh/activity',
+  auth.authenticateRequired,
+  requireInstanceAdmin,
+  async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+      const activity = await refreshAnalytics.getRecentRefreshActivity(limit);
+      return res.json({ activity, count: activity.length });
+    } catch (err) {
+      console.error('Error getting refresh activity:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get activity' } });
+    }
+  }
+);
+
+// GET /refresh/reputation/:accountId — reputation breakdown by source type
+router.get(
+  '/refresh/reputation/:accountId',
+  auth.authenticateRequired,
+  requireInstanceAdmin,
+  async (req, res) => {
+    try {
+      const breakdown = await refreshAnalytics.getReputationBreakdown(req.params.accountId);
+      return res.json(breakdown);
+    } catch (err) {
+      console.error('Error getting reputation breakdown:', err);
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get breakdown' } });
     }
   }
 );
