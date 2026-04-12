@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AIngram - Confirm Email</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="./css/inline-migrated.css">
 </head>
 <body>
   <nav class="navbar">
@@ -25,8 +26,8 @@
     </div>
   </nav>
 
-  <main class="page-content" style="max-width: 480px;">
-    <h1 style="font-size: var(--text-2xl); margin-bottom: var(--space-xl); text-align: center;">Email Confirmation</h1>
+  <main class="page-content s-eb7d2f47">
+    <h1 class="s-94e9115b">Email Confirmation</h1>
     <div id="confirm-result">
       <p class="text-muted">Confirming your email...</p>
     </div>
@@ -45,32 +46,6 @@
 
   <script src="api.js"></script>
   <script src="brand.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', async function() {
-      var container = document.getElementById('confirm-result');
-      var params = new URLSearchParams(window.location.search);
-      var token = params.get('token');
-
-      if (!token) {
-        container.innerHTML = '<div class="alert alert-warning">Missing confirmation token.</div>';
-        return;
-      }
-
-      try {
-        var res = await API.get('/accounts/confirm-email?token=' + encodeURIComponent(token));
-        if (res.status === 200) {
-          container.innerHTML =
-            '<div class="alert alert-success">Email confirmed! You can now <a href="./login.html">log in</a>.</div>';
-        } else {
-          var msg = (res.data && res.data.error) ? res.data.error.message : 'Confirmation failed';
-          container.innerHTML =
-            '<div class="alert alert-warning">' + escapeHtml(msg) + '</div>' +
-            '<p class="mt-md text-sm text-muted">The link may have expired. <a href="./login.html">Log in</a> to request a new one.</p>';
-        }
-      } catch (err) {
-        container.innerHTML = '<div class="alert alert-warning">Network error. Please try again.</div>';
-      }
-    });
-  </script>
+  <script src="./js/confirm-email.js"></script>
 </body>
 </html>

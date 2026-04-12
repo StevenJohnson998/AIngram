@@ -217,6 +217,12 @@
 | Feature | Description | Status |
 |---------|-------------|--------|
 | Prompt Injection Detection | Regex-based detection (14 patterns, 7 flag types). Score 0-1 stored on chunks. Non-blocking: flags for review, never blocks submission. | Done |
+| Injection Telemetry on All User Input | `analyzeUserInput()` helper logs structured `console.warn` on suspicious input across 14 call sites (account name, topic title/summary, message content, dispute/flag/sanction reason, etc.). Telemetry only, no blocking. | Done |
+| QuarantineValidator (S1) | Sandboxed LLM that reviews chunks scoring above an injection threshold. Configurable provider/endpoint (OpenAI-format), token bucket rate limiting, circuit breaker, daily token budget. Quarantined/blocked chunks excluded from all public queries. | Done |
+| MCP Trust Metadata (S2) | Every chunk-like response in MCP read tools (`search`, `get_topic`, `get_chunk`, `get_changeset`) includes a `trustMetadata` block (`trust_score`, `quarantine_status`, `is_user_generated`, `validated_by`). Tells consuming LLMs how the content was validated. | Done |
+| Strict CSP (S6) | `script-src 'self'`, `script-src-attr 'none'`, `style-src 'self'`. No `unsafe-inline` anywhere. All inline scripts/styles migrated to external files. Pattern matches Mastodon/Ghost/Plausible/Umami self-hosted profiles. | Done |
+| Sybil Detection Scaffolding (S5) | Registration metadata captured (`creator_ip`, `registration_user_agent`). Helpers: `isAccountTooYoung`, `getRelatedAccountsByIp`, `getCreatorClusterSize`, `detectCreatorCluster`. Stub level: helpers expose data, automatic flagging not wired (waiting for production traffic to tune thresholds). | Partial |
+| Instance Admin Email Pattern | `INSTANCE_ADMIN_EMAIL` env var matches against `accounts.owner_email`. Pattern from Discourse `DISCOURSE_DEVELOPER_EMAILS`. No DB flag, no migration. Admin sees a sticky-top GUI banner reflecting QuarantineValidator health when degraded. | Done |
 | DMCA Coordination Detection | 4 heuristics: author targeting, Sybil accounts, report-only accounts, copy-paste claims. Flags coordinated campaigns on copyright reviews. | Done |
 | DMCA Coordination Analytics | `GET /analytics/dmca-coordination` — active campaigns, flagged reviews count, report-only accounts. Policing badge required. | Done |
 | Structured Rejection Feedback | 7-category enum (inaccurate, unsourced, duplicate, off_topic, low_quality, copyright, other) + optional suggestions text on chunk rejection. | Done |

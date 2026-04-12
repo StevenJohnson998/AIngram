@@ -4,6 +4,7 @@
 
 const { getPool } = require('../config/database');
 const { generateSlug, ensureUniqueSlug } = require('../utils/slug');
+const { analyzeUserInput } = require('./injection-detector');
 
 /**
  * Create a new topic.
@@ -11,6 +12,10 @@ const { generateSlug, ensureUniqueSlug } = require('../utils/slug');
 async function createTopic({ title, lang, summary, sensitivity, topicType, createdBy }) {
   const pool = getPool();
   const { generateEmbedding } = require('./ollama');
+
+  // S4: defensive injection telemetry on title + summary
+  analyzeUserInput(title, 'topic.title', { createdBy });
+  if (summary) analyzeUserInput(summary, 'topic.summary', { createdBy });
 
   // Duplicate topic detection — two complementary checks:
   // 1. Trigram similarity (textual overlap, fast, no Ollama needed)
@@ -196,6 +201,10 @@ async function listTopics({ lang, status, sensitivity, topicType, page = 1, limi
 async function updateTopic(id, { title, summary, sensitivity, topicType }) {
   const pool = getPool();
 
+  // S4: defensive injection telemetry
+  if (title) analyzeUserInput(title, 'topic.title.update', { topicId: id });
+  if (summary) analyzeUserInput(summary, 'topic.summary.update', { topicId: id });
+
   // Get current topic to check if title changed
   const { rows: current } = await pool.query(
     'SELECT * FROM topics WHERE id = $1',
@@ -314,6 +323,7 @@ async function createTopicFull({ title, lang, summary, sensitivity, topicType, c
   const chunkService = require('./chunk');
   const trustConfig = require('../config/trust');
   const { analyzeContent } = require('./injection-detector');
+  const { shouldQuarantine, quarantineChunk } = require('./quarantine-validator');
   const accountService = require('./account');
   const { matchNewChunk } = require('./subscription-matcher');
   const { dispatchNotification } = require('./notification');
@@ -366,7 +376,7 @@ async function createTopicFull({ title, lang, summary, sensitivity, topicType, c
         }
       }
 
-      chunkResults.push({ id: chunk.id, status: chunk.status });
+      chunkResults.push({ id: chunk.id, status: chunk.status, injectionResult });
     }
 
     // 3. Create changeset for all chunks
@@ -393,19 +403,26 @@ async function createTopicFull({ title, lang, summary, sensitivity, topicType, c
 
     await client.query('COMMIT');
 
-    // 4. Fire-and-forget: embeddings + subscription matching (after commit)
+    // 4. Fire-and-forget: quarantine check, embeddings + subscription matching (after commit)
     for (const cr of chunkResults) {
-      // Subscription matching
-      (async () => {
-        try {
-          const matches = await matchNewChunk(cr.id, 'proposed');
-          for (const match of matches) {
-            await dispatchNotification(match).catch(() => {});
+      // Quarantine check
+      const quarantineResult = shouldQuarantine(cr.injectionResult);
+      if (quarantineResult.quarantined) {
+        quarantineChunk(cr.id, cr.injectionResult)
+          .catch(err => console.error('Quarantine failed (chunk still visible):', err));
+      } else {
+        // Subscription matching (only for non-quarantined chunks)
+        (async () => {
+          try {
+            const matches = await matchNewChunk(cr.id, 'proposed');
+            for (const match of matches) {
+              await dispatchNotification(match).catch(() => {});
+            }
+          } catch (err) {
+            console.error(`Match-and-notify failed for chunk ${cr.id}:`, err.message);
           }
-        } catch (err) {
-          console.error(`Match-and-notify failed for chunk ${cr.id}:`, err.message);
-        }
-      })();
+        })();
+      }
     }
 
     // Fire-and-forget: tier update

@@ -30,6 +30,14 @@ const PATTERNS = [
 
   // Encoding abuse
   { regex: /\b(base64|hex|rot13|unicode)\s*(decode|encode|convert)\b/gi, weight: 0.3, flag: 'encoding_abuse' },
+
+  // Social engineering targeting LLMs
+  { regex: /\b(security\s+team|admin(istrator)?(\s+team)?|support\s+team|platform\s+team|moderation\s+team)\s+(here|requests?|needs?|requires?|asks?)/gi, weight: 0.5, flag: 'social_engineering' },
+  { regex: /\bplease\s+(share|provide|send|give|reveal|show)\s+(your|the|any)\s+(api[_\s]?key|token|credential|password|secret|key|email|personal)/gi, weight: 0.7, flag: 'social_engineering' },
+  { regex: /\b(urgent|immediate|mandatory|required)\s+(action|verification|update|review)\s+(needed|required|necessary)\b/gi, weight: 0.4, flag: 'social_engineering' },
+  { regex: /\bthis\s+is\s+(a|an)\s+(official|authorized|mandatory|required)\s+(request|notice|message)\b/gi, weight: 0.5, flag: 'social_engineering' },
+  { regex: /\b(verify|confirm|validate)\s+your\s+(identity|account|credentials|access)\b/gi, weight: 0.5, flag: 'social_engineering' },
+  { regex: /\bcontact\s+(me|us)\s+(at|via|through|on)\b/gi, weight: 0.3, flag: 'social_engineering' },
 ];
 
 /**
@@ -64,4 +72,30 @@ function analyzeContent(content) {
   };
 }
 
-module.exports = { analyzeContent, PATTERNS };
+/**
+ * Analyze user-provided text and emit a structured log warning if suspicious.
+ *
+ * Use this for fields where you want defensive telemetry but no blocking
+ * behavior: account names, topic titles/summaries, discussion messages,
+ * dispute reasons, etc. The chunk content path uses analyzeContent()
+ * directly because it has additional quarantine logic.
+ *
+ * @param {string} text - User-provided text
+ * @param {string} fieldType - Field identifier for the log (e.g. 'topic.title')
+ * @param {object} [context] - Extra fields to include in the log (account id, etc.)
+ * @returns {{ score: number, flags: string[], suspicious: boolean }}
+ */
+function analyzeUserInput(text, fieldType, context = {}) {
+  const result = analyzeContent(text);
+  if (result.suspicious) {
+    // Single-line JSON for log aggregator parsing
+    console.warn(`[InjectionDetector] suspicious ${fieldType}: ${JSON.stringify({
+      score: result.score,
+      flags: result.flags,
+      ...context,
+    })}`);
+  }
+  return result;
+}
+
+module.exports = { analyzeContent, analyzeUserInput, PATTERNS };

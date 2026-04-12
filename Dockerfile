@@ -25,6 +25,7 @@ COPY --from=builder /app/build/ ./build/
 # Copy JS source (still the main entry point)
 COPY src/ ./src/
 COPY migrations/ ./migrations/
+COPY scripts/migrate.js ./scripts/migrate.js
 COPY docker-entrypoint.sh ./
 
 EXPOSE 3000

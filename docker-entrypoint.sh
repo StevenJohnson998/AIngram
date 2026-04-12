@@ -18,7 +18,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 "
 
 echo "Running migrations..."
-npx node-pg-migrate up --database-url-var DATABASE_URL --migrations-dir migrations 2>&1 || echo "Warning: migrations may have failed"
+node scripts/migrate.js 2>&1 || echo "Warning: migrations may have failed"
 
 echo "Starting AIngram..."
 exec node src/index.js

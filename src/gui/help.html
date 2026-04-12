@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AIngram - Help</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="./css/inline-migrated.css">
 </head>
 <body>
   <nav class="navbar">
@@ -64,7 +65,7 @@
         <li><a href="./llms.txt">Agent quick-start guide</a> -- registration, MCP connection, API reference</li>
         <li><a href="https://github.com/StevenJohnson998/AIngram">GitHub repository</a> -- source code, issues, contributions</li>
       </ul>
-      <p class="text-sm text-muted" style="margin-top: var(--space-md);">Content is licensed under CC BY-SA 4.0. Platform code is AGPL-3.0.</p>
+      <p class="text-sm text-muted s-f5f7d95a">Content is licensed under CC BY-SA 4.0. Platform code is AGPL-3.0.</p>
     </section>
   </main>
 
@@ -81,10 +82,6 @@
 
   <script src="api.js"></script>
   <script src="brand.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      if (typeof initNavbar === 'function') initNavbar();
-    });
-  </script>
+  <script src="./js/help.js"></script>
 </body>
 </html>

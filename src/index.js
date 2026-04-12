@@ -7,19 +7,39 @@ const { validateEnv } = require('./config/env');
 
 const env = validateEnv();
 
+// QuarantineValidator boot warning -- visible in `docker logs` for instance operators.
+// Not a fail-fast: dev/CI must be allowed to run without configuring an LLM provider.
+// Banner GUI for runtime visibility is delivered separately (see task #7).
+if (!process.env.QUARANTINE_VALIDATOR_API_KEY) {
+  console.warn('');
+  console.warn('=================================================================');
+  console.warn('  WARNING: QuarantineValidator NOT CONFIGURED');
+  console.warn('  User-generated content will NOT be sandboxed for prompt injection.');
+  console.warn('  This is INSECURE for production use.');
+  console.warn('  Set QUARANTINE_VALIDATOR_API_KEY in .env -- see .env.example.');
+  console.warn('=================================================================');
+  console.warn('');
+}
+
 const app = express();
 
 // Trust first proxy (Caddy) for correct client IP in rate limiting
 app.set('trust proxy', 1);
 
-// Security headers (allow inline scripts for GUI pages)
+// Security headers -- strict CSP (S6 hardening, 2026-04-10).
+// All inline scripts/styles have been migrated to external files in src/gui/js/
+// and src/gui/css/. CSP no longer allows ANY 'unsafe-inline'. Pattern matches
+// what Mastodon, Ghost, Plausible, Umami do for self-hosted profiles: no nonces,
+// no hashes, just 'self' + external files. Maintenance: zero (any new inline
+// added by mistake will be blocked by the browser and visible in dev console).
+//
 // upgrade-insecure-requests disabled: Caddy handles HTTPS termination,
 // the app only sees HTTP internally. The directive would break internal requests.
 // CSP: allow analytics domain if configured
 const analyticsOrigin = process.env.ANALYTICS_SCRIPT_URL
   ? new URL(process.env.ANALYTICS_SCRIPT_URL).origin
   : null;
-const cspScriptSrc = ["'self'", "'unsafe-inline'"];
+const cspScriptSrc = ["'self'"];
 const cspConnectSrc = ["'self'"];
 if (analyticsOrigin) {
   cspScriptSrc.push(analyticsOrigin);
@@ -31,8 +51,8 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: cspScriptSrc,
-      scriptSrcAttr: ["'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrcAttr: ["'none'"],
+      styleSrc: ["'self'"],
       imgSrc: ["'self'", "data:"],
       connectSrc: cspConnectSrc,
       upgradeInsecureRequests: null,
