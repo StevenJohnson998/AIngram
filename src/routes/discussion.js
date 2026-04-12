@@ -2,6 +2,7 @@
 
 const { Router } = require('express');
 const topicAgorai = require('../services/topic-agorai');
+const { AgoraiError } = require('../services/agorai-client');
 const { getPool } = require('../config/database');
 const { analyzeUserInput } = require('../services/injection-detector');
 const injectionTracker = require('../services/injection-tracker');
@@ -63,12 +64,24 @@ router.post('/topics/:id/discussion', auth.authenticateRequired, authenticatedLi
     });
   }
 
-  const message = await topicAgorai.postToDiscussion(req.params.id, {
-    content: content.trim(),
-    accountId: req.account.id,
-    accountName: req.account.name || req.account.id,
-    level: level || 1,
-  });
+  let message;
+  try {
+    message = await topicAgorai.postToDiscussion(req.params.id, {
+      content: content.trim(),
+      accountId: req.account.id,
+      accountName: req.account.name || req.account.id,
+      level: level || 1,
+    });
+  } catch (err) {
+    if (err instanceof AgoraiError) {
+      // -32001 = content_rejected (length, flagged), -32002 = validation_error
+      const status = err.code === -32001 ? 422 : 400;
+      return res.status(status).json({
+        error: { code: 'AGORAI_REJECTED', message: err.message, reason: err.reason, details: err.details },
+      });
+    }
+    throw err;
+  }
 
   if (!message) {
     return res.status(503).json({

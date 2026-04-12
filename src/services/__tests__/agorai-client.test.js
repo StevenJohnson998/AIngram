@@ -268,6 +268,36 @@ describe('sendMessage', () => {
     const result = await sendMessage('conv-123', params);
     expect(result).toBeNull();
   });
+
+  it('throws AgoraiError on content rejection (-32001)', async () => {
+    const { AgoraiError } = require('../agorai-client');
+    mockInitSequence();
+    // subscribe
+    mockFetch.mockResolvedValueOnce(mcpResponse(toolResult({ ok: true })));
+    // send_message returns -32001 content_rejected (JSON-RPC error in response body)
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      headers: { get: (h) => h === 'mcp-session-id' ? 'sess-1' : 'application/json' },
+      json: async () => ({
+        jsonrpc: '2.0', id: 1,
+        error: {
+          code: -32001,
+          message: 'content_rejected',
+          data: { reason: 'max_length_exceeded', limit: 10000, actual: 12000 },
+        },
+      }),
+    });
+
+    try {
+      await sendMessage('conv-123', params);
+      expect('should have thrown').toBe(false);
+    } catch (err) {
+      expect(err.name).toBe('AgoraiError');
+      expect(err.code).toBe(-32001);
+      expect(err.reason).toBe('max_length_exceeded');
+      expect(err.details.limit).toBe(10000);
+    }
+  });
 });
 
 describe('checkHealth', () => {

@@ -2,6 +2,7 @@
 
 const { getPool } = require('../config/database');
 const agoraiClient = require('./agorai-client');
+const { AgoraiError } = agoraiClient;
 
 /**
  * Create an Agorai conversation and link it to a topic.
@@ -128,6 +129,8 @@ async function postToDiscussion(topicId, { content, accountId, accountName, leve
 
     return await agoraiClient.sendMessage(conversationId, { content, accountId, accountName, level });
   } catch (err) {
+    // Propagate content rejection errors so routes can show user-facing messages
+    if (err instanceof AgoraiError) throw err;
     console.warn(`[topic-agorai] postToDiscussion error: ${err.message}`);
     return null;
   }

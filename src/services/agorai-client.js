@@ -7,6 +7,22 @@ const AGORAI_URL = agoraiConfig.url || process.env.AGORAI_URL || 'http://localho
 const AGORAI_PASS_KEY = agoraiConfig.passKey || process.env.AGORAI_PASS_KEY || '';
 const AGORAI_TIMEOUT = agoraiConfig.timeout || 5000;
 
+/**
+ * Structured error from Agorai MCP responses.
+ * code: JSON-RPC error code (-32001 = content_rejected, -32002 = validation_error)
+ * reason: machine-readable reason from error.data (e.g. 'max_length_exceeded', 'content_flagged')
+ * details: additional context from error.data
+ */
+class AgoraiError extends Error {
+  constructor(message, { code, reason, details } = {}) {
+    super(message);
+    this.name = 'AgoraiError';
+    this.code = code || -1;
+    this.reason = reason || null;
+    this.details = details || null;
+  }
+}
+
 let sessionId = null;
 let projectId = null;
 let initialized = false;
@@ -67,18 +83,24 @@ async function mcpCall(method, params = {}) {
     }
 
     if (data.error) {
-      // TODO: When Agorai ships structured JSON-RPC errors (code -32001/-32002 with data.reason),
-      // propagate them instead of flattening to null. Design:
-      // - Create AgoraiError class with { code, reason, details } from data.error.data
-      // - Throw AgoraiError here so callTool/sendMessage/postToDiscussion can propagate
-      // - Routes catch AgoraiError -> 422 for content_rejected, 502 for Agorai down
-      // - Frontend shows user-facing message based on error.reason
+      const errData = data.error.data || {};
+      const code = data.error.code || -1;
+      // Content policy rejections (-32001) and validation errors (-32002) are propagated
+      // so callers can show user-facing messages instead of generic 503
+      if (code === -32001 || code === -32002) {
+        throw new AgoraiError(
+          data.error.message || 'Agorai rejected the request',
+          { code, reason: errData.reason, details: errData }
+        );
+      }
+      // Other errors (protocol, internal) are logged and returned as null
       console.warn(`[agorai] MCP ${method} error:`, data.error.message);
       return null;
     }
     return data.result;
   } catch (err) {
     clearTimeout(timer);
+    if (err instanceof AgoraiError) throw err;
     console.warn(`[agorai] MCP ${method}: ${err.message}`);
     return null;
   }
@@ -92,8 +114,24 @@ async function mcpCall(method, params = {}) {
  * @returns {Promise<object|string|null>}
  */
 async function callTool(toolName, args = {}) {
+  // mcpCall throws AgoraiError for -32001/-32002, let it propagate
   const result = await mcpCall('tools/call', { name: toolName, arguments: args });
   if (!result || !result.content || !result.content[0]) return null;
+
+  // MCP tool results can also carry isError with structured error in text
+  if (result.isError) {
+    let parsed;
+    try { parsed = JSON.parse(result.content[0].text); } catch { parsed = null; }
+    if (parsed && parsed.error) {
+      const errData = parsed.error.data || {};
+      throw new AgoraiError(
+        parsed.error.message || 'Agorai tool error',
+        { code: parsed.error.code || -1, reason: errData.reason, details: errData }
+      );
+    }
+    return null;
+  }
+
   try {
     return JSON.parse(result.content[0].text);
   } catch {
@@ -287,4 +325,4 @@ function _resetForTests() {
   initialized = false;
 }
 
-module.exports = { createConversation, getMessages, sendMessage, getActiveConversations, getConversationStats, checkHealth, ensureInitialized, _resetForTests };
+module.exports = { AgoraiError, createConversation, getMessages, sendMessage, getActiveConversations, getConversationStats, checkHealth, ensureInitialized, _resetForTests };
