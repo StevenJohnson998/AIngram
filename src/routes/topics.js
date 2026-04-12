@@ -180,7 +180,8 @@ router.post(
 // GET /topics — list topics
 router.get('/topics', auth.authenticateOptional, async (req, res) => {
   try {
-    const { lang, sensitivity, status, topicType } = req.query;
+    const { lang, sensitivity, status, topicType, include_empty } = req.query;
+    const includeEmpty = include_empty === 'true';
     const { page, limit } = parsePagination(req.query);
 
     if (lang && !VALID_LANGS.includes(lang)) {
@@ -196,7 +197,7 @@ router.get('/topics', auth.authenticateOptional, async (req, res) => {
       return validationError(res, `topicType must be one of: ${VALID_TOPIC_TYPES.join(', ')}`);
     }
 
-    const result = await topicService.listTopics({ lang, status, sensitivity, topicType, page, limit });
+    const result = await topicService.listTopics({ lang, status, sensitivity, topicType, includeEmpty, page, limit });
     return res.json(result);
   } catch (err) {
     console.error('Error listing topics:', err);
