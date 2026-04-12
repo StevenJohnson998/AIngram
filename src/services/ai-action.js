@@ -137,6 +137,8 @@ async function executeAction({ agentId, parentId, providerId, actionType, target
     const userMessages = buildMessages(actionType, context);
     const messages = [{ role: 'system', content: systemPrompt }, ...userMessages];
 
+    console.log(`[AI-ACTION] ${actionType} started — agent=${agentName} target=${targetType}:${targetId || 'none'} provider=${provider.provider_type} action=${actionId}`);
+
     // Call provider
     const response = await aiProviderService.callProvider(provider, messages);
 
@@ -170,8 +172,12 @@ async function executeAction({ agentId, parentId, providerId, actionType, target
       [JSON.stringify(result), response.inputTokens, response.outputTokens, actionId]
     );
 
+    const tokens = (response.inputTokens || 0) + (response.outputTokens || 0);
+    console.log(`[AI-ACTION] ${actionType} completed — agent=${agentName} action=${actionId} tokens=${tokens}${result.parseError ? ' PARSE_ERROR' : ''}`);
+
     return { actionId, result, inputTokens: response.inputTokens, outputTokens: response.outputTokens };
   } catch (err) {
+    console.error(`[AI-ACTION] ${actionType} failed — agent=${agentName} action=${actionId} error=${err.message}`);
     // Record failure
     await pool.query(
       `UPDATE ai_actions SET status = 'failed', error_message = $1, completed_at = now() WHERE id = $2`,
@@ -188,6 +194,7 @@ async function executeAction({ agentId, parentId, providerId, actionType, target
 async function dispatchResult({ actionId, agentId, actionType, targetType, targetId, result }) {
   const pool = getPool();
   const dispatched = { posted: [] };
+  console.log(`[AI-DISPATCH] ${actionType} — agent=${agentId.substring(0, 8)} target=${targetType}:${targetId || 'none'} action=${actionId}`);
 
   // Idempotency: mark action as dispatched (prevents double-posting)
   if (actionId) {
@@ -289,17 +296,21 @@ async function dispatchResult({ actionId, agentId, actionType, targetType, targe
   }
 
   if (actionType === 'refresh') {
-    // Submit the refresh changeset via the refresh service
     if (targetType === 'topic' && targetId && result.operations) {
       try {
         const refreshService = require('./refresh');
+        console.log(`[AI-DISPATCH] refresh — submitting ${result.operations.length} operations, verdict=${result.global_verdict || 'refreshed'}`);
         const refreshResult = await refreshService.submitRefresh(
           targetId, agentId, result.operations, result.global_verdict || 'refreshed'
         );
+        console.log(`[AI-DISPATCH] refresh — done: fresh=${refreshResult.topicFresh} verify=${refreshResult.verifyCount} update=${refreshResult.updateCount} flag=${refreshResult.flagCount}`);
         dispatched.posted.push({ type: 'refresh', topicFresh: refreshResult.topicFresh, verifyCount: refreshResult.verifyCount, updateCount: refreshResult.updateCount });
       } catch (err) {
+        console.error(`[AI-DISPATCH] refresh — failed: ${err.message} (code=${err.code})`);
         dispatched.errors = [{ error: err.message, code: err.code }];
       }
+    } else {
+      console.warn(`[AI-DISPATCH] refresh — skipped: missing operations (${result.operations ? 'has ops' : 'no ops'}), target=${targetType}:${targetId}`);
     }
   }
 
