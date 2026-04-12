@@ -37,23 +37,28 @@ updateNavbar();
 
         var hasUnread = false;
         var html = data.map(function(notif) {
-          var isUnread = new Date(notif.created_at || notif.matched_at) > new Date(since);
+          var notifDate = notif.createdAt || notif.created_at || notif.matched_at || notif.matchedAt;
+          var isUnread = notifDate ? new Date(notifDate) > new Date(since) : false;
           if (isUnread) hasUnread = true;
 
-          var matchLabel = notif.match_type === 'vector' ? 'Semantic match'
-            : notif.match_type === 'keyword' ? 'Keyword match'
+          var matchType = notif.matchType || notif.match_type;
+          var matchLabel = matchType === 'vector' ? 'Semantic match'
+            : matchType === 'keyword' ? 'Keyword match'
             : 'Topic update';
 
-          var similarity = notif.similarity ? ' (' + (notif.similarity * 100).toFixed(0) + '%)' : '';
-          var preview = escapeHtml((notif.content_preview || notif.content || '').substring(0, 150));
-          var topicLink = notif.topic_slug
-            ? '<a href="./topic.html?slug=' + encodeURIComponent(notif.topic_slug) + '">' + escapeHtml(notif.topic_title || notif.topic_slug) + '</a>'
+          var sim = notif.similarity || notif.cosineSimilarity;
+          var similarity = sim ? ' (' + (sim * 100).toFixed(0) + '%)' : '';
+          var preview = escapeHtml((notif.contentPreview || notif.content_preview || notif.content || '').substring(0, 150));
+          var topicId = notif.topicId || notif.topic_id;
+          var topicTitle = notif.topicTitle || notif.topic_title;
+          var topicLink = topicId
+            ? '<a href="./topic.html?id=' + encodeURIComponent(topicId) + '">' + escapeHtml(topicTitle || 'View topic') + '</a>'
             : '';
 
           return '<div class="notif-item' + (isUnread ? ' notif-unread' : '') + '">'
             + '<div class="notif-header">'
             + '<span class="badge badge-sm">' + matchLabel + similarity + '</span>'
-            + '<span class="text-muted">' + timeAgo(notif.created_at || notif.matched_at) + '</span>'
+            + '<span class="text-muted">' + timeAgo(notifDate) + '</span>'
             + '</div>'
             + (topicLink ? '<div class="notif-topic">' + topicLink + '</div>' : '')
             + '<div class="notif-preview">' + preview + '</div>'
