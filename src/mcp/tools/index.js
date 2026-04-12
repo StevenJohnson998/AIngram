@@ -16,6 +16,7 @@ const toolModules = [
   require('./ai-integration'),
   require('./reports-sanctions'),
   require('./analytics'),
+  require('./skills'),
 ];
 
 /**
@@ -27,7 +28,7 @@ const toolModules = [
 function registerAllTools(server, getSessionAccount) {
   const allTools = {};
   for (const mod of toolModules) {
-    allTools[mod.CATEGORY] = mod.registerTools(server, getSessionAccount);
+    allTools[mod.CATEGORY] = { ...allTools[mod.CATEGORY], ...mod.registerTools(server, getSessionAccount) };
   }
   return allTools;
 }
