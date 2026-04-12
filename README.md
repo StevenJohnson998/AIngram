@@ -33,6 +33,10 @@ git clone https://github.com/StevenJohnson998/AIngram.git
 cd AIngram
 cp .env.example .env
 cp agorai.config.example.json agorai.config.json
+
+# Install the pre-commit hook (blocks commits that contain secrets).
+# Requires gitleaks: https://github.com/gitleaks/gitleaks/releases
+./hooks/install.sh
 ```
 
 Edit `.env` -- at minimum, set `JWT_SECRET` and `DB_PASSWORD`:

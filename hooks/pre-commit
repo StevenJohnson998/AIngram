@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# pre-commit hook: run gitleaks on staged changes.
+# Blocks the commit if any secret is detected.
+#
+# Bypass (emergency only): git commit --no-verify
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "[pre-commit] gitleaks not installed — skipping scan. Install: https://github.com/gitleaks/gitleaks"
+  exit 0
+fi
+
+gitleaks protect --staged --verbose --redact --config=.gitleaks.toml
+status=$?
+
+if [ $status -ne 0 ]; then
+  echo ""
+  echo "[pre-commit] gitleaks DETECTED secrets in staged changes."
+  echo "[pre-commit] Review the findings above. If you're sure they are false positives,"
+  echo "[pre-commit] update .gitleaks.toml allowlist. To bypass in emergency: git commit --no-verify"
+  exit 1
+fi
+
+exit 0

@@ -1,0 +1,66 @@
+# Gitleaks config for AIngram.
+# Extends the built-in default rules with project-specific rules.
+# Run: gitleaks protect --staged --config .gitleaks.toml
+#
+# Default rules cover AWS, GCP, Azure, OpenAI, Anthropic, GitHub, Slack,
+# Stripe, JWT, private keys, etc. We add a few project-specific patterns.
+
+[extend]
+useDefault = true
+
+# --- Custom rules ---
+
+[[rules]]
+id = "dangerous-env-fallback"
+description = "Fallback to literal value after process.env lookup that looks like a credential (sk-, high-entropy token, bcrypt). URL/port/model-name fallbacks are fine and not flagged."
+regex = '''process\.env\.[A-Z_][A-Z0-9_]*(_KEY|_SECRET|_TOKEN|_PASSWORD|_PASS|API_KEY)\s*\|\|\s*['"][A-Za-z0-9][A-Za-z0-9_\-\.\/+]{12,}['"]'''
+tags = ["fallback", "ci-hazard"]
+[rules.allowlist]
+# Allow placeholder-looking fallbacks explicitly (changeme, xxx, your-, etc.)
+regexes = ['''\|\|\s*['"](changeme|xxxxx|your[-_]|example|placeholder|test[-_]?value|dummy|localhost|127\.0\.0\.1)''']
+
+[[rules]]
+id = "bcrypt-hash"
+description = "Bcrypt password hash (commonly from caddy hash-password / htpasswd). Should not live in committed config."
+regex = '''\$2[aby]\$[0-9]{1,2}\$[A-Za-z0-9./]{53}'''
+tags = ["password", "bcrypt"]
+
+[[rules]]
+id = "deepseek-api-key"
+description = "DeepSeek API key (sk- prefix, 32 hex)"
+regex = '''sk-[a-f0-9]{32}\b'''
+tags = ["api-key", "deepseek"]
+
+[[rules]]
+id = "hardcoded-agorai-key"
+description = "Known weak AGORAI_PASS_KEY placeholder that was accidentally committed in the past."
+regex = '''aingram-internal-key'''
+tags = ["legacy", "rotated"]
+
+# --- Global allowlist (false positives across rules) ---
+
+[allowlist]
+description = "Global exclusions"
+paths = [
+  '''\.gitleaks\.toml''',           # the config itself contains example patterns
+  '''node_modules/''',
+  '''package-lock\.json''',
+  '''\.git/''',
+  '''private/''',                    # gitignored anyway
+  '''research/.*\.(tex|pdf)$''',     # papers
+  '''\.env\.example$''',             # clearly marked template
+  '''README\.md$''',                 # docs with curl placeholder examples
+  '''docs/.*\.md$''',
+  '''build/mockups/.*\.html$''',
+  '''src/gui/.*\.html$''',
+]
+# Common generic test patterns that aren't secrets
+regexes = [
+  '''sk-test''',
+  '''test[-_]key''',
+  '''xxxxxxxxxxxxxxxxxxxxxxxx''',
+  '''aaaaaaaaaaaaaaaaaaaaaaaa''',
+  '''YOUR[-_][A-Z_]+''',
+  '''your[-_]api[-_]?key''',
+  '''<[A-Z_]+>''',
+]
