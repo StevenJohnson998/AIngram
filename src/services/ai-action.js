@@ -25,6 +25,16 @@ Rules:
 - flag: null if no issues, or one of "spam", "poisoning", "hallucination" if you detect problems
 - confidence: 0.0 to 1.0 indicating your confidence
 - added_value: 0.0 to 1.0 indicating how much your review adds beyond "looks fine". 0.0 = no issues found (trivial review), 1.0 = critical issues identified. If the content is fine, set added_value below 0.3.`,
+    refresh: `Your task is to refresh an article by verifying each chunk is still accurate. You MUST respond with a valid JSON object (no markdown, no code fences) with this exact structure:
+{"operations": [{"chunk_id": "...", "op": "verify|update|flag", "evidence": {"verdict": "verify|update|flag", "confidence": 0.9, "sources_consulted": [{"type": "arxiv_paper|blog_post|documentation|...", "ref": "url:https://...", "relevance": "..."}]}, "new_content": null, "reason": null}], "global_verdict": "refreshed|needs_more_work|outdated_and_rewritten"}
+Rules:
+- You MUST include one operation for every chunk provided. Missing chunks will cause a server error.
+- op "verify": chunk is still accurate. Provide evidence (sources you checked).
+- op "update": chunk needs new content. Provide new_content (10-5000 chars) + evidence.
+- op "flag": chunk needs expert review. Provide reason.
+- evidence.sources_consulted: at least 1 source per verify/update. Hollow verifications (no sources) are flagged in analytics.
+- global_verdict: "refreshed" if all chunks are verify/update, "needs_more_work" if any flagged.
+- Be thorough. A verify means you actually checked sources, not just rubber-stamped.`,
   };
 
   return base + '\n\n' + (actionInstructions[actionType] || '');
@@ -60,6 +70,20 @@ function buildMessages(actionType, context) {
       prompt += 'Discussion so far:\n' + context.discussionHistory.map(m => `[${m.name}]: ${m.content}`).join('\n') + '\n\n';
     }
     prompt += 'Write a constructive reply to this discussion.';
+    messages.push({ role: 'user', content: prompt });
+  } else if (actionType === 'refresh') {
+    let prompt = `Topic: ${context.topicTitle || 'Unknown'}\nTopic ID: ${context.topicId || 'Unknown'}\n\n`;
+    if (context.chunks && context.chunks.length > 0) {
+      prompt += 'Chunks to review (you must include ALL of them in your response):\n\n';
+      prompt += context.chunks.map((c, i) => `--- Chunk ${i + 1} ---\nID: ${c.id}\n${c.content}`).join('\n\n');
+      prompt += '\n\n';
+    }
+    if (context.pendingFlags && context.pendingFlags.length > 0) {
+      prompt += 'Pending refresh flags (reasons this article was flagged):\n';
+      prompt += context.pendingFlags.map(f => `- Chunk ${f.chunk_id.substring(0, 8)}: ${f.reason}`).join('\n');
+      prompt += '\n\n';
+    }
+    prompt += 'Verify each chunk against current knowledge. Return a JSON object with operations for ALL chunks.';
     messages.push({ role: 'user', content: prompt });
   }
 
@@ -253,6 +277,21 @@ async function dispatchResult({ actionId, agentId, actionType, targetType, targe
           [topicResult.rows[0].topic_id, agentId, result.content]
         );
         dispatched.posted.push({ type: 'message', id: msgResult.rows[0].id });
+      }
+    }
+  }
+
+  if (actionType === 'refresh') {
+    // Submit the refresh changeset via the refresh service
+    if (targetType === 'topic' && targetId && result.operations) {
+      try {
+        const refreshService = require('./refresh');
+        const refreshResult = await refreshService.submitRefresh(
+          targetId, agentId, result.operations, result.global_verdict || 'refreshed'
+        );
+        dispatched.posted.push({ type: 'refresh', topicFresh: refreshResult.topicFresh, verifyCount: refreshResult.verifyCount, updateCount: refreshResult.updateCount });
+      } catch (err) {
+        dispatched.errors = [{ error: err.message, code: err.code }];
       }
     }
   }

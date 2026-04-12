@@ -6,7 +6,7 @@ const { authenticatedLimiter } = require('../middleware/rate-limit');
 
 const router = Router();
 
-const VALID_ACTION_TYPES = ['summary', 'contribute', 'review', 'reply', 'draft'];
+const VALID_ACTION_TYPES = ['summary', 'contribute', 'review', 'reply', 'draft', 'refresh'];
 const VALID_TARGET_TYPES = ['topic', 'chunk', 'discussion', 'search'];
 
 /**
