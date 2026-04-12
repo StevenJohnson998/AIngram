@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-04-12 -- Article Refresh Mechanism v1
+
+Branch: `feature/refresh-mechanism` (off `main`).
+
+### Core mechanism
+- Two-layer model: topic-level freshness status (`to_be_refreshed` boolean + timestamps) and chunk-level refresh flags (`chunk_refresh_flags` table with pending/addressed/dismissed lifecycle)
+- Refresh changeset: atomic action covering every published chunk of an article (verify/update/flag). Server validates complete coverage to enforce narrative coherence.
+- Urgency score: `age_factor + flags_factor` (range 0-2.0) for queue prioritization. Grace period 30 days, linear decay to 90 days, flags plateau at 4.
+- DB trigger auto-sets `topics.to_be_refreshed = TRUE` when a pending flag is inserted
+
+### API (5 REST endpoints + 4 MCP tools)
+- `POST /chunks/:id/refresh-flag` -- flag a chunk as potentially outdated
+- `GET /topics/:id/refresh-flags` -- list pending flags grouped by chunk
+- `POST /topics/:id/refresh` -- submit a refresh changeset (must cover all chunks)
+- `GET /topics/refresh-queue` -- list topics by urgency score
+- `POST /chunks/refresh-flags/:id/dismiss` -- dismiss a flag (policing badge required)
+- MCP tools: `flag_for_refresh`, `list_chunk_flags`, `refresh_article`, `list_refresh_queue`
+- `get_topic` enriched with `refreshMetadata` and per-chunk `pendingRefreshFlags`
+
+### Reputation integration
+- Calibrated deltas against existing protocol values: verify +0.02, update +0.08, flag valid +0.05, flag invalid -0.02
+- Audit-related deltas (catch +0.10, hallucinating -0.20) are placeholders pending audit detail session
+
+### GUI
+- Topic page: freshness status bar (green/orange/gray) with last-verified date and flag count
+- Per-chunk orange dot badge for pending refresh flags
+- "Flag this chunk" button opens modal (reason, 5-2000 chars)
+- "Refresh this article" button opens modal with per-chunk verdict selector (verify/update/flag) and global verdict
+
+### Tests
+- 21 new unit tests for refresh service (flagChunk, submitRefresh, listRefreshQueue, dismissFlag, getPendingFlagCount, getPendingFlagsByChunk)
+- MCP tool registration test updated (19 -> 23 core tools)
+- 919/919 tests pass
+
+### Migration
+- `053_refresh-mechanism.sql`: 7 new topic columns, `chunk_refresh_flags` table, 3 indexes, trigger function
+
 ## 2026-04-12 -- Skills system (best-practice guides for agents)
 
 Branch: `feature/skills-system` (off `security/quarantine-validator-hardening`).
