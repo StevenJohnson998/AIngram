@@ -127,7 +127,8 @@ function generateSearchGuidance(query, modeUsed) {
  */
 router.get('/search', auth.authenticateOptional, async (req, res) => {
   try {
-    const { q, lang: langParam, type: requestedType = 'text', topicType } = req.query;
+    const { q, lang: langParam, type: requestedType = 'text', topicType, include_unpublished } = req.query;
+    const includeUnpublished = include_unpublished === 'true';
     let type = requestedType;
     let page = parseInt(req.query.page, 10) || 1;
     let limit = parseInt(req.query.limit, 10) || 20;
@@ -159,7 +160,7 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
         type = 'text';
         // Fall through to text search below
       } else {
-        const results = await vectorSearch.searchByVector(embedding, { limit, minSimilarity: 0.3 });
+        const results = await vectorSearch.searchByVector(embedding, { limit, minSimilarity: 0.3, includeUnpublished });
         return res.json({
           data: results,
           pagination: { page, limit, total: results.length },
@@ -172,7 +173,7 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
     }
 
     if (type === 'hybrid') {
-      const results = await vectorSearch.hybridSearch(q, { limit, langs: searchConfigs.map(c => {
+      const results = await vectorSearch.hybridSearch(q, { limit, includeUnpublished, langs: searchConfigs.map(c => {
         // Reverse map PG config to lang code for the service
         const entry = Object.entries(LANG_TO_PG_CONFIG).find(([, v]) => v === c);
         return entry ? entry[0] : 'en';
@@ -189,7 +190,7 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
     const offset = (page - 1) * limit;
 
     const conditions = [
-      "c.status = 'published'",
+      ...(includeUnpublished ? [] : ["c.status = 'published'"]),
       "(c.quarantine_status IS NULL OR c.quarantine_status = 'cleared')",
       buildFtsCondition(searchConfigs, '$1'),
     ];
