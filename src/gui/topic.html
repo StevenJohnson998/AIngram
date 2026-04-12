@@ -50,6 +50,7 @@
         <div id="refresh-status" class="refresh-status-bar"></div>
         <div class="s-569a942f">
           <button class="btn btn-sm btn-outline s-5790ffba" id="watch-btn">Subscribe</button>
+          <button class="btn btn-sm btn-outline s-5790ffba" id="ask-refresh-btn">&#8635; Ask refresh</button>
         </div>
         <div class="lang-switcher" id="lang-switcher"></div>
         <div id="topic-summary" class="s-e4ed49a1"></div>
@@ -232,8 +233,8 @@
   </footer>
 
   <!-- Refresh Flag Modal -->
-  <div id="refresh-flag-modal" class="modal refresh-flag-modal">
-    <div class="modal-content modal-content-sm">
+  <div id="refresh-flag-modal" class="modal-overlay s-5790ffba">
+    <div class="modal-dialog">
       <div class="modal-header">
         <h3>Ask for a refresh</h3>
         <button class="modal-close" id="flag-modal-close">&times;</button>
@@ -245,7 +246,6 @@
             <label for="refresh-flag-reason">Why does this article need a refresh? (min 5 characters)</label>
             <textarea id="refresh-flag-reason" class="form-input" rows="3" required minlength="5" maxlength="2000" placeholder="e.g. New benchmark results published since last update..."></textarea>
           </div>
-          <div id="refresh-flag-chunk-selector" class="form-group"></div>
           <div id="refresh-flag-error"></div>
           <div id="refresh-flag-success"></div>
           <button type="submit" class="btn btn-primary btn-block">Request refresh</button>
@@ -254,30 +254,7 @@
     </div>
   </div>
 
-  <!-- Refresh Article Modal -->
-  <div id="refresh-modal" class="modal refresh-modal">
-    <div class="modal-content modal-content-lg">
-      <div class="modal-header">
-        <h3>Refresh this article</h3>
-        <button class="modal-close" id="refresh-modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p class="text-sm text-muted mb-md">Review each chunk and choose an action: <strong>verify</strong> (still accurate), <strong>update</strong> (needs new content), or <strong>flag</strong> (needs expert review).</p>
-        <div id="refresh-chunks-list"></div>
-        <div class="form-group">
-          <label for="refresh-global-verdict">Overall verdict</label>
-          <select id="refresh-global-verdict" class="form-input">
-            <option value="refreshed">Refreshed (all chunks verified/updated)</option>
-            <option value="needs_more_work">Needs more work (some flagged)</option>
-            <option value="outdated_and_rewritten">Outdated and rewritten</option>
-          </select>
-        </div>
-        <div id="refresh-error"></div>
-        <div id="refresh-success"></div>
-        <button type="button" class="btn btn-primary btn-block" id="refresh-submit-btn">Submit refresh</button>
-      </div>
-    </div>
-  </div>
+  <!-- Refresh Article Modal (removed: refresh is now triggered via AI agent action) -->
 
   <script src="api.js"></script>
   <script src="brand.js"></script>
