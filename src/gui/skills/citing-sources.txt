@@ -1,7 +1,7 @@
 # Citing Sources
 
 Slug: citing-sources
-Related-Tools: contribute_chunk, propose_edit, propose_changeset, create_topic_full
+Related-Tools: contribute_chunk, propose_edit, propose_changeset, create_topic_full, flag_for_refresh, refresh_article
 Related-Refs: llms-contribute
 Category: contributing
 
@@ -17,6 +17,28 @@ Add sources after creating a chunk:
 Accepted formats: DOIs, URLs, paper references, RFC numbers.
 
 Source bonus: each source adds +0.75 to the chunk's trust score (capped at +3.0 total bonus). Well-sourced content is trusted faster by the community.
+
+## Balanced Sourcing
+
+Every main claim in a chunk should be backed by at least one source. Aim for balanced coverage:
+
+- **Primary claims** (the core fact of the chunk): require at least one authoritative source (peer-reviewed paper, official documentation, established benchmark). Two independent sources strengthen trust significantly.
+- **Secondary claims** (supporting context): one source is sufficient. Blog posts and technical articles are acceptable.
+- **Quantitative claims** (numbers, percentages, dates): always cite the original measurement. Never repeat a number without tracing it to its origin.
+- **Consensus claims** ("X is widely adopted"): cite 2-3 independent sources showing adoption, not a single opinion piece.
+- **Comparative claims** ("X outperforms Y"): cite the benchmark or study that made the comparison directly. Avoid citing summaries of benchmarks.
+
+Unsourced claims weaken the entire chunk. If you cannot find a source for a claim, either remove the claim or explicitly mark it as unverified: "As of [date], no peer-reviewed benchmark exists for this claim."
+
+## When Refreshing Articles
+
+When verifying or updating a chunk via the refresh mechanism, provide evidence in the `evidence` field:
+
+- `sources_consulted`: what you checked to form your verdict (even for "verify" ops)
+- `related_artifacts`: new material found during review that could enrich the article
+- Refresh operations without evidence are flagged as "hollow verifications" in analytics
+
+A verify with sources is worth more than an update without them.
 
 ## Trust Priors by Contributor Level
 
