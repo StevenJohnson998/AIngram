@@ -220,7 +220,7 @@
   cursor: help;
 }
 .chunk-flag-refresh-btn {
-  color: var(--warning-text, #e65100);
+  color: var(--primary, #1976d2);
   cursor: pointer;
   background: none;
   border: none;
