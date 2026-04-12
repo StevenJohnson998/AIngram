@@ -1528,50 +1528,48 @@ var currentTopicId = null;
       var bar = document.getElementById('refresh-status');
       if (!bar || topic.topic_type !== 'knowledge') return;
 
-      // Fetch pending flag count for the topic
+      // Show "Ask refresh" button for logged-in users (independent of flags fetch)
+      var askBtn = document.getElementById('ask-refresh-btn');
+      var currentUser = await getCurrentUser();
+      if (askBtn && currentUser) {
+        askBtn.classList.remove('s-5790ffba');
+      }
+
+      // Default status bar from topic data (no API call needed)
+      if (topic.to_be_refreshed) {
+        bar.className = 'refresh-status-bar refresh-needed';
+        bar.innerHTML = '&#9888; Refresh needed';
+        if (askBtn && currentUser) {
+          askBtn.innerHTML = '&#10003; Refresh asked';
+          askBtn.disabled = true;
+          askBtn.classList.add('btn-disabled');
+        }
+      } else if (topic.last_refreshed_at) {
+        bar.className = 'refresh-status-bar refresh-fresh';
+        bar.innerHTML = '&#10003; Last verified ' + timeAgo(topic.last_refreshed_at) +
+          (topic.refresh_check_count > 0 ? ' (' + topic.refresh_check_count + ' checks)' : '');
+      } else {
+        bar.className = 'refresh-status-bar refresh-never';
+        bar.innerHTML = 'Never refreshed';
+      }
+      addRefreshButton(bar);
+
+      // Enrich with flag count (non-blocking)
       try {
         var flagRes = await API.get('/topics/' + topic.id + '/refresh-flags');
-        var flagCount = (flagRes.status === 200 && flagRes.data) ? flagRes.data.count : 0;
-        // Build per-chunk map for badges
-        if (flagRes.status === 200 && flagRes.data && flagRes.data.flags) {
-          flagRes.data.flags.forEach(function(g) {
-            refreshFlagsByChunk[g.chunk_id] = g.flags.length;
-          });
-        }
-
-        if (topic.to_be_refreshed && flagCount > 0) {
-          bar.className = 'refresh-status-bar refresh-needed';
-          bar.innerHTML = '&#9888; Refresh needed &mdash; ' + flagCount + ' pending flag(s)';
-          addRefreshButton(bar);
-        } else if (topic.last_refreshed_at) {
-          bar.className = 'refresh-status-bar refresh-fresh';
-          bar.innerHTML = '&#10003; Last verified ' + timeAgo(topic.last_refreshed_at) +
-            (topic.refresh_check_count > 0 ? ' (' + topic.refresh_check_count + ' checks)' : '');
-          addRefreshButton(bar);
-        } else {
-          bar.className = 'refresh-status-bar refresh-never';
-          bar.innerHTML = 'Never refreshed';
-          addRefreshButton(bar);
-        }
-        // Show/update the "Ask refresh" button next to Subscribe
-        var askBtn = document.getElementById('ask-refresh-btn');
-        if (askBtn) {
-          var currentUser = await getCurrentUser();
-          if (currentUser) {
-            if (topic.to_be_refreshed && flagCount > 0) {
-              askBtn.innerHTML = '&#10003; Refresh asked';
-              askBtn.disabled = true;
-              askBtn.classList.add('btn-disabled');
-            } else {
-              askBtn.innerHTML = '&#8635; Ask refresh';
-              askBtn.disabled = false;
-              askBtn.classList.remove('btn-disabled');
-            }
-            askBtn.classList.remove('s-5790ffba');
+        if (flagRes.status === 200 && flagRes.data) {
+          var flagCount = flagRes.data.count || 0;
+          if (flagRes.data.flags) {
+            flagRes.data.flags.forEach(function(g) {
+              refreshFlagsByChunk[g.chunk_id] = g.flags.length;
+            });
+          }
+          if (flagCount > 0 && topic.to_be_refreshed) {
+            bar.innerHTML = '&#9888; Refresh needed &mdash; ' + flagCount + ' pending flag(s)';
           }
         }
       } catch (e) {
-        // Non-critical, silently fail
+        // Non-critical
       }
     }
 
