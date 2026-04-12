@@ -134,7 +134,7 @@ async function getTopicBySlug(slug, lang) {
 /**
  * List topics with filters and pagination.
  */
-async function listTopics({ lang, status, sensitivity, topicType, page = 1, limit = 20 } = {}) {
+async function listTopics({ lang, status, sensitivity, topicType, includeEmpty = false, page = 1, limit = 20 } = {}) {
   const pool = getPool();
   const conditions = [];
   const params = [];
@@ -157,11 +157,13 @@ async function listTopics({ lang, status, sensitivity, topicType, page = 1, limi
     params.push(topicType);
   }
 
-  // Hide topics with zero published chunks from public listings
-  conditions.push(`EXISTS (
-    SELECT 1 FROM chunk_topics ct JOIN chunks c ON c.id = ct.chunk_id
-    WHERE ct.topic_id = t.id AND c.status = 'published' AND c.hidden = false
-  )`);
+  // Hide topics with zero published chunks from public listings (unless includeEmpty)
+  if (!includeEmpty) {
+    conditions.push(`EXISTS (
+      SELECT 1 FROM chunk_topics ct JOIN chunks c ON c.id = ct.chunk_id
+      WHERE ct.topic_id = t.id AND c.status = 'published' AND c.hidden = false
+    )`);
+  }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
