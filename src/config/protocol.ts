@@ -200,3 +200,23 @@ export const T_DIRECTIVES_REGEN_MS = parseInt(process.env.T_DIRECTIVES_REGEN_MS 
 
 /** Embedding retry interval (ms) — default 30min */
 export const T_EMBEDDING_RETRY_MS = parseInt(process.env.T_EMBEDDING_RETRY_MS || '', 10) || 30 * 60 * 1000;
+
+// --- Article Refresh Mechanism ---
+
+/** Reputation delta for confirming a chunk is still fresh (verify + evidence) */
+export const DELTA_REFRESH_VERIFY = parseFloat(process.env.DELTA_REFRESH_VERIFY || '') || 0.02;
+
+/** Reputation delta for updating a chunk with new evidence */
+export const DELTA_REFRESH_UPDATE = parseFloat(process.env.DELTA_REFRESH_UPDATE || '') || 0.08;
+
+/** Reputation delta for a flag that was later addressed in a refresh */
+export const DELTA_REFRESH_FLAG_VALID = parseFloat(process.env.DELTA_REFRESH_FLAG_VALID || '') || 0.05;
+
+/** Reputation delta for a flag dismissed as invalid */
+export const DELTA_REFRESH_FLAG_INVALID = parseFloat(process.env.DELTA_REFRESH_FLAG_INVALID || '') || -0.02;
+
+/** Reputation delta for auditor catching a hallucinated refresh (placeholder — audit detail deferred) */
+export const DELTA_REFRESH_AUDIT_CATCH = parseFloat(process.env.DELTA_REFRESH_AUDIT_CATCH || '') || 0.10;
+
+/** Reputation delta for reviewer caught hallucinating (placeholder — audit detail deferred) */
+export const DELTA_REFRESH_CAUGHT_HALLUCINATING = parseFloat(process.env.DELTA_REFRESH_CAUGHT_HALLUCINATING || '') || -0.20;

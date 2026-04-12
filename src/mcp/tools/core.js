@@ -3,6 +3,7 @@
 const { z } = require('zod');
 const chunkService = require('../../services/chunk');
 const topicService = require('../../services/topic');
+const refreshService = require('../../services/refresh');
 const relatedService = require('../../services/related');
 const voteService = require('../../services/vote');
 const formalVoteService = require('../../services/formal-vote');
@@ -131,9 +132,11 @@ function registerTools(server, getSessionAccount) {
           return mcpError(Object.assign(new Error('Topic not found'), { code: 'NOT_FOUND' }));
         }
 
-        const [chunks, proposed] = await Promise.all([
+        const [chunks, proposed, pendingFlagCount, pendingFlagsByChunk] = await Promise.all([
           chunkService.getChunksByTopic(topic.id, { status: 'published', limit: 50 }),
           chunkService.getChunksByTopic(topic.id, { status: 'proposed', limit: 0 }),
+          refreshService.getPendingFlagCount(topic.id),
+          refreshService.getPendingFlagsByChunk(topic.id),
         ]);
 
         return mcpResult({
@@ -146,6 +149,13 @@ function registerTools(server, getSessionAccount) {
             sensitivity: topic.sensitivity,
             createdAt: topic.created_at,
           },
+          refreshMetadata: {
+            toBeRefreshed: topic.to_be_refreshed || false,
+            lastRefreshedAt: topic.last_refreshed_at || null,
+            lastRefreshedBy: topic.last_refreshed_by || null,
+            refreshCheckCount: topic.refresh_check_count || 0,
+            pendingFlagCount,
+          },
           chunks: chunks.data.map(c => ({
             id: c.id,
             content: c.content,
@@ -154,6 +164,7 @@ function registerTools(server, getSessionAccount) {
             title: c.title,
             subtitle: c.subtitle,
             trustMetadata: trustMetadata(c),
+            pendingRefreshFlags: pendingFlagsByChunk[c.id] || 0,
           })),
           totalChunks: chunks.pagination.total,
           proposedCount: proposed.pagination.total,
@@ -674,6 +685,149 @@ function registerTools(server, getSessionAccount) {
           value: vote.value,
           weight: vote.weight,
           message: 'Vote cast.',
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  // ─── REFRESH TOOLS ─────────────────────────────────────────────────
+
+  tools.flag_for_refresh = server.tool(
+    'flag_for_refresh',
+    'Flag a chunk as potentially outdated. Creates a pending refresh flag with a reason and optional evidence. The owning article is automatically marked as needing refresh.',
+    {
+      chunkId: z.string().describe('UUID of the chunk to flag'),
+      reason: z.string().describe('Why this chunk may be outdated (5-2000 chars)'),
+      evidence: z.object({
+        sources_consulted: z.array(z.object({
+          type: z.string(),
+          ref: z.string(),
+          title: z.string().optional(),
+          published_at: z.string().nullable().optional(),
+          relevance: z.string(),
+        })).optional(),
+        related_artifacts: z.array(z.object({
+          type: z.string(),
+          ref: z.string(),
+          title: z.string().optional(),
+          published_at: z.string().nullable().optional(),
+          relevance: z.string(),
+        })).optional(),
+      }).optional().describe('Structured evidence (sources consulted, related artifacts)'),
+    },
+    async ({ chunkId, reason, evidence }, extra) => {
+      try {
+        const account = requireAccount(getSessionAccount, extra);
+        const flag = await refreshService.flagChunk(chunkId, account.id, reason, evidence || null);
+        return mcpResult({
+          flagId: flag.id,
+          chunkId: flag.chunk_id,
+          status: flag.status,
+          message: 'Chunk flagged for refresh. The article is now marked as needing refresh.',
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  tools.list_chunk_flags = server.tool(
+    'list_chunk_flags',
+    'List pending refresh flags for a topic. Returns flags grouped by chunk — this is the brief for an agent about to refresh an article.',
+    {
+      topicId: z.string().describe('UUID of the topic'),
+    },
+    async ({ topicId }) => {
+      try {
+        const flags = await refreshService.getTopicRefreshFlags(topicId);
+        return mcpResult({
+          topicId,
+          chunks_with_flags: flags,
+          total_pending_flags: flags.reduce((sum, g) => sum + g.flags.length, 0),
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  tools.refresh_article = server.tool(
+    'refresh_article',
+    'Submit a refresh changeset for an article. MUST include one operation (verify/update/flag) for EVERY published chunk. This enforces narrative coherence — the agent must inspect the entire article.',
+    {
+      topicId: z.string().describe('UUID of the topic to refresh'),
+      operations: z.array(z.object({
+        chunk_id: z.string().describe('UUID of the chunk'),
+        op: z.enum(['verify', 'update', 'flag']).describe('verify = still accurate, update = modified content, flag = escalate for further review'),
+        new_content: z.string().optional().describe('New content (required for update ops)'),
+        reason: z.string().optional().describe('Reason for flagging (used for flag ops)'),
+        evidence: z.object({
+          verdict: z.string().optional(),
+          confidence: z.number().optional(),
+          verdict_explanation: z.string().optional(),
+          search_queries: z.array(z.string()).optional(),
+          sources_consulted: z.array(z.object({
+            type: z.string(),
+            ref: z.string(),
+            title: z.string().optional(),
+            published_at: z.string().nullable().optional(),
+            relevance: z.string(),
+          })).optional(),
+          related_artifacts: z.array(z.object({
+            type: z.string(),
+            ref: z.string(),
+            title: z.string().optional(),
+            published_at: z.string().nullable().optional(),
+            relevance: z.string(),
+          })).optional(),
+        }).optional().describe('Structured evidence for this operation'),
+      })).describe('One operation per chunk'),
+      globalVerdict: z.enum(['refreshed', 'needs_more_work', 'outdated_and_rewritten']).describe('Overall assessment of the article after refresh'),
+    },
+    async ({ topicId, operations, globalVerdict }, extra) => {
+      try {
+        const account = requireAccount(getSessionAccount, extra);
+        const result = await refreshService.submitRefresh(topicId, account.id, operations, globalVerdict);
+        return mcpResult({
+          ...result,
+          message: result.topicFresh
+            ? 'Article refreshed successfully. All flags resolved, article is now marked as fresh.'
+            : 'Refresh submitted, but some chunks were flagged for further review. Article still needs attention.',
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  tools.list_refresh_queue = server.tool(
+    'list_refresh_queue',
+    'List articles needing refresh, sorted by urgency score. Use this to find articles that need attention — higher urgency means older or more flagged content.',
+    {
+      limit: z.number().optional().describe('Max results (1-100, default 20)'),
+    },
+    async ({ limit }) => {
+      try {
+        const topics = await refreshService.listRefreshQueue({
+          limit: Math.min(Math.max(limit || 20, 1), 100),
+        });
+        return mcpResult({
+          topics: topics.map(t => ({
+            topicId: t.id,
+            title: t.title,
+            slug: t.slug,
+            lang: t.lang,
+            urgencyScore: t.urgency_score,
+            ageFactor: t.age_factor,
+            flagsFactor: t.flags_factor,
+            pendingFlagCount: t.pending_flag_count,
+            lastRefreshedAt: t.last_refreshed_at,
+            lastRefreshedByName: t.last_refreshed_by_name,
+            refreshCheckCount: t.refresh_check_count,
+          })),
+          _hint: 'Use list_chunk_flags with a topicId to see the detailed flags before refreshing.',
         });
       } catch (err) {
         return mcpError(err);

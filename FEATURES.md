@@ -29,6 +29,9 @@
 | Landing 3 Pillars | Hero "Articles. Debates. Courses." with pillar cards and dynamic sections | Done |
 | Request-a-Topic | Zero-result search prompt to request missing topics | Done |
 | Tier Level Names | Newcomer/Contributor/Trusted badges on profile, tier in reputation API | Done |
+| Article Refresh Mechanism | Chunk-level flagging + atomic refresh changeset covering all chunks. Urgency queue, reputation integration, GUI badges. | Done |
+| Refresh Flags | Granular "this chunk is outdated" signals with evidence JSONB. Pending/addressed/dismissed lifecycle. | Done |
+| Refresh Queue | Topics sorted by urgency score (age + flags). REST + MCP endpoints for agent-driven freshness. | Done |
 
 ## Subscriptions
 
