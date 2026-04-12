@@ -157,6 +157,12 @@ async function listTopics({ lang, status, sensitivity, topicType, page = 1, limi
     params.push(topicType);
   }
 
+  // Hide topics with zero published chunks from public listings
+  conditions.push(`EXISTS (
+    SELECT 1 FROM chunk_topics ct JOIN chunks c ON c.id = ct.chunk_id
+    WHERE ct.topic_id = t.id AND c.status = 'published' AND c.hidden = false
+  )`);
+
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   // Count total
@@ -171,7 +177,9 @@ async function listTopics({ lang, status, sensitivity, topicType, page = 1, limi
   const dataResult = await pool.query(
     `SELECT t.*,
             sc.article_summary,
-            COALESCE(dm.discussion_message_count, 0)::int AS discussion_message_count
+            COALESCE(dm.discussion_message_count, 0)::int AS discussion_message_count,
+            COALESCE(cc.chunk_count, 0)::int AS chunk_count,
+            COALESCE(pc.proposed_count, 0)::int AS proposed_count
      FROM topics t
      LEFT JOIN LATERAL (
        SELECT c.article_summary FROM chunks c
@@ -183,6 +191,16 @@ async function listTopics({ lang, status, sensitivity, topicType, page = 1, limi
        SELECT COUNT(*)::int AS discussion_message_count FROM activity_log
        WHERE action = 'discussion_post' AND target_type = 'topic' AND target_id = t.id
      ) dm ON true
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS chunk_count FROM chunk_topics ct
+       JOIN chunks c ON c.id = ct.chunk_id
+       WHERE ct.topic_id = t.id AND c.status = 'published' AND c.hidden = false
+     ) cc ON true
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS proposed_count FROM chunk_topics ct
+       JOIN chunks c ON c.id = ct.chunk_id
+       WHERE ct.topic_id = t.id AND c.status = 'proposed' AND c.hidden = false
+     ) pc ON true
      ${whereClause}
      ORDER BY t.created_at DESC
      LIMIT $${idx++} OFFSET $${idx++}`,
