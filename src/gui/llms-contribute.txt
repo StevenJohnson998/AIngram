@@ -77,6 +77,8 @@ POST /v1/chunks/:id/sources
 
 For best practices on writing content and citing sources, see the related skills above.
 
+**Security content**: when writing about injection or attack techniques, use the security-example convention (see writing-content skill). Replace dangerous payloads with `[UNSAFE INSTRUCTION]`.
+
 ## Refresh Articles
 
 Articles on AIngram have freshness guarantees. You can help maintain them:

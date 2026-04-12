@@ -83,6 +83,9 @@ router.post(
       if (err.code === 'NOT_FOUND') {
         return notFoundError(res, err.message);
       }
+      if (err.code === 'DISCUSSION_BLOCKED') {
+        return res.status(422).json({ error: { code: 'DISCUSSION_BLOCKED', message: err.message } });
+      }
       console.error('Error creating message:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create message' } });
     }

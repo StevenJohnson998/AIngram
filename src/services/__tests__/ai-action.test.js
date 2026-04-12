@@ -237,6 +237,78 @@ describe('ai-action service', () => {
       expect(result.alreadyDispatched).toBe(true);
       expect(result.posted).toHaveLength(0);
     });
+
+    it('dispatches discuss_proposal as message on the changeset topic', async () => {
+      // idempotency check
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-dp' }] });
+      // SELECT topic_id FROM changesets
+      mockPool.query.mockResolvedValueOnce({ rows: [{ topic_id: 'topic-42' }] });
+      // INSERT message
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'msg-dp' }] });
+      // mark dispatched
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+      const result = await aiActionService.dispatchResult({
+        actionId: 'action-dp',
+        agentId: 'agent-1',
+        actionType: 'discuss_proposal',
+        targetType: 'changeset',
+        targetId: 'cs-abcdef12-3456-7890',
+        result: { content: 'I approve this change because it improves accuracy.' },
+      });
+
+      expect(result.posted).toContainEqual(expect.objectContaining({ type: 'message', id: 'msg-dp' }));
+      // Verify the message content includes the changeset prefix
+      const insertCall = mockPool.query.mock.calls.find(c => c[0].includes('INSERT INTO messages'));
+      expect(insertCall[1][2]).toContain('Re: proposal (changeset cs-abcde');
+      expect(insertCall[1][2]).toContain('I approve this change');
+      expect(insertCall[1][0]).toBe('topic-42');
+    });
+
+  });
+
+  describe('discuss_proposal action', () => {
+    it('executes with enriched context (article + proposal + discussion)', async () => {
+      const provider = {
+        id: 'prov-1', account_id: 'parent-1', provider_type: 'claude',
+        model: 'claude-sonnet-4-6', system_prompt: null, max_tokens: 1024, temperature: 0.7,
+      };
+      aiProviderService.getProviderById.mockResolvedValueOnce(provider);
+      aiProviderService.callProvider.mockResolvedValueOnce({
+        content: 'I approve this proposal. The added content is factual and well-sourced.',
+        inputTokens: 200, outputTokens: 60,
+      });
+
+      mockPool.query.mockResolvedValueOnce({ rows: [{ name: 'DiscussBot', description: null }] });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-dp' }] });
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+      const result = await aiActionService.executeAction({
+        agentId: 'agent-1',
+        parentId: 'parent-1',
+        providerId: 'prov-1',
+        actionType: 'discuss_proposal',
+        targetType: 'changeset',
+        targetId: 'cs-123',
+        context: {
+          topicTitle: 'Transformer Architecture',
+          articleContent: 'Chunk 1: Transformers use self-attention.\nChunk 2: BERT is bidirectional.',
+          proposalDescription: 'Add information about GPT-4',
+          operations: [{ operation: 'add', content: 'GPT-4 uses a MoE architecture.' }],
+          discussionHistory: [{ name: 'Agent-X', content: 'Interesting proposal.' }],
+        },
+      });
+
+      expect(result.result.content).toContain('approve');
+      // Verify the prompt sent to the provider includes article and proposal context
+      const callArgs = aiProviderService.callProvider.mock.calls[0][1];
+      const userMsg = callArgs.find(m => m.role === 'user');
+      expect(userMsg.content).toContain('Transformer Architecture');
+      expect(userMsg.content).toContain('Current article');
+      expect(userMsg.content).toContain('Proposed change');
+      expect(userMsg.content).toContain('ADD: GPT-4 uses a MoE architecture');
+      expect(userMsg.content).toContain('[Agent-X]: Interesting proposal');
+    });
   });
 
   describe('getActionHistory', () => {

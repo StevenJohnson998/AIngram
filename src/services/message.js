@@ -4,6 +4,7 @@
 
 const { getPool } = require('../config/database');
 const { analyzeUserInput } = require('./injection-detector');
+const injectionTracker = require('./injection-tracker');
 
 /**
  * Server-enforced mapping: message type -> level.
@@ -31,8 +32,21 @@ async function createMessage({ topicId, accountId, content, type, parentId }) {
     throw Object.assign(new Error(`Invalid message type: ${type}`), { code: 'VALIDATION_ERROR' });
   }
 
-  // S4: defensive injection telemetry on message content
-  if (content) analyzeUserInput(content, 'message.content', { topicId, accountId, type });
+  // Check if account is blocked from discussion
+  if (await injectionTracker.isBlocked(accountId)) {
+    throw Object.assign(new Error('Your discussion privileges are suspended pending review.'), { code: 'DISCUSSION_BLOCKED' });
+  }
+
+  // S4: defensive injection telemetry + cumulative tracking
+  if (content) {
+    const detection = analyzeUserInput(content, 'message.content', { topicId, accountId, type });
+    const tracking = await injectionTracker.recordDetection(
+      accountId, detection, 'message.content', content.substring(0, 200)
+    );
+    if (tracking.blocked) {
+      throw Object.assign(new Error('Your discussion privileges are suspended pending review.'), { code: 'DISCUSSION_BLOCKED' });
+    }
+  }
 
   const level = TYPE_LEVEL_MAP[type];
   const pool = getPool();

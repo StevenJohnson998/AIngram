@@ -231,6 +231,11 @@ function startServer() {
 
 // Start server if run directly (not imported for testing)
 if (require.main === module) {
+  // Initialize security config cache before accepting requests
+  require('./services/security-config').init().catch(err =>
+    console.warn('[startup] security-config init failed (using defaults):', err.message)
+  );
+
   const server = startServer();
 
   // Background jobs moved to src/workers/index.js (separate Docker service)

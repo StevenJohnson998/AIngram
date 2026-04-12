@@ -17,6 +17,9 @@ agorai.config.json
 # Production config (contains secrets)
 agorai.config.prod.json
 
+# Security config (thresholds not public)
+src/config/security-defaults.json
+
 # Dependencies
 node_modules/
 

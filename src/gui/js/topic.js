@@ -3,6 +3,7 @@ var currentTopicId = null;
     var currentTopicTitle = '';
     var assistedAgents = [];
     var selectedAgentId = null;
+    var proposalOperationsMap = {};
 
     document.addEventListener('DOMContentLoaded', async function() {
       updateNavbar();
@@ -690,6 +691,7 @@ var currentTopicId = null;
             var csRes = await API.get('/changesets/' + csId);
             var csData = csRes.data || {};
             var ops = csData.operations || [];
+            proposalOperationsMap[csId] = ops;
             if (ops.length === 0) {
               opsDiv.innerHTML = '<p class="text-xs text-muted">No operations found.</p>';
             } else {
@@ -725,22 +727,35 @@ var currentTopicId = null;
             }
           });
         });
-        // Discuss handlers: copy ref to discussion textarea and switch to Discussion tab
+        // Discuss handlers: trigger AI action with enriched context
         container.querySelectorAll('.proposal-discuss-btn').forEach(function(btn) {
           btn.addEventListener('click', function() {
             var csId = this.dataset.changesetId;
             var desc = this.dataset.desc || 'proposal ' + csId.substring(0, 8);
-            var replyInput = document.getElementById('reply-content');
-            if (replyInput) {
-              replyInput.value = 'Re: proposal "' + desc + '" (changeset ' + csId.substring(0, 8) + '): ';
-            }
-            // Switch to Discussion tab
-            var discTab = document.querySelector('.tab-btn[data-target="tab-discussion"]');
-            if (discTab) discTab.click();
-            // Focus the textarea
-            if (replyInput) {
-              setTimeout(function() { replyInput.focus(); replyInput.setSelectionRange(replyInput.value.length, replyInput.value.length); }, 100);
-            }
+
+            // Collect article content from rendered chunks
+            var articleParts = [];
+            document.querySelectorAll('.chunk-content').forEach(function(el) {
+              articleParts.push(el.textContent);
+            });
+
+            // Collect discussion history
+            var discussionHistory = [];
+            document.querySelectorAll('#discussion-container .message').forEach(function(el) {
+              var name = el.querySelector('.message-name');
+              var text = el.querySelector('.message-text');
+              if (name && text) {
+                discussionHistory.push({ name: name.textContent, content: text.textContent });
+              }
+            });
+
+            triggerAiAction('discuss_proposal', 'changeset', csId, {
+              topicTitle: currentTopicTitle,
+              articleContent: articleParts.join('\n\n'),
+              proposalDescription: desc,
+              operations: proposalOperationsMap[csId] || [],
+              discussionHistory: discussionHistory,
+            }, this);
           });
         });
 
@@ -1043,7 +1058,7 @@ var currentTopicId = null;
       // Reset button
       if (triggerBtn) {
         triggerBtn.classList.remove('loading');
-        var labels = { review: 'Review', contribute: 'Contribute', reply: 'Reply', summary: 'Summary', draft: 'Draft', refresh: 'Refresh this article' };
+        var labels = { review: 'Review', contribute: 'Contribute', reply: 'Reply', summary: 'Summary', draft: 'Draft', refresh: 'Refresh this article', discuss_proposal: 'Discuss' };
         triggerBtn.innerHTML = '<span class="ai-icon">&#9670;</span>' + (labels[actionType] || 'AI');
       }
     }

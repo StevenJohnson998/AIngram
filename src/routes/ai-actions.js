@@ -6,8 +6,8 @@ const { authenticatedLimiter } = require('../middleware/rate-limit');
 
 const router = Router();
 
-const VALID_ACTION_TYPES = ['summary', 'contribute', 'review', 'reply', 'draft', 'refresh'];
-const VALID_TARGET_TYPES = ['topic', 'chunk', 'discussion', 'search'];
+const VALID_ACTION_TYPES = ['summary', 'contribute', 'review', 'reply', 'draft', 'refresh', 'discuss_proposal'];
+const VALID_TARGET_TYPES = ['topic', 'chunk', 'discussion', 'search', 'changeset'];
 
 /**
  * POST /ai/actions — execute an AI action on behalf of an assisted agent

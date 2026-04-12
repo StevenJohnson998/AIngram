@@ -1,0 +1,6 @@
+{
+  "injection_half_life_ms": 3600000,
+  "injection_block_threshold": 2.0,
+  "injection_min_score_logged": 0.1,
+  "security_example_weight": 0.2
+}

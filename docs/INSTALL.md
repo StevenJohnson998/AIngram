@@ -69,6 +69,31 @@ See `.env.example` for OpenAI / Mistral / local Ollama configurations and tunabl
 
 **Verify after start:** check `docker logs aingram-worker` for `quarantine validator job started (interval: 10000ms)`. If you see the `WARNING: QuarantineValidator NOT CONFIGURED` banner, the variable is missing or the worker hasn't picked it up.
 
+### Configure Injection Tracker
+
+The injection tracker monitors discussion messages for prompt injection patterns. It uses a cumulative score with exponential decay to block repeat offenders while tolerating occasional false positives.
+
+**Configure thresholds:**
+
+```bash
+cp src/config/security-defaults.json.example src/config/security-defaults.json
+```
+
+Edit `src/config/security-defaults.json` with your values:
+
+| Parameter | What it does |
+|-----------|-------------|
+| `injection_half_life_ms` | Time in ms for the score to halve. Lower = forgives faster. |
+| `injection_block_threshold` | Cumulative score that triggers discussion block. Lower = stricter. |
+| `injection_min_score_logged` | Minimum single-detection score to record in the audit log. |
+| `security_example_weight` | Score multiplier for content inside `security-example` blocks using the `[UNSAFE INSTRUCTION]` placeholder convention. |
+
+The `.json.example` file ships with conservative defaults. Tune based on your expected traffic: a public instance may want stricter values than a private team KB.
+
+These values are also stored in the `security_config` database table (takes precedence over the file). You can update them at runtime via SQL without restarting.
+
+**This file is gitignored.** Do not commit your production thresholds.
+
 ### Start
 
 ```bash

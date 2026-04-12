@@ -1,4 +1,8 @@
 jest.mock('../../config/database');
+jest.mock('../injection-tracker', () => ({
+  isBlocked: jest.fn().mockResolvedValue(false),
+  recordDetection: jest.fn().mockResolvedValue({ blocked: false, score: 0, newlyBlocked: false }),
+}));
 
 const { getPool } = require('../../config/database');
 const messageService = require('../message');

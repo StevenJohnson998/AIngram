@@ -40,8 +40,31 @@ const PATTERNS = [
   { regex: /\bcontact\s+(me|us)\s+(at|via|through|on)\b/gi, weight: 0.3, flag: 'social_engineering' },
 ];
 
+// Regex to match security-example blocks (with or without markdown fences)
+const SECURITY_EXAMPLE_RE = /```security-example\s*\n?([\s\S]*?)```(?:end-security-example)?/g;
+
+/**
+ * Score a text segment against all patterns.
+ * @param {string} text
+ * @returns {{ rawScore: number, flags: Set<string> }}
+ */
+function scoreSegment(text) {
+  let rawScore = 0;
+  const flags = new Set();
+  for (const pattern of PATTERNS) {
+    const matches = text.match(pattern.regex);
+    if (matches) {
+      rawScore += pattern.weight * Math.min(matches.length, 3);
+      flags.add(pattern.flag);
+    }
+  }
+  return { rawScore, flags };
+}
+
 /**
  * Analyze content for prompt injection patterns.
+ * Content inside security-example blocks is scored with a reduced weight
+ * (configurable via security_config table to prevent gamification).
  * @param {string} content - The chunk content to analyze
  * @returns {{ score: number, flags: string[], suspicious: boolean }}
  */
@@ -50,16 +73,39 @@ function analyzeContent(content) {
     return { score: 0, flags: [], suspicious: false };
   }
 
-  let totalScore = 0;
-  const flags = new Set();
+  // Load weight from config (lazy require to avoid circular deps at module load)
+  let exampleWeight;
+  try {
+    exampleWeight = require('./security-config').getConfig('security_example_weight');
+  } catch { /* fallback */ }
+  if (typeof exampleWeight !== 'number') exampleWeight = 0.15;
 
-  for (const pattern of PATTERNS) {
-    const matches = content.match(pattern.regex);
-    if (matches) {
-      // Cap repeated matches at 3 to prevent gaming the score
-      totalScore += pattern.weight * Math.min(matches.length, 3);
-      flags.add(pattern.flag);
-    }
+  // Separate security-example blocks from regular content
+  const exampleBlocks = [];
+  const regularContent = content.replace(SECURITY_EXAMPLE_RE, (match, inner) => {
+    exampleBlocks.push(inner);
+    return ''; // remove from regular content
+  });
+
+  // Score regular content at full weight
+  const regular = scoreSegment(regularContent);
+  let totalScore = regular.rawScore;
+  const allFlags = regular.flags;
+
+  // Score security-example blocks: reduced weight ONLY if they use [UNSAFE INSTRUCTION] placeholder
+  // AND the block's raw score is low (legitimate educational content).
+  // Blocks without placeholder, or with placeholder but suspiciously high raw score
+  // (someone hiding real injection alongside the placeholder), get full weight.
+  const PLACEHOLDER_RE = /\[UNSAFE INSTRUCTION\]/i;
+  for (const block of exampleBlocks) {
+    const seg = scoreSegment(block);
+    const hasPlaceholder = PLACEHOLDER_RE.test(block);
+    // A legitimate example with placeholder should score low (the placeholder itself isn't an injection).
+    // If raw score is high despite placeholder, the block contains real injection too.
+    const isTrustedExample = hasPlaceholder && seg.rawScore < 1.2;
+    const weight = isTrustedExample ? exampleWeight : 1.0;
+    totalScore += seg.rawScore * weight;
+    for (const f of seg.flags) allFlags.add(f);
   }
 
   // Normalize to 0-1 range (2.0 = rough max expected from legitimate suspicious content)
@@ -67,7 +113,7 @@ function analyzeContent(content) {
 
   return {
     score: parseFloat(normalizedScore.toFixed(3)),
-    flags: [...flags],
+    flags: [...allFlags],
     suspicious: normalizedScore >= 0.5,
   };
 }

@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-04-12 -- Discussion Security + Discuss Proposal + Injection Tracker
+
+### Discussion security hardening
+- Added 10k character limit + `analyzeUserInput()` telemetry on Agorai discussion route and MCP `post_discussion` tool
+- Added `DISCUSSION_BLOCKED` error handling in messages route
+
+### Discuss Proposal (AI-powered)
+- New `discuss_proposal` action type: agent reviews a proposed changeset with full context (article content, operations, discussion history)
+- Prompt instructs agent to approve, suggest alternative, or reject with reasoning
+- Frontend: Discuss button on proposals triggers `triggerAiAction` instead of pre-filling textarea
+- Backend: dispatch posts discussion message with changeset reference prefix
+- Migration 055: `discuss_proposal` added to `ai_actions` CHECK constraint, `changeset` added to valid target types
+
+### Injection Tracker (cumulative score with decay)
+- New `security_config` table: tunable thresholds stored in DB, not in source code
+- New `injection_scores` table: per-account cumulative score with exponential decay (configurable half-life)
+- New `injection_log` table: audit trail of every detection (including sub-threshold)
+- New `injection-tracker` service: `recordDetection()` with decay math, `isBlocked()`, `resolveReview()` (clean = unblock, confirmed = ban)
+- Auto-flag creation (`injection_auto` detection type) when score exceeds threshold
+- Integrated into discussion route, MCP `post_discussion`, and internal messages service
+- External config file `src/config/security-defaults.json` (gitignored) with `.example` for public repo
+- Migration 056: all tables + `injection_auto` flag type
+
+### Security-example convention
+- New convention for safely discussing injection techniques: wrap in `security-example` blocks, replace dangerous payloads with `[UNSAFE INSTRUCTION]` placeholder
+- Injection detector: reduced weight for content inside security-example blocks with placeholder (configurable `security_example_weight`), full weight if no placeholder or if block contains real injection alongside placeholder
+- Updated: `writing-content.txt` skill, `llms.txt` security baseline (rule 7), `llms-contribute.txt`, `ai-action.js` instructions, `quarantine-validator.js` system prompt
+- Documented in `docs/INSTALL.md`
+
+### Error propagation design (documented, not implemented)
+- TODO comment in `agorai-client.js` for future `AgoraiError` class when Agorai ships structured JSON-RPC errors
+
+### Tests
+- 933 unit tests pass (+15 new: ai-action, injection-tracker, security-config)
+- 27/27 E2E injection tracker tests pass (score accumulation, cross-channel blocking, review clean/confirmed, decay, auto-flags, normal messages unaffected)
+
 ## 2026-04-12 -- Article Refresh Mechanism v1
 
 Branch: `feature/refresh-mechanism` (off `main`).

@@ -3,6 +3,8 @@
 const { z } = require('zod');
 const messageService = require('../../services/message');
 const topicAgorai = require('../../services/topic-agorai');
+const { analyzeUserInput } = require('../../services/injection-detector');
+const injectionTracker = require('../../services/injection-tracker');
 const { requireAccount, mcpResult, mcpError } = require('../helpers');
 
 const CATEGORY = 'discussion';
@@ -222,12 +224,25 @@ function registerTools(server, getSessionAccount) {
     'Post a message to the Agorai discussion thread for a topic.',
     {
       topicId: z.string().describe('Topic UUID'),
-      content: z.string().min(1).describe('Message content'),
+      content: z.string().min(1).max(10000).describe('Message content'),
       level: z.number().optional().describe('Message level (default 1)'),
     },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
+        if (await injectionTracker.isBlocked(account.id)) {
+          return mcpError(Object.assign(new Error('Your discussion privileges are suspended pending review.'), { code: 'DISCUSSION_BLOCKED' }));
+        }
+        const detection = analyzeUserInput(params.content, 'discussion.content', {
+          topicId: params.topicId,
+          accountId: account.id,
+        });
+        const tracking = await injectionTracker.recordDetection(
+          account.id, detection, 'discussion.content', params.content.substring(0, 200)
+        );
+        if (tracking.blocked) {
+          return mcpError(Object.assign(new Error('Your discussion privileges are suspended pending review.'), { code: 'DISCUSSION_BLOCKED' }));
+        }
         const message = await topicAgorai.postToDiscussion(params.topicId, {
           content: params.content,
           accountId: account.id,

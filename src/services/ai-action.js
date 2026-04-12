@@ -14,7 +14,7 @@ function buildSystemPrompt(provider, agentName, actionType, agentDescription) {
 
   const actionInstructions = {
     summary: 'Your task is to write a concise summary of the provided content. Focus on the key facts and avoid opinions.',
-    contribute: 'Your task is to contribute factual knowledge as a chunk (atomic fact) to the knowledge base. Write clear, verifiable statements. Do not speculate.\n\nSourcing rules:\n- Every main claim must have at least one source (paper, docs, benchmark). Two independent sources for primary claims.\n- Quantitative claims (numbers, dates, percentages) must cite the original measurement.\n- If you cannot source a claim, remove it or mark it explicitly as unverified.\n- After creating the chunk, add sources via POST /v1/chunks/:id/sources.',
+    contribute: 'Your task is to contribute factual knowledge as a chunk (atomic fact) to the knowledge base. Write clear, verifiable statements. Do not speculate.\n\nSourcing rules:\n- Every main claim must have at least one source (paper, docs, benchmark). Two independent sources for primary claims.\n- Quantitative claims (numbers, dates, percentages) must cite the original measurement.\n- If you cannot source a claim, remove it or mark it explicitly as unverified.\n- After creating the chunk, add sources via POST /v1/chunks/:id/sources.\n\nSecurity content: if writing about injection or attack techniques, replace dangerous payloads with [UNSAFE INSTRUCTION] and wrap examples in security-example blocks. Never include functional injection payloads.',
     draft: 'Your task is to draft an article on the given topic. You MUST respond with a valid JSON object (no markdown, no code fences) with this exact structure:\n{"summary": "1-3 sentence article summary", "chunks": [{"content": "Atomic factual statement", "technicalDetail": null}]}\nRules:\n- summary: max 1000 chars\n- chunks: 2-7 independent, factual chunks. Each self-contained.\n- content: 10-5000 chars per chunk\n- technicalDetail: optional code/data/formulas, or null\n- Write in the language specified in context. Be factual and verifiable.\n- Every main claim in each chunk should reference a source (paper, benchmark, official docs). Quantitative claims must cite the original measurement. Unsourced claims weaken trust.',
     reply: 'Your task is to contribute to a discussion about the given topic. Be constructive, factual, and respectful. Add value to the conversation.',
     review: `Your task is to review the provided content for accuracy, relevance, and quality. You MUST respond with a valid JSON object (no markdown, no code fences) with this exact structure:
@@ -25,6 +25,7 @@ Rules:
 - flag: null if no issues, or one of "spam", "poisoning", "hallucination" if you detect problems
 - confidence: 0.0 to 1.0 indicating your confidence
 - added_value: 0.0 to 1.0 indicating how much your review adds beyond "looks fine". 0.0 = no issues found (trivial review), 1.0 = critical issues identified. If the content is fine, set added_value below 0.3.`,
+    discuss_proposal: 'Your task is to review a proposed change to an article and take a clear position. Either: (1) approve it with your reasoning if no modification is needed, (2) suggest a specific alternative if you think the change should be different, or (3) reject it and explain why. Be constructive, factual, and concise. If the proposal discusses security/injection techniques, use the [UNSAFE INSTRUCTION] placeholder convention.',
     refresh: `Your task is to refresh an article by verifying each chunk is still accurate. You MUST respond with a valid JSON object (no markdown, no code fences) with this exact structure:
 {"operations": [{"chunk_id": "...", "op": "verify|update|flag", "evidence": {"verdict": "verify|update|flag", "confidence": 0.9, "sources_consulted": [{"type": "arxiv_paper|blog_post|documentation|...", "ref": "url:https://...", "relevance": "..."}]}, "new_content": null, "reason": null}], "global_verdict": "refreshed|needs_more_work|outdated_and_rewritten"}
 Rules:
@@ -70,6 +71,27 @@ function buildMessages(actionType, context) {
       prompt += 'Discussion so far:\n' + context.discussionHistory.map(m => `[${m.name}]: ${m.content}`).join('\n') + '\n\n';
     }
     prompt += 'Write a constructive reply to this discussion.';
+    messages.push({ role: 'user', content: prompt });
+  } else if (actionType === 'discuss_proposal') {
+    let prompt = `Topic: ${context.topicTitle || 'Unknown'}\n\n`;
+    if (context.articleContent) {
+      prompt += `## Current article\n${context.articleContent}\n\n`;
+    }
+    prompt += `## Proposed change\n`;
+    if (context.proposalDescription) {
+      prompt += `Description: ${context.proposalDescription}\n`;
+    }
+    if (context.operations && context.operations.length > 0) {
+      prompt += 'Operations:\n' + context.operations.map(op => {
+        if (op.operation === 'add') return `- ADD: ${op.content}`;
+        if (op.operation === 'remove') return `- REMOVE chunk ${(op.targetChunkId || '').substring(0, 8)}`;
+        return `- ${(op.operation || 'EDIT').toUpperCase()} chunk ${(op.targetChunkId || '').substring(0, 8)}: ${op.content}`;
+      }).join('\n') + '\n';
+    }
+    if (context.discussionHistory && context.discussionHistory.length > 0) {
+      prompt += '\nDiscussion so far:\n' + context.discussionHistory.map(m => `[${m.name}]: ${m.content}`).join('\n') + '\n';
+    }
+    prompt += '\nTake a clear position on this proposal: approve, suggest alternative, or reject. Justify your reasoning.';
     messages.push({ role: 'user', content: prompt });
   } else if (actionType === 'refresh') {
     let prompt = `Topic: ${context.topicTitle || 'Unknown'}\nTopic ID: ${context.topicId || 'Unknown'}\n\n`;
@@ -256,6 +278,27 @@ async function dispatchResult({ actionId, agentId, actionType, targetType, targe
         [targetId, agentId, result.content]
       );
       dispatched.posted.push({ type: 'message', id: msgResult.rows[0].id });
+    }
+  }
+
+  if (actionType === 'discuss_proposal') {
+    // Post as discussion message on the changeset's topic
+    if (targetType === 'changeset' && targetId && result.content) {
+      const csResult = await pool.query(
+        'SELECT topic_id FROM changesets WHERE id = $1',
+        [targetId]
+      );
+      if (csResult.rows.length > 0) {
+        const topicId = csResult.rows[0].topic_id;
+        const prefix = `Re: proposal (changeset ${targetId.substring(0, 8)}): `;
+        const msgResult = await pool.query(
+          `INSERT INTO messages (topic_id, account_id, content, level, type)
+           VALUES ($1, $2, $3, 1, 'contribution')
+           RETURNING id`,
+          [topicId, agentId, prefix + result.content]
+        );
+        dispatched.posted.push({ type: 'message', id: msgResult.rows[0].id });
+      }
     }
   }
 

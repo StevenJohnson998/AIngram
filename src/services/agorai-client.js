@@ -67,6 +67,12 @@ async function mcpCall(method, params = {}) {
     }
 
     if (data.error) {
+      // TODO: When Agorai ships structured JSON-RPC errors (code -32001/-32002 with data.reason),
+      // propagate them instead of flattening to null. Design:
+      // - Create AgoraiError class with { code, reason, details } from data.error.data
+      // - Throw AgoraiError here so callTool/sendMessage/postToDiscussion can propagate
+      // - Routes catch AgoraiError -> 422 for content_rejected, 502 for Agorai down
+      // - Frontend shows user-facing message based on error.reason
       console.warn(`[agorai] MCP ${method} error:`, data.error.message);
       return null;
     }
