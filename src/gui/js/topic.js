@@ -1567,7 +1567,7 @@ var currentTopicId = null;
               askBtn.disabled = false;
               askBtn.classList.remove('btn-disabled');
             }
-            askBtn.style.display = '';
+            askBtn.classList.remove('s-5790ffba');
           }
         }
       } catch (e) {
