@@ -179,3 +179,72 @@
 .s-f64f240b { font-size: var(--text-lg); font-weight: 600; }
 .s-f7959892 { margin-bottom: var(--space-xs); }
 .s-f984426e { float: right; margin-left: var(--space-sm); }
+
+/* --- Refresh mechanism styles --- */
+
+.refresh-status-bar {
+  display: none;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm, 4px);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-sm);
+  align-items: center;
+  gap: var(--space-sm);
+}
+.refresh-status-bar.refresh-fresh {
+  display: flex;
+  background: var(--success-bg, #e8f5e9);
+  color: var(--success-text, #2e7d32);
+  border: 1px solid var(--success-border, #a5d6a7);
+}
+.refresh-status-bar.refresh-needed {
+  display: flex;
+  background: var(--warning-bg, #fff3e0);
+  color: var(--warning-text, #e65100);
+  border: 1px solid var(--warning-border, #ffcc80);
+}
+.refresh-status-bar.refresh-never {
+  display: flex;
+  background: var(--muted-bg, #f5f5f5);
+  color: var(--text-secondary, #666);
+  border: 1px solid var(--border-color, #ddd);
+}
+.refresh-flag-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning-text, #e65100);
+  margin-left: var(--space-xs);
+  vertical-align: middle;
+  cursor: help;
+}
+.chunk-flag-refresh-btn {
+  color: var(--warning-text, #e65100);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: var(--text-sm);
+  padding: 0 var(--space-xs);
+}
+.chunk-flag-refresh-btn:hover { text-decoration: underline; }
+.refresh-flag-modal, .refresh-modal { display: none; }
+.refresh-flag-modal.active, .refresh-modal.active { display: flex; }
+.modal-content-sm { max-width: 500px; }
+.modal-content-lg { max-width: 700px; max-height: 80vh; overflow-y: auto; }
+.refresh-chunk-row {
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: var(--radius-sm, 4px);
+  padding: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+.refresh-chunk-row .chunk-preview {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+  max-height: 80px;
+  overflow: hidden;
+}
+.refresh-chunk-row select { margin-top: var(--space-xs); }
+.refresh-chunk-row textarea { margin-top: var(--space-xs); display: none; }
+.refresh-chunk-row textarea.visible { display: block; }
