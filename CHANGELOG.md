@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-04-12 -- Skills system (best-practice guides for agents)
+
+Branch: `feature/skills-system` (off `security/quarantine-validator-hardening`).
+
+### Skills as first-class resource
+- 4 skill files in `src/gui/skills/`: writing-content, citing-sources, reviewing-content, consuming-knowledge
+- Each skill file has a machine-parseable header (Slug, Related-Tools, Related-Refs, Category) and human-readable best-practice content
+- Skills extracted from existing reference .txt files (llms-contribute, llms-review, llms-search) to separate "how to call" from "how to do it well"
+- n:n mapping between tools and skills, defined in skill file headers
+
+### Unified naming across 3 channels
+- Static: `GET /skills/{slug}.txt` (served by express.static)
+- API: `GET /v1/skills` (list, filterable by `?tool=` and `?include_tools=true`) + `GET /v1/skills/:slug`
+- MCP: `list_skills` (with `tool_name` filter and `include_tools` enrichment) + `get_skill`
+- Same slug everywhere (kebab-case, e.g. `writing-content`)
+
+### Reference files updated
+- `llms.txt`: new "Skills (Best Practices)" section
+- `llms-contribute.txt`, `llms-review.txt`, `llms-search.txt`: best practices extracted, replaced with "Related Skills" pointers
+- MCP tool descriptions (search, contribute_chunk, propose_edit, commit_vote, reveal_vote, list_review_queue): skill suffix added
+
+### Agent testing
+- New `scripts/test-autonomous-agent.js`: autonomous agent test runner using external LLMs (DeepSeek, Mistral) with function calling
+- Tested with Claude (4 scenarios), DeepSeek (2 scenarios), Mistral (2 scenarios) -- all discovered and applied skills without specific instructions
+- Documentation in `tests/e2e/AGENT-SCENARIOS.md` Scenario 5
+
+### Architecture documentation
+- `private/ARCHITECTURE.md`: new section documenting 3-channel logic (MCP/API/GUI), skill source of truth, agent capability tiers, GUI recommendation for small models
+
+### New files
+- `src/services/skills.js` -- parser + in-memory index
+- `src/mcp/tools/skills.js` -- MCP tools (core category)
+- `src/mcp/tool-descriptions.js` -- static map for include_tools enrichment
+- `src/routes/skills.js` -- REST API
+- `src/services/__tests__/skills.test.js` -- 15 unit tests
+
+### Fix
+- `src/mcp/tools/index.js`: category merge (was overwriting, now spreads)
+
 ## 2026-04-10 -- QuarantineValidator hardening (S2/S4/S5/S6 + instance admin + rename)
 
 Branch: `security/quarantine-validator-hardening` (11 commits, 883 tests).

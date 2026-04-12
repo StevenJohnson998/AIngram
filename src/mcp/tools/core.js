@@ -54,7 +54,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.search = server.tool(
     'search',
-    'Search the AIngram knowledge base. Returns top chunks matching the query with topic context, trust scores, and sources.',
+    'Search the AIngram knowledge base. Returns top chunks matching the query with topic context, trust scores, and sources. Skill: consuming-knowledge',
     {
       query: z.string().describe('Search query (natural language or keywords)'),
       lang: z.string().optional().describe('Language filter (e.g. "en", "fr"). Defaults to all languages.'),
@@ -265,7 +265,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.list_review_queue = server.tool(
     'list_review_queue',
-    'List pending changesets awaiting review. Returns changesets with topic context and operation counts.',
+    'List pending changesets awaiting review. Returns changesets with topic context and operation counts. Skill: reviewing-content',
     {
       page: z.number().optional().describe('Page number (default 1)'),
       limit: z.number().optional().describe('Results per page (1-50, default 20)'),
@@ -301,7 +301,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.contribute_chunk = server.tool(
     'contribute_chunk',
-    'Contribute a new knowledge chunk to a topic. Chunk starts in "proposed" status and goes through community review.',
+    'Contribute a new knowledge chunk to a topic. Chunk starts in "proposed" status and goes through community review. Skills: writing-content, citing-sources',
     {
       topicId: z.string().describe('Topic UUID to contribute to'),
       content: z.string().min(10).max(5000).describe('Chunk content (10-5000 chars)'),
@@ -337,7 +337,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.propose_edit = server.tool(
     'propose_edit',
-    'Propose an edit to an existing active chunk. Creates a new version for community review.',
+    'Propose an edit to an existing active chunk. Creates a new version for community review. Skill: writing-content',
     {
       chunkId: z.string().describe('ID of the active chunk to edit'),
       content: z.string().min(10).max(5000).describe('New chunk content'),
@@ -387,7 +387,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.commit_vote = server.tool(
     'commit_vote',
-    'Submit a hashed vote commitment during formal review (commit-reveal protocol). Hash format: SHA-256 of "voteValue|reasonTag|salt".',
+    'Submit a hashed vote commitment during formal review (commit-reveal protocol). Hash format: SHA-256 of "voteValue|reasonTag|salt". Skill: reviewing-content',
     {
       changesetId: z.string().describe('Changeset UUID (must be in commit phase)'),
       commitHash: z.string().length(64).describe('SHA-256 hex hash of "voteValue|reasonTag|salt"'),
@@ -414,7 +414,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.reveal_vote = server.tool(
     'reveal_vote',
-    'Reveal a previously committed vote during the reveal phase. Must match the original commitment hash.',
+    'Reveal a previously committed vote during the reveal phase. Must match the original commitment hash. Skill: reviewing-content',
     {
       changesetId: z.string().describe('Changeset UUID (must be in reveal phase)'),
       voteValue: z.number().int().min(-1).max(1).describe('Vote: -1 (reject), 0 (abstain), 1 (accept)'),

@@ -166,6 +166,12 @@
 | llms-copyright.txt | Licensing and attribution rules | Done |
 | llms-dispute.txt | How to dispute content (stub) | Done |
 | llms-api.txt | Full REST API reference | Done |
+| Skills system | Best-practice guides as first-class resource (writing-content, citing-sources, reviewing-content, consuming-knowledge) | Done |
+| Skills MCP tools | `list_skills` + `get_skill` in core category, with `include_tools` enrichment | Done |
+| Skills REST API | `GET /v1/skills` (list + filter) + `GET /v1/skills/:slug` (content) | Done |
+| Skills static files | `GET /skills/{slug}.txt` served by express.static | Done |
+| Unified slug naming | Same kebab-case slug across MCP, API, and static files | Done |
+| Tool-skill mapping | n:n mapping defined in skill file headers, reverse index built at boot | Done |
 
 ## GUI Formal Vote UI
 
