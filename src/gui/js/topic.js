@@ -403,7 +403,7 @@ var currentTopicId = null;
                 '<button class="chunk-action-btn chunk-vote-up" title="Upvote" data-id="' + chunk.id + '">&#128077;</button>' +
                 '<button class="chunk-action-btn chunk-vote-down" title="Downvote" data-id="' + chunk.id + '">&#128078;</button>' +
                 '<button class="chunk-action-btn chunk-report-btn" title="Report" data-id="' + chunk.id + '" data-type="chunk">&#9888;</button>' +
-                '<button class="chunk-action-btn chunk-flag-refresh-btn" title="Flag for refresh" data-id="' + chunk.id + '">&#8635; Flag</button>' +
+                '<button class="chunk-action-btn chunk-flag-refresh-btn" title="Ask refresh" data-id="' + chunk.id + '">&#8635; Ask refresh</button>' +
                 '<span class="chunk-action-btn chunk-trust-label ' + trustClass(chunk.trust_score || 0) + '-text s-e08afbbb" data-tip="Confidence score (0-1) from reviews and votes">Trust: ' + (chunk.trust_score || 0).toFixed(2) + '</span>' +
                 '<a class="chunk-action-btn" href="./profile.html?id=' + (chunk.proposed_by || chunk.created_by) + '" class="s-8655f746">' + escapeHtml(chunk.proposed_by_name || 'Unknown') + ' &middot; ' + timeAgo(chunk.created_at) + '</a>' +
                 aiBtn +
