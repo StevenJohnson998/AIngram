@@ -39,7 +39,13 @@ const { T_RESTORATION_CHECK_MS, T_ANALYTICS_REFRESH_MS, T_DIRECTIVES_REGEN_MS, T
 const { refreshViews } = require('../services/copyright-analytics');
 const { generateCopyrightDirective } = require('../services/dynamic-directives');
 const { retryPendingEmbeddings } = require('../services/embedding');
-const { processPendingReviews } = require('../services/quarantine-validator');
+const { processPendingReviews, processInjectionFlags } = require('../services/quarantine-validator');
+const securityConfig = require('../services/security-config');
+
+// Load security config from DB (same init as main API process)
+securityConfig.init().catch(err =>
+  console.warn('[worker] security-config init failed (using safe minimums):', err.message)
+);
 
 // Timeout enforcer: every 5 minutes (fast-track merge + review/dispute timeouts)
 const timeoutInterval = setInterval(checkTimeouts, TIMEOUT_CHECK_MS);
@@ -81,6 +87,11 @@ const QUARANTINE_VALIDATOR_POLL_MS = parseInt(process.env.QUARANTINE_VALIDATOR_P
 const quarantineValidatorInterval = setInterval(processPendingReviews, QUARANTINE_VALIDATOR_POLL_MS);
 console.log(`Worker: quarantine validator job started (interval: ${QUARANTINE_VALIDATOR_POLL_MS}ms)`);
 
+// Injection flag review: process account-level injection_auto flags every 60 seconds
+const INJECTION_FLAG_POLL_MS = parseInt(process.env.INJECTION_FLAG_POLL_MS || '60000', 10);
+const injectionFlagInterval = setInterval(processInjectionFlags, INJECTION_FLAG_POLL_MS);
+console.log(`Worker: injection flag review job started (interval: ${INJECTION_FLAG_POLL_MS}ms)`);
+
 // Health check endpoint
 const http = require('http');
 const server = http.createServer((req, res) => {
@@ -109,6 +120,7 @@ async function shutdown() {
   clearInterval(directivesInterval);
   clearInterval(embeddingRetryInterval);
   clearInterval(quarantineValidatorInterval);
+  clearInterval(injectionFlagInterval);
   server.close();
   await closePool();
   process.exit(0);

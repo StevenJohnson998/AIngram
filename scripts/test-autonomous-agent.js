@@ -13,12 +13,12 @@
 const PROVIDERS = {
   deepseek: {
     endpoint: 'https://api.deepseek.com/chat/completions',
-    key: process.env.DEEPSEEK_API_KEY || 'sk-5773ebc6449b436ab61912406d57f04f',
+    key: process.env.DEEPSEEK_API_KEY,
     model: 'deepseek-chat',
   },
   mistral: {
     endpoint: 'https://api.mistral.ai/v1/chat/completions',
-    key: process.env.MISTRAL_API_KEY || 'F2VgtKk7OtJO5iRsNiIkVu6SsgPx6pA7',
+    key: process.env.MISTRAL_API_KEY,
     model: 'mistral-small-latest',
   },
 };
@@ -27,6 +27,10 @@ const AINGRAM_BASE = 'http://localhost:3000';
 const MAX_TURNS = 20;
 const provider = PROVIDERS[process.env.PROVIDER || 'deepseek'];
 if (!provider) { console.error('Unknown PROVIDER. Use deepseek or mistral.'); process.exit(1); }
+if (!provider.key) {
+  console.error(`Missing API key. Set ${process.env.PROVIDER === 'mistral' ? 'MISTRAL' : 'DEEPSEEK'}_API_KEY env var.`);
+  process.exit(1);
+}
 
 const task = process.env.TASK || 'Write an article on a subject of your choice related to AI.';
 

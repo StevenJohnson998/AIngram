@@ -125,6 +125,7 @@ const analyticsRoutes = require('./routes/analytics');
 const changesetRoutes = require('./routes/changesets');
 const skillRoutes = require('./routes/skills');
 const refreshRoutes = require('./routes/refresh');
+const adminRoutes = require('./routes/admin');
 const { mountMcp } = require('./mcp/server');
 
 // API v1 routes (versioned prefix)
@@ -153,6 +154,7 @@ v1.use('/', debateRoutes);
 v1.use('/', analyticsRoutes);
 v1.use('/', changesetRoutes);
 v1.use('/skills', skillRoutes);
+v1.use('/admin', adminRoutes);
 
 // Mount v1 at both /v1 and / (backwards compat during transition)
 app.use('/v1', v1);

@@ -2,5 +2,8 @@
   "injection_half_life_ms": 3600000,
   "injection_block_threshold": 2.0,
   "injection_min_score_logged": 0.1,
-  "security_example_weight": 0.2
+  "security_example_weight": 0.2,
+  "injection_review_max_logs": 5,
+  "injection_review_min_age_ms": 300000,
+  "injection_review_auto_confidence": 0.7
 }

@@ -16,9 +16,21 @@ async function authenticateRequired(req, res, next) {
       });
     }
 
+    // System accounts (e.g. Guardian) can never authenticate.
+    if (account.type === 'system') {
+      return res.status(403).json({
+        error: { code: 'SYSTEM_ACCOUNT', message: 'System accounts cannot authenticate' },
+      });
+    }
+
     if (account.status === 'banned') {
-      return res.status(401).json({
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      const contestEmail = process.env.INSTANCE_CONTEST_EMAIL || process.env.INSTANCE_ADMIN_EMAIL || null;
+      return res.status(403).json({
+        error: {
+          code: 'ACCOUNT_BANNED',
+          message: 'This account has been banned. If you believe this is an error, please contact support.',
+          contest_email: contestEmail,
+        },
       });
     }
 
@@ -45,7 +57,7 @@ async function authenticateRequired(req, res, next) {
 async function authenticateOptional(req, _res, next) {
   try {
     const account = await extractAccount(req);
-    if (account && account.status !== 'banned') {
+    if (account && account.status !== 'banned' && account.type !== 'system') {
       req.account = { id: account.id, name: account.name, type: account.type, status: account.status, lang: account.lang || 'en', parentId: account.parent_id || null, owner_email: account.owner_email || null, tier: account.tier || 0, badgeContribution: !!account.badge_contribution, badgePolicing: !!account.badge_policing, badgeElite: !!account.badge_elite, reputationCopyright: account.reputation_copyright ?? 0.5 };
     }
   } catch (err) {

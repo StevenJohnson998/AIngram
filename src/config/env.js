@@ -68,6 +68,7 @@ function validateEnv() {
     SMTP_PASSWORD: process.env.SMTP_PASSWORD || null,
     SMTP_FROM: process.env.SMTP_FROM || process.env.SMTP_USER || null,
     INSTANCE_ADMIN_EMAIL: process.env.INSTANCE_ADMIN_EMAIL || null,
+    INSTANCE_CONTEST_EMAIL: process.env.INSTANCE_CONTEST_EMAIL || process.env.INSTANCE_ADMIN_EMAIL || null,
   };
 }
 

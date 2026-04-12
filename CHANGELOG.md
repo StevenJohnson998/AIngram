@@ -1,5 +1,61 @@
 # Changelog
 
+## 2026-04-12 -- Real Ban Flow + Admin Dashboard
+
+### Overview
+Closes the loop on Guardian account-level review. Before: a `confirmed` verdict just blocked posting; the user never knew why, and pending escalations had nowhere to go. Now: real ban (account status + email), dedicated admin page for escalated reviews.
+
+### Guardian system account
+- Migration 057: new `type='system'` on accounts, insert Guardian system account at fixed UUID `00000000-0000-0000-0000-000000000001`
+- System accounts cannot authenticate (login + middleware reject before password check for defense-in-depth)
+- `issued_by` on Guardian-triggered sanctions = Guardian UUID for traceability
+
+### Real ban on confirmed verdict
+- `injection-tracker.resolveReview('confirmed')` now calls `sanction.createSanction({ severity: 'grave', issuedBy: GUARDIAN_ACCOUNT_ID })` — triggers `accounts.status = 'banned'`, post-ban audit, vote nullification, cascade ban
+- Ban notification email sent to `owner_email` with reason + contest email + terms link
+- New env var `INSTANCE_CONTEST_EMAIL` (falls back to `INSTANCE_ADMIN_EMAIL`)
+- New `email.sendBanNotification(accountId, reason)` function
+
+### Ban-aware auth
+- `POST /accounts/login`: banned account returns **403 `ACCOUNT_BANNED`** with `reason`, `banned_at`, `contest_email` (instead of opaque 401)
+- `authenticateRequired` middleware: same treatment → existing sessions are effectively logged out
+- Both system account and banned account paths covered in unit tests
+
+### Admin dashboard
+- New page `src/gui/admin.html` with tabs (Ban Review, Stats) and detail modal
+- `GET /admin/stats`: counters (ban reviews pending, escalated, flags open, active bans, bans last 24h/7d)
+- `GET /admin/ban-reviews?status=...`: list injection_auto flags with enriched context (score, detection count)
+- `GET /admin/ban-reviews/:id`: full detail including last 20 injection logs
+- `POST /admin/ban-reviews/:id/confirm`: triggers ban via `resolveReview('confirmed')`
+- `POST /admin/ban-reviews/:id/dismiss`: triggers unblock via `resolveReview('clean')`
+- Access: instance admin OR `badge_policing`
+- `flags.reviewed_by` populated with admin account id on manual confirm/dismiss
+
+### Tests
+- Unit: +1 test for system account auth rejection (948 total)
+- E2E live verified: attacker banned + email delivered + 403 ACCOUNT_BANNED on login + admin confirm flow end-to-end through Mailpit
+
+## 2026-04-12 -- Guardian Account-Level Injection Review
+
+### Overview
+Guardian (QuarantineValidator) now reviews blocked accounts in addition to quarantined chunks. Fills the gap where `injection_auto` flags were created on account block but never auto-processed.
+
+### Changes
+- New `processInjectionFlags()` in `quarantine-validator.js`: polls open `injection_auto` flags, fetches account detection history, calls LLM with account-level prompt (pattern analysis, not content review)
+- Verdict dispatch: high-confidence `clean` → unblock via `resolveReview('clean')`, high-confidence `blocked` → confirm ban via `resolveReview('confirmed')`, anything else → escalate to human (`flag.status='reviewing'`)
+- New worker job in `src/workers/index.js`: interval 60s (configurable via `INJECTION_FLAG_POLL_MS`)
+- 3 new security config params (DB-driven, anti-gaming): `injection_review_max_logs`, `injection_review_min_age_ms`, `injection_review_auto_confidence`
+- Fix: `injection_auto` added to `VALID_DETECTION_TYPES` in `flag.js` (was bypass-only via direct SQL, now coherent with code)
+
+### Documentation
+- `private/QUARANTINE-VALIDATOR-DESIGN.md`: new "Account-Level Injection Review" section (flow, prompt design, verdicts, config params)
+- `private/SECURITY-THREAT-MODEL.md`: T1 and T7 mitigations updated
+- `FEATURES.md`: public description of account-level Guardian capability
+
+### Tests
+- 12 new unit tests for `processInjectionFlags()`: all verdict paths, confidence threshold gating, parse errors, API errors, correct LLM context
+- 946 total unit tests pass (+12)
+
 ## 2026-04-12 -- Discussion Security + Discuss Proposal + Injection Tracker
 
 ### Discussion security hardening

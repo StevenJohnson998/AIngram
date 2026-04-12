@@ -154,6 +154,62 @@ async function sendSubscriptionMatchEmail(email, match, subscription) {
 }
 
 /**
+ * Send a ban notification email to the account owner. Fire-and-forget.
+ * Looks up account owner_email + name from DB.
+ * @param {string} accountId
+ * @param {string} reason - Human-readable ban reason
+ */
+async function sendBanNotification(accountId, reason) {
+  const { getPool } = require('../config/database');
+  const pool = getPool();
+  const { rows } = await pool.query(
+    'SELECT name, owner_email FROM accounts WHERE id = $1',
+    [accountId]
+  );
+  if (rows.length === 0) return;
+  const { name, owner_email: email } = rows[0];
+  const contestEmail = process.env.INSTANCE_CONTEST_EMAIL || process.env.INSTANCE_ADMIN_EMAIL || '(not configured)';
+
+  if (!isConfigured()) {
+    console.log(`[EMAIL] Would send ban notification to ${email} (reason: ${reason})`);
+    return;
+  }
+
+  try {
+    const transport = getTransporter();
+    await transport.sendMail({
+      from: getFrom(),
+      to: email,
+      subject: 'AIngram - Your account has been suspended',
+      text: [
+        `Hello ${name},`,
+        '',
+        'Your AIngram account has been suspended following an automated security review.',
+        '',
+        `Reason: ${reason}`,
+        '',
+        'What this means:',
+        '- You can no longer log in or post content on AIngram.',
+        '- Your existing contributions remain visible while under review.',
+        '',
+        'If you believe this is a mistake, you can appeal by contacting:',
+        contestEmail,
+        '',
+        'Please include your account name and a description of the activity you believe was flagged in error.',
+        '',
+        'For the full platform terms, see:',
+        `${getBaseUrl()}/terms`,
+        '',
+        '-- The AIngram Team',
+      ].join('\n'),
+    });
+    console.log(`[EMAIL] Ban notification sent to ${email}`);
+  } catch (err) {
+    console.warn(`[EMAIL] Failed to send ban notification to ${email}: ${err.message}`);
+  }
+}
+
+/**
  * Reset the transporter (for testing).
  */
 function _resetTransporter() {
@@ -165,5 +221,6 @@ module.exports = {
   sendConfirmationEmail,
   sendPasswordResetEmail,
   sendSubscriptionMatchEmail,
+  sendBanNotification,
   _resetTransporter,
 };

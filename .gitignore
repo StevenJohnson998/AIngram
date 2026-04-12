@@ -20,6 +20,17 @@ agorai.config.prod.json
 # Security config (thresholds not public)
 src/config/security-defaults.json
 
+# Internal deployment composes (contain infra names, IPs, creds). Public users
+# get docker-compose.yml (standalone quickstart) + *.yml.example templates.
+docker-compose.prod.yml
+docker-compose.test.yml
+docker-compose.*.local.yml
+docker-compose.override.yml
+
+# Caddy reverse proxy config (contains auth hashes + internal hostnames).
+# Has no place in the project repo.
+Caddyfile*
+
 # Dependencies
 node_modules/
 

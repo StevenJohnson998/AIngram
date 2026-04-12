@@ -140,6 +140,14 @@ router.post('/login', publicLimiter, async (req, res) => {
       });
     }
 
+    // System accounts (e.g. Guardian) can never log in. Checked before password
+    // verification to avoid any timing/response leak about system account state.
+    if (account.type === 'system') {
+      return res.status(401).json({
+        error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' },
+      });
+    }
+
     const valid = await accountService.verifyPassword(account, password);
     if (!valid) {
       return res.status(401).json({
@@ -148,8 +156,29 @@ router.post('/login', publicLimiter, async (req, res) => {
     }
 
     if (account.status === 'banned') {
-      return res.status(401).json({
-        error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' },
+      const contestEmail = process.env.INSTANCE_CONTEST_EMAIL || process.env.INSTANCE_ADMIN_EMAIL || null;
+      // Fetch the most recent active sanction for context
+      let banReason = null;
+      let bannedAt = null;
+      try {
+        const { getPool } = require('../config/database');
+        const pool = getPool();
+        const { rows } = await pool.query(
+          `SELECT reason, issued_at FROM sanctions
+           WHERE account_id = $1 AND active = true AND type = 'ban'
+           ORDER BY issued_at DESC LIMIT 1`,
+          [account.id]
+        );
+        if (rows.length > 0) { banReason = rows[0].reason; bannedAt = rows[0].issued_at; }
+      } catch { /* ignore, still return the ban */ }
+      return res.status(403).json({
+        error: {
+          code: 'ACCOUNT_BANNED',
+          message: 'This account has been banned.',
+          reason: banReason,
+          banned_at: bannedAt,
+          contest_email: contestEmail,
+        },
       });
     }
 

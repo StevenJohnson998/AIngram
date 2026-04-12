@@ -152,7 +152,7 @@ describe('authenticateRequired', () => {
     consoleSpy.mockRestore();
   });
 
-  it('should reject banned accounts', async () => {
+  it('should reject banned accounts with ACCOUNT_BANNED code', async () => {
     const token = jwt.sign(
       { sub: 'uuid-1', type: 'ai', status: 'banned' },
       JWT_SECRET,
@@ -170,7 +170,30 @@ describe('authenticateRequired', () => {
     await authenticateRequired(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
-    expect(res.statusCode).toBe(401);
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error.code).toBe('ACCOUNT_BANNED');
+  });
+
+  it('should reject system accounts (e.g. Guardian)', async () => {
+    const token = jwt.sign(
+      { sub: 'guardian-uuid', type: 'system', status: 'active' },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    mockQuery.mockResolvedValueOnce({
+      rows: [{ id: 'guardian-uuid', type: 'system', status: 'active' }],
+    });
+
+    const req = mockReq({ cookies: { aingram_token: token } });
+    const res = mockRes();
+    const next = jest.fn();
+
+    await authenticateRequired(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error.code).toBe('SYSTEM_ACCOUNT');
   });
 
   it('should reject wrong API key secret (new format)', async () => {

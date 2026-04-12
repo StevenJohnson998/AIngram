@@ -3,6 +3,11 @@
 const { getPool } = require('../config/database');
 const securityConfig = require('./security-config');
 
+// Fixed UUID of the Guardian system account (see migration 057).
+// Used as sanctions.issued_by for Guardian-confirmed bans so audit trail
+// distinguishes automated actions from admin-issued ones.
+const GUARDIAN_ACCOUNT_ID = '00000000-0000-0000-0000-000000000001';
+
 /**
  * Record an injection detection and update the account's cumulative score.
  * Blocks the account if the score exceeds the threshold.
@@ -134,10 +139,37 @@ async function resolveReview(accountId, verdict) {
     );
     await pool.query(
       `UPDATE flags SET status = 'actioned', resolved_at = now()
-       WHERE target_type = 'account' AND target_id = $1 AND detection_type = 'injection_auto' AND status = 'open'`,
+       WHERE target_type = 'account' AND target_id = $1 AND detection_type = 'injection_auto' AND status IN ('open', 'reviewing')`,
       [accountId]
     );
+
+    // Issue a real ban via the sanction service (triggers accounts.status='banned',
+    // vote nullification, cascade ban, post-ban audit, and email notification).
+    // issued_by = Guardian system account for traceability.
+    try {
+      const sanctionService = require('./sanction');
+      await sanctionService.createSanction({
+        accountId,
+        severity: 'grave',
+        reason: 'Guardian: injection_auto confirmed (cumulative injection score exceeded threshold, behavior pattern confirmed as intentional attack)',
+        issuedBy: GUARDIAN_ACCOUNT_ID,
+      });
+    } catch (err) {
+      console.error('[injection-tracker] Failed to issue ban sanction:', err.message);
+      // Don't rethrow: the flag is already actioned and the account is still blocked
+      // from posting via isBlocked(). Sanction failure is degraded but non-fatal.
+    }
+
+    // Send ban notification email (fire-and-forget, don't block on failure)
+    try {
+      const emailService = require('./email');
+      if (emailService.sendBanNotification) {
+        await emailService.sendBanNotification(accountId, 'Guardian detected a pattern of prompt injection attempts on your account.');
+      }
+    } catch (err) {
+      console.error('[injection-tracker] Failed to send ban email:', err.message);
+    }
   }
 }
 
-module.exports = { recordDetection, isBlocked, resolveReview };
+module.exports = { recordDetection, isBlocked, resolveReview, GUARDIAN_ACCOUNT_ID };

@@ -11,6 +11,9 @@ const SAFE_MINIMUMS = {
   injection_block_threshold: 1.0,
   injection_min_score_logged: 0.1,
   security_example_weight: 0.15,
+  injection_review_max_logs: 10,
+  injection_review_min_age_ms: 600000,
+  injection_review_auto_confidence: 0.8,
 };
 
 let DEFAULTS = { ...SAFE_MINIMUMS };
