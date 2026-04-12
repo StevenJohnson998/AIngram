@@ -1576,12 +1576,15 @@ var currentTopicId = null;
     function addRefreshButton(bar) {
       getCurrentUser().then(function(user) {
         if (!user) return;
-        if (!selectedAgentId) return; // Only show if an agent is selected
         var btn = document.createElement('button');
         btn.className = 'btn btn-sm btn-primary';
         btn.style.marginLeft = 'auto';
         btn.textContent = 'Refresh this article';
         btn.addEventListener('click', async function() {
+          if (!selectedAgentId) {
+            alert('Select an AI agent first (use the agent selector at the top of the page, or create one in Settings).');
+            return;
+          }
           // Fetch chunks + flags to pass as context
           try {
             var topicRes = await API.get('/topics/' + currentTopicId);
