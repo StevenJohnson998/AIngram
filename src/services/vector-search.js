@@ -38,9 +38,10 @@ function pgConfig(lang) {
  * @param {number} [opts.minSimilarity=0.5]
  * @returns {Array<{id, content, similarity, ...}>}
  */
-async function searchByVector(embedding, { limit = 20, minSimilarity = 0.5 } = {}) {
+async function searchByVector(embedding, { limit = 20, minSimilarity = 0.5, includeUnpublished = false } = {}) {
   const pool = getPool();
   const vectorStr = `[${embedding.join(',')}]`;
+  const statusFilter = includeUnpublished ? '' : "AND c.status = 'published'";
 
   const { rows } = await pool.query(
     `SELECT DISTINCT ON (c.id)
@@ -54,6 +55,7 @@ async function searchByVector(embedding, { limit = 20, minSimilarity = 0.5 } = {
      JOIN topics t ON t.id = ct.topic_id
      WHERE c.embedding IS NOT NULL
        AND c.hidden = false AND (c.quarantine_status IS NULL OR c.quarantine_status = 'cleared')
+       ${statusFilter}
        AND 1 - (c.embedding <=> $1::vector) >= $2
      ORDER BY c.id, similarity DESC
      LIMIT $3`,
@@ -72,9 +74,10 @@ async function searchByVector(embedding, { limit = 20, minSimilarity = 0.5 } = {
  * @param {string[]} [opts.langs=['en']] - ISO 639-1 language codes to search with
  * @returns {Array<{id, content, rank, ...}>}
  */
-async function searchByText(query, { limit = 20, langs = ['en'] } = {}) {
+async function searchByText(query, { limit = 20, langs = ['en'], includeUnpublished = false } = {}) {
   const pool = getPool();
   const configs = langs.map(pgConfig);
+  const statusFilter = includeUnpublished ? '' : "AND c.status = 'published'";
 
   // Build OR condition across all language configs
   // unaccent() normalizes accented characters (e.g. mémoire → memoire) for consistent matching
@@ -102,6 +105,7 @@ async function searchByText(query, { limit = 20, langs = ['en'] } = {}) {
        JOIN chunk_topics ct ON ct.chunk_id = c.id
        JOIN topics t ON t.id = ct.topic_id
        WHERE c.hidden = false
+         ${statusFilter}
          AND ${matchCondition}
        ORDER BY c.id
      ) sub ORDER BY rank DESC
@@ -122,19 +126,19 @@ async function searchByText(query, { limit = 20, langs = ['en'] } = {}) {
  * @param {number} [opts.textWeight=0.3]
  * @param {string[]} [opts.langs=['en']] - ISO 639-1 language codes for text search
  */
-async function hybridSearch(query, { limit = 20, vectorWeight = 0.7, textWeight = 0.3, langs = ['en'] } = {}) {
+async function hybridSearch(query, { limit = 20, vectorWeight = 0.7, textWeight = 0.3, langs = ['en'], includeUnpublished = false } = {}) {
   const embedding = await generateEmbedding(query);
 
   // If Ollama is down, fall back to text-only search
   if (!embedding) {
     console.warn('hybridSearch: Ollama unavailable, falling back to text-only search');
-    return searchByText(query, { limit, langs });
+    return searchByText(query, { limit, langs, includeUnpublished });
   }
 
   // Run both searches in parallel
   const [vectorResults, textResults] = await Promise.all([
-    searchByVector(embedding, { limit, minSimilarity: 0.3 }),
-    searchByText(query, { limit, langs }),
+    searchByVector(embedding, { limit, minSimilarity: 0.3, includeUnpublished }),
+    searchByText(query, { limit, langs, includeUnpublished }),
   ]);
 
   // Merge and deduplicate by chunk ID, compute weighted score
