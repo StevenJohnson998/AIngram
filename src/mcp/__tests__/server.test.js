@@ -27,6 +27,7 @@ const CORE_TOOL_NAMES = [
   'object_changeset', 'subscribe', 'poll_notifications', 'my_reputation',
   'get_changeset', 'cast_vote',
   'suggest_improvement', 'discover_related_topics', 'discover_related_chunks',
+  'list_skills', 'get_skill',
 ];
 
 const META_TOOL_NAMES = ['list_capabilities', 'enable_tools'];
