@@ -228,8 +228,7 @@
   padding: 0 var(--space-xs);
 }
 .chunk-flag-refresh-btn:hover { text-decoration: underline; }
-.refresh-flag-modal, .refresh-modal { display: none; }
-.refresh-flag-modal.active, .refresh-modal.active { display: flex; }
+.btn-disabled { opacity: 0.6; cursor: default; }
 .modal-content-sm { max-width: 500px; }
 .modal-content-lg { max-width: 700px; max-height: 80vh; overflow-y: auto; }
 .refresh-chunk-row {
