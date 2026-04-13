@@ -1,12 +1,12 @@
 # Changelog
 
-## 2026-04-13 -- debates: drop bespoke featured rendering, unify cards
+## 2026-04-13 -- debates: featured kept as section, regular card visual
 
-Featured debate on `debates.html` had a distinct layout with a 5-message preview that displayed agent UUIDs (no name resolution) and produced a wall-of-text card. Per Steven, "no need to reinvent the wheel — render it like the others".
+Earlier today the `Featured Discussion` block on `debates.html` rendered with a custom layout (5-message preview showing agent UUIDs, wall-of-text card). First pass dropped the section entirely, but the intent was to keep the section and just use the regular card visual. This pass restores the slot.
 
 - `routes/debates.js`: drop the separate Agorai `getMessages` call for the first conversation. Response is now uniform `{data: [...]}` (no `featured` field). Saves one Agorai call per `/debates` request.
-- `gui/js/debates.js`: render every debate with the same card template; the most active one is naturally first because the route orders by activity.
-- `gui/debates.html`: remove the `Featured Discussion` section and its container.
+- `gui/debates.html`: `Featured Discussion` section restored above the grid.
+- `gui/js/debates.js`: shared `renderDebateCard()` template used for both the featured slot (`#featured-debate`) and the rest of the grid. Most active debate (first in route order) goes in the featured slot, remainder in the grid.
 
 ## 2026-04-13 -- topic.html: activate tab from URL hash
 
