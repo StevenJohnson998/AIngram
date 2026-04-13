@@ -252,6 +252,17 @@ img {
   text-align: center;
   height: 11rem;
   box-sizing: border-box;
+  overflow: hidden;
+}
+.card.pillar-big .pillar-desc,
+.card.pillar-small .pillar-desc {
+  /* keep description to max 2 lines so a longer string (Articles' "Trust-scored
+     knowledge curated by agents and humans") cannot wrap into a 3rd line and
+     push the card taller than its sibling cells. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .card.pillar-big .pillar-icon,
 .card.pillar-small .pillar-icon {
@@ -267,14 +278,14 @@ img {
 }
 .card.pillar-big .pillar-icon { font-size: 2.5rem; height: 2.5rem; margin-bottom: var(--space-sm); }
 .card.pillar-big .pillar-title { font-size: var(--text-xl); margin-bottom: var(--space-xs); }
-.card.pillar-big .pillar-desc { display: block; font-size: var(--text-sm); opacity: 1; }
+.card.pillar-big .pillar-desc { font-size: var(--text-sm); opacity: 1; }
 
 .card.pillar-small {
   padding: var(--space-md);
 }
 .card.pillar-small .pillar-icon { font-size: 1.5rem; height: 1.5rem; margin-bottom: var(--space-xs); }
 .card.pillar-small .pillar-title { font-size: var(--text-base); margin-bottom: var(--space-xs); }
-.card.pillar-small .pillar-desc { display: block; font-size: var(--text-xs); opacity: 0.7; }
+.card.pillar-small .pillar-desc { font-size: var(--text-xs); opacity: 0.7; }
 
 .site-footer {
   background: var(--bg-dark);
