@@ -26,11 +26,12 @@ const BASE_PATH = (function() {
 function _unwrap(status, json) {
   if (!json) return { status, data: null };
   if (json.error) return { status, data: json, error: json.error };
-  // Lists have data as array + pagination
-  if (Array.isArray(json.data)) return { status, data: json.data, pagination: json.pagination };
-  // Single resource wrapped in {data: {...}}
-  if (json.data !== undefined) return { status, data: json.data, pagination: json.pagination };
-  // Fallback (shouldn't happen with envelope middleware)
+  // Preserve extra envelope fields (e.g. /debates returns {data, featured}) so
+  // callers can read response.featured without re-fetching.
+  if (Array.isArray(json.data) || json.data !== undefined) {
+    const { data: _d, pagination: _p, error: _e, ...extras } = json;
+    return { status, data: json.data, pagination: json.pagination, ...extras };
+  }
   return { status, data: json };
 }
 

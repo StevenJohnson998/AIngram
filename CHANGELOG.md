@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-04-13 -- Frontend: debates rendering + landing page polish
+
+### Overview
+Two bugs were starving the landing page of debates content even when the backend had data, plus two small UI polishes. Bind-mount inode mismatch on the Agorai sidecar (operational, fixed by container restart, not in this commit) was the first half of the "No active debates" story; the second half — fixed here — is in the GUI client.
+
+### Frontend bug fixes
+- `src/gui/api.js` `_unwrap`: now preserves extra envelope fields (e.g. `featured` on `/debates`) instead of dropping anything that isn't `data` / `pagination` / `error`. Previously a response like `{data: [...], featured: {...}}` was reduced to `{data: [...]}` and `featured` was lost.
+- `src/gui/js/index.js`: read `debatesRes.data` directly instead of double-unwrapping (`debatesRes.data.data` always returned `undefined` because `data` was already the array).
+- `src/gui/js/debates.js`: same one-level fix, plus reads `res.featured` (now preserved by `_unwrap`).
+
+### Landing page UI polish
+- `src/gui/index.html`: "View all" link moved inside the `Active Debates` `<h2>` (now reads `Active Debates (view all)`), removing the visual ambiguity where the right-aligned link looked like it belonged to the `Hot Articles` row above.
+- New CSS class `.section-divider` (top border + padding) applied to `Active Debates` and `Recent Activity` sections to give the stacked landing page a clear visual rhythm.
+- New CSS class `.section-title-link` for unobtrusive inline links inside section titles.
+
+### Search default
+- `src/gui/search.html`: language filter defaults to `EN` instead of "All languages". First-time users land on a curated subset rather than a polyglot mix.
+
 ## 2026-04-13 -- Backup script: ship as operator template
 
 ### Overview

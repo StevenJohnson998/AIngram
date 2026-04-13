@@ -10,9 +10,8 @@ function escapeHtml(str) { var d = document.createElement('div'); d.textContent 
     document.addEventListener('DOMContentLoaded', async function() {
       try {
         var res = await API.get('/debates?limit=10');
-        var data = res.data || res.body || {};
-        var debates = data.data || [];
-        var featured = data.featured || null;
+        var debates = res.data || [];
+        var featured = res.featured || null;
 
         var container = document.getElementById('debates-container');
         var emptyEl = document.getElementById('debates-empty');

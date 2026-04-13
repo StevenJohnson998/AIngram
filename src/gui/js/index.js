@@ -98,8 +98,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       // Load active debates
       try {
         var debatesRes = await API.get('/debates?limit=4');
-        var debatesData = debatesRes.data || {};
-        var debates = debatesData.data || [];
+        var debates = debatesRes.data || [];
         var debatesContainer = document.getElementById('active-debates');
         var filteredDebates = debates.filter(function(d) { return !d.topicLang || d.topicLang === currentLang; });
         if (filteredDebates.length > 0) {
