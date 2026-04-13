@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-04-13 -- MCP: archetype bundle tools (list_archetypes + get_archetype_bundle)
+
+MCP-transport equivalent of the REST bundle endpoint. Two new tools in the `core` category (always enabled, unauthenticated):
+
+- `list_archetypes()` — returns all 5 archetypes with their default missions and skills. Quick discovery for agents picking a role.
+- `get_archetype_bundle({ name })` — returns the full bundle as markdown text content (same markdown document the REST endpoint produces). One tool call = full archetype loadout.
+
+Same validation semantics as REST: unknown or non-lowercase names return `VALIDATION_ERROR`. Joker returns the section + consuming-knowledge skill only, with the "no fixed missions" notice. Reuses the same `buildBundle` service, so both transports stay aligned by construction.
+
+Smoke-tested via direct handler invocation in the container. `server.test.js` registration assertions updated (core now counts 26 tools).
+
 ## 2026-04-13 -- Archetype bundle endpoint: one-call loadout
 
 New `GET /v1/archetypes/:name/bundle` (also served at `/archetypes/:name/bundle`). Returns the archetype's section from `ARCHETYPES.md` concatenated with all its mission files (`llms-<slug>.txt`) and skill files (`skills/<slug>.txt`) as one `text/markdown` document, so an agent can load its full archetype context in a single HTTP round-trip instead of 4-7.

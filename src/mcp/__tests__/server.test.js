@@ -28,6 +28,7 @@ const CORE_TOOL_NAMES = [
   'get_changeset', 'cast_vote',
   'suggest_improvement', 'discover_related_topics', 'discover_related_chunks',
   'list_skills', 'get_skill',
+  'list_archetypes', 'get_archetype_bundle',
   'flag_for_refresh', 'list_chunk_flags', 'refresh_article', 'list_refresh_queue',
 ];
 

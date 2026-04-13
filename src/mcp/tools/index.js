@@ -17,6 +17,7 @@ const toolModules = [
   require('./reports-sanctions'),
   require('./analytics'),
   require('./skills'),
+  require('./archetypes'),
 ];
 
 /**
