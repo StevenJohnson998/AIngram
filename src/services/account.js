@@ -8,6 +8,18 @@ const { analyzeUserInput } = require('./injection-detector');
 const BCRYPT_PASSWORD_ROUNDS = 12;
 const BCRYPT_APIKEY_ROUNDS = 10;
 
+const VALID_ARCHETYPES = ['contributor', 'curator', 'teacher', 'sentinel', 'joker'];
+
+function validateArchetype(archetype) {
+  if (archetype === null || archetype === undefined) return null;
+  if (!VALID_ARCHETYPES.includes(archetype)) {
+    const err = new Error(`archetype must be one of: ${VALID_ARCHETYPES.join(', ')} (or null)`);
+    err.code = 'VALIDATION_ERROR';
+    throw err;
+  }
+  return archetype;
+}
+
 /**
  * Generate a new-format API key: aingram_<8hex>_<24hex>
  * Returns { fullKey, prefix, secret }
@@ -34,7 +46,8 @@ function parseApiKey(bearerToken) {
  * Create a new account with hashed password and API key.
  * Returns { account, apiKey } where apiKey is the plaintext key (shown once).
  */
-async function createAccount({ name, type, ownerEmail, password, termsVersionAccepted, creatorIp = null, registrationUserAgent = null }) {
+async function createAccount({ name, type, ownerEmail, password, termsVersionAccepted, creatorIp = null, registrationUserAgent = null, archetype = null }) {
+  archetype = validateArchetype(archetype);
   const pool = getPool();
 
   // S4: defensive injection telemetry on account name (no quarantine, just log)
@@ -71,10 +84,10 @@ async function createAccount({ name, type, ownerEmail, password, termsVersionAcc
   const truncatedUa = registrationUserAgent ? String(registrationUserAgent).slice(0, 500) : null;
 
   const result = await pool.query(
-    `INSERT INTO accounts (name, type, owner_email, password_hash, api_key_hash, api_key_prefix, api_key_last4, account_expires_at, email_confirm_token_hash, email_confirm_token_expires, terms_accepted_at, terms_version_accepted, status, creator_ip, registration_user_agent)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11, 'active', $12, $13)
-     RETURNING id, name, type, owner_email, status, api_key_last4, email_confirmed, created_at`,
-    [name, type, ownerEmail, passwordHash, apiKeyHash, prefix, apiKeyLast4, expiresAt, confirmTokenHash, confirmTokenExpires, termsVersionAccepted, creatorIp, truncatedUa]
+    `INSERT INTO accounts (name, type, owner_email, password_hash, api_key_hash, api_key_prefix, api_key_last4, account_expires_at, email_confirm_token_hash, email_confirm_token_expires, terms_accepted_at, terms_version_accepted, status, creator_ip, registration_user_agent, primary_archetype)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11, 'active', $12, $13, $14)
+     RETURNING id, name, type, owner_email, status, api_key_last4, email_confirmed, primary_archetype, created_at`,
+    [name, type, ownerEmail, passwordHash, apiKeyHash, prefix, apiKeyLast4, expiresAt, confirmTokenHash, confirmTokenExpires, termsVersionAccepted, creatorIp, truncatedUa, archetype]
   );
 
   // Send confirmation email (fire-and-forget)
@@ -94,7 +107,7 @@ async function findByEmail(email) {
             reputation_contribution, reputation_policing,
             badge_contribution, badge_policing, badge_elite,
             probation_until, account_expires_at, first_contribution_at,
-            parent_id, autonomous, created_at, last_active_at, tier
+            parent_id, autonomous, created_at, last_active_at, tier, primary_archetype
      FROM accounts WHERE owner_email = $1 AND parent_id IS NULL`,
     [email]
   );
@@ -112,7 +125,7 @@ async function findById(id) {
             reputation_contribution, reputation_policing,
             badge_contribution, badge_policing, badge_elite,
             probation_until, account_expires_at, first_contribution_at,
-            parent_id, autonomous, created_at, last_active_at, tier
+            parent_id, autonomous, created_at, last_active_at, tier, primary_archetype
      FROM accounts WHERE id = $1`,
     [id]
   );
@@ -148,7 +161,7 @@ async function findByApiKeyPrefix(prefix) {
             reputation_contribution, reputation_policing,
             badge_contribution, badge_policing, badge_elite,
             probation_until, account_expires_at, first_contribution_at,
-            parent_id, autonomous, created_at, last_active_at, tier, reputation_copyright
+            parent_id, autonomous, created_at, last_active_at, tier, reputation_copyright, primary_archetype
      FROM accounts WHERE api_key_prefix = $1`,
     [prefix]
   );
@@ -186,7 +199,7 @@ async function revokeApiKey(accountId) {
 /**
  * Update profile fields (name, avatarUrl).
  */
-async function updateProfile(accountId, { name, avatarUrl, lang }) {
+async function updateProfile(accountId, { name, avatarUrl, lang, archetype }) {
   const pool = getPool();
   const fields = [];
   const values = [];
@@ -204,13 +217,17 @@ async function updateProfile(accountId, { name, avatarUrl, lang }) {
     fields.push(`lang = $${idx++}`);
     values.push(lang);
   }
+  if (archetype !== undefined) {
+    fields.push(`primary_archetype = $${idx++}`);
+    values.push(validateArchetype(archetype));
+  }
 
   if (fields.length === 0) return null;
 
   values.push(accountId);
   const result = await pool.query(
     `UPDATE accounts SET ${fields.join(', ')} WHERE id = $${idx}
-     RETURNING id, name, type, owner_email, avatar_url, lang, api_key_last4, email_confirmed, status, created_at`,
+     RETURNING id, name, type, owner_email, avatar_url, lang, api_key_last4, email_confirmed, status, primary_archetype, created_at`,
     values
   );
   return result.rows[0] || null;
@@ -658,6 +675,7 @@ async function recalculateTier(accountId) {
 }
 
 module.exports = {
+  VALID_ARCHETYPES,
   createAccount,
   findByEmail,
   findById,

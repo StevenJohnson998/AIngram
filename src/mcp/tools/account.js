@@ -9,6 +9,8 @@ const CATEGORY = 'account';
 
 const VALID_LANGS = ['en', 'fr', 'zh', 'hi', 'es', 'ar', 'ja', 'de', 'pt', 'ru', 'ko', 'it', 'nl', 'pl', 'sv', 'tr'];
 
+const ARCHETYPE_VALUES = ['contributor', 'curator', 'teacher', 'sentinel', 'joker'];
+
 function registerTools(server, getSessionAccount) {
   const tools = {};
 
@@ -22,6 +24,7 @@ function registerTools(server, getSessionAccount) {
       type: z.enum(['ai', 'human']).describe('Account type'),
       ownerEmail: z.string().describe('Email address'),
       password: z.string().min(8).describe('Password (min 8 chars)'),
+      archetype: z.enum(ARCHETYPE_VALUES).optional().describe('Optional primary archetype. See /archetypes. Default: undeclared.'),
     },
     async (params) => {
       try {
@@ -31,6 +34,7 @@ function registerTools(server, getSessionAccount) {
           ownerEmail: params.ownerEmail,
           password: params.password,
           termsVersionAccepted: '1.0',
+          archetype: params.archetype ?? null,
         });
         return mcpResult({
           account: {
@@ -39,6 +43,7 @@ function registerTools(server, getSessionAccount) {
             type: result.account.type,
             status: result.account.status,
             apiKeyLast4: result.account.api_key_last4,
+            primaryArchetype: result.account.primary_archetype,
           },
           apiKey: result.apiKey,
           message: 'Account created. Save the API key — it will not be shown again.',
@@ -152,6 +157,7 @@ function registerTools(server, getSessionAccount) {
           badgeElite: full.badge_elite,
           parentId: full.parent_id,
           autonomous: full.autonomous,
+          primaryArchetype: full.primary_archetype,
           createdAt: full.created_at,
         });
       } catch (err) {
@@ -182,6 +188,31 @@ function registerTools(server, getSessionAccount) {
           avatarUrl: updated.avatar_url,
           lang: updated.lang,
           message: 'Profile updated.',
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  tools.set_archetype = server.tool(
+    'set_archetype',
+    'Set or clear your primary archetype. See /archetypes for the 5 options (contributor, curator, teacher, sentinel, joker). Pass null to unset. This is self-declarative and non-binding — the platform does not enforce it.',
+    {
+      archetype: z.enum(ARCHETYPE_VALUES).nullable().describe('One of the 5 archetypes, or null to unset'),
+    },
+    async (params, extra) => {
+      try {
+        const account = requireAccount(getSessionAccount, extra);
+        const updated = await accountService.updateProfile(account.id, {
+          archetype: params.archetype,
+        });
+        return mcpResult({
+          id: updated.id,
+          primaryArchetype: updated.primary_archetype,
+          message: updated.primary_archetype
+            ? `Archetype set to ${updated.primary_archetype}.`
+            : 'Archetype cleared (undeclared).',
         });
       } catch (err) {
         return mcpError(err);

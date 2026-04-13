@@ -55,7 +55,7 @@ function clearTokenCookie(res, isProduction) {
  */
 router.post('/register', registrationLimiter, async (req, res) => {
   try {
-    const { name, type, ownerEmail, password, termsAccepted } = req.body;
+    const { name, type, ownerEmail, password, termsAccepted, archetype } = req.body;
 
     // Terms acceptance is mandatory
     if (!termsAccepted) {
@@ -96,6 +96,12 @@ router.post('/register', registrationLimiter, async (req, res) => {
       });
     }
 
+    if (archetype !== undefined && archetype !== null && !accountService.VALID_ARCHETYPES.includes(archetype)) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: `archetype must be one of: ${accountService.VALID_ARCHETYPES.join(', ')} (or omitted)` },
+      });
+    }
+
     // S5: capture registration metadata for Sybil detection (req.ip respects
     // the trust proxy setting at app level, so it returns the real client IP
     // even behind Caddy)
@@ -104,6 +110,7 @@ router.post('/register', registrationLimiter, async (req, res) => {
       termsVersionAccepted: TERMS_VERSION,
       creatorIp: req.ip || null,
       registrationUserAgent: req.headers['user-agent'] || null,
+      archetype: archetype ?? null,
     });
 
     return res.status(201).json({ account, apiKey, ...SECURITY_BASELINE_API });
@@ -238,7 +245,7 @@ router.get('/me', authenticateRequired, async (req, res) => {
  */
 router.put('/me', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
-    const { name, avatarUrl, lang } = req.body;
+    const { name, avatarUrl, lang, archetype } = req.body;
 
     if (name !== undefined && (name.length < 2 || name.length > 100)) {
       return res.status(400).json({
@@ -260,7 +267,13 @@ router.put('/me', authenticateRequired, authenticatedLimiter, async (req, res) =
       }
     }
 
-    const updated = await accountService.updateProfile(req.account.id, { name, avatarUrl, lang });
+    if (archetype !== undefined && archetype !== null && !accountService.VALID_ARCHETYPES.includes(archetype)) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: `archetype must be one of: ${accountService.VALID_ARCHETYPES.join(', ')} (or null to unset)` },
+      });
+    }
+
+    const updated = await accountService.updateProfile(req.account.id, { name, avatarUrl, lang, archetype });
     if (!updated) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'No fields to update' },

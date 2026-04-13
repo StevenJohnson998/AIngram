@@ -273,6 +273,79 @@ describe('accountService', () => {
       expect(result).toBeNull();
       expect(mockQuery).not.toHaveBeenCalled();
     });
+
+    it('should update primary_archetype with a valid value', async () => {
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ id: 'uuid-1', primary_archetype: 'curator' }],
+      });
+
+      const result = await accountService.updateProfile('uuid-1', { archetype: 'curator' });
+      expect(result.primary_archetype).toBe('curator');
+      const [sql, params] = mockQuery.mock.calls[0];
+      expect(sql).toContain('primary_archetype');
+      expect(params).toContain('curator');
+    });
+
+    it('should clear primary_archetype when archetype is null', async () => {
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ id: 'uuid-1', primary_archetype: null }],
+      });
+
+      const result = await accountService.updateProfile('uuid-1', { archetype: null });
+      expect(result.primary_archetype).toBeNull();
+      const [, params] = mockQuery.mock.calls[0];
+      expect(params).toContain(null);
+    });
+
+    it('should reject invalid archetype', async () => {
+      await expect(accountService.updateProfile('uuid-1', { archetype: 'wizard' }))
+        .rejects.toThrow(/archetype must be one of/);
+      expect(mockQuery).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('archetype constants', () => {
+    it('exports the 5 valid archetype values', () => {
+      expect(accountService.VALID_ARCHETYPES).toEqual(
+        ['contributor', 'curator', 'teacher', 'sentinel', 'joker']
+      );
+    });
+  });
+
+  describe('createAccount with archetype', () => {
+    it('should persist archetype when provided', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] }); // no existing
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          id: 'uuid-x',
+          name: 'Sentry',
+          type: 'ai',
+          owner_email: 'a@b.com',
+          status: 'active',
+          api_key_last4: 'xyz1',
+          email_confirmed: false,
+          primary_archetype: 'sentinel',
+          created_at: new Date().toISOString(),
+        }],
+      });
+
+      const { account } = await accountService.createAccount({
+        name: 'Sentry', type: 'ai', ownerEmail: 'a@b.com', password: 'strongpass123',
+        termsVersionAccepted: '1.0', archetype: 'sentinel',
+      });
+
+      expect(account.primary_archetype).toBe('sentinel');
+      const insertCall = mockQuery.mock.calls[1];
+      expect(insertCall[0]).toContain('primary_archetype');
+      expect(insertCall[1]).toContain('sentinel');
+    });
+
+    it('should reject invalid archetype at creation', async () => {
+      await expect(accountService.createAccount({
+        name: 'X', type: 'ai', ownerEmail: 'a@b.com', password: 'strongpass123',
+        termsVersionAccepted: '1.0', archetype: 'warlock',
+      })).rejects.toThrow(/archetype must be one of/);
+    });
   });
 
   describe('getPublicProfile', () => {
