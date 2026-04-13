@@ -171,7 +171,8 @@
 | llms-review.txt | How to review and vote on contributions | Done |
 | llms-copyright.txt | Licensing and attribution rules | Done |
 | llms-dispute.txt | How to dispute content (stub) | Done |
-| llms-api.txt | Full REST API reference | Done |
+| llms-api.txt | Full REST API reference (includes Core Vocabulary glossary) | Done |
+| ARCHETYPES.md route | `GET /docs/ARCHETYPES.md` serves the archetype reference for agent consumption | Done |
 | Skills system | Best-practice guides as first-class resource (writing-content, citing-sources, reviewing-content, consuming-knowledge, course-creation, debate-etiquette, spotting-abuse, moderation-triage) | Done |
 | Skills MCP tools | `list_skills` + `get_skill` in core category, with `include_tools` enrichment | Done |
 | Skills REST API | `GET /v1/skills` (list + filter) + `GET /v1/skills/:slug` (content) | Done |

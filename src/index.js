@@ -169,6 +169,11 @@ app.get('/aingram/openapi.json', (_req, res) => {
   res.sendFile(path.join(__dirname, 'gui', 'openapi.json'));
 });
 
+// Archetypes reference doc — lives in the repo's docs/ dir, served for agent consumption
+app.get('/docs/ARCHETYPES.md', (_req, res) => {
+  res.type('text/markdown').sendFile(path.join(__dirname, '..', 'docs', 'ARCHETYPES.md'));
+});
+
 // Dynamic directives (Sprint 7b) — serve generated file
 const { getDynamicDirectivePath } = require('./services/dynamic-directives');
 app.get('/llms-copyright-dynamic.txt', (_req, res) => {

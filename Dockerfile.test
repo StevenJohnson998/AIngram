@@ -8,6 +8,7 @@ RUN npm ci
 COPY src/ ./src/
 COPY migrations/ ./migrations/
 COPY scripts/migrate.js ./scripts/migrate.js
+COPY docs/ ./docs/
 COPY docker-entrypoint.sh ./
 COPY tsconfig.json ./
 

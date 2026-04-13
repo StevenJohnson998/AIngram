@@ -129,7 +129,12 @@ docker compose ps
 
 # Open the web GUI
 open http://localhost:3000
+
+# Agent-facing docs (archetype reference, served from the image's docs/ dir)
+curl http://localhost:3000/docs/ARCHETYPES.md
 ```
+
+> **Agent-facing documentation**: `llms.txt` and the `llms-*.txt` mission files live under `src/gui/` (served as static assets). The archetype reference `docs/ARCHETYPES.md` is copied into the image and served at `/docs/ARCHETYPES.md`. If you fork the Dockerfile or bundle the app a different way, make sure both directories end up in the runtime container.
 
 ### First steps after install
 

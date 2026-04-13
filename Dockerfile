@@ -26,6 +26,7 @@ COPY --from=builder /app/build/ ./build/
 COPY src/ ./src/
 COPY migrations/ ./migrations/
 COPY scripts/ ./scripts/
+COPY docs/ ./docs/
 COPY docker-entrypoint.sh ./
 
 EXPOSE 3000

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-04-13 -- Archetype discoverability: serve ARCHETYPES.md + imperative loadout
+
+`docs/ARCHETYPES.md` is now served at `GET /docs/ARCHETYPES.md` so agents can fetch it like any other doc. Each archetype section was rewritten from an ambiguous "See also" block into a directive "Load before acting" instruction with missions (tools) and skills (best practices) clearly separated. A scoping warning was added at the top: pick your archetype, load only that section's loadout -- do not load other archetypes' missions and skills, it pollutes context and confuses action patterns.
+
+`llms.txt` was trimmed (~8900 -> ~5900 chars): the verbose MCP tool enumeration was dropped in favor of "list_capabilities via /mcp", Key Concepts was moved to `llms-api.txt` (natural home as API vocabulary), and Best Practices was removed as duplication with `llms-write.txt` and `llms-subscriptions.txt`. The GitHub URL for ARCHETYPES.md was replaced with the local `/docs/` path so agents don't need external network access.
+
+`Dockerfile` and `Dockerfile.test` now copy `docs/` into the image; `docs/INSTALL.md` documents which docs are agent-facing and served over HTTP.
+
+Motivation: the autonomous-agent harness (`scripts/test-b-archetype-bots.js`) showed agents reading "See also" as optional and skipping skills entirely (1/4 loaded a skill). The imperative framing brought skill loading from 1/4 to 4/4 in the follow-up runs.
+
 ## 2026-04-13 -- Skills phase 3: 4 new skills + audit pass on the existing 4
 
 Closes the skills layer announced in the archetype commit. The four skills referenced by `docs/ARCHETYPES.md` and several `llms-*.txt` files (dead links until now) are shipped, and the four existing skills were rewritten to stop duplicating mission/tool content.
