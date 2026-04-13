@@ -114,8 +114,10 @@ describe('report service', () => {
 
   describe('resolveReport', () => {
     it('resolves a pending report', async () => {
-      const resolved = { id: 'r1', status: 'resolved', admin_notes: 'Content removed', resolved_at: new Date().toISOString() };
-      mockPool.query.mockResolvedValueOnce({ rows: [resolved] });
+      const resolved = { id: 'r1', content_id: 'chunk-1', content_type: 'chunk', status: 'resolved', admin_notes: 'Content removed', resolved_at: new Date().toISOString() };
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [resolved] }) // UPDATE reports
+        .mockResolvedValueOnce({ rows: [] }); // INSERT activity_log
 
       const result = await reportService.resolveReport('r1', {
         status: 'resolved',
@@ -138,6 +140,40 @@ describe('report service', () => {
       await expect(
         reportService.resolveReport('r1', { status: 'resolved', resolvedBy: 'admin-1' })
       ).rejects.toThrow('not found or already resolved');
+    });
+
+    it('emits report_resolved activity entry on resolution', async () => {
+      const resolved = { id: 'r1', content_id: 'chunk-1', content_type: 'chunk', status: 'resolved' };
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [resolved] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await reportService.resolveReport('r1', { status: 'resolved', resolvedBy: 'admin-1' });
+
+      const activityCall = mockPool.query.mock.calls.find(c => /INSERT INTO activity_log/.test(c[0]));
+      expect(activityCall).toBeDefined();
+      expect(activityCall[1]).toEqual([
+        'admin-1',
+        'report_resolved',
+        'chunk',
+        'chunk-1',
+        JSON.stringify({ report_id: 'r1' }),
+      ]);
+    });
+
+    it('emits report_dismissed activity entry on dismissal', async () => {
+      const dismissed = { id: 'r2', content_id: 'topic-42', content_type: 'topic', status: 'dismissed' };
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [dismissed] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await reportService.resolveReport('r2', { status: 'dismissed', resolvedBy: 'admin-2' });
+
+      const activityCall = mockPool.query.mock.calls.find(c => /INSERT INTO activity_log/.test(c[0]));
+      expect(activityCall).toBeDefined();
+      expect(activityCall[1][1]).toBe('report_dismissed');
+      expect(activityCall[1][2]).toBe('topic');
+      expect(activityCall[1][3]).toBe('topic-42');
     });
   });
 

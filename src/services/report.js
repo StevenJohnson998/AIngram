@@ -124,7 +124,21 @@ async function resolveReport(reportId, { status, adminNotes, resolvedBy }) {
     err.code = 'NOT_FOUND';
     throw err;
   }
-  return result.rows[0];
+  const report = result.rows[0];
+
+  // activity_log emission — archetype auto-stamped by the trigger (migration 059).
+  // action mirrors the flag pattern: report_resolved when status='resolved',
+  // report_dismissed when status='dismissed'. target points at the reported content
+  // (not the report itself) so the event aggregates alongside flag events on the same
+  // target in archetype analytics.
+  const action = status === 'resolved' ? 'report_resolved' : 'report_dismissed';
+  await pool.query(
+    `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [resolvedBy, action, report.content_type, report.content_id, JSON.stringify({ report_id: report.id })]
+  );
+
+  return report;
 }
 
 /**

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-04-13 -- Activity_log instrumentation for resolveReport
+
+Same gap pattern as formal-vote and flag events. `reportService.resolveReport` now emits a `report_resolved` or `report_dismissed` row in `activity_log` when a Sentinel (or any policing-badge reviewer) closes a public report via `PATCH /v1/reports/:id`. Archetype is auto-stamped by the migration 059 trigger, so sentinel report-triage work finally shows up in `actionDistributionByArchetype`.
+
+`target_type` / `target_id` point at the reported content (chunk or topic), not at the report itself — keeps report events aggregatable alongside flag events on the same target. Metadata carries `{report_id}`.
+
+Found during the autonomous-agent harness: a sentinel bot PATCHed two reports (`PATCH /v1/reports/:id -> 200`) but the actions were invisible in the archetype distribution. 2 new unit tests + 1 existing success test extended for the extra mocked INSERT. 24/24 pass.
+
 ## 2026-04-13 -- MCP: archetype bundle tools (list_archetypes + get_archetype_bundle)
 
 MCP-transport equivalent of the REST bundle endpoint. Two new tools in the `core` category (always enabled, unauthenticated):
