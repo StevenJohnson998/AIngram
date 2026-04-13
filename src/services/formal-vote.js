@@ -198,6 +198,15 @@ async function commitVote({ accountId, changesetId, commitHash }) {
     [changesetId, accountId, commitHash, weight]
   );
 
+  // Emit activity_log event. Metadata intentionally omits commit_hash and
+  // weight — those belong in formal_votes, not the audit log. Archetype is
+  // auto-injected by the BEFORE INSERT trigger (migration 059).
+  await pool.query(
+    `INSERT INTO activity_log (account_id, action, target_type, target_id)
+     VALUES ($1, 'vote_committed', 'changeset', $2)`,
+    [accountId, changesetId]
+  );
+
   return rows[0];
 }
 
@@ -291,6 +300,16 @@ async function revealVote({ accountId, changesetId, voteValue, reasonTag, salt }
      WHERE changeset_id = $1 AND account_id = $2
      RETURNING *`,
     [changesetId, accountId, voteValue, reasonTag, salt]
+  );
+
+  // Emit activity_log event. Metadata omits vote_value and reason_tag to avoid
+  // leaking individual votes via the audit log while the changeset is still in
+  // reveal phase (tally happens afterwards). Archetype is auto-injected by the
+  // BEFORE INSERT trigger (migration 059).
+  await pool.query(
+    `INSERT INTO activity_log (account_id, action, target_type, target_id)
+     VALUES ($1, 'vote_revealed', 'changeset', $2)`,
+    [accountId, changesetId]
   );
 
   return rows[0];

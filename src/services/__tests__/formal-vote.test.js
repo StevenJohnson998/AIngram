@@ -95,7 +95,8 @@ describe('formal-vote service', () => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [changesetInCommit] }) // changeset lookup
         .mockResolvedValueOnce({ rows: [activeAccount] }) // account lookup
-        .mockResolvedValueOnce({ rows: [formalVote] }); // upsert
+        .mockResolvedValueOnce({ rows: [formalVote] }) // upsert
+        .mockResolvedValueOnce({ rows: [] }); // activity_log
 
       const result = await formalVoteService.commitVote({
         accountId: 'voter-1',
@@ -208,7 +209,8 @@ describe('formal-vote service', () => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [changesetInReveal] }) // changeset lookup
         .mockResolvedValueOnce({ rows: [committedVote] }) // fetch committed vote
-        .mockResolvedValueOnce({ rows: [revealedVote] }); // update
+        .mockResolvedValueOnce({ rows: [revealedVote] }) // update
+        .mockResolvedValueOnce({ rows: [] }); // activity_log
 
       const result = await formalVoteService.revealVote({
         accountId: 'voter-1',
@@ -478,6 +480,82 @@ describe('formal-vote service', () => {
       const result = await formalVoteService.getVoteStatus('cs-1', null);
 
       expect(result.phase).toBeNull();
+    });
+  });
+
+  describe('activity_log emissions (archetype instrumentation)', () => {
+    const changesetInCommit = {
+      id: 'cs-1',
+      vote_phase: 'commit',
+      commit_deadline_at: new Date(Date.now() + 86400000),
+      proposed_by: 'author-1',
+      is_suggestion: false,
+    };
+    const activeAccount = {
+      id: 'voter-1',
+      status: 'active',
+      first_contribution_at: '2026-01-01T00:00:00Z',
+      created_at: '2025-12-01T00:00:00Z',
+      reputation_contribution: 0.5,
+    };
+
+    it('commitVote emits vote_committed activity entry', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [changesetInCommit] })
+        .mockResolvedValueOnce({ rows: [activeAccount] })
+        .mockResolvedValueOnce({ rows: [{ id: 'fv-1' }] }) // upsert
+        .mockResolvedValueOnce({ rows: [] }); // activity_log
+
+      await formalVoteService.commitVote({
+        accountId: 'voter-1',
+        changesetId: 'cs-1',
+        commitHash: 'abc123',
+      });
+
+      const activityCall = mockPool.query.mock.calls.find(c => /INSERT INTO activity_log/.test(c[0]));
+      expect(activityCall).toBeDefined();
+      expect(activityCall[0]).toMatch(/'vote_committed'/);
+      expect(activityCall[0]).toMatch(/'changeset'/);
+      expect(activityCall[1]).toEqual(['voter-1', 'cs-1']);
+    });
+
+    it('revealVote emits vote_revealed activity entry', async () => {
+      const salt = 'test-salt-xyz';
+      const commitHash = hashCommitment(1, 'accurate', salt);
+      const committedVote = {
+        id: 'fv-1',
+        changeset_id: 'cs-1',
+        account_id: 'voter-1',
+        commit_hash: commitHash,
+        revealed_at: null,
+      };
+      const changesetInReveal = {
+        id: 'cs-1',
+        vote_phase: 'reveal',
+        reveal_deadline_at: new Date(Date.now() + 43200000),
+      };
+
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [changesetInReveal] })
+        .mockResolvedValueOnce({ rows: [committedVote] })
+        .mockResolvedValueOnce({ rows: [{ ...committedVote, vote_value: 1, revealed_at: new Date() }] })
+        .mockResolvedValueOnce({ rows: [] }); // activity_log
+
+      await formalVoteService.revealVote({
+        accountId: 'voter-1',
+        changesetId: 'cs-1',
+        voteValue: 1,
+        reasonTag: 'accurate',
+        salt,
+      });
+
+      const activityCall = mockPool.query.mock.calls.find(c => /INSERT INTO activity_log/.test(c[0]));
+      expect(activityCall).toBeDefined();
+      expect(activityCall[0]).toMatch(/'vote_revealed'/);
+      expect(activityCall[0]).toMatch(/'changeset'/);
+      expect(activityCall[1]).toEqual(['voter-1', 'cs-1']);
+      // Ensure no vote_value/reason_tag leak into the audit log
+      expect(activityCall[0]).not.toMatch(/vote_value|reason_tag/);
     });
   });
 });

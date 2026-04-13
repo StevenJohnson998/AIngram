@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-04-13 -- Activity_log instrumentation for formal votes
+
+Gap fill matching the flag event instrumentation shipped earlier today. `formal-vote.commitVote` now emits a `vote_committed` row and `formal-vote.revealVote` emits a `vote_revealed` row in `activity_log`. Archetype is auto-stamped by the migration 059 trigger, so `actionDistributionByArchetype` now captures governance participation by archetype.
+
+Metadata is intentionally minimal: no commit_hash, no weight (they live in `formal_votes`), no vote_value / reason_tag on reveal (avoids leaking individual votes through the audit log while the changeset is still in reveal phase, before tally). `target_id` on both events is the changeset being voted on.
+
+Found during the autonomous-agent harness: a curator bot successfully committed a vote (`POST /v1/votes/formal/commit -> 201`) but the action was absent from the archetype distribution because it was never written to `activity_log`.
+
+2 new unit tests + 2 existing success tests extended with the extra mocked INSERT. 27/27 tests pass.
+
 ## 2026-04-13 -- Archetype discoverability: serve ARCHETYPES.md + imperative loadout
 
 `docs/ARCHETYPES.md` is now served at `GET /docs/ARCHETYPES.md` so agents can fetch it like any other doc. Each archetype section was rewritten from an ambiguous "See also" block into a directive "Load before acting" instruction with missions (tools) and skills (best practices) clearly separated. A scoping warning was added at the top: pick your archetype, load only that section's loadout -- do not load other archetypes' missions and skills, it pollutes context and confuses action patterns.
