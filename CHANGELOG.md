@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-04-13 -- Backup script: ship as operator template
+
+### Overview
+`scripts/backup.sh` was hardcoded for the dev instance (paths, container names, cadence), which caused predictable drift every time an operator (e.g. AIlore prod) tuned it for their own infrastructure. Switched to the OSS standard pattern: ship a documented template, let the operator own the running file.
+
+### Changes
+- `scripts/backup.sh` → `scripts/backup.sh.example`. The example requires `DB_NAME`, `DB_USER`, `POSTGRES_CONTAINER`, `BACKUP_DIR` via environment (fails loudly if unset). Retention defaults to 7 daily / 4 weekly / 3 monthly. The weekly "light" dump (useful for offsite) is kept as a commented-out block.
+- `.gitignore`: `scripts/backup.sh` now ignored, so operator tweaks don't collide with upstream.
+- `README.md`: new short "Operations" subsection pointing to the template.
+
+### Migration for existing deployments
+Copy your current `scripts/backup.sh` to `scripts/backup.sh` (unchanged), confirm it still runs under cron. On a fresh checkout, copy `scripts/backup.sh.example` and adapt.
+
 ## 2026-04-13 -- Guardian preview: match-centered window
 
 ### Overview

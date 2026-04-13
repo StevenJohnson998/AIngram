@@ -1,0 +1,64 @@
+#!/bin/bash
+# AIngram database backup script — EXAMPLE / TEMPLATE
+#
+# Copy this file to `scripts/backup.sh` and adapt to your infrastructure.
+# `scripts/backup.sh` is gitignored so your local tweaks (cadence, retention,
+# storage paths, offsite, etc.) don't drift with upstream.
+#
+# Required environment (export from your operator shell or a wrapper):
+#   DB_NAME              # Postgres database name (e.g. "aingram_prod")
+#   DB_USER              # Postgres user (e.g. "admin")
+#   POSTGRES_CONTAINER   # Name of the running Postgres container (e.g. "postgres")
+#   BACKUP_DIR           # Absolute path to your backup storage (e.g. "/srv/backups/aingram")
+#
+# Example cron (daily at 04:00):
+#   0 4 * * * DB_NAME=aingram_prod DB_USER=admin POSTGRES_CONTAINER=postgres \
+#             BACKUP_DIR=/srv/backups/aingram /path/to/backup.sh >> /srv/backups/aingram/backup.log 2>&1
+#
+# Default retention below: 7 daily / 4 weekly (Monday) / 3 monthly (1st of month).
+# Two backup families:
+#   - Full: whole database (including embeddings ~4KB per chunk vector)
+#   - Light (optional, commented): excludes pgmigrations / large tables — handy for offsite
+# At 100K chunks, full ≈ 400MB compressed, light ≈ 50MB compressed.
+
+set -euo pipefail
+
+: "${DB_NAME:?DB_NAME is required}"
+: "${DB_USER:?DB_USER is required}"
+: "${POSTGRES_CONTAINER:=postgres}"
+: "${BACKUP_DIR:?BACKUP_DIR is required}"
+
+DATE=$(date +%Y%m%d)
+DOW=$(date +%u)   # 1=Monday
+DOM=$(date +%d)
+
+mkdir -p "$BACKUP_DIR"
+
+# --- Daily full backup ---
+docker exec "$POSTGRES_CONTAINER" pg_dump -U "$DB_USER" "$DB_NAME" | gzip > "$BACKUP_DIR/${DB_NAME}_${DATE}.sql.gz"
+FULL_SIZE=$(du -h "$BACKUP_DIR/${DB_NAME}_${DATE}.sql.gz" | cut -f1)
+echo "[$(date -Iseconds)] Daily backup: ${DB_NAME}_${DATE}.sql.gz ($FULL_SIZE)"
+
+# --- Weekly light backup (optional) ---
+# Uncomment to enable a smaller weekly dump suited for offsite storage.
+# Adjust --exclude-table-data and --exclude-table to match your heavy tables.
+# if [ "$DOW" -eq 1 ]; then
+#     docker exec "$POSTGRES_CONTAINER" pg_dump -U "$DB_USER" "$DB_NAME" \
+#         --exclude-table-data='pgmigrations' | \
+#         gzip > "$BACKUP_DIR/weekly_${DB_NAME}_${DATE}.sql.gz"
+#     echo "[$(date -Iseconds)] Weekly light backup: weekly_${DB_NAME}_${DATE}.sql.gz"
+# fi
+
+# --- Monthly snapshot ---
+if [ "$DOM" -eq "01" ]; then
+    cp "$BACKUP_DIR/${DB_NAME}_${DATE}.sql.gz" "$BACKUP_DIR/monthly_${DB_NAME}_${DATE}.sql.gz"
+    echo "[$(date -Iseconds)] Monthly snapshot: monthly_${DB_NAME}_${DATE}.sql.gz"
+fi
+
+# --- Retention ---
+# Tweak these thresholds to your storage budget.
+ls -t "$BACKUP_DIR"/"${DB_NAME}"_*.sql.gz 2>/dev/null | tail -n +8  | xargs -r rm || true  # keep 7 daily
+ls -t "$BACKUP_DIR"/weekly_*.sql.gz       2>/dev/null | tail -n +5  | xargs -r rm || true  # keep 4 weekly
+ls -t "$BACKUP_DIR"/monthly_*.sql.gz      2>/dev/null | tail -n +4  | xargs -r rm || true  # keep 3 monthly
+
+echo "[$(date -Iseconds)] Retention applied. Done."

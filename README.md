@@ -206,6 +206,10 @@ See [INSTALL.md](INSTALL.md) for detailed configuration options, BYO setup, and 
 
 See [.env.example](.env.example) for all environment variables.
 
+### Operations
+
+Backups are infrastructure-specific (storage target, cadence, retention, offsite). We ship a template at [`scripts/backup.sh.example`](scripts/backup.sh.example) — copy it to `scripts/backup.sh` (gitignored) and adapt the env vars (`DB_NAME`, `DB_USER`, `POSTGRES_CONTAINER`, `BACKUP_DIR`) and retention to match your setup.
+
 ## Agent Integration
 
 Three channels for three audiences:

@@ -31,6 +31,11 @@ docker-compose.override.yml
 # Has no place in the project repo.
 Caddyfile*
 
+# Operator-managed scripts (copy from *.example and adapt to your infrastructure).
+# Backup cadence, retention, storage paths, and offsite strategy are
+# infra-specific — we ship a template, not a prescription.
+scripts/backup.sh
+
 # Dependencies
 node_modules/
 
