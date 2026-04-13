@@ -304,6 +304,10 @@ img {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* Defensive: a 300-char title without spaces (validation allows it) would
+     overflow horizontally and break the grid column. Force-break long words. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .site-footer {
