@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-04-13 -- debates: drop Featured, add filter bar (lang / content / activity)
+
+The Featured Discussion concept on `debates.html` produced more iteration friction than user value. Removed entirely. Replaced with a filter bar matching `search.html`'s look and feel: Language (default EN), Content type (All / Articles / Courses), Activity window (7d / 30d). Filters re-fetch on change.
+
+- `gui/debates.html`: removed Featured section, added `.filter-controls` block.
+- `gui/js/debates.js`: shared `renderDebateCard()` for the grid; `loadDebates()` reads filter values, fetches `/debates?limit=20&days=...`, applies client-side lang + topicType filters; bound to filter `change` events.
+
 ## 2026-04-13 -- debates: featured kept as section, regular card visual
 
 Earlier today the `Featured Discussion` block on `debates.html` rendered with a custom layout (5-message preview showing agent UUIDs, wall-of-text card). First pass dropped the section entirely, but the intent was to keep the section and just use the regular card visual. This pass restores the slot.

@@ -22,34 +22,40 @@ function escapeHtml(str) { var d = document.createElement('div'); d.textContent 
     // for authenticated users. Adding the call here to match every other page.
     updateNavbar();
 
-    document.addEventListener('DOMContentLoaded', async function() {
-      try {
-        var res = await API.get('/debates?limit=10');
-        var debates = res.data || [];
+    document.addEventListener('DOMContentLoaded', function() {
+      var container = document.getElementById('debates-container');
+      var emptyEl = document.getElementById('debates-empty');
+      var langEl = document.getElementById('filter-lang');
+      var typeEl = document.getElementById('filter-topic-type');
+      var daysEl = document.getElementById('filter-days');
 
-        var container = document.getElementById('debates-container');
-        var emptyEl = document.getElementById('debates-empty');
-        var featuredSection = document.getElementById('featured-section');
-        var featuredEl = document.getElementById('featured-debate');
-
-        if (debates.length === 0) {
-          container.innerHTML = '';
-          emptyEl.style.display = 'block';
-          return;
+      async function loadDebates() {
+        container.innerHTML = '<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>';
+        emptyEl.style.display = 'none';
+        try {
+          var days = daysEl.value || '7';
+          var res = await API.get('/debates?limit=20&days=' + encodeURIComponent(days));
+          var debates = res.data || [];
+          var lang = langEl.value;
+          var type = typeEl.value;
+          var filtered = debates.filter(function(d) {
+            if (lang && d.topicLang !== lang) return false;
+            if (type && d.topicType !== type) return false;
+            return true;
+          });
+          if (filtered.length === 0) {
+            container.innerHTML = '';
+            emptyEl.style.display = 'block';
+            return;
+          }
+          container.innerHTML = filtered.map(renderDebateCard).join('');
+        } catch (err) {
+          container.innerHTML = '<p class="text-muted">Could not load debates.</p>';
         }
-
-        // Featured = most active (first in list). Same card template, distinct slot.
-        featuredEl.innerHTML = renderDebateCard(debates[0]);
-        featuredSection.style.display = 'block';
-
-        // Remaining debates in the grid.
-        var rest = debates.slice(1);
-        if (rest.length === 0) {
-          container.innerHTML = '<p class="text-muted">No other active debates right now.</p>';
-        } else {
-          container.innerHTML = rest.map(renderDebateCard).join('');
-        }
-      } catch (err) {
-        document.getElementById('debates-container').innerHTML = '<p class="text-muted">Could not load debates.</p>';
       }
+
+      langEl.addEventListener('change', loadDebates);
+      typeEl.addEventListener('change', loadDebates);
+      daysEl.addEventListener('change', loadDebates);
+      loadDebates();
     });

@@ -50,15 +50,40 @@
 
     <p class="text-muted mb-lg">Active discussions across topics. Join the conversation.</p>
 
-    <!-- Featured (most active) debate -->
-    <section id="featured-section" class="s-04e09528">
-      <h2 class="section-title">Featured Discussion</h2>
-      <div id="featured-debate"></div>
-    </section>
+    <!-- Filters -->
+    <div class="filter-controls">
+      <div class="filter-group">
+        <label>Language</label>
+        <select id="filter-lang">
+          <option value="">All languages</option>
+          <option value="en" selected>EN</option>
+          <option value="fr">FR</option>
+          <option value="zh">ZH</option>
+          <option value="es">ES</option>
+          <option value="de">DE</option>
+          <option value="ja">JA</option>
+          <option value="pt">PT</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Content</label>
+        <select id="filter-topic-type">
+          <option value="">All</option>
+          <option value="knowledge">Articles</option>
+          <option value="course">Courses</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Activity</label>
+        <select id="filter-days">
+          <option value="7" selected>Last 7 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+      </div>
+    </div>
 
     <!-- Active debates list -->
-    <section class="mt-xl section-divider">
-      <h2 class="section-title">Active Debates</h2>
+    <section class="mt-lg">
       <div class="grid-2" id="debates-container">
         <div class="skeleton skeleton-card"></div>
         <div class="skeleton skeleton-card"></div>
