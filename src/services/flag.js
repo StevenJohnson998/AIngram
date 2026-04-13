@@ -39,7 +39,19 @@ async function createFlag({ reporterId, targetType, targetId, reason, detectionT
      RETURNING *`,
     [reporterId, targetType, targetId, reason.trim(), detectionType]
   );
-  return result.rows[0];
+  const flag = result.rows[0];
+
+  // Auto-generated flags (non-manual detection) are not actor-driven: skip the
+  // activity_log entry to keep archetype analytics focused on human behavior.
+  if (reporterId && detectionType === 'manual') {
+    await pool.query(
+      `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+       VALUES ($1, 'flag_created', $2, $3, $4)`,
+      [reporterId, targetType, targetId, JSON.stringify({ flag_id: flag.id, detection_type: detectionType })]
+    );
+  }
+
+  return flag;
 }
 
 /**
@@ -84,7 +96,13 @@ async function reviewFlag(flagId, reviewerId) {
     err.code = 'NOT_FOUND';
     throw err;
   }
-  return result.rows[0];
+  const flag = result.rows[0];
+  await pool.query(
+    `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+     VALUES ($1, 'flag_reviewed', $2, $3, $4)`,
+    [reviewerId, flag.target_type, flag.target_id, JSON.stringify({ flag_id: flag.id })]
+  );
+  return flag;
 }
 
 /**
@@ -103,7 +121,13 @@ async function dismissFlag(flagId, reviewerId) {
     err.code = 'NOT_FOUND';
     throw err;
   }
-  return result.rows[0];
+  const flag = result.rows[0];
+  await pool.query(
+    `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+     VALUES ($1, 'flag_dismissed', $2, $3, $4)`,
+    [reviewerId, flag.target_type, flag.target_id, JSON.stringify({ flag_id: flag.id })]
+  );
+  return flag;
 }
 
 /**
@@ -122,7 +146,13 @@ async function actionFlag(flagId, reviewerId) {
     err.code = 'NOT_FOUND';
     throw err;
   }
-  return result.rows[0];
+  const flag = result.rows[0];
+  await pool.query(
+    `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+     VALUES ($1, 'flag_actioned', $2, $3, $4)`,
+    [reviewerId, flag.target_type, flag.target_id, JSON.stringify({ flag_id: flag.id })]
+  );
+  return flag;
 }
 
 /**

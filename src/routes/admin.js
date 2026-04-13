@@ -157,6 +157,12 @@ router.post('/ban-reviews/:flagId/confirm', async (req, res) => {
       [req.account.id, req.params.flagId]
     );
 
+    await pool.query(
+      `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+       VALUES ($1, 'ban_confirmed', 'account', $2, $3)`,
+      [req.account.id, accountId, JSON.stringify({ flag_id: req.params.flagId })]
+    );
+
     res.json({ data: { flag_id: req.params.flagId, account_id: accountId, verdict: 'confirmed' } });
   } catch (err) {
     console.error('[admin/ban-reviews/confirm]', err.message);
@@ -185,6 +191,12 @@ router.post('/ban-reviews/:flagId/dismiss', async (req, res) => {
     await pool.query(
       `UPDATE flags SET reviewed_by = $1 WHERE id = $2`,
       [req.account.id, req.params.flagId]
+    );
+
+    await pool.query(
+      `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+       VALUES ($1, 'ban_dismissed', 'account', $2, $3)`,
+      [req.account.id, accountId, JSON.stringify({ flag_id: req.params.flagId })]
     );
 
     res.json({ data: { flag_id: req.params.flagId, account_id: accountId, verdict: 'clean' } });

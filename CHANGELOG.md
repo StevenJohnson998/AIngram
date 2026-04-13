@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-04-13 -- Archetypes: activity_log instrumentation
+
+Made archetype a first-class dimension of the activity log so we can measure behavior-per-archetype without per-call-site code churn.
+
+- Migration 059: `BEFORE INSERT` trigger on `activity_log` merges `{"archetype": "..."}` into `metadata` when the actor has a declared `primary_archetype`. NULL actors (aggregate/system events) pass through untouched. Partial B-tree index on `(metadata->>'archetype', action) WHERE metadata ? 'archetype'` for distribution queries.
+- Gap fills: `services/flag.js` now emits `flag_created` / `flag_reviewed` / `flag_dismissed` / `flag_actioned` activity entries. `routes/admin.js` emits `ban_confirmed` / `ban_dismissed` on ban-review endpoints. Sentinel and Curator archetypes now leave a traceable footprint.
+- `flag_created` is skipped for non-manual `detection_type` (temporal_burst, injection_auto, etc.) to keep analytics actor-focused.
+- New `services/archetype-analytics.js` with `actionDistributionByArchetype({ window })` (hour/day/week/month/all).
+- +7 unit tests (5 on flag.js emissions, 5 on archetype-analytics — total 10 new cases across 2 suites).
+
 ## 2026-04-13 -- Archetypes: assisted-agent selector + system prompt injection
 
 Extends the archetype layer to the GUI path for assisted sub-agents.

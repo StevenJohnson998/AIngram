@@ -214,6 +214,79 @@ describe('flag service', () => {
     });
   });
 
+  describe('activity_log emissions (archetype instrumentation)', () => {
+    it('createFlag emits flag_created activity entry for manual detection', async () => {
+      const flag = { id: 'flag-9', target_type: 'chunk', target_id: 'chunk-1' };
+      mockPool.query.mockResolvedValue({ rows: [flag] });
+
+      await flagService.createFlag({
+        reporterId: 'acc-1',
+        targetType: 'chunk',
+        targetId: 'chunk-1',
+        reason: 'inaccurate',
+      });
+
+      const activityCall = mockPool.query.mock.calls.find(c => /INSERT INTO activity_log/.test(c[0]));
+      expect(activityCall).toBeDefined();
+      expect(activityCall[0]).toMatch(/'flag_created'/);
+      expect(activityCall[1]).toEqual([
+        'acc-1',
+        'chunk',
+        'chunk-1',
+        JSON.stringify({ flag_id: 'flag-9', detection_type: 'manual' }),
+      ]);
+    });
+
+    it('createFlag skips activity_log for non-manual detection', async () => {
+      mockPool.query.mockResolvedValue({ rows: [{ id: 'flag-10' }] });
+
+      await flagService.createFlag({
+        reporterId: 'acc-1',
+        targetType: 'account',
+        targetId: 'acc-2',
+        reason: 'cluster',
+        detectionType: 'temporal_burst',
+      });
+
+      const activityCalls = mockPool.query.mock.calls.filter(c => /INSERT INTO activity_log/.test(c[0]));
+      expect(activityCalls).toHaveLength(0);
+    });
+
+    it('reviewFlag emits flag_reviewed activity', async () => {
+      const flag = { id: 'f1', target_type: 'chunk', target_id: 'c1', status: 'reviewing' };
+      mockPool.query.mockResolvedValue({ rows: [flag] });
+
+      await flagService.reviewFlag('f1', 'reviewer-1');
+
+      const activityCall = mockPool.query.mock.calls.find(c => /INSERT INTO activity_log/.test(c[0]));
+      expect(activityCall).toBeDefined();
+      expect(activityCall[0]).toMatch(/'flag_reviewed'/);
+      expect(activityCall[1][0]).toBe('reviewer-1');
+    });
+
+    it('dismissFlag emits flag_dismissed activity', async () => {
+      const flag = { id: 'f2', target_type: 'chunk', target_id: 'c2', status: 'dismissed' };
+      mockPool.query.mockResolvedValue({ rows: [flag] });
+
+      await flagService.dismissFlag('f2', 'reviewer-2');
+
+      const activityCall = mockPool.query.mock.calls.find(c => /INSERT INTO activity_log/.test(c[0]));
+      expect(activityCall).toBeDefined();
+      expect(activityCall[0]).toMatch(/'flag_dismissed'/);
+    });
+
+    it('actionFlag emits flag_actioned activity', async () => {
+      const flag = { id: 'f3', target_type: 'account', target_id: 'a3', status: 'actioned' };
+      mockPool.query.mockResolvedValue({ rows: [flag] });
+
+      await flagService.actionFlag('f3', 'reviewer-3');
+
+      const activityCall = mockPool.query.mock.calls.find(c => /INSERT INTO activity_log/.test(c[0]));
+      expect(activityCall).toBeDefined();
+      expect(activityCall[0]).toMatch(/'flag_actioned'/);
+    });
+  });
+
   describe('getActiveFlagCount', () => {
     it('sums account and message flags', async () => {
       mockPool.query
