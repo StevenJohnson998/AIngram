@@ -16,9 +16,9 @@ describe('parseSkillFile', () => {
     expect(skill.title).toBe('Writing Content');
     expect(skill.relatedTools).toContain('contribute_chunk');
     expect(skill.relatedTools).toContain('propose_edit');
-    expect(skill.relatedRefs).toContain('llms-contribute');
+    expect(skill.relatedRefs).toContain('llms-write');
     expect(skill.category).toBe('contributing');
-    expect(skill.content).toContain('Writing Good Summaries');
+    expect(skill.content).toContain('Writing good summaries');
     expect(skill.content.length).toBeGreaterThan(100);
   });
 
@@ -26,7 +26,7 @@ describe('parseSkillFile', () => {
     const skill = parseSkillFile(path.join(skillsDir, 'citing-sources.txt'));
     expect(skill.slug).toBe('citing-sources');
     expect(skill.relatedTools).toContain('contribute_chunk');
-    expect(skill.content).toContain('Source Citations');
+    expect(skill.content).toContain('Balanced sourcing');
   });
 
   test('parses reviewing-content.txt', () => {
@@ -46,14 +46,52 @@ describe('parseSkillFile', () => {
     expect(skill.relatedTools).toContain('get_chunk');
     expect(skill.category).toBe('consuming');
   });
+
+  test('parses course-creation.txt', () => {
+    const skill = parseSkillFile(path.join(skillsDir, 'course-creation.txt'));
+    expect(skill.slug).toBe('course-creation');
+    expect(skill.relatedTools).toContain('propose_metachunk');
+    expect(skill.category).toBe('contributing');
+  });
+
+  test('parses debate-etiquette.txt', () => {
+    const skill = parseSkillFile(path.join(skillsDir, 'debate-etiquette.txt'));
+    expect(skill.slug).toBe('debate-etiquette');
+    expect(skill.relatedTools).toContain('create_message');
+    expect(skill.category).toBe('engaging');
+  });
+
+  test('parses spotting-abuse.txt', () => {
+    const skill = parseSkillFile(path.join(skillsDir, 'spotting-abuse.txt'));
+    expect(skill.slug).toBe('spotting-abuse');
+    expect(skill.relatedTools).toContain('create_flag');
+    expect(skill.category).toBe('policing');
+  });
+
+  test('parses moderation-triage.txt', () => {
+    const skill = parseSkillFile(path.join(skillsDir, 'moderation-triage.txt'));
+    expect(skill.slug).toBe('moderation-triage');
+    expect(skill.relatedTools).toContain('review_flag');
+    expect(skill.relatedTools).toContain('merge_changeset');
+    expect(skill.category).toBe('policing');
+  });
 });
 
 describe('listSkills', () => {
   test('returns all skills without filter', () => {
     const skills = listSkills();
-    expect(skills).toHaveLength(4);
+    expect(skills).toHaveLength(8);
     const slugs = skills.map(s => s.slug).sort();
-    expect(slugs).toEqual(['citing-sources', 'consuming-knowledge', 'reviewing-content', 'writing-content']);
+    expect(slugs).toEqual([
+      'citing-sources',
+      'consuming-knowledge',
+      'course-creation',
+      'debate-etiquette',
+      'moderation-triage',
+      'reviewing-content',
+      'spotting-abuse',
+      'writing-content',
+    ]);
   });
 
   test('returns skills filtered by tool name', () => {
@@ -94,8 +132,8 @@ describe('getSkill', () => {
     expect(skill.slug).toBe('writing-content');
     expect(skill.title).toBe('Writing Content');
     expect(skill.related_tools).toContain('contribute_chunk');
-    expect(skill.related_refs).toContain('llms-contribute');
-    expect(skill.content).toContain('Writing Good Summaries');
+    expect(skill.related_refs).toContain('llms-write');
+    expect(skill.content).toContain('Writing good summaries');
   });
 
   test('returns null for nonexistent slug', () => {

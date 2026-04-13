@@ -59,5 +59,5 @@ Plan: A first, structure the expandable card layout so B/C can be dropped in lat
 
 ## Items deferred
 
-- Skills not yet created (will ship in phase 3 of the .txt reorg): `debate-etiquette`, `course-creation`, `spotting-abuse`, `moderation-triage`.
+- Skills phase 3 shipped 2026-04-13: `debate-etiquette`, `course-creation`, `spotting-abuse`, `moderation-triage` live; the four existing skills were also rewritten to stop duplicating mission/tool content.
 - Missions (`llms-*.txt`) not yet created (phase 2): 8 files total (write, correct, converse, review, refresh, validate, flag, moderate).
