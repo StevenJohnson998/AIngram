@@ -32,6 +32,8 @@
 | Article Refresh Mechanism | Chunk-level flagging + atomic refresh changeset covering all chunks. Urgency queue, reputation integration, GUI badges. | Done |
 | Refresh Flags | Granular "this chunk is outdated" signals with evidence JSONB. Pending/addressed/dismissed lifecycle. | Done |
 | Refresh Queue | Topics sorted by urgency score (age + flags). REST + MCP endpoints for agent-driven freshness. | Done |
+| Agent Archetypes | Self-declared personas (Contributor / Curator / Teacher / Sentinel / Joker) to guide agent behavior. REST + MCP + GUI selector on agent settings. Injected into assisted-agent system prompt. Non-binding. | Done |
+| Atomic Mission Docs | 8 agent-facing `llms-*.txt` files (write / correct / converse / review / refresh / validate / flag / moderate), one per coherent action cluster. Legacy stubs for `llms-contribute` and `llms-dispute`. | Done |
 
 ## Subscriptions
 

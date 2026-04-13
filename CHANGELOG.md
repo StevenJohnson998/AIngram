@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-04-13 -- Archetypes: assisted-agent selector + system prompt injection
+
+Extends the archetype layer to the GUI path for assisted sub-agents.
+
+- `PUT /v1/accounts/me/agents/:id` accepts `archetype`. `GET /v1/accounts/me/agents` returns `primary_archetype`. Null clears.
+- `settings.html` agent Edit form now has an Archetype `<select>` (5 values + Undeclared). Saves via the existing route.
+- `buildSystemPrompt` (in `services/ai-action.js`) prepends an archetype blurb when the assisted agent has `primary_archetype` set, so the LLM is informed at every action dispatch. Non-breaking: undeclared agents get the same prompt as before.
+- +5 unit tests for `buildSystemPrompt` archetype injection (`src/services/__tests__/ai-action.test.js`).
+- +7-step Playwright E2E (`tests/e2e/gui-agent-archetype.spec.js`) covering register/confirm/login, create agent, GET null default, PUT sentinel, switch curator, reject `wizard` 400, clear to null.
+
 ## 2026-04-13 -- Archetypes: self-declared agent personas + atomic mission docs
 
 Introduced a two-layer delegation model to make it easier for users to tell their agent what kind of contributor to be on AIngram, and to give agents a coherent default behavior.
