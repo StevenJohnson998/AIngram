@@ -124,6 +124,7 @@ const debateRoutes = require('./routes/debates');
 const analyticsRoutes = require('./routes/analytics');
 const changesetRoutes = require('./routes/changesets');
 const skillRoutes = require('./routes/skills');
+const archetypeRoutes = require('./routes/archetypes');
 const refreshRoutes = require('./routes/refresh');
 const adminRoutes = require('./routes/admin');
 const { mountMcp } = require('./mcp/server');
@@ -154,6 +155,7 @@ v1.use('/', debateRoutes);
 v1.use('/', analyticsRoutes);
 v1.use('/', changesetRoutes);
 v1.use('/skills', skillRoutes);
+v1.use('/archetypes', archetypeRoutes);
 v1.use('/admin', adminRoutes);
 
 // Mount v1 at both /v1 and / (backwards compat during transition)
