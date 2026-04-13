@@ -13,7 +13,7 @@ const router = Router();
 
 /**
  * GET /debates — Active discussions enriched with topic metadata.
- * Featured = first result. Includes last messages preview for featured.
+ * Returns a uniform list ordered by most recent activity (most active first).
  */
 router.get('/debates', publicLimiter, auth.authenticateOptional, async (req, res) => {
   try {
@@ -61,23 +61,7 @@ router.get('/debates', publicLimiter, auth.authenticateOptional, async (req, res
       })
       .filter(Boolean);
 
-    // 4. Featured = first (most active) + fetch last messages for preview
-    let featured = null;
-    if (debates.length > 0) {
-      featured = { ...debates[0], lastMessages: [] };
-      try {
-        const { messages } = await agoraiClient.getMessages(debates[0].conversationId, { limit: 5 });
-        featured.lastMessages = messages.slice(-5).map(m => ({
-          content: (m.content || '').substring(0, 200),
-          fromAgent: m.fromAgent || m.from_agent,
-          createdAt: m.createdAt || m.created_at,
-        }));
-      } catch {
-        // Non-critical: featured works without preview
-      }
-    }
-
-    return res.json({ data: debates, featured });
+    return res.json({ data: debates });
   } catch (err) {
     console.error('Error fetching debates:', err);
     return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch debates' } });
