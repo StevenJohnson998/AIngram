@@ -310,6 +310,19 @@ img {
   word-break: break-word;
 }
 
+/* Search result card (vertically stacked list). Not height-locked because
+   summaries vary, but the title needs the same overflow protection so an
+   unbreakable 300-char string can't blow past the container width. */
+.card.s-f5d2e27e {
+  overflow: hidden;
+}
+.card.s-f5d2e27e .s-f64f240b {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .site-footer {
   background: var(--bg-dark);
   color: var(--text-muted);
