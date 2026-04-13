@@ -376,6 +376,16 @@ img {
   margin-top: var(--space-md);
 }
 
+/* Reset the sibling margin inside grid/flex containers — the cards there are
+   siblings in the DOM but laid out side-by-side, so the margin-top would push
+   cards 2..N down by space-md and make the first card visually taller. */
+.grid-2 > .card + .card,
+.grid-3 > .card + .card,
+.pillars > .card + .card,
+.flex > .card + .card {
+  margin-top: 0;
+}
+
 /* Trust-bordered card */
 .trust-border {
   border-left: 4px solid var(--border-color);
