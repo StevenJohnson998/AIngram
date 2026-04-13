@@ -288,9 +288,11 @@ img {
 .card.pillar-small .pillar-desc { font-size: var(--text-xs); opacity: 0.7; }
 
 /* Topic card (Hot Articles, Active Debates, etc.) — uniform height across
-   rows so titles of varying lengths don't produce a staircase. */
+   rows so titles of varying lengths don't produce a staircase. 11rem fits:
+   3rem padding (top+bottom) + 1.5rem badges + 1rem gap + 3.4rem title (2 lines
+   at text-lg/1.5) + 0.25rem gap + 1.3rem meta = ~10.45rem, with small buffer. */
 .card.s-c52f9028 {
-  height: 10rem;
+  height: 11rem;
   box-sizing: border-box;
   overflow: hidden;
   display: flex;
