@@ -130,12 +130,14 @@ describe('formal-vote — suggestion chunk awareness', () => {
       });
       // upsert vote (no tier check query expected)
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'vote-1', weight: 0.75 }] });
+      // activity_log insert (vote_committed instrumentation)
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
 
       const result = await formalVoteService.commitVote({ accountId: 'acc-1', changesetId: 'cs-1', commitHash: 'abc123' });
 
       expect(result.id).toBe('vote-1');
-      // Should be 3 queries total (changeset + account + upsert), not 4 (no tier check)
-      expect(mockPool.query).toHaveBeenCalledTimes(3);
+      // 4 queries: changeset + account + upsert + activity_log (no tier-check query for knowledge chunks)
+      expect(mockPool.query).toHaveBeenCalledTimes(4);
     });
   });
 
