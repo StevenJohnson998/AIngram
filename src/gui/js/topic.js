@@ -20,6 +20,17 @@ var currentTopicId = null;
         });
       });
 
+      // Activate tab from URL hash on load (e.g. #tab-discussion from a debate card link).
+      // Also re-activate on hash change so back/forward navigation works.
+      function activateTabFromHash() {
+        var hash = (window.location.hash || '').replace(/^#/, '');
+        if (!hash) return;
+        var btn = document.querySelector('.tab-btn[data-target="' + hash + '"]');
+        if (btn) btn.click();
+      }
+      activateTabFromHash();
+      window.addEventListener('hashchange', activateTabFromHash);
+
       // Collapsibles
       document.querySelectorAll('.collapsible-trigger').forEach(function(trigger) {
         trigger.addEventListener('click', function() {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-13 -- topic.html: activate tab from URL hash
+
+`topic.html#tab-discussion` (e.g. linked from a debate card on the landing page) now opens the Discussion tab on load instead of always defaulting to the Article tab. Also handles `hashchange` so back/forward navigation re-syncs the tab.
+
 ## 2026-04-13 -- Frontend: debates rendering + landing page polish
 
 ### Overview
