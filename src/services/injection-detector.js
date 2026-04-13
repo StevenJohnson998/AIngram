@@ -46,19 +46,35 @@ const SECURITY_EXAMPLE_RE = /```security-example\s*\n?([\s\S]*?)```(?:end-securi
 /**
  * Score a text segment against all patterns.
  * @param {string} text
- * @returns {{ rawScore: number, flags: Set<string> }}
+ * @param {number} [offset] - Offset to add to match positions (for segments extracted from larger content)
+ * @returns {{ rawScore: number, flags: Set<string>, matches: Array<{start:number,end:number,flag:string,weight:number}> }}
  */
-function scoreSegment(text) {
+function scoreSegment(text, offset = 0) {
   let rawScore = 0;
   const flags = new Set();
+  const matches = [];
   for (const pattern of PATTERNS) {
-    const matches = text.match(pattern.regex);
-    if (matches) {
-      rawScore += pattern.weight * Math.min(matches.length, 3);
+    // matchAll needs a global regex; PATTERNS already use /g or /gi.
+    const iter = text.matchAll(pattern.regex);
+    let count = 0;
+    for (const m of iter) {
+      if (count < 3) {
+        // Only keep positions for the first 3 matches per pattern (matches the score cap below).
+        matches.push({
+          start: m.index + offset,
+          end: m.index + m[0].length + offset,
+          flag: pattern.flag,
+          weight: pattern.weight,
+        });
+      }
+      count++;
+    }
+    if (count > 0) {
+      rawScore += pattern.weight * Math.min(count, 3);
       flags.add(pattern.flag);
     }
   }
-  return { rawScore, flags };
+  return { rawScore, flags, matches };
 }
 
 /**
@@ -80,32 +96,82 @@ function analyzeContent(content) {
   } catch { /* fallback */ }
   if (typeof exampleWeight !== 'number') exampleWeight = 0.15;
 
-  // Separate security-example blocks from regular content
-  const exampleBlocks = [];
-  const regularContent = content.replace(SECURITY_EXAMPLE_RE, (match, inner) => {
-    exampleBlocks.push(inner);
-    return ''; // remove from regular content
-  });
+  // Separate security-example blocks from regular content, keeping track of
+  // original positions so match offsets map back to the input string.
+  const exampleBlocks = []; // { inner, innerStart }
+  let regularContent = '';
+  let regularIndex = 0; // cumulative length of regular segments written so far
+  const regularToOriginal = []; // segments: { regStart, origStart, length }
+  let lastEnd = 0;
+  SECURITY_EXAMPLE_RE.lastIndex = 0;
+  let m;
+  while ((m = SECURITY_EXAMPLE_RE.exec(content)) !== null) {
+    const matchStart = m.index;
+    const matchEnd = m.index + m[0].length;
+    // Append regular segment before this block
+    if (matchStart > lastEnd) {
+      const segment = content.slice(lastEnd, matchStart);
+      regularToOriginal.push({ regStart: regularIndex, origStart: lastEnd, length: segment.length });
+      regularContent += segment;
+      regularIndex += segment.length;
+    }
+    // Record the block with the inner-content offset in original string
+    const inner = m[1] || '';
+    // Find inner start inside the full match
+    const innerOffsetInMatch = m[0].indexOf(inner);
+    const innerStart = matchStart + (innerOffsetInMatch >= 0 ? innerOffsetInMatch : 0);
+    exampleBlocks.push({ inner, innerStart });
+    lastEnd = matchEnd;
+  }
+  // Tail segment
+  if (lastEnd < content.length) {
+    const segment = content.slice(lastEnd);
+    regularToOriginal.push({ regStart: regularIndex, origStart: lastEnd, length: segment.length });
+    regularContent += segment;
+    regularIndex += segment.length;
+  }
+
+  // Map a position inside regularContent back to the original content position.
+  function regToOriginal(regPos) {
+    for (const seg of regularToOriginal) {
+      if (regPos >= seg.regStart && regPos < seg.regStart + seg.length) {
+        return seg.origStart + (regPos - seg.regStart);
+      }
+    }
+    // Fall back to last segment end if regPos equals total length
+    const last = regularToOriginal[regularToOriginal.length - 1];
+    return last ? last.origStart + last.length : regPos;
+  }
 
   // Score regular content at full weight
   const regular = scoreSegment(regularContent);
   let totalScore = regular.rawScore;
   const allFlags = regular.flags;
+  const allMatches = regular.matches.map((mm) => ({
+    ...mm,
+    start: regToOriginal(mm.start),
+    end: regToOriginal(mm.end - 1) + 1,
+  }));
 
   // Score security-example blocks: reduced weight ONLY if they use [UNSAFE INSTRUCTION] placeholder
   // AND the block's raw score is low (legitimate educational content).
   // Blocks without placeholder, or with placeholder but suspiciously high raw score
   // (someone hiding real injection alongside the placeholder), get full weight.
   const PLACEHOLDER_RE = /\[UNSAFE INSTRUCTION\]/i;
-  for (const block of exampleBlocks) {
-    const seg = scoreSegment(block);
-    const hasPlaceholder = PLACEHOLDER_RE.test(block);
+  for (const { inner, innerStart } of exampleBlocks) {
+    const seg = scoreSegment(inner, innerStart);
+    const hasPlaceholder = PLACEHOLDER_RE.test(inner);
     // A legitimate example with placeholder should score low (the placeholder itself isn't an injection).
     // If raw score is high despite placeholder, the block contains real injection too.
     const isTrustedExample = hasPlaceholder && seg.rawScore < 1.2;
     const weight = isTrustedExample ? exampleWeight : 1.0;
     totalScore += seg.rawScore * weight;
     for (const f of seg.flags) allFlags.add(f);
+    // Tag matches from security-example blocks so the preview builder can
+    // de-prioritise them (trusted examples should not dominate the window).
+    for (const mm of seg.matches) {
+      allMatches.push({ ...mm, weight: mm.weight * weight, inSecurityExample: true });
+    }
   }
 
   // Normalize to 0-1 range (2.0 = rough max expected from legitimate suspicious content)
@@ -115,6 +181,7 @@ function analyzeContent(content) {
     score: parseFloat(normalizedScore.toFixed(3)),
     flags: [...allFlags],
     suspicious: normalizedScore >= 0.5,
+    matches: allMatches,
   };
 }
 
@@ -144,4 +211,4 @@ function analyzeUserInput(text, fieldType, context = {}) {
   return result;
 }
 
-module.exports = { analyzeContent, analyzeUserInput, PATTERNS };
+module.exports = { analyzeContent, analyzeUserInput, PATTERNS, SECURITY_EXAMPLE_RE };

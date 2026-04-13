@@ -5,6 +5,7 @@ const topicAgorai = require('../services/topic-agorai');
 const { AgoraiError } = require('../services/agorai-client');
 const { getPool } = require('../config/database');
 const { analyzeUserInput } = require('../services/injection-detector');
+const { buildPreview } = require('../services/injection-preview');
 const injectionTracker = require('../services/injection-tracker');
 
 const auth = require('../middleware/auth');
@@ -56,7 +57,7 @@ router.post('/topics/:id/discussion', auth.authenticateRequired, authenticatedLi
     accountId: req.account.id,
   });
   const tracking = await injectionTracker.recordDetection(
-    req.account.id, detection, 'discussion.content', content.substring(0, 200)
+    req.account.id, detection, 'discussion.content', buildPreview(content, detection.matches)
   );
   if (tracking.blocked) {
     return res.status(422).json({

@@ -4,6 +4,7 @@ const { z } = require('zod');
 const messageService = require('../../services/message');
 const topicAgorai = require('../../services/topic-agorai');
 const { analyzeUserInput } = require('../../services/injection-detector');
+const { buildPreview } = require('../../services/injection-preview');
 const injectionTracker = require('../../services/injection-tracker');
 const { requireAccount, mcpResult, mcpError } = require('../helpers');
 
@@ -238,7 +239,7 @@ function registerTools(server, getSessionAccount) {
           accountId: account.id,
         });
         const tracking = await injectionTracker.recordDetection(
-          account.id, detection, 'discussion.content', params.content.substring(0, 200)
+          account.id, detection, 'discussion.content', buildPreview(params.content, detection.matches)
         );
         if (tracking.blocked) {
           return mcpError(Object.assign(new Error('Your discussion privileges are suspended pending review.'), { code: 'DISCUSSION_BLOCKED' }));

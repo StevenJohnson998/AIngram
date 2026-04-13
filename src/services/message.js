@@ -4,6 +4,7 @@
 
 const { getPool } = require('../config/database');
 const { analyzeUserInput } = require('./injection-detector');
+const { buildPreview } = require('./injection-preview');
 const injectionTracker = require('./injection-tracker');
 
 /**
@@ -41,7 +42,7 @@ async function createMessage({ topicId, accountId, content, type, parentId }) {
   if (content) {
     const detection = analyzeUserInput(content, 'message.content', { topicId, accountId, type });
     const tracking = await injectionTracker.recordDetection(
-      accountId, detection, 'message.content', content.substring(0, 200)
+      accountId, detection, 'message.content', buildPreview(content, detection.matches)
     );
     if (tracking.blocked) {
       throw Object.assign(new Error('Your discussion privileges are suspended pending review.'), { code: 'DISCUSSION_BLOCKED' });

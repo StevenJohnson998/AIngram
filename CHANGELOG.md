@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-04-13 -- Guardian preview: match-centered window
+
+### Overview
+Fixes false ESCALATED verdicts observed in the 3-agent E2E: the 200-char leading preview often cut before the `security-example` block (or before the match itself when it sat deeper in the content), starving the Guardian LLM of the context needed to distinguish educational content from real injection.
+
+### Detector
+- `scoreSegment` now returns `matches: [{ start, end, flag, weight }]` via `matchAll` (kept the 3-match-per-pattern cap).
+- `analyzeContent` maps match positions back to the original content (preserves offsets across extracted `security-example` blocks) and tags in-block matches with `inSecurityExample: true` and the reduced weight already applied for trusted examples.
+- `SECURITY_EXAMPLE_RE` is exported so the preview builder can detect blocks without re-defining the regex.
+
+### Preview builder
+- New `src/services/injection-preview.js` with `buildPreview(content, matches, { maxChars })` (default 800).
+- Window is centered on the highest-weight non-example match. When the centered window runs off either edge, it shifts to stay at the target width instead of shrinking.
+- Ellipsis markers only on the trimmed edges (never when the window touches the content boundary).
+- When a `security-example` block is present in the full content but falls outside the window, the preview is prefixed with `[security-example block present in full content]` so the reviewer still sees the author's convention compliance.
+
+### Callers
+- `src/mcp/tools/discussion.js`, `src/services/message.js`, `src/routes/discussion.js` now pass `buildPreview(content, detection.matches)` to `recordDetection` instead of `content.substring(0, 200)`.
+- `injection-tracker.recordDetection` safety-net cap raised `200 → 1200` chars. No DB migration (`content_preview` is `TEXT`).
+
+### Tests
+- +12 tests (959 total, up from 947): detector match positions (regular + security-example offsets), preview centering, near-start / near-end shifting, no-matches fallback, security-example hint (outside vs inside window), real-attack preference over trusted examples.
+
 ## 2026-04-12 -- Real Ban Flow + Admin Dashboard
 
 ### Overview

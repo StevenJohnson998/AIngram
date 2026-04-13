@@ -15,7 +15,7 @@ const GUARDIAN_ACCOUNT_ID = '00000000-0000-0000-0000-000000000001';
  * @param {string} accountId
  * @param {{ score: number, flags: string[], suspicious: boolean }} detectionResult - from analyzeUserInput
  * @param {string} fieldType - e.g. 'discussion.content', 'message.content'
- * @param {string} [contentPreview] - first 200 chars for review context
+ * @param {string} [contentPreview] - preview string for Guardian review context (callers bound width; tracker caps at 1200 as safety net)
  * @returns {Promise<{ blocked: boolean, score: number, newlyBlocked: boolean }>}
  */
 async function recordDetection(accountId, detectionResult, fieldType, contentPreview) {
@@ -53,7 +53,7 @@ async function recordDetection(accountId, detectionResult, fieldType, contentPre
     await pool.query(
       `INSERT INTO injection_log (account_id, score, cumulative_score, content_preview, field_type, flags)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [accountId, detectionResult.score, newScore, (contentPreview || '').substring(0, 200), fieldType, detectionResult.flags || []]
+      [accountId, detectionResult.score, newScore, (contentPreview || '').substring(0, 1200), fieldType, detectionResult.flags || []]
     );
   }
 
