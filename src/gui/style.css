@@ -287,6 +287,23 @@ img {
 .card.pillar-small .pillar-title { font-size: var(--text-base); margin-bottom: var(--space-xs); }
 .card.pillar-small .pillar-desc { font-size: var(--text-xs); opacity: 0.7; }
 
+/* Topic card (Hot Articles, Active Debates, etc.) — uniform height across
+   rows so titles of varying lengths don't produce a staircase. */
+.card.s-c52f9028 {
+  height: 10rem;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+.card.s-c52f9028 .s-a1d19e92 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .site-footer {
   background: var(--bg-dark);
   color: var(--text-muted);
