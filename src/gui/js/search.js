@@ -4,13 +4,14 @@ var currentQuery = '';
     document.addEventListener('DOMContentLoaded', function() {
       updateNavbar();
 
-      // Highlight active pillar and set content filter based on topicType param
+      // Swap pillar-big / pillar-small based on topicType param so the current
+      // page's pillar is the visually emphasised one.
       var topicTypeParam = getParam('topicType');
       if (topicTypeParam === 'course') {
         var articles = document.querySelector('.pillar-articles');
         var courses = document.querySelector('.pillar-courses');
-        if (articles) articles.classList.remove('pillar-active');
-        if (courses) courses.classList.add('pillar-active');
+        if (articles) { articles.classList.remove('pillar-big'); articles.classList.add('pillar-small'); }
+        if (courses) { courses.classList.remove('pillar-small'); courses.classList.add('pillar-big'); }
         document.getElementById('filter-topic-type').value = 'course';
       } else if (!topicTypeParam) {
         document.getElementById('filter-topic-type').value = 'knowledge';

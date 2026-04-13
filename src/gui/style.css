@@ -235,22 +235,46 @@ img {
    Footer
    ======================================== */
 
-/* Pillar cards */
-/* min-height stabilises the row when the active pillar swaps between pages
-   (Articles / Debates / Courses), so content below doesn't shift. The active
-   icon gets a fixed line-height + height so emoji glyph variance (📚 🎓 💬
-   render at slightly different heights in many fonts) doesn't affect the row
-   height either. Inactive pillars keep their natural small size so the
-   active/inactive contrast stays visible. */
-.pillars { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-md); align-items: center; min-height: 11rem; }
-.pillar { text-decoration: none; color: inherit; padding: var(--space-sm); }
-.pillar .pillar-icon { font-size: 1.5rem; }
-.pillar .pillar-title { font-size: var(--text-base); margin-bottom: var(--space-xs); }
-.pillar .pillar-desc { display: block; font-size: var(--text-xs); opacity: 0.7; }
-.pillar.pillar-active { border: 2px solid #3b82f6; padding: var(--space-lg) var(--space-md); }
-.pillar.pillar-active .pillar-icon { font-size: 2.5rem; line-height: 1; height: 2.5rem; display: flex; align-items: center; justify-content: center; margin-bottom: var(--space-sm); }
-.pillar.pillar-active .pillar-title { font-size: var(--text-xl); }
-.pillar.pillar-active .pillar-desc { font-size: var(--text-sm); opacity: 1; }
+/* Pillar cards — two fully self-contained variants (Big = current page,
+   Small = others). No shared base + active modifier: each variant declares
+   its own dimensions so the row stays rock-stable when navigating between
+   Articles / Debates / Courses. */
+.pillars { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-md); align-items: stretch; }
+
+.pillar-big,
+.pillar-small {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  height: 11rem;
+  box-sizing: border-box;
+}
+.pillar-big .pillar-icon,
+.pillar-small .pillar-icon {
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pillar-big {
+  border: 2px solid #3b82f6;
+  padding: var(--space-lg) var(--space-md);
+}
+.pillar-big .pillar-icon { font-size: 2.5rem; height: 2.5rem; margin-bottom: var(--space-sm); }
+.pillar-big .pillar-title { font-size: var(--text-xl); margin-bottom: var(--space-xs); }
+.pillar-big .pillar-desc { display: block; font-size: var(--text-sm); opacity: 1; }
+
+.pillar-small {
+  padding: var(--space-md);
+}
+.pillar-small .pillar-icon { font-size: 1.5rem; height: 1.5rem; margin-bottom: var(--space-xs); }
+.pillar-small .pillar-title { font-size: var(--text-base); margin-bottom: var(--space-xs); }
+.pillar-small .pillar-desc { display: block; font-size: var(--text-xs); opacity: 0.7; }
 
 .site-footer {
   background: var(--bg-dark);
