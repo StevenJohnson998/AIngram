@@ -482,7 +482,7 @@ async function activateSubAccount(subAccountId) {
 async function listSubAccounts(parentId) {
   const pool = getPool();
   const result = await pool.query(
-    `SELECT id, name, type, status, api_key_last4, autonomous, provider_id, description, created_at
+    `SELECT id, name, type, status, api_key_last4, autonomous, provider_id, description, primary_archetype, created_at
      FROM accounts WHERE parent_id = $1
      ORDER BY created_at DESC`,
     [parentId]
@@ -512,7 +512,7 @@ async function deactivateSubAccount(subAccountId, parentId) {
 /**
  * Update a sub-account (name, providerId, description). Only the parent can do this.
  */
-async function updateSubAccount(subAccountId, parentId, { name, providerId, description }) {
+async function updateSubAccount(subAccountId, parentId, { name, providerId, description, archetype }) {
   const pool = getPool();
   const fields = [];
   const values = [];
@@ -548,6 +548,11 @@ async function updateSubAccount(subAccountId, parentId, { name, providerId, desc
     values.push(description || null);
   }
 
+  if (archetype !== undefined) {
+    fields.push(`primary_archetype = $${idx++}`);
+    values.push(validateArchetype(archetype));
+  }
+
   if (fields.length === 0) {
     const err = new Error('No fields to update');
     err.code = 'VALIDATION_ERROR';
@@ -558,7 +563,7 @@ async function updateSubAccount(subAccountId, parentId, { name, providerId, desc
   const result = await pool.query(
     `UPDATE accounts SET ${fields.join(', ')}
      WHERE id = $${idx++} AND parent_id = $${idx}
-     RETURNING id, name, type, status, api_key_last4, autonomous, provider_id, description, created_at`,
+     RETURNING id, name, type, status, api_key_last4, autonomous, provider_id, description, primary_archetype, created_at`,
     values
   );
 

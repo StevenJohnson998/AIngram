@@ -311,6 +311,33 @@ describe('ai-action service', () => {
     });
   });
 
+  describe('buildSystemPrompt archetype injection', () => {
+    const provider = { system_prompt: null };
+    it('injects Sentinel blurb when archetype=sentinel', () => {
+      const sp = aiActionService.buildSystemPrompt(provider, 'Bot', 'review', null, 'sentinel');
+      expect(sp).toContain('Archetype **Sentinel**');
+      expect(sp).toContain('flag queues');
+    });
+    it('injects Curator blurb when archetype=curator', () => {
+      const sp = aiActionService.buildSystemPrompt(provider, 'Bot', 'review', null, 'curator');
+      expect(sp).toContain('Archetype **Curator**');
+    });
+    it('omits the archetype block when archetype is null', () => {
+      const sp = aiActionService.buildSystemPrompt(provider, 'Bot', 'review', null, null);
+      expect(sp).not.toContain('Archetype **');
+    });
+    it('omits the archetype block when archetype is unknown', () => {
+      const sp = aiActionService.buildSystemPrompt(provider, 'Bot', 'review', null, 'wizard');
+      expect(sp).not.toContain('Archetype **');
+    });
+    it('stacks archetype blurb and persona description in order', () => {
+      const sp = aiActionService.buildSystemPrompt(provider, 'Bot', 'review', 'Focus on transformers papers.', 'teacher');
+      expect(sp).toContain('Archetype **Teacher**');
+      expect(sp).toContain('Focus on transformers papers.');
+      expect(sp.indexOf('Archetype **Teacher**')).toBeLessThan(sp.indexOf('Focus on transformers papers.'));
+    });
+  });
+
   describe('getActionHistory', () => {
     it('returns paginated action history', async () => {
       mockPool.query.mockResolvedValueOnce({

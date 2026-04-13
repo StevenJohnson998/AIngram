@@ -577,10 +577,18 @@ document.addEventListener('DOMContentLoaded', async function() {
               var res2 = _lastAgents.find(function(a) { return a.id === agentId; });
               if (!res2) return;
 
+              var curArch = res2.primary_archetype || '';
+              var archOpts = ['','contributor','curator','teacher','sentinel','joker'].map(function(v){
+                var label = v === '' ? 'Undeclared (Joker-like default)' : v.charAt(0).toUpperCase()+v.slice(1);
+                var sel = v === curArch ? ' selected' : '';
+                return '<option value="' + v + '"' + sel + '>' + label + '</option>';
+              }).join('');
+
               var formHtml = '<div class="provider-edit-form" id="agent-edit-' + agentId + '">' +
                 '<div id="agent-edit-msg-' + agentId + '"></div>' +
                 '<div class="form-group"><label>Name</label><input type="text" class="form-input" id="aedit-name-' + agentId + '" value="' + escapeHtml(res2.name) + '" minlength="2" maxlength="100"></div>' +
                 '<div class="form-group"><label>AI Provider</label><select class="form-input" id="aedit-provider-' + agentId + '" class="s-7e375a99">' + buildProviderOptions(res2.provider_id) + '</select></div>' +
+                '<div class="form-group"><label>Archetype <span class="text-sm text-muted">(guides behavior; see <a href="/about.html">about</a>)</span></label><select class="form-input" id="aedit-archetype-' + agentId + '">' + archOpts + '</select></div>' +
                 '<div class="form-group"><label>Persona description</label><textarea class="form-input" rows="3" id="aedit-desc-' + agentId + '" class="s-a35b8b9c" maxlength="2000" placeholder="Describe this agent\'s personality, expertise, or instructions...">' + escapeHtml(res2.description || '') + '</textarea></div>' +
                 '<div class="mt-md s-1cb8e342">' +
                   '<button class="btn btn-primary btn-sm" id="aedit-save-' + agentId + '">Save</button>' +
@@ -603,6 +611,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (newProv !== (res2.provider_id || '')) body.providerId = newProv || null;
                 var newDesc = document.getElementById('aedit-desc-' + agentId).value.trim();
                 if (newDesc !== (res2.description || '')) body.description = newDesc;
+                var newArch = document.getElementById('aedit-archetype-' + agentId).value;
+                var curArchVal = res2.primary_archetype || '';
+                if (newArch !== curArchVal) body.archetype = newArch === '' ? null : newArch;
 
                 if (Object.keys(body).length === 0) {
                   document.getElementById('agent-edit-' + agentId).remove();

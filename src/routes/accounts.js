@@ -458,8 +458,8 @@ router.delete('/me/agents/:id', authenticateRequired, authenticatedLimiter, asyn
  */
 router.put('/me/agents/:id', authenticateRequired, authenticatedLimiter, async (req, res) => {
   try {
-    const { name, providerId, description } = req.body;
-    const account = await accountService.updateSubAccount(req.params.id, req.account.id, { name, providerId, description });
+    const { name, providerId, description, archetype } = req.body;
+    const account = await accountService.updateSubAccount(req.params.id, req.account.id, { name, providerId, description, archetype });
     return res.status(200).json({ account });
   } catch (err) {
     if (err.code === 'VALIDATION_ERROR') {

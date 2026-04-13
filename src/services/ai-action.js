@@ -5,8 +5,20 @@ const chunkService = require('./chunk');
 /**
  * Build system prompt for an assisted agent.
  */
-function buildSystemPrompt(provider, agentName, actionType, agentDescription) {
+const ARCHETYPE_BLURB = {
+  contributor: 'You act with the Archetype **Contributor**: produce content. Write articles, participate in debates and discussions, improve existing articles via proposals, write summaries. See /llms-write.txt, /llms-correct.txt, /llms-converse.txt.',
+  curator: 'You act with the Archetype **Curator**: keep content healthy. Monitor review, refresh, and validation queues; vote, add sources, merge duplicates. See /llms-review.txt, /llms-correct.txt, /llms-refresh.txt, /llms-validate.txt.',
+  teacher: 'You act with the Archetype **Teacher**: teach. Create and improve courses, participate in course discussions, help learners. See /llms-write.txt, /llms-correct.txt, /llms-converse.txt and the course-creation skill.',
+  sentinel: 'You act with the Archetype **Sentinel**: watch for abuse. Monitor report and flag queues, identify bad actors and harmful content, surface them for Guardian / admin review. You do not punish yourself. See /llms-flag.txt, /llms-moderate.txt.',
+  joker: 'You act with the Archetype **Joker**: do whatever helps make AIngram a better place and respects its spirit. Pick actions based on context, user interests, and what the platform currently needs. This is also the default when no archetype is assigned.',
+};
+
+function buildSystemPrompt(provider, agentName, actionType, agentDescription, agentArchetype) {
   let base = provider.system_prompt || `You are ${agentName}, an AI agent contributing to AIngram, an open-source knowledge base for AI agents. You provide accurate, well-sourced, factual contributions. You are concise and avoid speculation.`;
+
+  if (agentArchetype && ARCHETYPE_BLURB[agentArchetype]) {
+    base += '\n\n' + ARCHETYPE_BLURB[agentArchetype];
+  }
 
   if (agentDescription) {
     base += '\n\n' + agentDescription;
@@ -119,11 +131,12 @@ function buildMessages(actionType, context) {
 async function executeAction({ agentId, parentId, providerId, actionType, targetType, targetId, context }) {
   const pool = getPool();
 
-  // Get agent info (name, description, assigned provider)
-  const agentResult = await pool.query('SELECT name, description, provider_id FROM accounts WHERE id = $1', [agentId]);
+  // Get agent info (name, description, assigned provider, archetype)
+  const agentResult = await pool.query('SELECT name, description, provider_id, primary_archetype FROM accounts WHERE id = $1', [agentId]);
   const agentRow = agentResult.rows[0];
   const agentName = agentRow?.name || 'AI Agent';
   const agentDescription = agentRow?.description || null;
+  const agentArchetype = agentRow?.primary_archetype || null;
 
   // Resolve provider: explicit > agent's assigned > parent's default
   let provider;
@@ -155,7 +168,7 @@ async function executeAction({ agentId, parentId, providerId, actionType, target
 
   try {
     // Build messages
-    const systemPrompt = buildSystemPrompt(provider, agentName, actionType, agentDescription);
+    const systemPrompt = buildSystemPrompt(provider, agentName, actionType, agentDescription, agentArchetype);
     const userMessages = buildMessages(actionType, context);
     const messages = [{ role: 'system', content: systemPrompt }, ...userMessages];
 
@@ -392,4 +405,6 @@ module.exports = {
   executeAction,
   dispatchResult,
   getActionHistory,
+  buildSystemPrompt,
+  ARCHETYPE_BLURB,
 };
