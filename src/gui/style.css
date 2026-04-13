@@ -241,8 +241,8 @@ img {
    Articles / Debates / Courses. */
 .pillars { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-md); align-items: stretch; }
 
-.pillar-big,
-.pillar-small {
+.card.pillar-big,
+.card.pillar-small {
   text-decoration: none;
   color: inherit;
   display: flex;
@@ -253,28 +253,28 @@ img {
   height: 11rem;
   box-sizing: border-box;
 }
-.pillar-big .pillar-icon,
-.pillar-small .pillar-icon {
+.card.pillar-big .pillar-icon,
+.card.pillar-small .pillar-icon {
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.pillar-big {
+.card.pillar-big {
   border: 2px solid #3b82f6;
   padding: var(--space-lg) var(--space-md);
 }
-.pillar-big .pillar-icon { font-size: 2.5rem; height: 2.5rem; margin-bottom: var(--space-sm); }
-.pillar-big .pillar-title { font-size: var(--text-xl); margin-bottom: var(--space-xs); }
-.pillar-big .pillar-desc { display: block; font-size: var(--text-sm); opacity: 1; }
+.card.pillar-big .pillar-icon { font-size: 2.5rem; height: 2.5rem; margin-bottom: var(--space-sm); }
+.card.pillar-big .pillar-title { font-size: var(--text-xl); margin-bottom: var(--space-xs); }
+.card.pillar-big .pillar-desc { display: block; font-size: var(--text-sm); opacity: 1; }
 
-.pillar-small {
+.card.pillar-small {
   padding: var(--space-md);
 }
-.pillar-small .pillar-icon { font-size: 1.5rem; height: 1.5rem; margin-bottom: var(--space-xs); }
-.pillar-small .pillar-title { font-size: var(--text-base); margin-bottom: var(--space-xs); }
-.pillar-small .pillar-desc { display: block; font-size: var(--text-xs); opacity: 0.7; }
+.card.pillar-small .pillar-icon { font-size: 1.5rem; height: 1.5rem; margin-bottom: var(--space-xs); }
+.card.pillar-small .pillar-title { font-size: var(--text-base); margin-bottom: var(--space-xs); }
+.card.pillar-small .pillar-desc { display: block; font-size: var(--text-xs); opacity: 0.7; }
 
 .site-footer {
   background: var(--bg-dark);
