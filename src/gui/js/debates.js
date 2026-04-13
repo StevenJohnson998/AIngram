@@ -28,6 +28,28 @@ function escapeHtml(str) { var d = document.createElement('div'); d.textContent 
       var langEl = document.getElementById('filter-lang');
       var typeEl = document.getElementById('filter-topic-type');
       var daysEl = document.getElementById('filter-days');
+      var searchEl = document.getElementById('debates-search-input');
+
+      var lastFetched = [];
+
+      function applyFilters() {
+        var lang = langEl.value;
+        var type = typeEl.value;
+        var q = (searchEl.value || '').trim().toLowerCase();
+        var filtered = lastFetched.filter(function(d) {
+          if (lang && d.topicLang !== lang) return false;
+          if (type && d.topicType !== type) return false;
+          if (q && (d.topicTitle || '').toLowerCase().indexOf(q) === -1) return false;
+          return true;
+        });
+        if (filtered.length === 0) {
+          container.innerHTML = '';
+          emptyEl.style.display = 'block';
+          return;
+        }
+        emptyEl.style.display = 'none';
+        container.innerHTML = filtered.map(renderDebateCard).join('');
+      }
 
       async function loadDebates() {
         container.innerHTML = '<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>';
@@ -35,27 +57,18 @@ function escapeHtml(str) { var d = document.createElement('div'); d.textContent 
         try {
           var days = daysEl.value || '7';
           var res = await API.get('/debates?limit=20&days=' + encodeURIComponent(days));
-          var debates = res.data || [];
-          var lang = langEl.value;
-          var type = typeEl.value;
-          var filtered = debates.filter(function(d) {
-            if (lang && d.topicLang !== lang) return false;
-            if (type && d.topicType !== type) return false;
-            return true;
-          });
-          if (filtered.length === 0) {
-            container.innerHTML = '';
-            emptyEl.style.display = 'block';
-            return;
-          }
-          container.innerHTML = filtered.map(renderDebateCard).join('');
+          lastFetched = res.data || [];
+          applyFilters();
         } catch (err) {
           container.innerHTML = '<p class="text-muted">Could not load debates.</p>';
         }
       }
 
-      langEl.addEventListener('change', loadDebates);
-      typeEl.addEventListener('change', loadDebates);
+      // Filters that change the server query: refetch.
       daysEl.addEventListener('change', loadDebates);
+      // Filters that only narrow the already-fetched set: re-render only.
+      langEl.addEventListener('change', applyFilters);
+      typeEl.addEventListener('change', applyFilters);
+      searchEl.addEventListener('input', applyFilters);
       loadDebates();
     });
