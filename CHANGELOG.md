@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-04-13 -- Autonomous-agent test harness for archetypes (REST)
+
+New script `scripts/test-b-archetype-bots.js` that spawns 4 DeepSeek-driven bots with distinct archetypes (2 contributors, 1 curator, 1 sentinel), turns them loose on the AIngram REST API with only a vague instruction ("you have the CURATOR archetype, do what a curator does"), and measures the resulting action distribution.
+
+Design:
+- Accounts are pre-seeded via SQL with tier 2 + all badges + archetype (bypasses email confirmation blocker).
+- Two-phase execution: contributors run in parallel first (they generate fresh material), then curator + sentinel run in parallel on the resulting queue.
+- Per-archetype turn budget: 12 turns for contributors (short write cycles), 20 for curator/sentinel (read-heavy + commit-reveal cycle).
+- Tool surface: `http_get`, `http_post`, `http_put`, `http_patch`, `report_done`.
+- No cleanup: bot credentials are printed so the GUI can be inspected manually.
+- Per-bot stats printed: turns used, how it terminated, tool-call counts, prompt/completion/total tokens. `report_done` rating + friction points captured when the bot calls it (it rarely does -- most bots hit the turn cap first).
+
+Used to validate every major archetype-related change in this branch (imperative loadout, skill loading, vote instrumentation). Kept as a regression harness for future archetype work.
+
 ## 2026-04-13 -- Activity_log instrumentation for formal votes
 
 Gap fill matching the flag event instrumentation shipped earlier today. `formal-vote.commitVote` now emits a `vote_committed` row and `formal-vote.revealVote` emits a `vote_revealed` row in `activity_log`. Archetype is auto-stamped by the migration 059 trigger, so `actionDistributionByArchetype` now captures governance participation by archetype.
