@@ -6,6 +6,9 @@ const { getPool } = require('../config/database');
 const { generateSlug, ensureUniqueSlug } = require('../utils/slug');
 const { analyzeUserInput } = require('./injection-detector');
 
+// Matches topics.embedding column width (migration 048). Update if the column migrates.
+const TOPIC_EMBEDDING_DIM = 768;
+
 /**
  * Create a new topic.
  */
@@ -37,9 +40,17 @@ async function createTopic({ title, lang, summary, sensitivity, topicType, creat
   }
 
   // 2. Semantic similarity (embedding cosine, catches "RAG" vs "Retrieval-Augmented Generation")
+  // topics.embedding is vector(768) per migration 048; Ollama models may emit other
+  // dimensions when swapped. Silently skip semantic check on mismatch rather than
+  // letting INSERT crash — trigram dedup above already caught exact duplicates.
   let titleEmbedding = null;
   try {
-    titleEmbedding = await generateEmbedding(title);
+    const raw = await generateEmbedding(title);
+    if (raw && Array.isArray(raw) && raw.length === TOPIC_EMBEDDING_DIM) {
+      titleEmbedding = raw;
+    } else if (raw && Array.isArray(raw)) {
+      console.warn(`topic.createTopic: embedding dimension mismatch (got ${raw.length}, expected ${TOPIC_EMBEDDING_DIM}); skipping semantic dedup`);
+    }
     if (titleEmbedding) {
       const vectorStr = `[${titleEmbedding.join(',')}]`;
       const { rows: semanticDupes } = await pool.query(
