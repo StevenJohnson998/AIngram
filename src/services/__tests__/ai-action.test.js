@@ -1,6 +1,10 @@
 jest.mock('../../config/database');
 jest.mock('../ai-provider');
 jest.mock('../chunk');
+jest.mock('../mini-working-set', () => ({
+  getRecentContributions: jest.fn().mockResolvedValue([]),
+  renderForPrompt: jest.fn().mockReturnValue(''),
+}));
 
 const { getPool } = require('../../config/database');
 const aiProviderService = require('../ai-provider');
@@ -335,6 +339,174 @@ describe('ai-action service', () => {
       expect(sp).toContain('Archetype **Teacher**');
       expect(sp).toContain('Focus on transformers papers.');
       expect(sp.indexOf('Archetype **Teacher**')).toBeLessThan(sp.indexOf('Focus on transformers papers.'));
+    });
+    it('appends workingSetText when provided (LLM mode mini-working-set)', () => {
+      const ws = 'Your recent contributions (avoid duplicating these):\n- Chunk A [2026-04-10]';
+      const sp = aiActionService.buildSystemPrompt(provider, 'Bot', 'review', null, null, ws);
+      expect(sp).toContain('Your recent contributions');
+      expect(sp).toContain('- Chunk A [2026-04-10]');
+    });
+    it('does not append anything when workingSetText is empty', () => {
+      const sp = aiActionService.buildSystemPrompt(provider, 'Bot', 'review', null, null, '');
+      expect(sp).not.toContain('Your recent contributions');
+    });
+  });
+
+  describe('dispatch_mode routing', () => {
+    const baseParams = {
+      agentId: 'agent-1',
+      parentId: 'parent-1',
+      providerId: null,
+      actionType: 'contribute',
+      targetType: 'topic',
+      targetId: 'topic-1',
+      context: { topicTitle: 'Transformers' },
+    };
+
+    it('stages a slim envelope and skips provider when dispatch_mode=agent', async () => {
+      // Agent fetch returns dispatch_mode=agent
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'agent' }],
+      });
+      // Insert action record (agent mode branch)
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-agent-1' }] });
+
+      const result = await aiActionService.executeAction(baseParams);
+
+      expect(result.dispatchMode).toBe('agent');
+      expect(result.result.status).toBe('pending_agent_dispatch');
+      expect(result.result.envelope).toEqual({
+        action: 'contribute',
+        target: { type: 'topic', id: 'topic-1' },
+        context: { topicTitle: 'Transformers' },
+      });
+      expect(result.inputTokens).toBe(0);
+      expect(result.outputTokens).toBe(0);
+      // Provider must never be called in agent mode
+      expect(aiProviderService.getProviderById).not.toHaveBeenCalled();
+      expect(aiProviderService.getDefaultProvider).not.toHaveBeenCalled();
+      expect(aiProviderService.callProvider).not.toHaveBeenCalled();
+      // Insert should carry status='pending' and provider_id=NULL (VARCHAR(10) + FK constraints)
+      const insertCall = mockPool.query.mock.calls[1];
+      expect(insertCall[0]).toContain('INSERT INTO ai_actions');
+      expect(insertCall[0]).toContain('NULL');
+      expect(insertCall[0]).toContain("'pending'");
+    });
+
+    it('defaults to llm mode when dispatch_mode is null (backfill behavior)', async () => {
+      const provider = {
+        id: 'prov-1', account_id: 'parent-1', provider_type: 'claude',
+        model: 'claude', system_prompt: null, max_tokens: 1024, temperature: 0.7,
+      };
+      aiProviderService.getDefaultProvider.mockResolvedValueOnce(provider);
+      aiProviderService.callProvider.mockResolvedValueOnce({
+        content: '{"content":"ok","vote":"positive","flag":null,"confidence":0.9}',
+        inputTokens: 10, outputTokens: 5,
+      });
+
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: null }],
+      });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-llm-1' }] });
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+      const result = await aiActionService.executeAction({ ...baseParams, actionType: 'review', targetType: 'chunk', targetId: 'chunk-1', context: { content: 'x' } });
+      expect(result.dispatchMode).toBe('llm');
+      expect(aiProviderService.callProvider).toHaveBeenCalled();
+    });
+
+    it('falls back to llm for unknown dispatch_mode values', async () => {
+      const provider = {
+        id: 'prov-1', account_id: 'parent-1', provider_type: 'claude',
+        model: 'claude', system_prompt: null, max_tokens: 1024, temperature: 0.7,
+      };
+      aiProviderService.getDefaultProvider.mockResolvedValueOnce(provider);
+      aiProviderService.callProvider.mockResolvedValueOnce({
+        content: '{"content":"ok","vote":"positive","flag":null,"confidence":0.9}',
+        inputTokens: 1, outputTokens: 1,
+      });
+
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'hybrid-nonsense' }],
+      });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-fallback-1' }] });
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+      const result = await aiActionService.executeAction({ ...baseParams, actionType: 'review', targetType: 'chunk', targetId: 'chunk-1', context: { content: 'x' } });
+      expect(result.dispatchMode).toBe('llm');
+    });
+
+    it('injects mini-working-set text into system prompt in llm mode', async () => {
+      const miniWorkingSet = require('../mini-working-set');
+      miniWorkingSet.getRecentContributions.mockResolvedValueOnce([
+        { id: 'c1', title: 'Past chunk', subtitle: null, createdAt: new Date('2026-04-10T00:00:00Z') },
+      ]);
+      miniWorkingSet.renderForPrompt.mockReturnValueOnce('RECENT_WORK_MARKER');
+
+      const provider = {
+        id: 'prov-1', account_id: 'parent-1', provider_type: 'claude',
+        model: 'claude', system_prompt: null, max_tokens: 1024, temperature: 0.7,
+      };
+      aiProviderService.getDefaultProvider.mockResolvedValueOnce(provider);
+      aiProviderService.callProvider.mockResolvedValueOnce({
+        content: '{"content":"ok","vote":"positive","flag":null,"confidence":0.9}',
+        inputTokens: 1, outputTokens: 1,
+      });
+
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'llm' }],
+      });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-ws-1' }] });
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+      await aiActionService.executeAction({ ...baseParams, actionType: 'review', targetType: 'chunk', targetId: 'chunk-1', context: { content: 'x' } });
+
+      expect(miniWorkingSet.getRecentContributions).toHaveBeenCalledWith('agent-1');
+      const [, messages] = aiProviderService.callProvider.mock.calls[0];
+      const systemMessage = messages.find(m => m.role === 'system');
+      expect(systemMessage.content).toContain('RECENT_WORK_MARKER');
+    });
+
+    it('swallows mini-working-set errors (best-effort)', async () => {
+      const miniWorkingSet = require('../mini-working-set');
+      miniWorkingSet.getRecentContributions.mockRejectedValueOnce(new Error('db down'));
+      miniWorkingSet.renderForPrompt.mockReturnValue('');
+
+      const provider = {
+        id: 'prov-1', account_id: 'parent-1', provider_type: 'claude',
+        model: 'claude', system_prompt: null, max_tokens: 1024, temperature: 0.7,
+      };
+      aiProviderService.getDefaultProvider.mockResolvedValueOnce(provider);
+      aiProviderService.callProvider.mockResolvedValueOnce({
+        content: '{"content":"ok","vote":"positive","flag":null,"confidence":0.9}',
+        inputTokens: 1, outputTokens: 1,
+      });
+
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'llm' }],
+      });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-wserr-1' }] });
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+      // Should NOT throw even when working-set fetch fails
+      await expect(aiActionService.executeAction({ ...baseParams, actionType: 'review', targetType: 'chunk', targetId: 'chunk-1', context: { content: 'x' } })).resolves.toBeDefined();
+    });
+  });
+
+  describe('buildAgentTaskEnvelope', () => {
+    it('returns action + target + context', () => {
+      const env = aiActionService.buildAgentTaskEnvelope({
+        actionType: 'draft', targetType: 'topic', targetId: 't1', context: { topicTitle: 'X' },
+      });
+      expect(env).toEqual({
+        action: 'draft',
+        target: { type: 'topic', id: 't1' },
+        context: { topicTitle: 'X' },
+      });
+    });
+    it('handles missing target and context', () => {
+      const env = aiActionService.buildAgentTaskEnvelope({ actionType: 'summary' });
+      expect(env).toEqual({ action: 'summary', target: null, context: {} });
     });
   });
 

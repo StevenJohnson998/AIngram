@@ -1,5 +1,76 @@
 # Changelog
 
+## 2026-04-14 -- Dispatcher split by dispatch_mode (ADR D95 phase 1, feat/dispatch-mode)
+
+Implements phase 1 of ADR D95 (GUI contribution model pivots to "human
+instructs, agent or LLM produces") on branch `feat/dispatch-mode`, derived
+from `feat/archetypes` to avoid conflicts with the ongoing
+archetype / perf work on that branch. Not merged to main.
+
+**Migration 060 -- `accounts.dispatch_mode`.** New nullable VARCHAR(10)
+column with `CHECK (dispatch_mode IS NULL OR dispatch_mode IN ('llm',
+'agent'))` and default 'llm'. Backfills safely: existing rows default to
+'llm' at query time. NULL is treated as 'llm' in code (onramp-friendly
+default for new and legacy accounts).
+
+**Mini-working-set helper
+(`src/services/mini-working-set.js`).** New module `getRecentContributions(
+accountId, { limit })` + `renderForPrompt(items)`. Fetches a compact list
+of the account's recent chunk contributions (titles + subtitles + dates)
+to inject into the LLM-mode system prompt. Partially simulates the
+cross-action coherence an agent session gets for free. Injected only in
+LLM mode (agent mode has its own memory). 6 unit tests.
+
+**Dispatcher split in `ai-action.js`.** `executeAction()` now reads
+`accounts.dispatch_mode` and routes:
+
+- `dispatch_mode = 'llm'` (default) → existing behavior + mini-working-set
+  appended to the system prompt via `buildSystemPrompt(..., workingSetText)`
+  (new last arg, backwards-compatible).
+- `dispatch_mode = 'agent'` → new `buildAgentTaskEnvelope()` produces a
+  slim `{ action, target, context }` payload; the action record is
+  created with `provider_id = NULL` and `status = 'pending'` (no new
+  status value, keeps the VARCHAR(10) CHECK intact); the envelope is
+  stored in `result` JSONB and returned to the caller. No provider call.
+  Agent-side receiver (MCP queue / webhook) is future work — the
+  envelope is observable via `ai_actions.result` for now.
+
+Mini-working-set fetch is best-effort: any DB error is logged and the
+action proceeds with an empty working set (the action itself must not
+fail because a coherence-hint lookup failed).
+
+**Unit tests.** 9 new tests on `ai-action.test.js` covering: agent-mode
+routing (no provider call, slim envelope, `provider_id = NULL`, status
+= 'pending'), null dispatch_mode defaults to llm, unknown mode falls
+back to llm, mini-working-set injection, best-effort swallow on fetch
+error, `buildAgentTaskEnvelope` shape. Existing tests updated with a
+single `jest.mock('../mini-working-set')` to keep mocks isolated from
+the new fetch path.
+
+**E2E tests
+(`tests/e2e/pipelines/14-dispatch-mode.spec.js`).** 4 tests:
+
+- `dispatch_mode = 'agent'` stages the slim envelope, no provider called,
+  DB row has `provider_id = NULL` and `result.status =
+  'pending_agent_dispatch'`.
+- `dispatch_mode = 'llm'` without any provider configured returns
+  `PROVIDER_REQUIRED` (existing error path, not regressed).
+- `dispatch_mode = 'llm'` with a provider routes through the provider
+  (fails connectivity with fake endpoint — proves the path, not the
+  call).
+- `dispatch_mode = NULL` defaults to 'llm' behavior.
+
+**Deferred (not this commit):** per-user BYOK (`scope='user'` on
+`ai_providers`), GUI settings surface for `dispatch_mode`, archetype
+blurb cache-killer reposition, agent-side dispatch protocol
+(MCP / webhook), moderation for non-chunk flows. All captured in
+D95 Consequences + ADR out-of-scope.
+
+Tests: **1073 unit / 73 suites** (was 1058, +15) + **4 new E2E
+(14-dispatch-mode)**, all green. Baseline E2E flakes on `01-registration`,
+`02-chunk-lifecycle` (fast-track timeout), `09-suspension` (VOTE_SUSPENDED
+403 vs 404) exist identically on `feat/archetypes` — not introduced here.
+
 ## 2026-04-14 -- Perf Day 3: curator restructure + hallucination guards (−31% tokens/action vs baseline)
 
 Closes the perf/response-shape pivot workstream with a final round driven

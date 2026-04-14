@@ -1,6 +1,10 @@
 const { getPool } = require('../config/database');
 const aiProviderService = require('./ai-provider');
 const chunkService = require('./chunk');
+const miniWorkingSet = require('./mini-working-set');
+
+const DEFAULT_DISPATCH_MODE = 'llm';
+const VALID_DISPATCH_MODES = new Set(['llm', 'agent']);
 
 /**
  * Build system prompt for an assisted agent.
@@ -13,7 +17,7 @@ const ARCHETYPE_BLURB = {
   joker: 'You act with the Archetype **Joker**: do whatever helps make AIngram a better place and respects its spirit. Pick actions based on context, user interests, and what the platform currently needs. This is also the default when no archetype is assigned.',
 };
 
-function buildSystemPrompt(provider, agentName, actionType, agentDescription, agentArchetype) {
+function buildSystemPrompt(provider, agentName, actionType, agentDescription, agentArchetype, workingSetText) {
   let base = provider.system_prompt || `You are ${agentName}, an AI agent contributing to AIngram, an open-source knowledge base for AI agents. You provide accurate, well-sourced, factual contributions. You are concise and avoid speculation.`;
 
   if (agentArchetype && ARCHETYPE_BLURB[agentArchetype]) {
@@ -22,6 +26,10 @@ function buildSystemPrompt(provider, agentName, actionType, agentDescription, ag
 
   if (agentDescription) {
     base += '\n\n' + agentDescription;
+  }
+
+  if (workingSetText) {
+    base += '\n\n' + workingSetText;
   }
 
   const actionInstructions = {
@@ -125,18 +133,65 @@ function buildMessages(actionType, context) {
 }
 
 /**
+ * Build a slim task envelope for dispatch_mode='agent' (ADR D95).
+ * The agent holds its own archetype, skills and action instructions via its
+ * persistent session; AIngram only ships the task-specific payload.
+ */
+function buildAgentTaskEnvelope({ actionType, targetType, targetId, context }) {
+  return {
+    action: actionType,
+    target: targetType ? { type: targetType, id: targetId || null } : null,
+    context: context || {},
+  };
+}
+
+/**
  * Execute an AI action on behalf of an assisted agent.
- * Returns { actionId, result }.
+ * Routes to an LLM provider (dispatch_mode='llm', default) or stages a slim
+ * task envelope for the user's agent to pick up (dispatch_mode='agent',
+ * ADR D95 — agent-side receiver not yet wired, envelope is observable via
+ * ai_actions.result for now).
+ * Returns { actionId, result, inputTokens, outputTokens, dispatchMode }.
  */
 async function executeAction({ agentId, parentId, providerId, actionType, targetType, targetId, context }) {
   const pool = getPool();
 
-  // Get agent info (name, description, assigned provider, archetype)
-  const agentResult = await pool.query('SELECT name, description, provider_id, primary_archetype FROM accounts WHERE id = $1', [agentId]);
+  // Get agent info (name, description, assigned provider, archetype, dispatch mode)
+  const agentResult = await pool.query(
+    'SELECT name, description, provider_id, primary_archetype, dispatch_mode FROM accounts WHERE id = $1',
+    [agentId]
+  );
   const agentRow = agentResult.rows[0];
   const agentName = agentRow?.name || 'AI Agent';
   const agentDescription = agentRow?.description || null;
   const agentArchetype = agentRow?.primary_archetype || null;
+  const rawMode = agentRow?.dispatch_mode || DEFAULT_DISPATCH_MODE;
+  const dispatchMode = VALID_DISPATCH_MODES.has(rawMode) ? rawMode : DEFAULT_DISPATCH_MODE;
+
+  if (dispatchMode === 'agent') {
+    // Agent mode: no provider, no LLM call. Stage a slim task envelope for
+    // the user's external agent to consume. DB row uses status='pending' +
+    // provider_id=NULL; the agent-dispatch semantics live in the JSONB result
+    // so we don't need to widen the status CHECK / VARCHAR. Agent-side
+    // receiver is future work — the envelope is observable via ai_actions.result.
+    const envelope = buildAgentTaskEnvelope({ actionType, targetType, targetId, context });
+    const agentResultPayload = { status: 'pending_agent_dispatch', envelope };
+    const actionResult = await pool.query(
+      `INSERT INTO ai_actions (agent_id, provider_id, parent_id, action_type, target_type, target_id, status, result)
+       VALUES ($1, NULL, $2, $3, $4, $5, 'pending', $6)
+       RETURNING id`,
+      [agentId, parentId, actionType, targetType || null, targetId || null, JSON.stringify(agentResultPayload)]
+    );
+    const actionId = actionResult.rows[0].id;
+    console.log(`[AI-ACTION] ${actionType} staged-for-agent — agent=${agentName} target=${targetType}:${targetId || 'none'} action=${actionId}`);
+    return {
+      actionId,
+      result: agentResultPayload,
+      inputTokens: 0,
+      outputTokens: 0,
+      dispatchMode,
+    };
+  }
 
   // Resolve provider: explicit > agent's assigned > parent's default
   let provider;
@@ -167,8 +222,19 @@ async function executeAction({ agentId, parentId, providerId, actionType, target
   const actionId = actionResult.rows[0].id;
 
   try {
+    // Fetch mini-working-set (LLM mode only) to partially simulate coherence
+    // across clicks. Agent mode has its own session memory.
+    let workingSetText = '';
+    try {
+      const recent = await miniWorkingSet.getRecentContributions(agentId);
+      workingSetText = miniWorkingSet.renderForPrompt(recent);
+    } catch (err) {
+      // Non-fatal — working set is best-effort, do not abort the action.
+      console.warn(`[AI-ACTION] mini-working-set fetch failed — ${err.message}`);
+    }
+
     // Build messages
-    const systemPrompt = buildSystemPrompt(provider, agentName, actionType, agentDescription, agentArchetype);
+    const systemPrompt = buildSystemPrompt(provider, agentName, actionType, agentDescription, agentArchetype, workingSetText);
     const userMessages = buildMessages(actionType, context);
     const messages = [{ role: 'system', content: systemPrompt }, ...userMessages];
 
@@ -210,7 +276,7 @@ async function executeAction({ agentId, parentId, providerId, actionType, target
     const tokens = (response.inputTokens || 0) + (response.outputTokens || 0);
     console.log(`[AI-ACTION] ${actionType} completed — agent=${agentName} action=${actionId} tokens=${tokens}${result.parseError ? ' PARSE_ERROR' : ''}`);
 
-    return { actionId, result, inputTokens: response.inputTokens, outputTokens: response.outputTokens };
+    return { actionId, result, inputTokens: response.inputTokens, outputTokens: response.outputTokens, dispatchMode };
   } catch (err) {
     console.error(`[AI-ACTION] ${actionType} failed — agent=${agentName} action=${actionId} error=${err.message}`);
     // Record failure
@@ -406,5 +472,8 @@ module.exports = {
   dispatchResult,
   getActionHistory,
   buildSystemPrompt,
+  buildAgentTaskEnvelope,
   ARCHETYPE_BLURB,
+  DEFAULT_DISPATCH_MODE,
+  VALID_DISPATCH_MODES,
 };
