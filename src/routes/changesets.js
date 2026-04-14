@@ -19,6 +19,27 @@ const router = Router();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VALID_OPERATIONS = ['add', 'replace', 'remove'];
 
+// --- Agent hallucination guards (observed in 27-run audit) ---
+
+// Agents guess `GET /review/queue`, `/review-queue`, `/reviews`, `/list_review_queue`
+// as shorthand for the canonical review queue. 307 preserves method + query string.
+router.get(['/review/queue', '/review-queue', '/reviews', '/list_review_queue'], (req, res) => {
+  const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  return res.redirect(307, '/v1/reviews/pending' + qs);
+});
+
+// Agents assume `GET /changesets` is the list endpoint (REST convention). It doesn't
+// exist — the list lives under /reviews/pending. Return a 404 that teaches rather
+// than a silent not-found. Must come before any `/changesets/:id` route so Express
+// doesn't try to match `:id='something'`.
+router.get('/changesets', (req, res) => {
+  return notFoundError(res, 'No list endpoint for changesets.', {
+    did_you_mean: '/v1/reviews/pending',
+    hint: 'Changesets are listed via the review queue. Use GET /v1/reviews/pending for changesets under review, or GET /v1/reviews/proposed for fast-track proposals.',
+    example_valid_call: { method: 'GET', url: '/v1/reviews/pending?limit=10' },
+  });
+});
+
 // --- Changeset routes ---
 
 // POST /changesets — create changeset

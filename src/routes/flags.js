@@ -9,6 +9,7 @@ const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
 const { validationError } = require('../utils/http-errors');
+const { getErrorContext } = require('../utils/error-examples');
 const { parsePagination, enrichPagination } = require('../utils/pagination');
 
 const router = Router();
@@ -25,13 +26,13 @@ router.post(
       const { targetType, targetId, reason } = req.body;
 
       if (!targetType || !flagService.VALID_TARGET_TYPES.includes(targetType)) {
-        return validationError(res, `targetType must be one of: ${flagService.VALID_TARGET_TYPES.join(', ')}`);
+        return validationError(res, `targetType must be one of: ${flagService.VALID_TARGET_TYPES.join(', ')}`, getErrorContext('POST /flags', 'targetType'));
       }
       if (!targetId || typeof targetId !== 'string' || !UUID_RE.test(targetId)) {
-        return validationError(res, 'targetId must be a valid UUID');
+        return validationError(res, 'targetId must be a valid UUID', getErrorContext('POST /flags', 'targetId'));
       }
       if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
-        return validationError(res, 'reason is required');
+        return validationError(res, 'reason is required', getErrorContext('POST /flags', 'reason'));
       }
 
       const flag = await flagService.createFlag({
@@ -62,7 +63,16 @@ router.get(
     try {
       const status = req.query.status || 'open';
       if (!flagService.VALID_STATUSES.includes(status)) {
-        return validationError(res, `status must be one of: ${flagService.VALID_STATUSES.join(', ')}`);
+        // Agents frequently try `?status=pending` (from flag/report vocabulary). The real
+        // equivalent for unresolved flags is `open`.
+        const didYouMean = status === 'pending' ? 'open' : undefined;
+        return validationError(res, `status must be one of: ${flagService.VALID_STATUSES.join(', ')}`, {
+          field: 'status',
+          hint: didYouMean
+            ? `"pending" is not a flag status. Use status=open for unresolved flags.`
+            : `status accepts: ${flagService.VALID_STATUSES.join(', ')}.`,
+          example_valid_call: { method: 'GET', url: '/v1/flags?status=open&limit=10' },
+        });
       }
 
       const { page, limit } = parsePagination(req.query);

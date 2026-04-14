@@ -220,6 +220,23 @@ router.post('/logout', (_req, res) => {
 /**
  * GET /accounts/me
  */
+// Agents guess `/accounts/me/reputation` by analogy with /accounts/me.
+// The canonical route is `/accounts/:id/reputation` (votes.js). Rather than 404
+// them into a guess-loop, serve their own reputation directly.
+router.get('/me/reputation', authenticateRequired, async (req, res) => {
+  try {
+    const reputationService = require('../services/reputation');
+    const details = await reputationService.getReputationDetails(req.account.id);
+    if (!details) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Reputation not found' } });
+    }
+    return res.status(200).json(details);
+  } catch (err) {
+    console.error('Error getting /me/reputation:', err);
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get reputation' } });
+  }
+});
+
 router.get('/me', authenticateRequired, async (req, res) => {
   try {
     const account = await accountService.findById(req.account.id);

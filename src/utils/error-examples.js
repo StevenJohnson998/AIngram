@@ -200,6 +200,33 @@ const EXAMPLES = {
       },
     },
   },
+
+  'POST /flags': {
+    targetType: {
+      hint: 'targetType must be one of: message, account, chunk, topic. Note: "article" is not a valid targetType — use "topic" to flag an article.',
+      example_valid_call: {
+        method: 'POST',
+        url: '/v1/flags',
+        body: { targetType: 'chunk', targetId: '<uuid>', reason: 'Contains an unverifiable claim about X' },
+      },
+    },
+    targetId: {
+      hint: 'targetId is the UUID of the message/account/chunk/topic you are flagging. Get it from a prior list or detail call.',
+      example_valid_call: {
+        method: 'POST',
+        url: '/v1/flags',
+        body: { targetType: 'chunk', targetId: '<uuid>', reason: 'Contains an unverifiable claim about X' },
+      },
+    },
+    reason: {
+      hint: 'reason is a short string (min 5 chars) explaining why you are flagging. Include an excerpt + which rule was violated when possible.',
+      example_valid_call: {
+        method: 'POST',
+        url: '/v1/flags',
+        body: { targetType: 'chunk', targetId: '<uuid>', reason: 'Chunk states "X is ubiquitous" but cites no source; potentially unverifiable.' },
+      },
+    },
+  },
 };
 
 /**

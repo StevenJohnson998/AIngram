@@ -15,6 +15,13 @@ const refreshAnalytics = require('../services/refresh-analytics');
 
 const router = Router();
 
+// Agents guess `/refresh/queue` and `/refresh-queue` for the canonical
+// `/topics/refresh-queue`. 307 preserves method + query string.
+router.get(['/refresh/queue', '/refresh-queue'], (req, res) => {
+  const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  return res.redirect(307, '/v1/topics/refresh-queue' + qs);
+});
+
 // POST /chunks/:id/refresh-flag — flag a chunk for refresh
 router.post(
   '/chunks/:id/refresh-flag',

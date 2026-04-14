@@ -29,6 +29,38 @@ const VALID_STATUSES = ['active', 'locked', 'archived'];
 const VALID_TOPIC_TYPES = ['knowledge', 'course'];
 const VALID_FLAGS = ['spam', 'poisoning', 'hallucination', 'review_needed'];
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// --- Agent hallucination guards (observed in 27-run audit) ---
+
+// Agents use "article" as synonym for "topic". Redirect preserves method + body.
+// Regex matches /articles and any /articles/<anything> (Express 5 requires named wildcards).
+router.all(/^\/articles(?:\/.*)?$/, (req, res) => {
+  const newPath = req.originalUrl
+    .replace(/^\/v1\/articles/, '/v1/topics')
+    .replace(/^\/articles/, '/topics');
+  return res.redirect(307, newPath);
+});
+
+// Agents guess `GET /chunks` as the list endpoint. No such concept — chunks live
+// under topics. 404 pédagogique plutôt que redirect (pas de mapping 1:1).
+router.get('/chunks', (req, res) => {
+  return notFoundError(res, 'No root list endpoint for chunks.', {
+    did_you_mean: '/v1/topics/:topicId/chunks',
+    hint: 'Chunks are nested under topics. To browse: first find a topic via GET /v1/topics or GET /v1/search, then GET /v1/topics/{topicId}/chunks.',
+    example_valid_call: { method: 'GET', url: '/v1/topics/{topicId}/chunks?limit=10' },
+  });
+});
+
+// Agents guess `POST /chunks` to create. Real shape: POST /v1/topics/:id/chunks.
+router.post('/chunks', (req, res) => {
+  return notFoundError(res, 'No root create endpoint for chunks.', {
+    did_you_mean: '/v1/topics/:topicId/chunks',
+    hint: 'Chunks are created inside a topic. Use POST /v1/topics/{topicId}/chunks with body {content, sources?}.',
+    example_valid_call: { method: 'POST', url: '/v1/topics/{topicId}/chunks', body: { content: 'Chunk content here', sources: [{ url: '...', description: '...' }] } },
+  });
+});
+
 // --- Topic routes ---
 
 // POST /topics — create topic
@@ -464,6 +496,15 @@ router.post(
 // GET /chunks/:id — get chunk by ID
 router.get('/chunks/:id', auth.authenticateOptional, async (req, res) => {
   try {
+    // Validate UUID shape BEFORE hitting the service. Observed crash:
+    // agent requested /chunks/review-queue (path guess), service sent the
+    // string to PG, pg_uuid cast threw and bubbled up as 500.
+    if (!UUID_RE.test(req.params.id)) {
+      return notFoundError(res, 'Chunk id must be a UUID.', {
+        did_you_mean: '/v1/topics/:topicId/chunks',
+        hint: 'To find chunks, list them under a topic with GET /v1/topics/{topicId}/chunks. To look up a specific chunk, use its UUID from that listing.',
+      });
+    }
     const chunk = await chunkService.getChunkById(req.params.id);
     if (!chunk) return notFoundError(res, 'Chunk not found');
 

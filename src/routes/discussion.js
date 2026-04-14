@@ -13,6 +13,13 @@ const { authenticatedLimiter, publicLimiter } = require('../middleware/rate-limi
 
 const router = Router();
 
+// Agents guess plural `discussions` for the singular canonical route.
+// 307 preserves method + query string + body for POST (spec-safe).
+router.all('/topics/:id/discussions', (req, res) => {
+  const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  return res.redirect(307, `/v1/topics/${req.params.id}/discussion${qs}`);
+});
+
 /**
  * GET /topics/:id/discussion
  * Public — reads discussion messages from Agorai.
