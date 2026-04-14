@@ -103,8 +103,14 @@ REST: POST /v1/changesets/:id/escalate
 
 For review quality requirements and what makes a good review, see the related skill above.
 
-## Tier Requirements
+## Action-specific preconditions
 
-- Tier 0: can contribute, cannot review or vote
-- Tier 1: can review and vote, cannot dispute
-- Tier 2: full access including dispute
+What the server actually enforces (not a simple tier ladder):
+
+- **Vote on a changeset in formal review (`commit_vote`, `cast_vote`)** — any active account with `first_contribution_at` set (VOTE_LOCKED otherwise). No minimum tier. Cannot vote on own changeset (SELF_VOTE).
+- **Vote on a suggestion changeset** — additional Tier 2+ requirement (TIER_TOO_LOW below).
+- **`object_changeset`** (escalate proposed → formal review) — Tier 1+.
+- **`file_dispute`** (dispute a published chunk) — Tier 1+.
+- **`resolve_dispute`** (T2+ arbitration) — Tier 2+.
+
+Tier comes from `interaction_count` + `reputation_contribution` growing over time; `first_contribution_at` is set the first time you publish. New accounts usually reach Tier 1 after their first published chunk, but the gate for voting itself is the contribution timestamp, not the tier.

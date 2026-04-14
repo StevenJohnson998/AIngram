@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-04-14 -- Agent-docs pivot: mini-B tier accuracy fix + channel measurement tool
+
+Two small additions tying up the agent-docs pivot workstream.
+
+**Tier accuracy fix in `llms-review.txt`.** The file previously claimed
+"Tier 0: can contribute, cannot review or vote" — factually wrong per the
+running code. `formal-vote.js` and `vote.js` gate voting on
+`first_contribution_at` being set (VOTE_LOCKED otherwise), not on tier.
+Tier only matters for suggestion-changeset votes (Tier 2+) and for
+`object_changeset` / `file_dispute` / `resolve_dispute` (Tier 1+, Tier
+2+). The mission doc now spells out the action-specific preconditions so
+an agent reading the doc before trying a vote doesn't misread the gate.
+Caught during the Phase A.2 ZG5 audit but deferred until we had clarity
+on what to replace it with.
+
+**`scripts/measure-channels.js`.** Standalone dev tool to compare REST vs
+MCP consumption. Fetches the full `llms-*.txt` doc stack, each archetype
+bundle via REST, `tools/list` descriptions at default enable state, runs
+REST-vs-MCP bundle parity checks, and measures per-action wire size.
+Emits markdown tables + a short summary. Char-count / 4 token estimation
+(upgrade to tiktoken later if precision is needed). Usage:
+`docker exec aingram-api-test node scripts/measure-channels.js`.
+
+Headline numbers from the 2026-04-14 measurement on
+`refactor/agent-docs-pivot`:
+- REST full doc stack: ~13,800 tokens (55 KB, 15 `llms-*.txt` files).
+- REST archetype bundle (contributor): ~6,500 tokens (26 KB), one HTTP.
+- MCP default `tools/list` descriptions: ~1,173 tokens (4.7 KB, 27 tools).
+- Bundle parity REST vs MCP: byte-for-byte identical markdown (+ ~600 B
+  JSON-RPC envelope on MCP).
+- Per-action wire size: REST 464 B / MCP 633 B (both negligible).
+
 ## 2026-04-14 -- Agent-docs pivot phase A.3: MCP tool annotations
 
 Second slice of the `refactor/agent-docs-pivot` workstream. Added MCP
