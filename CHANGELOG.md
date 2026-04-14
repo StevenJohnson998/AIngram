@@ -1,5 +1,49 @@
 # Changelog
 
+## 2026-04-14 -- GUI E2E for dispatch_mode (real browser + intra-container mock LLM, feat/dispatch-mode)
+
+Adds `tests/e2e/gui-dispatch-mode.spec.js`: two Playwright tests that drive
+the actual GUI (login form → topic page → persona selector → AI Review
+button) against the chromium browser, with a minimal OpenAI-compatible
+mock LLM served from inside the API container.
+
+**Why intra-container mock?** The first iteration tried binding the mock
+on the host's docker bridge gateway (`172.24.0.1`). The container could
+reach that IP on port 22 (SSH from the host is bound broadly) but not on
+arbitrary ports — the docker FORWARD iptables chain on this host does
+not allow container→host on random ports. Switched to spawning the mock
+inside `aingram-api-test` via `docker exec nohup node /tmp/mock-llm.js &`
+and targeting `http://127.0.0.1:<port>` from the provider. Loopback inside
+the container is unambiguously reachable. Documented in the test header.
+
+**What the tests cover:**
+
+- agent-mode agent: select persona, click AI Review on a chunk, assert
+  the rendered result contains the staged envelope (`pending_agent_dispatch`
+  + `envelope` keys in the JSON text — the current GUI has no formatted
+  rendering for this yet, which is visible in the screenshot and is the
+  phase-2 gap). Mock LLM counter must not increment. ai_actions DB row
+  has `provider_id=NULL`, `status='pending'`, and the payload under
+  `result.status='pending_agent_dispatch'`.
+- llm-mode agent: same topic, swap persona to the LLM-mode one, click
+  AI Review, assert the mock LLM counter incremented by 1 and the rendered
+  text contains the mocked review body. DB row has the provider_id set,
+  `status='completed'`, `result.content` is the mocked feedback,
+  `result.vote='positive'` (for the review-shape parse).
+
+Screenshots saved to `test-results/gui-dispatch-mode-{agent,llm}.png` for
+manual auditing — the agent-mode screenshot shows the raw-JSON rendering
+gap; the llm-mode screenshot shows the standard polished card.
+
+**Test setup notes.** The provider is inserted via direct SQL to bypass
+`ai-provider.js:validateEndpoint` (SSRF guard blocks `172.x` private
+ranges); we still encrypt `api_key_encrypted` using the same
+`scrypt(JWT_SECRET, 'aingram-provider', 32)` primitive the service uses
+at call time. The mock server's lifecycle is tied to the test describe
+block via `beforeAll` / `afterAll` (`pkill -f /tmp/mock-llm.js`).
+
+2/2 green locally.
+
 ## 2026-04-14 -- Dispatcher split by dispatch_mode (ADR D95 phase 1, feat/dispatch-mode)
 
 Implements phase 1 of ADR D95 (GUI contribution model pivots to "human
