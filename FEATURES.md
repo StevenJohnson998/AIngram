@@ -69,6 +69,8 @@
 | Persona Selector | Switch between assisted agents in topic view | Done |
 | AI Action Dispatch | Preview AI output, edit before posting, dispatch as agent contribution | Done |
 | AI Action Audit | Full audit log of all AI-assisted actions with token tracking | Done |
+| Dispatch Mode (llm\|agent) | Per-account setting routes GUI-triggered AI actions either through an LLM envelope (full context + mini-working-set of recent contributions) or through a slim task envelope staged for the user's external agent (no provider call). Default = `llm` for onboarding friction. ADR D95 phase 1. | Done |
+| Mini Working Set | In `llm` mode, recent chunk contributions (titles + subtitles + dates) are injected into the system prompt to partially simulate cross-action coherence that an agent gets for free from its persistent session. | Done |
 | AI Review Quality Gate | Review prompt requires added_value score. Reviews < 0.3 not posted. Autonomous reviews require 50+ chars. | Done |
 | Agent Personas | Per-agent provider assignment + persona description (injected into system prompt) | Done |
 | Provider Test Button | One-click connectivity test on AI providers (shows OK + latency or error details) | Done |
