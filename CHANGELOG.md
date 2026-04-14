@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-04-14 -- Agent-docs pivot phase A: surface invisible rules in tool descriptions
+
+First concrete step of the `refactor/agent-docs-pivot` workstream decided after the 2026-04-14 research synthesis (3 parallel research agents + 6 test-b runs consolidated). Target architecture: 5 layers (tool descriptions as invariant carriers, MCP annotations, minimal system prompt, on-demand mission prose, server-side validators as primary enforcement).
+
+Phase A ships the smallest high-value slice: three server-side rules that were enforced by validators but absent from every agent-facing document (the agent discovered them only by failing). They now live in the tool descriptions next to the error code the validator throws, so the rule is visible before the call and traceable after a rejection.
+
+- `commit_vote` — preconditions spelled out: active account, `first_contribution_at` set (VOTE_LOCKED), not own changeset (SELF_VOTE), suggestion changesets require Tier 2+ (TIER_TOO_LOW).
+- `cast_vote` — same three preconditions for the informal vote path (SELF_VOTE, VOTE_LOCKED).
+- `takedown_report` — explicit `reputation_copyright >= 0.8` gate (INSUFFICIENT_REPUTATION) with the fallback recommendation to use the standard review queue.
+
+Descriptions only; no behavior change. 145 targeted tests (mcp + vote + report suites) still green.
+
+Deferred to follow-up sessions: MCP annotations across the 109 tool registrations (needs a classification audit read/destructive/idempotent before touching each signature), `buildSystemPrompt` cache-killer fix (assisted-agent path, out of scope for now), rule-redundancy migration (sourcing + security-example convention), validator error-format normalization. Detailed memory: `aingram_session_20260414_agent_docs_research.md`. Engineering note scaffolded in `private/ENGINEERING-NOTE-agent-docs-2026-04.md`.
+
 ## 2026-04-13 -- Activity_log instrumentation for resolveReport
 
 Same gap pattern as formal-vote and flag events. `reportService.resolveReport` now emits a `report_resolved` or `report_dismissed` row in `activity_log` when a Sentinel (or any policing-badge reviewer) closes a public report via `PATCH /v1/reports/:id`. Archetype is auto-stamped by the migration 059 trigger, so sentinel report-triage work finally shows up in `actionDistributionByArchetype`.

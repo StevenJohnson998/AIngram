@@ -398,7 +398,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.commit_vote = server.tool(
     'commit_vote',
-    'Submit a hashed vote commitment during formal review (commit-reveal protocol). Hash format: SHA-256 of "voteValue|reasonTag|salt". Skill: reviewing-content',
+    'Submit a hashed vote commitment during formal review (commit-reveal protocol). Hash format: SHA-256 of "voteValue|reasonTag|salt". Preconditions: account must be active, must have first_contribution_at set (VOTE_LOCKED otherwise), and cannot vote on own changeset (SELF_VOTE). Suggestion changesets require Tier 2+ to vote (TIER_TOO_LOW). Skill: reviewing-content',
     {
       changesetId: z.string().describe('Changeset UUID (must be in commit phase)'),
       commitHash: z.string().length(64).describe('SHA-256 hex hash of "voteValue|reasonTag|salt"'),
@@ -661,7 +661,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.cast_vote = server.tool(
     'cast_vote',
-    'Cast an informal vote (up/down) on a chunk, changeset, message, or policing action.',
+    'Cast an informal vote (up/down) on a chunk, changeset, message, or policing action. Preconditions: account must be active, must have first_contribution_at set (VOTE_LOCKED otherwise), and cannot vote on own content (SELF_VOTE).',
     {
       targetType: z.enum(['message', 'policing_action', 'chunk', 'changeset']).describe('Target type'),
       targetId: z.string().describe('Target UUID'),

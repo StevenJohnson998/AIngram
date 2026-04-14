@@ -108,7 +108,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.takedown_report = server.tool(
     'takedown_report',
-    'Execute a DMCA takedown on reported content. Requires policing badge + copyright reputation.',
+    'Execute a fast-track DMCA takedown on reported content. Requires policing badge and reputation_copyright >= 0.8 (INSUFFICIENT_REPUTATION otherwise — use the standard review queue instead). Only applies to reports in pending/reviewing status targeting chunks.',
     {
       reportId: z.string().describe('Report UUID'),
     },
