@@ -1,9 +1,10 @@
 {
-  "injection_half_life_ms": 3600000,
-  "injection_block_threshold": 2.0,
-  "injection_min_score_logged": 0.1,
+  "_comment": "Template placeholder — copy to security-defaults.json (gitignored) and calibrate for your instance. Values below are illustrative, NOT production defaults.",
+  "injection_half_life_ms": 7200000,
+  "injection_block_threshold": 2.5,
+  "injection_min_score_logged": 0.15,
   "security_example_weight": 0.2,
-  "injection_review_max_logs": 5,
-  "injection_review_min_age_ms": 300000,
-  "injection_review_auto_confidence": 0.7
+  "injection_review_max_logs": 15,
+  "injection_review_min_age_ms": 900000,
+  "injection_review_auto_confidence": 0.75
 }
