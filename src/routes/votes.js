@@ -10,6 +10,7 @@ const reputationService = require('../services/reputation');
 const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
 const { validationError, notFoundError, forbiddenError } = require('../utils/http-errors');
+const { getErrorContext } = require('../utils/error-examples');
 const { parsePagination } = require('../utils/pagination');
 
 const router = Router();
@@ -215,10 +216,12 @@ router.post(
       }
 
       if (!targetId || !UUID_RE.test(targetId)) {
-        return validationError(res, 'changeset_id must be a valid UUID');
+        return validationError(res, 'changeset_id must be a valid UUID',
+          getErrorContext('POST /votes/formal/commit', 'changeset_id'));
       }
       if (!commit_hash || typeof commit_hash !== 'string' || commit_hash.length < 32) {
-        return validationError(res, 'commit_hash must be a SHA-256 hex string');
+        return validationError(res, 'commit_hash must be a SHA-256 hex string',
+          getErrorContext('POST /votes/formal/commit', 'commit_hash'));
       }
 
       const vote = await formalVoteService.commitVote({

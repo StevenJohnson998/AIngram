@@ -12,7 +12,8 @@ const { requireBadge } = require('../middleware/badge');
 const { requireInstanceAdmin } = require('../middleware/instance-admin');
 const { requireTier } = require('../middleware/tier-gate');
 const { validationError, notFoundError, forbiddenError } = require('../utils/http-errors');
-const { parsePagination } = require('../utils/pagination');
+const { getErrorContext } = require('../utils/error-examples');
+const { parsePagination, enrichPagination } = require('../utils/pagination');
 const { VALID_LANGS } = require('../config/constants');
 const { REJECTION_CATEGORIES, REJECTION_SUGGESTIONS_MAX_LENGTH, BULK_MAX_CHUNKS } = require('../config/protocol');
 const { getPool } = require('../config/database');
@@ -38,10 +39,12 @@ router.post(
       const { title, lang, summary, sensitivity, topicType } = req.body;
 
       if (!title || typeof title !== 'string' || title.length < 3 || title.length > 300) {
-        return validationError(res, 'Title must be between 3 and 300 characters');
+        return validationError(res, 'Title must be between 3 and 300 characters',
+          getErrorContext('POST /topics', 'title'));
       }
       if (!lang || !VALID_LANGS.includes(lang)) {
-        return validationError(res, `Lang must be one of: ${VALID_LANGS.join(', ')}`);
+        return validationError(res, `Lang must be one of: ${VALID_LANGS.join(', ')}`,
+          getErrorContext('POST /topics', 'lang'));
       }
       if (summary && summary.length > 800) {
         return validationError(res, 'Summary must not exceed 1000 characters');
@@ -99,10 +102,12 @@ router.post(
       }
 
       if (!title || typeof title !== 'string' || title.length < 3 || title.length > 300) {
-        return validationError(res, 'Title must be between 3 and 300 characters');
+        return validationError(res, 'Title must be between 3 and 300 characters',
+          getErrorContext('POST /topics/full', 'title'));
       }
       if (!lang || !VALID_LANGS.includes(lang)) {
-        return validationError(res, `Lang must be one of: ${VALID_LANGS.join(', ')}`);
+        return validationError(res, `Lang must be one of: ${VALID_LANGS.join(', ')}`,
+          getErrorContext('POST /topics/full', 'lang'));
       }
       if (summary && summary.length > 800) {
         return validationError(res, 'Summary must not exceed 1000 characters');
@@ -114,7 +119,8 @@ router.post(
         return validationError(res, `topicType must be one of: ${VALID_TOPIC_TYPES.join(', ')}`);
       }
       if (!chunks || !Array.isArray(chunks) || chunks.length === 0) {
-        return validationError(res, 'chunks array is required and must not be empty');
+        return validationError(res, 'chunks array is required and must not be empty',
+          getErrorContext('POST /topics/full', 'chunks'));
       }
       if (chunks.length > BULK_MAX_CHUNKS) {
         return validationError(res, `Maximum ${BULK_MAX_CHUNKS} chunks per request`);
@@ -124,11 +130,13 @@ router.post(
       for (let i = 0; i < chunks.length; i++) {
         const c = chunks[i];
         if (!c.content || typeof c.content !== 'string') {
-          return validationError(res, `chunks[${i}].content is required and must be a string`);
+          return validationError(res, `chunks[${i}].content is required and must be a string`,
+            getErrorContext('POST /topics/full', 'chunks[i].content'));
         }
         const trimmed = c.content.trim();
         if (trimmed.length < 10 || trimmed.length > 5000) {
-          return validationError(res, `chunks[${i}].content must be between 10 and 5000 characters`);
+          return validationError(res, `chunks[${i}].content must be between 10 and 5000 characters`,
+            getErrorContext('POST /topics/full', 'chunks[i].content'));
         }
         if (c.technicalDetail && typeof c.technicalDetail !== 'string') {
           return validationError(res, `chunks[${i}].technicalDetail must be a string`);
@@ -198,6 +206,7 @@ router.get('/topics', auth.authenticateOptional, async (req, res) => {
     }
 
     const result = await topicService.listTopics({ lang, status, sensitivity, topicType, includeEmpty, page, limit });
+    if (result.pagination) result.pagination = enrichPagination(result.pagination, req);
     return res.json(result);
   } catch (err) {
     console.error('Error listing topics:', err);
@@ -897,9 +906,9 @@ router.get(
   requireBadge('policing'),
   async (req, res) => {
     try {
-      const page = parseInt(req.query.page, 10) || 1;
-      const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+      const { page, limit } = parsePagination(req.query);
       const result = await chunkService.listPendingProposals({ page, limit });
+      if (result.pagination) result.pagination = enrichPagination(result.pagination, req);
       return res.json(result);
     } catch (err) {
       console.error('Error listing pending proposals:', err);

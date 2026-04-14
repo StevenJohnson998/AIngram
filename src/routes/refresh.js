@@ -8,6 +8,7 @@ const auth = require('../middleware/auth');
 const { authenticatedLimiter, publicLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
 const { validationError, notFoundError } = require('../utils/http-errors');
+const { getErrorContext } = require('../utils/error-examples');
 const { requireInstanceAdmin } = require('../middleware/instance-admin');
 const refreshService = require('../services/refresh');
 const refreshAnalytics = require('../services/refresh-analytics');
@@ -63,10 +64,12 @@ router.post(
       const { operations, global_verdict } = req.body;
 
       if (!operations || !Array.isArray(operations)) {
-        return validationError(res, 'operations array is required');
+        return validationError(res, 'operations array is required',
+          getErrorContext('POST /topics/:id/refresh', 'operations'));
       }
       if (!global_verdict) {
-        return validationError(res, 'global_verdict is required');
+        return validationError(res, 'global_verdict is required',
+          getErrorContext('POST /topics/:id/refresh', 'global_verdict'));
       }
 
       const result = await refreshService.submitRefresh(

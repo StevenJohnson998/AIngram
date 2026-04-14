@@ -10,7 +10,8 @@ const { authenticatedLimiter, publicLimiter } = require('../middleware/rate-limi
 const { requireBadge } = require('../middleware/badge');
 const { requireTier } = require('../middleware/tier-gate');
 const { validationError, notFoundError, forbiddenError } = require('../utils/http-errors');
-const { parsePagination } = require('../utils/pagination');
+const { getErrorContext } = require('../utils/error-examples');
+const { parsePagination, enrichPagination } = require('../utils/pagination');
 const { REJECTION_CATEGORIES, REJECTION_SUGGESTIONS_MAX_LENGTH } = require('../config/protocol');
 
 const router = Router();
@@ -30,17 +31,20 @@ router.post(
       const { topicId, description, operations } = req.body;
 
       if (!topicId || typeof topicId !== 'string' || !UUID_RE.test(topicId)) {
-        return validationError(res, 'topicId must be a valid UUID');
+        return validationError(res, 'topicId must be a valid UUID',
+          getErrorContext('POST /changesets', 'topicId'));
       }
 
       if (!Array.isArray(operations) || operations.length === 0) {
-        return validationError(res, 'operations must be a non-empty array');
+        return validationError(res, 'operations must be a non-empty array',
+          getErrorContext('POST /changesets', 'operations'));
       }
 
       for (let i = 0; i < operations.length; i++) {
         const op = operations[i];
         if (!op.operation || !VALID_OPERATIONS.includes(op.operation)) {
-          return validationError(res, `operations[${i}].operation must be one of: ${VALID_OPERATIONS.join(', ')}`);
+          return validationError(res, `operations[${i}].operation must be one of: ${VALID_OPERATIONS.join(', ')}`,
+            getErrorContext('POST /changesets', 'operations[i].operation'));
         }
         if ((op.operation === 'add' || op.operation === 'replace') && (!op.content || typeof op.content !== 'string')) {
           return validationError(res, `operations[${i}].content is required for ${op.operation} operations`);
@@ -249,6 +253,7 @@ router.get(
     try {
       const { page, limit } = parsePagination(req.query);
       const result = await changesetService.listPendingChangesets({ page, limit });
+      if (result.pagination) result.pagination = enrichPagination(result.pagination, req);
       return res.json(result);
     } catch (err) {
       console.error('Error listing pending reviews:', err);

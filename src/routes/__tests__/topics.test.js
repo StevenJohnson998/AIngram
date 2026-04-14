@@ -153,3 +153,143 @@ describe('validation logic', () => {
     expect(parsePagination({ page: '0', limit: '0' })).toEqual({ page: 1, limit: 20 });
   });
 });
+
+// ── Lever 2: pedagogical error tests ────────────────────────────────────────
+
+describe('validationError pedagogical fields', () => {
+  let res;
+
+  beforeEach(() => {
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+    };
+  });
+
+  it('preserves backward compatibility — no opts → plain VALIDATION_ERROR shape', () => {
+    const { validationError } = require('../../utils/http-errors');
+    validationError(res, 'something went wrong');
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    const body = res.json.mock.calls[0][0];
+    expect(body.error.code).toBe('VALIDATION_ERROR');
+    expect(body.error.message).toBe('something went wrong');
+    expect(body.error.hint).toBeUndefined();
+    expect(body.error.example_valid_call).toBeUndefined();
+  });
+
+  it('adds hint + example_valid_call + field when opts provided', () => {
+    const { validationError } = require('../../utils/http-errors');
+    validationError(res, 'ops required', {
+      field: 'operations',
+      hint: 'must be an array',
+      example_valid_call: { method: 'POST', url: '/v1/test', body: {} },
+    });
+
+    const body = res.json.mock.calls[0][0];
+    expect(body.error.code).toBe('VALIDATION_ERROR');
+    expect(body.error.field).toBe('operations');
+    expect(body.error.hint).toBe('must be an array');
+    expect(body.error.example_valid_call).toMatchObject({ method: 'POST' });
+  });
+});
+
+describe('getErrorContext registry', () => {
+  const { getErrorContext } = require('../../utils/error-examples');
+
+  it('returns undefined for unknown route', () => {
+    expect(getErrorContext('POST /unknown', 'field')).toBeUndefined();
+  });
+
+  it('returns undefined for unknown field on known route', () => {
+    expect(getErrorContext('POST /topics/:id/refresh', 'nonexistent')).toBeUndefined();
+  });
+
+  // POST /topics/:id/refresh — operations
+  it('refresh: operations field has hint + example_valid_call with correct shape', () => {
+    const ctx = getErrorContext('POST /topics/:id/refresh', 'operations');
+    expect(ctx).toBeDefined();
+    expect(ctx.field).toBe('operations');
+    expect(ctx.hint).toMatch(/operations/);
+    expect(ctx.example_valid_call.method).toBe('POST');
+    expect(ctx.example_valid_call.body.operations).toBeInstanceOf(Array);
+    expect(ctx.example_valid_call.body.global_verdict).toBeDefined();
+  });
+
+  // POST /topics/:id/refresh — global_verdict
+  it('refresh: global_verdict field has hint mentioning snake_case', () => {
+    const ctx = getErrorContext('POST /topics/:id/refresh', 'global_verdict');
+    expect(ctx).toBeDefined();
+    expect(ctx.hint).toMatch(/global_verdict/);
+    expect(ctx.example_valid_call.body.global_verdict).toBeDefined();
+  });
+
+  // POST /changesets — topicId
+  it('changesets: topicId field has hint + example with operations array', () => {
+    const ctx = getErrorContext('POST /changesets', 'topicId');
+    expect(ctx).toBeDefined();
+    expect(ctx.hint).toMatch(/UUID/);
+    expect(ctx.example_valid_call.body.operations).toBeInstanceOf(Array);
+    const ops = ctx.example_valid_call.body.operations;
+    expect(ops.some(op => op.operation === 'add')).toBe(true);
+    expect(ops.some(op => op.operation === 'replace')).toBe(true);
+    expect(ops.some(op => op.operation === 'remove')).toBe(true);
+  });
+
+  // POST /changesets — operations
+  it('changesets: operations field example covers add operation', () => {
+    const ctx = getErrorContext('POST /changesets', 'operations');
+    expect(ctx).toBeDefined();
+    expect(ctx.example_valid_call.body.operations[0].operation).toBe('add');
+  });
+
+  // POST /votes/formal/commit — commit_hash
+  it('formal-vote commit: commit_hash hint mentions SHA-256 and reveal step', () => {
+    const ctx = getErrorContext('POST /votes/formal/commit', 'commit_hash');
+    expect(ctx).toBeDefined();
+    expect(ctx.hint).toMatch(/sha256|SHA-256/i);
+    expect(ctx.hint).toMatch(/reveal/);
+  });
+
+  // POST /votes/formal/commit — changeset_id
+  it('formal-vote commit: changeset_id example includes commit_hash field', () => {
+    const ctx = getErrorContext('POST /votes/formal/commit', 'changeset_id');
+    expect(ctx).toBeDefined();
+    expect(ctx.example_valid_call.body.commit_hash).toBeDefined();
+  });
+
+  // POST /topics — title
+  it('topics: title field has example with lang and optional fields', () => {
+    const ctx = getErrorContext('POST /topics', 'title');
+    expect(ctx).toBeDefined();
+    expect(ctx.example_valid_call.body.title).toBeDefined();
+    expect(ctx.example_valid_call.body.lang).toBeDefined();
+  });
+
+  // POST /topics — lang
+  it('topics: lang field example includes supported_langs array', () => {
+    const ctx = getErrorContext('POST /topics', 'lang');
+    expect(ctx).toBeDefined();
+    expect(ctx.example_valid_call.supported_langs).toContain('en');
+    expect(ctx.example_valid_call.supported_langs).toContain('fr');
+  });
+
+  // POST /topics/full — chunks
+  it('topics/full: chunks field example includes content, title, sources', () => {
+    const ctx = getErrorContext('POST /topics/full', 'chunks');
+    expect(ctx).toBeDefined();
+    expect(ctx.hint).toMatch(/chunks/);
+    expect(ctx.example_valid_call.body.chunks[0].content).toBeDefined();
+    expect(ctx.example_valid_call.body.chunks[0].sources).toBeInstanceOf(Array);
+  });
+
+  // POST /topics/full — chunks[i].content
+  it('topics/full: chunks[i].content example shows valid content within length range', () => {
+    const ctx = getErrorContext('POST /topics/full', 'chunks[i].content');
+    expect(ctx).toBeDefined();
+    const content = ctx.example_valid_call.body.chunks[0].content;
+    expect(typeof content).toBe('string');
+    expect(content.length).toBeGreaterThanOrEqual(10);
+    expect(content.length).toBeLessThanOrEqual(5000);
+  });
+});
