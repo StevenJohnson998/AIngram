@@ -295,17 +295,18 @@ test.describe('MCP Session Lifecycle', () => {
 // =====================================================================
 
 test.describe('MCP Tool Discovery', () => {
-  test('tools/list returns core + meta tools (16)', async ({ request }) => {
+  test('tools/list returns core + meta tools (27)', async ({ request }) => {
     const sessionId = await mcpInit(request, agent.apiKey);
     const tools = await mcpListTools(request, sessionId, agent.apiKey);
-    expect(tools.length).toBe(19);
+    expect(tools.length).toBe(27);
 
     const names = tools.map(t => t.name).sort();
     expect(names).toEqual([
       'cast_vote', 'commit_vote', 'contribute_chunk', 'discover_related_chunks', 'discover_related_topics',
-      'enable_tools', 'get_changeset', 'get_chunk', 'get_topic',
-      'list_capabilities', 'list_review_queue', 'my_reputation', 'object_changeset',
-      'poll_notifications', 'propose_edit', 'reveal_vote', 'search', 'subscribe', 'suggest_improvement',
+      'enable_tools', 'flag_for_refresh', 'get_archetype_bundle', 'get_changeset', 'get_chunk', 'get_skill',
+      'get_topic', 'list_archetypes', 'list_capabilities', 'list_chunk_flags', 'list_refresh_queue',
+      'list_review_queue', 'list_skills', 'my_reputation', 'object_changeset', 'poll_notifications',
+      'propose_edit', 'refresh_article', 'reveal_vote', 'search', 'subscribe', 'suggest_improvement',
     ]);
   });
 
@@ -318,6 +319,79 @@ test.describe('MCP Tool Discovery', () => {
       expect(tool.inputSchema).toBeTruthy();
       expect(tool.inputSchema.type).toBe('object');
     }
+  });
+});
+
+// =====================================================================
+// 2b. AGENT-DOCS PIVOT PHASE A — preconditions surfaced in descriptions
+// =====================================================================
+
+test.describe('MCP Agent-Docs Pivot (Phase A)', () => {
+  test('commit_vote description surfaces SELF_VOTE + VOTE_LOCKED + TIER_TOO_LOW', async ({ request }) => {
+    const sessionId = await mcpInit(request, agent.apiKey);
+    const tools = await mcpListTools(request, sessionId, agent.apiKey);
+    const commitVote = tools.find(t => t.name === 'commit_vote');
+    expect(commitVote).toBeTruthy();
+    expect(commitVote.description).toMatch(/SELF_VOTE/);
+    expect(commitVote.description).toMatch(/VOTE_LOCKED/);
+    expect(commitVote.description).toMatch(/first_contribution_at/);
+    expect(commitVote.description).toMatch(/TIER_TOO_LOW/);
+  });
+
+  test('cast_vote description surfaces SELF_VOTE + VOTE_LOCKED', async ({ request }) => {
+    const sessionId = await mcpInit(request, agent.apiKey);
+    const tools = await mcpListTools(request, sessionId, agent.apiKey);
+    const castVote = tools.find(t => t.name === 'cast_vote');
+    expect(castVote).toBeTruthy();
+    expect(castVote.description).toMatch(/SELF_VOTE/);
+    expect(castVote.description).toMatch(/VOTE_LOCKED/);
+  });
+
+  test('takedown_report description surfaces reputation_copyright threshold', async ({ request }) => {
+    const sessionId = await mcpInit(request, agentT2.apiKey);
+    // takedown_report lives in reports_sanctions category — enable it first
+    const enable = await mcpCallTool(request, sessionId, 'enable_tools', { category: 'reports_sanctions', enabled: true }, agentT2.apiKey);
+    expect(enable.isError).toBe(false);
+    const tools = await mcpListTools(request, sessionId, agentT2.apiKey);
+    const takedown = tools.find(t => t.name === 'takedown_report');
+    expect(takedown).toBeTruthy();
+    expect(takedown.description).toMatch(/reputation_copyright/);
+    expect(takedown.description).toMatch(/0\.8/);
+    expect(takedown.description).toMatch(/INSUFFICIENT_REPUTATION/);
+  });
+
+  test('list_archetypes returns all 5 archetypes', async ({ request }) => {
+    const sessionId = await mcpInit(request); // anonymous — archetypes are public
+    const result = await mcpCallTool(request, sessionId, 'list_archetypes', {});
+    expect(result.isError).toBe(false);
+    expect(Array.isArray(result.data.archetypes)).toBe(true);
+    const names = result.data.archetypes.map(a => a.name).sort();
+    expect(names).toEqual(['contributor', 'curator', 'joker', 'sentinel', 'teacher']);
+  });
+
+  test('get_archetype_bundle returns markdown loadout for contributor', async ({ request }) => {
+    const sessionId = await mcpInit(request);
+    // Bundle ships as raw markdown, not JSON — bypass the JSON-parsing mcpCallTool helper.
+    const res = await request.post(`${BASE}/mcp`, {
+      headers: { ...MCP_HEADERS, 'mcp-session-id': sessionId },
+      data: {
+        jsonrpc: '2.0', id: jsonRpcId++, method: 'tools/call',
+        params: { name: 'get_archetype_bundle', arguments: { name: 'contributor' } },
+      },
+    });
+    expect(res.status()).toBe(200);
+    const body = parseSseResponse(await res.text());
+    expect(body.result.isError).toBeFalsy();
+    const content = body.result.content[0];
+    expect(content.type).toBe('text');
+    expect(content.text).toMatch(/Contributor/i);
+    expect(content.text).toMatch(/mission|write|correct/i);
+  });
+
+  test('get_archetype_bundle rejects unknown name', async ({ request }) => {
+    const sessionId = await mcpInit(request);
+    const result = await mcpCallTool(request, sessionId, 'get_archetype_bundle', { name: 'wizard' });
+    expect(result.isError).toBe(true);
   });
 });
 
@@ -643,6 +717,38 @@ test.describe('MCP Commit-Reveal Vote', () => {
     expect(revealResult.data.phase).toBe('revealed');
     expect(revealResult.data.voteValue).toBe(voteValue);
     expect(revealResult.data.reasonTag).toBe(reasonTag);
+  });
+
+  test('commit_vote on own changeset returns SELF_VOTE', async ({ request }) => {
+    // Use a fresh changeset in commit phase — the one from the happy-path test above
+    // was already moved to reveal phase and would trip INVALID_PHASE before SELF_VOTE.
+    const freshCsId = createProposedChunkInDB(testTopic.id, agent.id);
+    const phaseScript = `
+      const { Pool } = require('pg');
+      const pool = new Pool({ host: process.env.DB_HOST || 'postgres', database: process.env.DB_NAME, user: process.env.DB_USER, password: process.env.DB_PASSWORD });
+      (async () => {
+        await pool.query(
+          "UPDATE changesets SET status = 'under_review', vote_phase = 'commit', " +
+          "under_review_at = NOW(), commit_deadline_at = NOW() + interval '24 hours', " +
+          "reveal_deadline_at = NOW() + interval '48 hours' WHERE id = $1",
+          ['${freshCsId}']
+        );
+        await pool.end();
+        console.log('OK');
+      })();
+    `;
+    execSync(`docker exec -i ${API_CONTAINER} node`, { input: phaseScript, encoding: 'utf-8', timeout: 10000 });
+
+    const sessionId = await mcpInit(request, agent.apiKey);
+    const commitHash = 'a'.repeat(64);
+    const result = await mcpCallTool(request, sessionId, 'commit_vote', {
+      changesetId: freshCsId,
+      commitHash,
+    }, agent.apiKey);
+    expect(result.isError).toBe(true);
+    // Error message or code carries SELF_VOTE so the doc + runtime stay aligned.
+    const blob = JSON.stringify(result.data);
+    expect(blob).toMatch(/SELF_VOTE|own content|own changeset/);
   });
 });
 
