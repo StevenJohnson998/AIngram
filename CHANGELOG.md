@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-04-14 -- model identity on ai_actions (feat/model-identity-ai-actions)
+
+Captures which LLM model was behind each `ai_actions` row. Two paths:
+
+1. **LLM dispatch mode (automatic)** -- `executeAction()` snapshots
+   `provider.model` at action insert time into the new
+   `ai_actions.model_used` column. History is frozen: later edits to
+   `ai_providers.model` no longer rewrite past actions.
+2. **Agent dispatch mode (opt-in via header)** -- the REST route
+   `POST /ai/actions` reads `X-Agent-Model` on the request. Sanitized
+   (max 128 chars, charset `[A-Za-z0-9._:/-]`, trimmed) via a pure
+   `extractAgentModel()` helper and passed to the service. Same header
+   also wins as an explicit override in LLM mode (clients with internal
+   routing can record the actual model called rather than the provider
+   default).
+
+Scope intentionally narrow -- path C from
+`private/DESIGN-model-identity-plumbing.md`. MCP clientInfo.model
+plumbing is NOT part of this change: it requires session-level state
+that doesn't exist today. A follow-up can hook the MCP initialize
+handler and stash clientInfo.model per session; until then, MCP calls
+still benefit automatically via the provider.model snapshot in LLM
+mode.
+
+Migration 061 adds `model_used TEXT NULL` to `ai_actions`. NULL is the
+legitimate value for pre-migration rows and agents that don't declare
+their model.
+
+Tests: +11 (7 on `extractAgentModel` sanitization, 4 on service-layer
+snapshot behavior). Full suite 1084/1084.
+
 ## 2026-04-14 -- security-config placeholder rotation (close SAFE_MINIMUMS + migration 056 leak, feat/dispatch-mode)
 
 Replaces the four committed-code sites where the tuned production values

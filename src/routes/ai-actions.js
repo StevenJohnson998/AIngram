@@ -9,6 +9,18 @@ const router = Router();
 const VALID_ACTION_TYPES = ['summary', 'contribute', 'review', 'reply', 'draft', 'refresh', 'discuss_proposal'];
 const VALID_TARGET_TYPES = ['topic', 'chunk', 'discussion', 'search', 'changeset'];
 
+// X-Agent-Model header carries the LLM model identifier (e.g. "claude-opus-4-6",
+// "deepseek-chat-v3.1"). Client-supplied, sanitized before storage: cap at 128
+// chars and strip anything outside [A-Za-z0-9._:/-]. Empty/invalid -> null.
+const AGENT_MODEL_MAX = 128;
+const AGENT_MODEL_ALLOWED = /^[A-Za-z0-9._:/-]+$/;
+function extractAgentModel(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim().slice(0, AGENT_MODEL_MAX);
+  if (!trimmed || !AGENT_MODEL_ALLOWED.test(trimmed)) return null;
+  return trimmed;
+}
+
 /**
  * POST /ai/actions — execute an AI action on behalf of an assisted agent
  */
@@ -64,6 +76,7 @@ router.post('/', authenticateRequired, authenticatedLimiter, async (req, res) =>
       targetType,
       targetId,
       context: context || {},
+      agentModel: extractAgentModel(req.get('x-agent-model')),
     });
 
     return res.status(200).json({
@@ -156,3 +169,4 @@ router.get('/', authenticateRequired, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.extractAgentModel = extractAgentModel;

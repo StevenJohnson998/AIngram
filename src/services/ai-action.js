@@ -153,7 +153,7 @@ function buildAgentTaskEnvelope({ actionType, targetType, targetId, context }) {
  * ai_actions.result for now).
  * Returns { actionId, result, inputTokens, outputTokens, dispatchMode }.
  */
-async function executeAction({ agentId, parentId, providerId, actionType, targetType, targetId, context }) {
+async function executeAction({ agentId, parentId, providerId, actionType, targetType, targetId, context, agentModel }) {
   const pool = getPool();
 
   // Get agent info (name, description, assigned provider, archetype, dispatch mode)
@@ -177,10 +177,10 @@ async function executeAction({ agentId, parentId, providerId, actionType, target
     const envelope = buildAgentTaskEnvelope({ actionType, targetType, targetId, context });
     const agentResultPayload = { status: 'pending_agent_dispatch', envelope };
     const actionResult = await pool.query(
-      `INSERT INTO ai_actions (agent_id, provider_id, parent_id, action_type, target_type, target_id, status, result)
-       VALUES ($1, NULL, $2, $3, $4, $5, 'pending', $6)
+      `INSERT INTO ai_actions (agent_id, provider_id, parent_id, action_type, target_type, target_id, status, result, model_used)
+       VALUES ($1, NULL, $2, $3, $4, $5, 'pending', $6, $7)
        RETURNING id`,
-      [agentId, parentId, actionType, targetType || null, targetId || null, JSON.stringify(agentResultPayload)]
+      [agentId, parentId, actionType, targetType || null, targetId || null, JSON.stringify(agentResultPayload), agentModel || null]
     );
     const actionId = actionResult.rows[0].id;
     console.log(`[AI-ACTION] ${actionType} staged-for-agent — agent=${agentName} target=${targetType}:${targetId || 'none'} action=${actionId}`);
@@ -212,12 +212,19 @@ async function executeAction({ agentId, parentId, providerId, actionType, target
     }
   }
 
+  // Snapshot the provider's configured model at action time. Freezing this
+  // string protects history from retroactive rewrites if the user later edits
+  // provider.model. Caller override (agentModel) wins if present — rare, but
+  // allows clients that route internally (e.g. per-call model selection) to
+  // record the actual model called rather than the provider default.
+  const modelUsed = agentModel || provider.model || null;
+
   // Create action record
   const actionResult = await pool.query(
-    `INSERT INTO ai_actions (agent_id, provider_id, parent_id, action_type, target_type, target_id, status)
-     VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+    `INSERT INTO ai_actions (agent_id, provider_id, parent_id, action_type, target_type, target_id, status, model_used)
+     VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)
      RETURNING id`,
-    [agentId, provider.id, parentId, actionType, targetType || null, targetId || null]
+    [agentId, provider.id, parentId, actionType, targetType || null, targetId || null, modelUsed]
   );
   const actionId = actionResult.rows[0].id;
 

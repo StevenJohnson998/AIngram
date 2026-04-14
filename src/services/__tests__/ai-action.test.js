@@ -467,6 +467,82 @@ describe('ai-action service', () => {
       expect(systemMessage.content).toContain('RECENT_WORK_MARKER');
     });
 
+    it('snapshots provider.model into ai_actions.model_used in llm mode', async () => {
+      const provider = {
+        id: 'prov-1', account_id: 'parent-1', provider_type: 'deepseek',
+        model: 'deepseek-chat-v3.1', system_prompt: null, max_tokens: 1024, temperature: 0.7,
+      };
+      aiProviderService.getDefaultProvider.mockResolvedValueOnce(provider);
+      aiProviderService.callProvider.mockResolvedValueOnce({
+        content: '{"content":"ok","vote":"positive","flag":null,"confidence":0.9}',
+        inputTokens: 1, outputTokens: 1,
+      });
+
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'llm' }],
+      });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-model-1' }] });
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+      await aiActionService.executeAction({ ...baseParams, actionType: 'review', targetType: 'chunk', targetId: 'chunk-1', context: { content: 'x' } });
+
+      const insertCall = mockPool.query.mock.calls[1];
+      expect(insertCall[0]).toContain('model_used');
+      // model_used is the last parameter, snapshot of provider.model
+      expect(insertCall[1][insertCall[1].length - 1]).toBe('deepseek-chat-v3.1');
+    });
+
+    it('uses caller-supplied agentModel when present (llm mode override)', async () => {
+      const provider = {
+        id: 'prov-1', account_id: 'parent-1', provider_type: 'openai',
+        model: 'gpt-4o', system_prompt: null, max_tokens: 1024, temperature: 0.7,
+      };
+      aiProviderService.getDefaultProvider.mockResolvedValueOnce(provider);
+      aiProviderService.callProvider.mockResolvedValueOnce({
+        content: '{"content":"ok","vote":"positive","flag":null,"confidence":0.9}',
+        inputTokens: 1, outputTokens: 1,
+      });
+
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'llm' }],
+      });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-model-2' }] });
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+      await aiActionService.executeAction({
+        ...baseParams, actionType: 'review', targetType: 'chunk', targetId: 'chunk-1', context: { content: 'x' },
+        agentModel: 'gpt-4o-mini-2025-01',
+      });
+
+      const insertCall = mockPool.query.mock.calls[1];
+      expect(insertCall[1][insertCall[1].length - 1]).toBe('gpt-4o-mini-2025-01');
+    });
+
+    it('records agentModel into ai_actions.model_used in agent mode', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'agent' }],
+      });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-agent-m1' }] });
+
+      await aiActionService.executeAction({ ...baseParams, agentModel: 'claude-opus-4-6' });
+
+      const insertCall = mockPool.query.mock.calls[1];
+      expect(insertCall[0]).toContain('model_used');
+      expect(insertCall[1][insertCall[1].length - 1]).toBe('claude-opus-4-6');
+    });
+
+    it('stores NULL model_used in agent mode when no agentModel declared', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'agent' }],
+      });
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-agent-m2' }] });
+
+      await aiActionService.executeAction(baseParams);
+
+      const insertCall = mockPool.query.mock.calls[1];
+      expect(insertCall[1][insertCall[1].length - 1]).toBeNull();
+    });
+
     it('swallows mini-working-set errors (best-effort)', async () => {
       const miniWorkingSet = require('../mini-working-set');
       miniWorkingSet.getRecentContributions.mockRejectedValueOnce(new Error('db down'));
