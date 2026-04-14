@@ -6,14 +6,23 @@ const fs = require('fs');
 
 // Defaults loaded from external config file (not committed to repo).
 // Falls back to safe minimums if file is missing.
+//
+// IMPORTANT: these are PLACEHOLDER values, deliberately stricter than any
+// tuned production configuration. Production thresholds live in the
+// gitignored `src/config/security-defaults.json` (or the `security_config`
+// DB table at runtime). Committing real tuning values here would let an
+// attacker calibrate prompt-injection attacks just under the block bar
+// by reading the public repo. If this fallback kicks in (JSON missing),
+// the system degrades toward blocking MORE aggressively — operator must
+// then provision the real config file.
 const SAFE_MINIMUMS = {
-  injection_half_life_ms: 1800000,
-  injection_block_threshold: 1.0,
-  injection_min_score_logged: 0.1,
-  security_example_weight: 0.15,
-  injection_review_max_logs: 10,
-  injection_review_min_age_ms: 600000,
-  injection_review_auto_confidence: 0.8,
+  injection_half_life_ms: 3600000,
+  injection_block_threshold: 0.5,
+  injection_min_score_logged: 0.05,
+  security_example_weight: 0.1,
+  injection_review_max_logs: 5,
+  injection_review_min_age_ms: 300000,
+  injection_review_auto_confidence: 0.7,
 };
 
 let DEFAULTS = { ...SAFE_MINIMUMS };

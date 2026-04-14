@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-04-14 -- security-config placeholder rotation (close SAFE_MINIMUMS + migration 056 leak, feat/dispatch-mode)
+
+Replaces the four committed-code sites where the tuned production values
+of the prompt-injection thresholds were visible on GitHub:
+
+1. `src/services/security-config.js` `SAFE_MINIMUMS` — replaced by
+   placeholder values deliberately stricter than any tuned production
+   configuration. If the gitignored `security-defaults.json` is absent,
+   the system now degrades toward blocking MORE aggressively rather than
+   exposing the real tuning.
+2. `migrations/056_injection-tracker.sql` — INSERT seed values now use
+   the same placeholders as SAFE_MINIMUMS. The migration is idempotent
+   (`ON CONFLICT DO NOTHING`), so existing prod DBs keep their current
+   row set; new installs get defensive placeholders and MUST be tuned by
+   the operator via JSON or `UPDATE security_config`.
+3. `src/services/__tests__/security-config.test.js` — assertions updated
+   to expect the placeholder fallback values; added `jest.mock('fs')`
+   with `existsSync: false` so the dev machine's local copy of
+   `security-defaults.json` does not interfere with the SAFE_MINIMUMS
+   assertion.
+4. `src/services/__tests__/injection-tracker.test.js` — mocked config
+   values and a few scores/timestamps retuned to stay consistent with
+   the new placeholder threshold (0.5 instead of 1.0) and half-life
+   (60 min instead of 30 min).
+
+**Note on the historical leak.** The original production values were
+pushed to `origin/main` as early as commit `b8c25c0` (migration 056);
+git history rewrite was not performed here. Operator should rotate
+the real tuning values in the production `security-defaults.json` (or
+via `UPDATE security_config`) to make the historical leak functionally
+obsolete. Code-side rotation alone is theater without that step.
+
+Tests: **1073/1073 unit**, all green. No DB migration added (056
+edited in place; existing installs unaffected, new installs pick up
+the placeholders).
+
 ## 2026-04-14 -- GUI E2E for dispatch_mode (real browser + intra-container mock LLM, feat/dispatch-mode)
 
 Adds `tests/e2e/gui-dispatch-mode.spec.js`: two Playwright tests that drive

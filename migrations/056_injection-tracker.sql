@@ -8,11 +8,18 @@ CREATE TABLE IF NOT EXISTS security_config (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- PLACEHOLDER seed values — deliberately stricter than any tuned
+-- production setting. Real thresholds live in the gitignored
+-- `src/config/security-defaults.json` or are set at runtime via
+-- `UPDATE security_config`. Committing tuned values here would let an
+-- attacker read the block thresholds from the public repo. On first
+-- install the seed provisions a defensive default; operators must then
+-- tune (lax or strict) via the JSON file or the DB table.
 INSERT INTO security_config (key, value) VALUES
-  ('injection_half_life_ms', '1800000'),
-  ('injection_block_threshold', '1.0'),
-  ('injection_min_score_logged', '0.1'),
-  ('security_example_weight', '0.15')
+  ('injection_half_life_ms', '3600000'),
+  ('injection_block_threshold', '0.5'),
+  ('injection_min_score_logged', '0.05'),
+  ('security_example_weight', '0.1')
 ON CONFLICT (key) DO NOTHING;
 
 -- 2. Per-account cumulative injection score

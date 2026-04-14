@@ -1,4 +1,10 @@
 jest.mock('../../config/database');
+// Force SAFE_MINIMUMS path by making the module skip the gitignored JSON
+// overlay in dev machines where the file happens to exist.
+jest.mock('fs', () => {
+  const actual = jest.requireActual('fs');
+  return { ...actual, existsSync: jest.fn().mockReturnValue(false) };
+});
 
 const { getPool } = require('../../config/database');
 const securityConfig = require('../security-config');
@@ -17,10 +23,13 @@ describe('security-config', () => {
   });
 
   describe('getConfig', () => {
-    it('returns default value when cache is empty', () => {
-      expect(securityConfig.getConfig('injection_half_life_ms')).toBe(1800000);
-      expect(securityConfig.getConfig('injection_block_threshold')).toBe(1.0);
-      expect(securityConfig.getConfig('injection_min_score_logged')).toBe(0.1);
+    it('returns placeholder SAFE_MINIMUMS value when cache is empty', () => {
+      // These are the committed placeholder defaults (stricter than prod).
+      // Real production values live in the gitignored security-defaults.json
+      // or in the DB security_config table at runtime.
+      expect(securityConfig.getConfig('injection_half_life_ms')).toBe(3600000);
+      expect(securityConfig.getConfig('injection_block_threshold')).toBe(0.5);
+      expect(securityConfig.getConfig('injection_min_score_logged')).toBe(0.05);
     });
 
     it('returns undefined for unknown keys', () => {
@@ -42,7 +51,7 @@ describe('security-config', () => {
       expect(securityConfig.getConfig('injection_half_life_ms')).toBe(7200000);
       expect(securityConfig.getConfig('injection_block_threshold')).toBe(3.0);
       // Non-loaded key falls back to default
-      expect(securityConfig.getConfig('injection_min_score_logged')).toBe(0.1);
+      expect(securityConfig.getConfig('injection_min_score_logged')).toBe(0.05);
     });
 
     it('keeps previous cache when database fails', async () => {
@@ -55,7 +64,7 @@ describe('security-config', () => {
       // On a fresh module this would return defaults
       // After the previous test loaded 7200000, the failed load doesn't reset cache
       // This is the intended behavior: failed refresh doesn't wipe cache
-      expect(securityConfig.getConfig('injection_min_score_logged')).toBe(0.1);
+      expect(securityConfig.getConfig('injection_min_score_logged')).toBe(0.05);
     });
   });
 
