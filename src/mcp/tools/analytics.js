@@ -107,7 +107,17 @@ function registerTools(server, getSessionAccount) {
         const account = requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const overview = await copyrightAnalytics.getOverview();
-        return mcpResult(overview);
+        return mcpResult({
+          totalReviews: overview.total_reviews,
+          clearCount: overview.clear_count,
+          rewriteCount: overview.rewrite_count,
+          takedownCount: overview.takedown_count,
+          avgResolutionHours: overview.avg_resolution_hours,
+          medianResolutionHours: overview.median_resolution_hours,
+          systemFpRate: overview.system_fp_rate,
+          highPriorityCount: overview.high_priority_count,
+          refreshedAt: overview.refreshed_at,
+        });
       } catch (err) {
         return mcpError(err);
       }
@@ -132,7 +142,17 @@ function registerTools(server, getSessionAccount) {
           limit: Math.min(params.limit || 20, 100),
           sortBy: params.sortBy || 'total_reports',
         });
-        return mcpResult(result);
+        return mcpResult({
+          reporters: result.data.map(r => ({
+            reporterId: r.reporter_id,
+            reporterName: r.reporter_name,
+            totalReports: r.total_reports,
+            fpRate: r.fp_rate,
+            takedowns: r.takedowns,
+            lastReportAt: r.last_report_at,
+          })),
+          pagination: result.pagination,
+        });
       } catch (err) {
         return mcpError(err);
       }

@@ -150,7 +150,15 @@ function registerTools(server, getSessionAccount) {
           limit: Math.min(params.limit || 20, 100),
         });
         return mcpResult({
-          deadLetters: result.data,
+          deadLetters: result.data.map(dl => ({
+            id: dl.id,
+            subscriptionId: dl.subscription_id,
+            webhookUrl: dl.webhook_url,
+            attempts: dl.attempts,
+            maxAttempts: dl.max_attempts,
+            lastError: dl.last_error,
+            createdAt: dl.created_at,
+          })),
           pagination: result.pagination,
         });
       } catch (err) {
