@@ -26,6 +26,7 @@ function registerTools(server, getSessionAccount) {
       sensitivity: z.enum(['standard', 'sensitive']).optional().describe('Sensitivity level (default: standard)'),
       topicType: z.enum(['knowledge', 'course']).optional().describe('Topic type (default: knowledge)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -70,6 +71,7 @@ function registerTools(server, getSessionAccount) {
         subtitle: z.string().optional().describe('Chunk subtitle'),
       })).min(1).max(20).describe('Array of chunks (1-20)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -110,6 +112,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page number (default 1)'),
       limit: z.number().optional().describe('Results per page (default 20)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const result = await topicService.listTopics({
@@ -149,6 +152,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Chunk page (default 1)'),
       limit: z.number().optional().describe('Chunks per page (default 20, max 50)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const topic = await topicService.getTopicBySlug(params.slug, params.lang);
@@ -186,6 +190,7 @@ function registerTools(server, getSessionAccount) {
       summary: z.string().max(1000).optional().describe('New summary'),
       sensitivity: z.enum(['standard', 'sensitive']).optional().describe('New sensitivity'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -222,6 +227,7 @@ function registerTools(server, getSessionAccount) {
       contentFlag: z.enum(['spam', 'poisoning', 'hallucination', 'review_needed']).describe('Flag type'),
       reason: z.string().min(1).describe('Reason for flagging'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -248,6 +254,7 @@ function registerTools(server, getSessionAccount) {
     {
       topicId: z.string().describe('Topic UUID'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const translations = await topicService.getTranslations(params.topicId);
@@ -273,6 +280,7 @@ function registerTools(server, getSessionAccount) {
       topicId: z.string().describe('Source topic UUID'),
       translatedId: z.string().describe('Target topic UUID (different language)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         requireAccount(getSessionAccount, extra);
@@ -301,6 +309,7 @@ function registerTools(server, getSessionAccount) {
         targetChunkId: z.string().optional().describe('Target chunk UUID (required for replace/remove)'),
       })).min(1).max(20).describe('Array of operations (1-20)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -335,6 +344,7 @@ function registerTools(server, getSessionAccount) {
     {
       changesetId: z.string().describe('Changeset UUID'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -356,6 +366,7 @@ function registerTools(server, getSessionAccount) {
     {
       changesetId: z.string().describe('Changeset UUID (must be in retracted status)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -379,6 +390,7 @@ function registerTools(server, getSessionAccount) {
       sourceUrl: z.string().optional().describe('Source URL'),
       sourceDescription: z.string().optional().describe('Source description'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -412,6 +424,7 @@ function registerTools(server, getSessionAccount) {
       topicId: z.string().describe('Topic UUID'),
       content: z.string().describe('JSON string: { "order": ["uuid1", "uuid2", ...], "tags"?: [...], "languages"?: [...], "course"?: { "level": "beginner"|"intermediate"|"expert", "prerequisites": [...], "learningObjectives": [...] } }'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -437,6 +450,7 @@ function registerTools(server, getSessionAccount) {
     {
       topicId: z.string().describe('Topic UUID'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const metachunk = await chunkService.getActiveMetachunk(params.topicId);

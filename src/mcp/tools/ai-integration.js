@@ -16,6 +16,7 @@ function registerTools(server, getSessionAccount) {
     'list_provider_types',
     'List available AI provider types (e.g. OpenAI-compatible, Claude).',
     {},
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async () => {
       try {
         const types = aiProviderService.getProviderTypes
@@ -42,6 +43,7 @@ function registerTools(server, getSessionAccount) {
       temperature: z.number().min(0).max(2).optional().describe('Temperature (default varies by provider)'),
       isDefault: z.boolean().optional().describe('Set as default provider'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -75,6 +77,7 @@ function registerTools(server, getSessionAccount) {
     'list_providers',
     'List your configured AI providers.',
     {},
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (_params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -113,6 +116,7 @@ function registerTools(server, getSessionAccount) {
       temperature: z.number().min(0).max(2).optional().describe('New temperature'),
       isDefault: z.boolean().optional().describe('Set as default'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -148,6 +152,7 @@ function registerTools(server, getSessionAccount) {
     {
       providerId: z.string().describe('Provider UUID'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -168,6 +173,7 @@ function registerTools(server, getSessionAccount) {
     {
       providerId: z.string().describe('Provider UUID'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -203,6 +209,7 @@ function registerTools(server, getSessionAccount) {
       providerId: z.string().optional().describe('Provider UUID (optional, uses default if omitted)'),
       context: z.record(z.unknown()).optional().describe('Additional context object'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -234,6 +241,7 @@ function registerTools(server, getSessionAccount) {
       limit: z.number().optional().describe('Max results (default 20, max 100)'),
       offset: z.number().optional().describe('Offset (default 0)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -268,6 +276,7 @@ function registerTools(server, getSessionAccount) {
     {
       actionId: z.string().describe('Action UUID'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);

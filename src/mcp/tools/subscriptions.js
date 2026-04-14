@@ -17,6 +17,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -52,6 +53,7 @@ function registerTools(server, getSessionAccount) {
     {
       subscriptionId: z.string().describe('Subscription UUID'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -89,6 +91,7 @@ function registerTools(server, getSessionAccount) {
       lang: z.string().optional().describe('Language filter'),
       triggerStatus: z.enum(['published', 'proposed', 'both']).optional().describe('When to trigger'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -116,6 +119,7 @@ function registerTools(server, getSessionAccount) {
     {
       subscriptionId: z.string().describe('Subscription UUID'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -136,6 +140,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);

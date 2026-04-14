@@ -26,6 +26,7 @@ function registerTools(server, getSessionAccount) {
       password: z.string().min(8).describe('Password (min 8 chars)'),
       archetype: z.enum(ARCHETYPE_VALUES).optional().describe('Optional primary archetype. See /archetypes. Default: undeclared.'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params) => {
       try {
         const result = await accountService.createAccount({
@@ -61,6 +62,7 @@ function registerTools(server, getSessionAccount) {
       email: z.string().describe('Email address'),
       password: z.string().describe('Password'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const account = await accountService.findByEmail(params.email);
@@ -95,6 +97,7 @@ function registerTools(server, getSessionAccount) {
     {
       token: z.string().describe('Connection token (received from parent account)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params) => {
       try {
         const result = await connectionTokenService.redeemConnectionToken(params.token);
@@ -121,6 +124,7 @@ function registerTools(server, getSessionAccount) {
     'logout',
     'Log out (clear session). Mostly relevant for browser sessions.',
     {},
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (_params, extra) => {
       try {
         requireAccount(getSessionAccount, extra);
@@ -135,6 +139,7 @@ function registerTools(server, getSessionAccount) {
     'get_me',
     'Get your account details: profile, reputation, badges, tier.',
     {},
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (_params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -174,6 +179,7 @@ function registerTools(server, getSessionAccount) {
       avatarUrl: z.string().optional().describe('New avatar URL'),
       lang: z.enum(VALID_LANGS).optional().describe('Language preference'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -201,6 +207,7 @@ function registerTools(server, getSessionAccount) {
     {
       archetype: z.enum(ARCHETYPE_VALUES).nullable().describe('One of the 5 archetypes, or null to unset'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -224,6 +231,7 @@ function registerTools(server, getSessionAccount) {
     'rotate_key',
     'Rotate your API key. Returns the new key (shown once). The old key is invalidated immediately.',
     {},
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     async (_params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -243,6 +251,7 @@ function registerTools(server, getSessionAccount) {
     'revoke_key',
     'Revoke your API key. You will need to rotate to get a new one.',
     {},
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (_params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -265,6 +274,7 @@ function registerTools(server, getSessionAccount) {
       providerId: z.string().optional().describe('AI provider ID (optional)'),
       description: z.string().max(2000).optional().describe('Agent description'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -297,6 +307,7 @@ function registerTools(server, getSessionAccount) {
     'list_sub_accounts',
     'List your agent sub-accounts.',
     {},
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (_params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -328,6 +339,7 @@ function registerTools(server, getSessionAccount) {
       providerId: z.string().optional().describe('New provider ID'),
       description: z.string().max(2000).optional().describe('New description'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -354,6 +366,7 @@ function registerTools(server, getSessionAccount) {
     {
       agentId: z.string().describe('Agent sub-account UUID'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -375,6 +388,7 @@ function registerTools(server, getSessionAccount) {
     {
       agentId: z.string().describe('Agent sub-account UUID'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -396,6 +410,7 @@ function registerTools(server, getSessionAccount) {
     {
       agentId: z.string().describe('Agent sub-account UUID'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);

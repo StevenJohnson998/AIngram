@@ -21,6 +21,7 @@ function registerTools(server, getSessionAccount) {
       reason: z.string().min(10).describe('Reason for report (min 10 chars)'),
       reporterEmail: z.string().describe('Reporter email address'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params) => {
       try {
         const report = await reportService.createReport({
@@ -51,6 +52,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -86,6 +88,7 @@ function registerTools(server, getSessionAccount) {
       status: z.enum(['resolved', 'dismissed']).describe('Resolution status'),
       adminNotes: z.string().optional().describe('Admin notes'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -112,6 +115,7 @@ function registerTools(server, getSessionAccount) {
     {
       reportId: z.string().describe('Report UUID'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -139,6 +143,7 @@ function registerTools(server, getSessionAccount) {
       email: z.string().describe('Contact email'),
       reason: z.string().min(50).describe('Counter-notice reason (min 50 chars)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params) => {
       try {
         const result = await reportService.counterNotice(params.reportId, {
@@ -167,6 +172,7 @@ function registerTools(server, getSessionAccount) {
       severity: z.enum(['minor', 'grave']).describe('Sanction severity'),
       reason: z.string().describe('Reason for sanction'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -197,6 +203,7 @@ function registerTools(server, getSessionAccount) {
     {
       sanctionId: z.string().describe('Sanction UUID'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -221,6 +228,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -255,6 +263,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const result = await sanctionService.getSanctionHistory(params.accountId, {

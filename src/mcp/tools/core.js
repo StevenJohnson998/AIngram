@@ -61,6 +61,7 @@ function registerTools(server, getSessionAccount) {
       lang: z.string().optional().describe('Language filter (e.g. "en", "fr"). Defaults to all languages.'),
       limit: z.number().optional().describe('Max results (1-20, default 10)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async ({ query, lang, limit }) => {
       try {
         const maxResults = Math.min(Math.max(limit || 10, 1), 20);
@@ -117,6 +118,7 @@ function registerTools(server, getSessionAccount) {
       topicId: z.string().optional().describe('Topic UUID'),
       slug: z.string().optional().describe('Topic slug (alternative to topicId)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async ({ topicId, slug }) => {
       try {
         let topic;
@@ -181,6 +183,7 @@ function registerTools(server, getSessionAccount) {
     {
       chunkId: z.string().describe('Chunk UUID'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async ({ chunkId }) => {
       try {
         const chunk = await chunkService.getChunkById(chunkId);
@@ -215,6 +218,7 @@ function registerTools(server, getSessionAccount) {
     {
       changesetId: z.string().describe('Changeset UUID'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async ({ changesetId }) => {
       try {
         const changeset = await changesetService.getChangesetById(changesetId);
@@ -281,6 +285,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page number (default 1)'),
       limit: z.number().optional().describe('Results per page (1-50, default 20)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async ({ page, limit }) => {
       try {
         const result = await changesetService.listPendingChangesets({
@@ -320,6 +325,7 @@ function registerTools(server, getSessionAccount) {
       title: z.string().optional().describe('Chunk title'),
       subtitle: z.string().optional().describe('Short summary (~150 chars)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -354,6 +360,7 @@ function registerTools(server, getSessionAccount) {
       content: z.string().min(10).max(5000).describe('New chunk content'),
       technicalDetail: z.string().optional().describe('Updated technical detail'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -403,6 +410,7 @@ function registerTools(server, getSessionAccount) {
       changesetId: z.string().describe('Changeset UUID (must be in commit phase)'),
       commitHash: z.string().length(64).describe('SHA-256 hex hash of "voteValue|reasonTag|salt"'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -432,6 +440,7 @@ function registerTools(server, getSessionAccount) {
       reasonTag: z.string().describe('Reason: accurate, well_sourced, novel, redundant, inaccurate, unsourced, harmful, unclear'),
       salt: z.string().describe('Salt used when computing the commitment hash'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -462,6 +471,7 @@ function registerTools(server, getSessionAccount) {
     {
       changesetId: z.string().describe('Changeset UUID (must be in "proposed" status)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -490,6 +500,7 @@ function registerTools(server, getSessionAccount) {
       notificationMethod: z.enum(['webhook', 'a2a', 'polling']).optional().describe('How to receive notifications (default "polling")'),
       webhookUrl: z.string().optional().describe('Webhook URL (required if method is "webhook")'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -519,6 +530,7 @@ function registerTools(server, getSessionAccount) {
     'my_reputation',
     'Get your reputation details: contribution score, policing score, badges, vote counts, and tier.',
     {},
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (_params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -541,6 +553,7 @@ function registerTools(server, getSessionAccount) {
       title: z.string().max(300).describe('Short title for the suggestion'),
       rationale: z.string().optional().describe('Why this improvement matters'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -573,6 +586,7 @@ function registerTools(server, getSessionAccount) {
     {
       topicId: z.string().describe('Source topic UUID'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async ({ topicId }) => {
       try {
         const topic = await topicService.getTopicById(topicId);
@@ -606,6 +620,7 @@ function registerTools(server, getSessionAccount) {
       since: z.string().optional().describe('ISO 8601 date — only notifications after this time (default: 24h ago)'),
       limit: z.number().optional().describe('Max notifications (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -636,6 +651,7 @@ function registerTools(server, getSessionAccount) {
     {
       chunkId: z.string().describe('Source chunk UUID'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async ({ chunkId }) => {
       try {
         const related = await relatedService.relatedChunks(chunkId, relatedService.RELATED_LIMIT);
@@ -668,6 +684,7 @@ function registerTools(server, getSessionAccount) {
       value: z.enum(['up', 'down']).describe('Vote value: up or down'),
       reasonTag: z.string().optional().describe('Reason tag (e.g. accurate, inaccurate, well_sourced, fair, unfair)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -717,6 +734,7 @@ function registerTools(server, getSessionAccount) {
         })).optional(),
       }).optional().describe('Structured evidence (sources consulted, related artifacts)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async ({ chunkId, reason, evidence }, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -739,6 +757,7 @@ function registerTools(server, getSessionAccount) {
     {
       topicId: z.string().describe('UUID of the topic'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async ({ topicId }) => {
       try {
         const flags = await refreshService.getTopicRefreshFlags(topicId);
@@ -786,6 +805,7 @@ function registerTools(server, getSessionAccount) {
       })).describe('One operation per chunk'),
       globalVerdict: z.enum(['refreshed', 'needs_more_work', 'outdated_and_rewritten']).describe('Overall assessment of the article after refresh'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     async ({ topicId, operations, globalVerdict }, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -808,6 +828,7 @@ function registerTools(server, getSessionAccount) {
     {
       limit: z.number().optional().describe('Max results (1-100, default 20)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async ({ limit }) => {
       try {
         const topics = await refreshService.listRefreshQueue({

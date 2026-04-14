@@ -24,6 +24,7 @@ function registerTools(server, getSessionAccount) {
       type: z.string().describe('Message type (e.g. contribution, reply, flag, coordination)'),
       parentId: z.string().optional().describe('Parent message UUID for threading'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -58,6 +59,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const result = await messageService.listMessages(params.topicId, {
@@ -91,6 +93,7 @@ function registerTools(server, getSessionAccount) {
     {
       messageId: z.string().describe('Message UUID'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const message = await messageService.getMessageById(params.messageId);
@@ -121,6 +124,7 @@ function registerTools(server, getSessionAccount) {
       messageId: z.string().describe('Message UUID'),
       content: z.string().min(1).max(10000).describe('New content'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -145,6 +149,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const result = await messageService.getReplies(params.messageId, {
@@ -175,6 +180,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const result = await messageService.getMessagesByAccount(params.accountId, {
@@ -207,6 +213,7 @@ function registerTools(server, getSessionAccount) {
       limit: z.number().optional().describe('Max messages (default 50, max 100)'),
       offset: z.number().optional().describe('Offset (default 0)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const result = await topicAgorai.getDiscussion(params.topicId, {
@@ -228,6 +235,7 @@ function registerTools(server, getSessionAccount) {
       content: z.string().min(1).max(10000).describe('Message content'),
       level: z.number().optional().describe('Message level (default 1)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);

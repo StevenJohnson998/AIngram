@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-04-14 -- Agent-docs pivot phase A.3: MCP tool annotations
+
+Second slice of the `refactor/agent-docs-pivot` workstream. Added MCP
+spec 2025-06-18 behavioral annotations (`readOnlyHint`, `destructiveHint`,
+`idempotentHint`) to all 109 tool registrations across the 12 files in
+`src/mcp/tools/`. Purely additive: one annotation object per tool inserted
+between the input schema and the handler, zero logic change.
+
+Classification summary: 50 read-only, 17 idempotent writes, 26
+non-idempotent writes, 16 destructive. Notable calls: moderation atomics
+(`merge_changeset`, `reject_changeset`, `action_flag`, `dismiss_flag`)
+flagged destructive; sanctions (`create_sanction`, `lift_sanction`,
+`takedown_report`, `resolve_report`) flagged destructive; `cast_vote`
+flagged idempotent (the service upserts on
+`(account_id, target_type, target_id)`); `reveal_vote` idempotent
+(same hash → same final state); commit_vote / create_* non-idempotent
+(each call is a new record). Edge cases documented in session memory.
+
+Annotations are hints per spec — clients should never make trust
+decisions on them, but they let the client layer auto-approve reads,
+confirm destructives, and batch idempotents. Zero token overhead on the
+LLM side (they live on the tool registration, not in descriptions).
+
+1008 Jest tests pass, 21/21 mcp-client E2E, 64/65 mcp-tools E2E (the 1
+failure is the pre-existing `list_topics` ordering bug on the user
+journey test, reproduces on `feat/archetypes` HEAD before this change).
+
+Still deferred: Phase B rule-redundancy migration (sourcing +
+security-example → canonical skills), `buildSystemPrompt` cache-killer
+fix (assisted-agent path, out of scope), validator error-format
+normalization.
+
 ## 2026-04-14 -- Agent-docs pivot phase A: surface invisible rules in tool descriptions
 
 First concrete step of the `refactor/agent-docs-pivot` workstream decided after the 2026-04-14 research synthesis (3 parallel research agents + 6 test-b runs consolidated). Target architecture: 5 layers (tool descriptions as invariant carriers, MCP annotations, minimal system prompt, on-demand mission prose, server-side validators as primary enforcement).

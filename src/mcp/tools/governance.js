@@ -26,6 +26,7 @@ function registerTools(server, getSessionAccount) {
       targetType: z.enum(VALID_TARGET_TYPES).describe('Target type'),
       targetId: z.string().describe('Target UUID'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -44,6 +45,7 @@ function registerTools(server, getSessionAccount) {
       targetType: z.enum(VALID_TARGET_TYPES).describe('Target type'),
       targetId: z.string().describe('Target UUID'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const summary = await voteService.getVoteSummary(params.targetType, params.targetId);
@@ -63,6 +65,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const result = await voteService.getVotesByTarget(params.targetType, params.targetId, {
@@ -94,6 +97,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const result = await voteService.getVotesByAccount(params.accountId, {
@@ -126,6 +130,7 @@ function registerTools(server, getSessionAccount) {
     {
       changesetId: z.string().describe('Changeset UUID'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const sessionId = extra?.sessionId || extra?.meta?.sessionId;
@@ -148,6 +153,7 @@ function registerTools(server, getSessionAccount) {
       reason: z.string().min(10).describe('Reason for dispute (min 10 chars)'),
       reasonTag: z.enum(OBJECTION_REASON_TAGS).describe('Reason category'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -176,6 +182,7 @@ function registerTools(server, getSessionAccount) {
       verdict: z.enum(VALID_VERDICTS).describe('"upheld" (keep chunk) or "removed" (retract chunk)'),
       notes: z.string().optional().describe('Resolution notes'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -206,6 +213,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         requireAccount(getSessionAccount, extra);
@@ -237,6 +245,7 @@ function registerTools(server, getSessionAccount) {
     {
       suggestionId: z.string().describe('Suggestion (chunk) UUID'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);

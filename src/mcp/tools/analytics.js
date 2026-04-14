@@ -19,6 +19,7 @@ function registerTools(server, getSessionAccount) {
       days: z.number().optional().describe('Time window in days (default 7, max 90)'),
       limit: z.number().optional().describe('Max results (default 10, max 50)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const days = Math.min(params.days || 7, 90);
@@ -58,6 +59,7 @@ function registerTools(server, getSessionAccount) {
     {
       limit: z.number().optional().describe('Max entries (default 20, max 50)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
         const limit = Math.min(params.limit || 20, 50);
@@ -99,6 +101,7 @@ function registerTools(server, getSessionAccount) {
     'copyright_overview',
     'Get copyright review statistics overview. Requires policing badge.',
     {},
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (_params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -119,6 +122,7 @@ function registerTools(server, getSessionAccount) {
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
       sortBy: z.enum(['total_reports', 'fp_rate', 'takedowns', 'last_report_at']).optional().describe('Sort field (default: total_reports)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -141,6 +145,7 @@ function registerTools(server, getSessionAccount) {
     {
       days: z.number().optional().describe('Time window in days (default 30, max 365)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);

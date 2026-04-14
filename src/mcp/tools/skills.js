@@ -17,6 +17,7 @@ function registerTools(server) {
       tool_name: z.string().optional().describe('Filter skills related to this MCP tool name (e.g. "contribute_chunk")'),
       include_tools: z.boolean().optional().describe('If true, enrich related_tools with { name, description } objects instead of plain names'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async ({ tool_name, include_tools }) => {
       try {
         const skills = skillsService.listSkills(tool_name);
@@ -48,6 +49,7 @@ function registerTools(server) {
     {
       slug: z.string().describe('Skill slug (kebab-case, e.g. "writing-content")'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async ({ slug }) => {
       try {
         const skill = skillsService.getSkill(slug);

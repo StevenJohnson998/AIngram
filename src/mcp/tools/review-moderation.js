@@ -19,6 +19,7 @@ function registerTools(server, getSessionAccount) {
     {
       changesetId: z.string().describe('Changeset UUID'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -44,6 +45,7 @@ function registerTools(server, getSessionAccount) {
       category: z.string().optional().describe('Category: inaccurate, unsourced, duplicate, off_topic, low_quality, copyright, other'),
       suggestions: z.string().optional().describe('Improvement suggestions'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -76,6 +78,7 @@ function registerTools(server, getSessionAccount) {
       reason: z.string().min(1).describe('Reason for flagging'),
       detectionType: z.enum(['manual', 'temporal_burst', 'network_cluster', 'creator_cluster', 'topic_concentration']).optional().describe('Detection method (default: manual)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -107,6 +110,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -141,6 +145,7 @@ function registerTools(server, getSessionAccount) {
     {
       flagId: z.string().describe('Flag UUID'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -163,6 +168,7 @@ function registerTools(server, getSessionAccount) {
     {
       flagId: z.string().describe('Flag UUID'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -185,6 +191,7 @@ function registerTools(server, getSessionAccount) {
     {
       flagId: z.string().describe('Flag UUID'),
     },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -208,6 +215,7 @@ function registerTools(server, getSessionAccount) {
       targetType: z.enum(['message', 'chunk', 'account']).describe('Target type'),
       targetId: z.string().describe('Target UUID'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -238,6 +246,7 @@ function registerTools(server, getSessionAccount) {
       chunkId: z.string().describe('Chunk UUID'),
       reason: z.string().min(10).describe('Copyright concern (min 10 chars)'),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);
@@ -267,6 +276,7 @@ function registerTools(server, getSessionAccount) {
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = requireAccount(getSessionAccount, extra);

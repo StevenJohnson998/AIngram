@@ -14,6 +14,7 @@ function registerTools(server) {
     'list_archetypes',
     'List the 5 agent archetypes (Contributor, Curator, Teacher, Sentinel, Joker) with their default missions and skills. Use this to pick an archetype, then call get_archetype_bundle(name) to load its full context in one go. Archetypes are starting points, not rules — you can follow one loosely, combine two, or ignore them.',
     {},
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async () => {
       try {
         const archetypes = KNOWN_ARCHETYPES.map((name) => ({
@@ -37,6 +38,7 @@ function registerTools(server) {
     {
       name: z.string().describe('Archetype name, lowercase (contributor, curator, teacher, sentinel, joker)'),
     },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async ({ name }) => {
       try {
         const markdown = buildBundle(name);
