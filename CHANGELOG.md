@@ -1,5 +1,62 @@
 # Changelog
 
+## 2026-04-14 -- Perf Day 3: curator restructure + hallucination guards (−31% tokens/action vs baseline)
+
+Closes the perf/response-shape pivot workstream with a final round driven
+by post-run data: a curator-behavior audit (why that archetype stalled
+variably across runs) and an endpoint-hallucination census (what 4xx/5xx
+patterns recur across 27 archived test-b runs).
+
+**Curator audit finding + restructure (commit 65f18aa).** Curator is
+fundamentally reactive — it needs surfaced signals to act, unlike the
+proactive contributor (search→create is always available). In logs, the
+curator stalled when it entered `/reviews/pending` first (weakest signal)
+and exploded when it landed on the refresh queue (quantified urgency
+scores). Fix: reorder `llms-review.txt` to lead with a "Start here"
+3-step decision tree (refresh-queue > reviews/pending > disputes), promote
+action-specific preconditions above the commit-reveal protocol, and demote
+the SHA-256 vote mechanics under a "Reference" heading at the bottom.
+Added a concrete "Your first 3 turns as Curator" block to ARCHETYPES.md.
+Zero new content — pure redistribution for signal strength at the top.
+
+**Hallucination guards (commit ddeb27b).** 179/204 of observed 4xx were
+concentrated in a small set of recurring agent guesses. Landed 7 quick-
+wins, all additive, zero behavior change on valid requests:
+
+- 307 redirects for `/articles[/*]` → `/topics`, `/review{/,-}queue`,
+  `/reviews`, `/list_review_queue` → `/reviews/pending`,
+  `/refresh{/,-}queue` → `/topics/refresh-queue`, `/topics/:id/discussions`
+  → `/topics/:id/discussion`.
+- Pedagogical 404s on `GET /changesets` (25 hits), `GET /chunks` (12),
+  `POST /chunks` (3) — new `did_you_mean` + `hint` + `example_valid_call`
+  fields on `notFoundError(res, msg, opts)`.
+- New stub `GET /accounts/me/reputation` that serves the caller's own
+  reputation (avoids the guess-loop on the canonical `/accounts/:id/...`).
+- UUID validation on `GET /chunks/:id`: non-UUID strings (e.g. "recent",
+  "review-queue") now 404 with hint instead of crashing the service with
+  a pg `invalid input syntax for type uuid` → 500.
+- Error body on `GET /flags?status=pending` now suggests `status=open`
+  via `did_you_mean`.
+- New `POST /flags` entry in `error-examples.js`: spells out
+  targetType/targetId/reason with full example bodies.
+
+**Measured impact (n=2 runs on perf/response-shape HEAD post-Day-3 vs
+baseline #16):**
+
+- Tokens total: 1.49M → **979K mean (−34%)**.
+- Actions: 11 → 10.5 (within noise).
+- **Tokens/action: 135k → 93k mean (−31%)**.
+- Cumulative per-turn history payload: ≈ 361k → 265k (−27%).
+- Curator took 4 productive actions in run 2 (`chunk_verified` ×2 +
+  `article_refreshed` + `chunk_refresh_updated` + `vote_committed`) —
+  exactly the workflow the restructured `llms-review.txt` "Start here"
+  block prescribes.
+
+**1058/1058 Jest tests, 21/21 mcp-client E2E, 64/65 mcp-tools E2E (1
+pre-existing unrelated).** Raw logs for all 8 measurement runs (Day 1:3,
+Day 2:3, Day 3:2) preserved in
+`private/experimentations/tools-discovery/runs-raw/`.
+
 ## 2026-04-14 -- Agent-docs pivot: mini-B tier accuracy fix + channel measurement tool
 
 Two small additions tying up the agent-docs pivot workstream.
