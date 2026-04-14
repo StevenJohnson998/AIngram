@@ -18,7 +18,7 @@ const router = Router();
  * Public — reads discussion messages from Agorai.
  */
 router.get('/topics/:id/discussion', publicLimiter, async (req, res) => {
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
   const result = await topicAgorai.getDiscussion(req.params.id, { limit, offset });

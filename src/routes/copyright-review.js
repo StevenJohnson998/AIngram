@@ -8,6 +8,7 @@ const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
 const { validationError } = require('../utils/http-errors');
+const { parsePagination } = require('../utils/pagination');
 
 const router = Router();
 
@@ -20,11 +21,12 @@ router.get(
   requireBadge('policing'),
   async (req, res) => {
     try {
-      const { status, page, limit } = req.query;
+      const { status } = req.query;
+      const { page, limit } = parsePagination(req.query);
       const result = await copyrightService.listCopyrightReviews({
         status: status || 'pending',
-        page: parseInt(page, 10) || 1,
-        limit: Math.min(parseInt(limit, 10) || 20, 100),
+        page,
+        limit,
       });
       return res.json(result);
     } catch (err) {

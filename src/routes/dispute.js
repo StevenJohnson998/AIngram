@@ -7,6 +7,7 @@ const disputeService = require('../services/dispute');
 const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
 const { validationError } = require('../utils/http-errors');
+const { parsePagination, enrichPagination } = require('../utils/pagination');
 
 const router = Router();
 
@@ -101,15 +102,13 @@ router.get(
   auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
-      const { page, limit } = req.query;
-      const result = await disputeService.listDisputed({
-        page: parseInt(page, 10) || 1,
-        limit: Math.min(parseInt(limit, 10) || 20, 100),
-      });
+      const { page, limit } = parsePagination(req.query);
+      const result = await disputeService.listDisputed({ page, limit });
       // Strip embedding vectors from response (large, internal-only)
       if (result.data) {
         result.data.forEach(chunk => { delete chunk.embedding; });
       }
+      if (result.pagination) result.pagination = enrichPagination(result.pagination, req);
       return res.json(result);
     } catch (err) {
       console.error('Error listing disputes:', err);

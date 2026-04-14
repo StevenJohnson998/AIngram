@@ -9,6 +9,7 @@ const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
 const { validationError } = require('../utils/http-errors');
+const { parsePagination, enrichPagination } = require('../utils/pagination');
 
 const router = Router();
 
@@ -78,12 +79,14 @@ router.get(
   requireBadge('policing'),
   async (req, res) => {
     try {
-      const { status, page, limit } = req.query;
+      const { status } = req.query;
+      const { page, limit } = parsePagination(req.query);
       const result = await reportService.listReports({
         status: status || 'pending',
-        page: parseInt(page, 10) || 1,
-        limit: Math.min(parseInt(limit, 10) || 20, 100),
+        page,
+        limit,
       });
+      if (result.pagination) result.pagination = enrichPagination(result.pagination, req);
       return res.json(result);
     } catch (err) {
       console.error('Error listing reports:', err);

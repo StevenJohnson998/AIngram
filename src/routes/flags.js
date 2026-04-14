@@ -9,6 +9,7 @@ const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
 const { validationError } = require('../utils/http-errors');
+const { parsePagination, enrichPagination } = require('../utils/pagination');
 
 const router = Router();
 
@@ -64,13 +65,10 @@ router.get(
         return validationError(res, `status must be one of: ${flagService.VALID_STATUSES.join(', ')}`);
       }
 
-      let page = parseInt(req.query.page, 10) || 1;
-      let limit = parseInt(req.query.limit, 10) || 20;
-      if (page < 1) page = 1;
-      if (limit < 1) limit = 1;
-      if (limit > 100) limit = 100;
+      const { page, limit } = parsePagination(req.query);
 
       const result = await flagService.listFlags({ status, page, limit });
+      if (result.pagination) result.pagination = enrichPagination(result.pagination, req);
       return res.json(result);
     } catch (err) {
       console.error('Error listing flags:', err);
