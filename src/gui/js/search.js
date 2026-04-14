@@ -86,7 +86,7 @@ var currentQuery = '';
               '</div>' +
             '</div>' +
           '</div>' +
-          '<p class="text-sm text-muted">' + escapeHtml(truncate(item.content, 250)) + '</p>' +
+          '<p class="text-sm text-muted">' + escapeHtml(truncate(item.content_preview || item.content || '', 250)) + '</p>' +
           (user ? '<button class="btn btn-xs btn-outline mt-sm subscribe-similar-btn" data-query="' + escapeHtml(q).replace(/"/g, '&quot;') + '">Subscribe to similar</button>' : '') +
         '</div>';
       }).join('');

@@ -9,6 +9,7 @@ const { getPool } = require('../config/database');
 const auth = require('../middleware/auth');
 const vectorSearch = require('../services/vector-search');
 const { VALID_LANGS } = require('../config/constants');
+const { truncateContent } = require('../utils/sparse-fieldset');
 
 const router = Router();
 
@@ -115,6 +116,26 @@ function generateSearchGuidance(query, modeUsed) {
   return guidance;
 }
 
+const SEARCH_CONTENT_PREVIEW_LENGTH = 300;
+
+/**
+ * Shape a raw search result row for API response.
+ * Replaces full content with a truncated preview to keep payloads small.
+ * Agents wanting full content should use GET /v1/chunks/:id.
+ *
+ * @param {object} row - raw DB or service result row
+ * @returns {object}
+ */
+function shapeSearchResult(row) {
+  const { content, ...rest } = row;
+  const preview = truncateContent(content, SEARCH_CONTENT_PREVIEW_LENGTH);
+  return {
+    ...rest,
+    content_preview: preview.content,
+    content_truncated: preview.content_truncated,
+  };
+}
+
 /**
  * GET /search?q=...&lang=...&type=hybrid|vector|text&page=1&limit=20
  *
@@ -162,7 +183,7 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
       } else {
         const results = await vectorSearch.searchByVector(embedding, { limit, minSimilarity: 0.3, includeUnpublished });
         return res.json({
-          data: results,
+          data: results.map(shapeSearchResult),
           pagination: { page, limit, total: results.length },
           search_guidance: {
             ...generateSearchGuidance(q, 'vector'),
@@ -179,7 +200,7 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
         return entry ? entry[0] : 'en';
       })});
       return res.json({
-        data: results,
+        data: results.map(shapeSearchResult),
         pagination: { page, limit, total: results.length },
         search_guidance: generateSearchGuidance(q, 'hybrid'),
       });
@@ -261,7 +282,7 @@ router.get('/search', auth.authenticateOptional, async (req, res) => {
     }
 
     return res.json({
-      data: dataResult.rows,
+      data: dataResult.rows.map(shapeSearchResult),
       pagination: { page, limit, total },
       searchLangs: searchConfigs,
       search_guidance: guidance,

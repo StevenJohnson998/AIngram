@@ -19,6 +19,8 @@ const { REJECTION_CATEGORIES, REJECTION_SUGGESTIONS_MAX_LENGTH, BULK_MAX_CHUNKS 
 const { getPool } = require('../config/database');
 const { OBJECTION_REASON_TAGS } = require('../config/protocol');
 const { checkBackpressure, getQuarantineQueueStats, resetCircuitBreaker } = require('../services/quarantine-validator');
+const { parseFields, applyFieldset } = require('../utils/sparse-fieldset');
+const { DEFAULTS } = require('../utils/fieldset-defaults');
 
 const router = Router();
 
@@ -186,6 +188,8 @@ router.post(
 );
 
 // GET /topics — list topics
+// Supports sparse fieldsets via ?fields=id,title,slug (see fieldset-defaults.js TOPIC_LIST for defaults).
+// Embedding and injection metadata are always stripped.
 router.get('/topics', auth.authenticateOptional, async (req, res) => {
   try {
     const { lang, sensitivity, status, topicType, include_empty } = req.query;
@@ -205,8 +209,15 @@ router.get('/topics', auth.authenticateOptional, async (req, res) => {
       return validationError(res, `topicType must be one of: ${VALID_TOPIC_TYPES.join(', ')}`);
     }
 
+    const fields = parseFields(req.query.fields);
     const result = await topicService.listTopics({ lang, status, sensitivity, topicType, includeEmpty, page, limit });
     if (result.pagination) result.pagination = enrichPagination(result.pagination, req);
+
+    // Apply sparse fieldset — defaults strip heavy fields (refresh_*, agorai_conversation_id, etc.)
+    result.data = result.data.map(row =>
+      applyFieldset(row, fields, { defaults: DEFAULTS.TOPIC_LIST, always: ['id'] })
+    );
+
     return res.json(result);
   } catch (err) {
     console.error('Error listing topics:', err);

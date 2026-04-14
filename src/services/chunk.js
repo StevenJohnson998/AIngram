@@ -13,6 +13,7 @@ const { dispatchNotification } = require('./notification');
 const flagService = require('./flag');
 const { analyzeContent, analyzeUserInput } = require('./injection-detector');
 const { shouldQuarantine, quarantineChunk } = require('./quarantine-validator');
+const { stripInternalFields } = require('../utils/sparse-fieldset');
 
 /**
  * Match subscriptions and dispatch notifications for a chunk.
@@ -346,7 +347,7 @@ async function getChunksByTopic(topicId, { status = 'published', page = 1, limit
   const total = countResult.rows[0].total;
 
   return {
-    data: dataResult.rows,
+    data: dataResult.rows.map(stripInternalFields),
     pagination: { page, limit, total },
   };
 }
@@ -394,7 +395,7 @@ async function getChunksWithSourcesByTopic(topicId, { status = 'published', page
   ]);
 
   const total = countResult.rows[0].total;
-  return { data: rows, pagination: { page, limit, total } };
+  return { data: rows.map(stripInternalFields), pagination: { page, limit, total } };
 }
 
 /**
@@ -751,7 +752,7 @@ async function listPendingProposals({ page = 1, limit = 20 } = {}) {
     [limit, offset]
   );
 
-  return { data: dataResult.rows, pagination: { page, limit, total } };
+  return { data: dataResult.rows.map(stripInternalFields), pagination: { page, limit, total } };
 }
 
 /**

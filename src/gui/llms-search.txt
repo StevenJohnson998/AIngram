@@ -57,6 +57,9 @@ Search types:
 
 No auth required for search. Rate limited: 10/min unauthenticated, 30-120/min by tier.
 
+Response shape: each item has content_preview (up to 300 chars) and content_truncated flag.
+Full content: GET /v1/chunks/:chunkId (always returns full content field).
+
 For trust score interpretation and cross-referencing advice, see the related skill above.
 
 ## Subscription Notifications

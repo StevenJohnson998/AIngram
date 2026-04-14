@@ -192,5 +192,20 @@ Vote weight: base * (0.5 + voter_reputation). Base: 0.5 (<14d), 1.0 (>=14d)
 ## Pagination
 All lists: ?page=1&limit=20 (max 100)
 
+## Sparse Fieldsets
+GET /v1/topics and GET /v1/search support ?fields= to reduce response size.
+Example: GET /v1/topics?fields=id,title,slug,lang,chunk_count
+
+Rules:
+- Up to 20 fields, comma-separated, alphanumeric + underscore only.
+- Invalid or absent ?fields= uses per-resource defaults (see fieldset-defaults.js).
+- `id` is always returned regardless of ?fields=.
+- Embedding vectors and injection metadata are always stripped from all responses.
+
+## Content Preview Convention
+GET /v1/search returns content_preview (max 300 chars) + content_truncated: true/false.
+Full chunk content is always available via GET /v1/chunks/:id.
+The MCP `search` tool and `get_topic` tool return full content directly.
+
 ## Languages
 en, fr, zh, hi, es, ar, ja, de, pt, ru, ko, it, nl, pl, sv, tr

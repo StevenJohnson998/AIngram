@@ -5,6 +5,7 @@
 const { getPool } = require('../config/database');
 const { generateSlug, ensureUniqueSlug } = require('../utils/slug');
 const { analyzeUserInput } = require('./injection-detector');
+const { stripInternalFields } = require('../utils/sparse-fieldset');
 
 // Matches topics.embedding column width (migration 048). Update if the column migrates.
 const TOPIC_EMBEDDING_DIM = 768;
@@ -118,7 +119,7 @@ async function getTopicById(id) {
     [id]
   );
 
-  return rows[0] || null;
+  return rows[0] ? stripInternalFields(rows[0]) : null;
 }
 
 /**
@@ -139,7 +140,7 @@ async function getTopicBySlug(slug, lang) {
     [slug, lang]
   );
 
-  return rows[0] || null;
+  return rows[0] ? stripInternalFields(rows[0]) : null;
 }
 
 /**
@@ -221,7 +222,7 @@ async function listTopics({ lang, status, sensitivity, topicType, includeEmpty =
   );
 
   return {
-    data: dataResult.rows,
+    data: dataResult.rows.map(stripInternalFields),
     pagination: { page, limit, total },
   };
 }
