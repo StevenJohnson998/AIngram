@@ -244,6 +244,27 @@ didn't, where you got stuck, and a 1-10 rating.
 (Your API key is ${apiKey}, already wired into the HTTP tools.)`;
 }
 
+// Normalize a URL path for grouping: strip query string + replace UUIDs with :uuid.
+// Lets us group "/v1/topics/abc-123-.../chunks" + "/v1/topics/def-456-.../chunks" as one bucket.
+const UUID_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+function normalizePath(path) {
+  if (!path) return '';
+  const noQuery = path.split('?')[0];
+  return noQuery.replace(UUID_RE, ':uuid');
+}
+
+function recordPayload(stats, method, path, statusCode, bodyLen) {
+  const key = `${method} ${normalizePath(path)}`;
+  if (!stats.payloads[key]) {
+    stats.payloads[key] = { count: 0, totalBytes: 0, errorCount: 0, successBytes: 0 };
+  }
+  const p = stats.payloads[key];
+  p.count += 1;
+  p.totalBytes += bodyLen || 0;
+  if (statusCode >= 400) p.errorCount += 1;
+  else p.successBytes += bodyLen || 0;
+}
+
 async function runBot(bot) {
   const maxTurns = MAX_TURNS_BY_ARCHETYPE[bot.archetype] ?? DEFAULT_MAX_TURNS;
   log(`\n===== BOT ${bot.name} (${bot.archetype}, max ${maxTurns} turns) =====`);
@@ -255,6 +276,7 @@ async function runBot(bot) {
     turns: 0,
     tokens: { prompt: 0, completion: 0, total: 0 },
     calls: { http_get: 0, http_post: 0, http_put: 0, http_patch: 0, report_done: 0 },
+    payloads: {}, // { "METHOD /path": { count, totalBytes, errorCount, successBytes } }
     terminated: 'max_turns',
     report: null,
   };
@@ -300,21 +322,25 @@ async function runBot(bot) {
         stats.calls.http_get++;
         const resp = await callAIngram('GET', args.path, null, bot.apiKey);
         log(`  GET  ${args.path} -> ${resp.status} (${resp.body.length}c)`);
+        recordPayload(stats, 'GET', args.path, resp.status, resp.body.length);
         toolResult = JSON.stringify(resp);
       } else if (fn.name === 'http_post') {
         stats.calls.http_post++;
         const resp = await callAIngram('POST', args.path, args.body, bot.apiKey);
         log(`  POST ${args.path} -> ${resp.status}`);
+        recordPayload(stats, 'POST', args.path, resp.status, resp.body.length);
         toolResult = JSON.stringify(resp);
       } else if (fn.name === 'http_put') {
         stats.calls.http_put++;
         const resp = await callAIngram('PUT', args.path, args.body, bot.apiKey);
         log(`  PUT  ${args.path} -> ${resp.status}`);
+        recordPayload(stats, 'PUT', args.path, resp.status, resp.body.length);
         toolResult = JSON.stringify(resp);
       } else if (fn.name === 'http_patch') {
         stats.calls.http_patch = (stats.calls.http_patch || 0) + 1;
         const resp = await callAIngram('PATCH', args.path, args.body, bot.apiKey);
         log(`  PATCH ${args.path} -> ${resp.status}`);
+        recordPayload(stats, 'PATCH', args.path, resp.status, resp.body.length);
         toolResult = JSON.stringify(resp);
       } else if (fn.name === 'report_done') {
         stats.calls.report_done++;
@@ -436,6 +462,37 @@ async function distributionFor(botIds) {
     for (const row of dist) {
       log(`  ${String(row.archetype).padEnd(12)} ${row.action.padEnd(32)} ${row.count}`);
     }
+
+    // Aggregate per-endpoint payload stats across all bots, rank by total bytes.
+    log('\n===== PAYLOAD BY ENDPOINT (top 20 by total bytes, all bots) =====');
+    const aggPayloads = {};
+    for (const { stats } of reports) {
+      for (const [key, p] of Object.entries(stats.payloads || {})) {
+        if (!aggPayloads[key]) {
+          aggPayloads[key] = { count: 0, totalBytes: 0, errorCount: 0, successBytes: 0 };
+        }
+        aggPayloads[key].count += p.count;
+        aggPayloads[key].totalBytes += p.totalBytes;
+        aggPayloads[key].errorCount += p.errorCount;
+        aggPayloads[key].successBytes += p.successBytes;
+      }
+    }
+    const rows = Object.entries(aggPayloads)
+      .map(([key, p]) => ({ key, ...p, meanBytes: p.count ? Math.round(p.totalBytes / p.count) : 0 }))
+      .sort((a, b) => b.totalBytes - a.totalBytes)
+      .slice(0, 20);
+    log('  ' + 'endpoint'.padEnd(55) + ' count  mean     total      err');
+    for (const r of rows) {
+      log(
+        '  ' + r.key.padEnd(55) +
+        ' ' + String(r.count).padStart(5) +
+        ' ' + String(r.meanBytes).padStart(7) + 'c' +
+        ' ' + String(r.totalBytes).padStart(9) + 'c' +
+        ' ' + String(r.errorCount).padStart(3)
+      );
+    }
+    const totalBytes = Object.values(aggPayloads).reduce((a, p) => a + p.totalBytes, 0);
+    log(`  TOTAL payload bytes ingested into LLM history: ${totalBytes}c`);
 
     log('\n===== CREDENTIALS (keep for GUI inspection, NO cleanup) =====');
     for (const b of bots) {
