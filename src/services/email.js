@@ -10,6 +10,54 @@ function isConfigured() {
 }
 
 /**
+ * Global daily email quota. Protects against burning through provider's cap
+ * (e.g. Brevo free tier = 300/day). Configurable via SMTP_DAILY_LIMIT env var.
+ * Returns { allowed, count, limit }. A small race window means 1-2 sends may
+ * exceed the limit in rare concurrent bursts — acceptable when the soft limit
+ * leaves buffer below the hard cap.
+ */
+async function checkAndIncrementDailyQuota() {
+  const limit = parseInt(process.env.SMTP_DAILY_LIMIT || '250', 10);
+  const { getPool } = require('../config/database');
+  const pool = getPool();
+
+  const { rows: readRows } = await pool.query(
+    'SELECT count FROM email_daily_counter WHERE day = CURRENT_DATE'
+  );
+  const current = readRows[0]?.count || 0;
+  if (current >= limit) {
+    return { allowed: false, count: current, limit };
+  }
+
+  const { rows: incRows } = await pool.query(
+    `INSERT INTO email_daily_counter (day, count) VALUES (CURRENT_DATE, 1)
+     ON CONFLICT (day) DO UPDATE SET count = email_daily_counter.count + 1, updated_at = now()
+     RETURNING count`
+  );
+  return { allowed: true, count: incRows[0].count, limit };
+}
+
+/**
+ * Wraps a send. Checks quota, logs a warning + skips if over, otherwise runs the
+ * sendMail call. Keeps the log format consistent so operators can grep for skipped
+ * emails and see the email type + recipient + counter state.
+ */
+async function gatedSend(emailType, recipient, sendFn) {
+  let quota;
+  try {
+    quota = await checkAndIncrementDailyQuota();
+  } catch (err) {
+    console.warn(`[EMAIL] Quota check failed, sending anyway: ${err.message}`);
+    return sendFn();
+  }
+  if (!quota.allowed) {
+    console.warn(`[EMAIL] SKIPPED ${emailType} to ${recipient}: daily quota reached (${quota.count}/${quota.limit})`);
+    return;
+  }
+  return sendFn();
+}
+
+/**
  * Get or create the nodemailer transporter (lazy init).
  */
 function getTransporter() {
@@ -54,27 +102,29 @@ async function sendConfirmationEmail(account, token) {
     return;
   }
 
-  try {
-    const transport = getTransporter();
-    await transport.sendMail({
-      from: getFrom(),
-      to: account.owner_email,
-      subject: 'AIngram - Confirm your email',
-      text: [
-        `Welcome to AIngram, ${account.name}!`,
-        '',
-        'Please confirm your email address by visiting the link below:',
-        url,
-        '',
-        'This link expires in 24 hours.',
-        '',
-        'If you did not create this account, you can ignore this email.',
-      ].join('\n'),
-    });
-    console.log(`[EMAIL] Confirmation sent to ${account.owner_email}`);
-  } catch (err) {
-    console.warn(`[EMAIL] Failed to send confirmation to ${account.owner_email}: ${err.message}`);
-  }
+  return gatedSend('confirmation', account.owner_email, async () => {
+    try {
+      const transport = getTransporter();
+      await transport.sendMail({
+        from: getFrom(),
+        to: account.owner_email,
+        subject: 'AIngram - Confirm your email',
+        text: [
+          `Welcome to AIngram, ${account.name}!`,
+          '',
+          'Please confirm your email address by visiting the link below:',
+          url,
+          '',
+          'This link expires in 24 hours.',
+          '',
+          'If you did not create this account, you can ignore this email.',
+        ].join('\n'),
+      });
+      console.log(`[EMAIL] Confirmation sent to ${account.owner_email}`);
+    } catch (err) {
+      console.warn(`[EMAIL] Failed to send confirmation to ${account.owner_email}: ${err.message}`);
+    }
+  });
 }
 
 /**
@@ -88,27 +138,29 @@ async function sendPasswordResetEmail(email, token) {
     return;
   }
 
-  try {
-    const transport = getTransporter();
-    await transport.sendMail({
-      from: getFrom(),
-      to: email,
-      subject: 'AIngram - Reset your password',
-      text: [
-        'A password reset was requested for your AIngram account.',
-        '',
-        'Reset your password by visiting the link below:',
-        url,
-        '',
-        'This link expires in 1 hour.',
-        '',
-        'If you did not request this, you can ignore this email.',
-      ].join('\n'),
-    });
-    console.log(`[EMAIL] Password reset sent to ${email}`);
-  } catch (err) {
-    console.warn(`[EMAIL] Failed to send password reset to ${email}: ${err.message}`);
-  }
+  return gatedSend('password_reset', email, async () => {
+    try {
+      const transport = getTransporter();
+      await transport.sendMail({
+        from: getFrom(),
+        to: email,
+        subject: 'AIngram - Reset your password',
+        text: [
+          'A password reset was requested for your AIngram account.',
+          '',
+          'Reset your password by visiting the link below:',
+          url,
+          '',
+          'This link expires in 1 hour.',
+          '',
+          'If you did not request this, you can ignore this email.',
+        ].join('\n'),
+      });
+      console.log(`[EMAIL] Password reset sent to ${email}`);
+    } catch (err) {
+      console.warn(`[EMAIL] Failed to send password reset to ${email}: ${err.message}`);
+    }
+  });
 }
 
 /**
@@ -128,29 +180,31 @@ async function sendSubscriptionMatchEmail(email, match, subscription) {
     : 'Topic update';
   const similarity = match.similarity ? ` (${(match.similarity * 100).toFixed(0)}% similarity)` : '';
 
-  try {
-    const transport = getTransporter();
-    await transport.sendMail({
-      from: getFrom(),
-      to: email,
-      subject: `AIngram - ${matchLabel} on your subscription`,
-      text: [
-        `New content matching your subscription${similarity}:`,
-        '',
-        match.contentPreview || '(no preview available)',
-        '',
-        `Match type: ${matchLabel}`,
-        `Subscription: ${subscription.type}${subscription.keyword ? ' (' + subscription.keyword + ')' : ''}`,
-        '',
-        `View on AIngram: ${getBaseUrl()}`,
-        '',
-        'To manage your subscriptions, visit your settings page.',
-      ].join('\n'),
-    });
-    console.log(`[EMAIL] Subscription match sent to ${email}`);
-  } catch (err) {
-    console.warn(`[EMAIL] Failed to send subscription match to ${email}: ${err.message}`);
-  }
+  return gatedSend('subscription_match', email, async () => {
+    try {
+      const transport = getTransporter();
+      await transport.sendMail({
+        from: getFrom(),
+        to: email,
+        subject: `AIngram - ${matchLabel} on your subscription`,
+        text: [
+          `New content matching your subscription${similarity}:`,
+          '',
+          match.contentPreview || '(no preview available)',
+          '',
+          `Match type: ${matchLabel}`,
+          `Subscription: ${subscription.type}${subscription.keyword ? ' (' + subscription.keyword + ')' : ''}`,
+          '',
+          `View on AIngram: ${getBaseUrl()}`,
+          '',
+          'To manage your subscriptions, visit your settings page.',
+        ].join('\n'),
+      });
+      console.log(`[EMAIL] Subscription match sent to ${email}`);
+    } catch (err) {
+      console.warn(`[EMAIL] Failed to send subscription match to ${email}: ${err.message}`);
+    }
+  });
 }
 
 /**
@@ -175,38 +229,40 @@ async function sendBanNotification(accountId, reason) {
     return;
   }
 
-  try {
-    const transport = getTransporter();
-    await transport.sendMail({
-      from: getFrom(),
-      to: email,
-      subject: 'AIngram - Your account has been suspended',
-      text: [
-        `Hello ${name},`,
-        '',
-        'Your AIngram account has been suspended following an automated security review.',
-        '',
-        `Reason: ${reason}`,
-        '',
-        'What this means:',
-        '- You can no longer log in or post content on AIngram.',
-        '- Your existing contributions remain visible while under review.',
-        '',
-        'If you believe this is a mistake, you can appeal by contacting:',
-        contestEmail,
-        '',
-        'Please include your account name and a description of the activity you believe was flagged in error.',
-        '',
-        'For the full platform terms, see:',
-        `${getBaseUrl()}/terms`,
-        '',
-        '-- The AIngram Team',
-      ].join('\n'),
-    });
-    console.log(`[EMAIL] Ban notification sent to ${email}`);
-  } catch (err) {
-    console.warn(`[EMAIL] Failed to send ban notification to ${email}: ${err.message}`);
-  }
+  return gatedSend('ban_notification', email, async () => {
+    try {
+      const transport = getTransporter();
+      await transport.sendMail({
+        from: getFrom(),
+        to: email,
+        subject: 'AIngram - Your account has been suspended',
+        text: [
+          `Hello ${name},`,
+          '',
+          'Your AIngram account has been suspended following an automated security review.',
+          '',
+          `Reason: ${reason}`,
+          '',
+          'What this means:',
+          '- You can no longer log in or post content on AIngram.',
+          '- Your existing contributions remain visible while under review.',
+          '',
+          'If you believe this is a mistake, you can appeal by contacting:',
+          contestEmail,
+          '',
+          'Please include your account name and a description of the activity you believe was flagged in error.',
+          '',
+          'For the full platform terms, see:',
+          `${getBaseUrl()}/terms`,
+          '',
+          '-- The AIngram Team',
+        ].join('\n'),
+      });
+      console.log(`[EMAIL] Ban notification sent to ${email}`);
+    } catch (err) {
+      console.warn(`[EMAIL] Failed to send ban notification to ${email}: ${err.message}`);
+    }
+  });
 }
 
 /**
