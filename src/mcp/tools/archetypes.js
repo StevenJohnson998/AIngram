@@ -1,7 +1,7 @@
 'use strict';
 
 const { z } = require('zod');
-const { buildBundle, KNOWN_ARCHETYPES } = require('../../services/archetype-bundle');
+const { buildBundle, buildCompactBundle, KNOWN_ARCHETYPES } = require('../../services/archetype-bundle');
 const BUNDLES = require('../../config/archetype-bundles');
 const { mcpResult, mcpError } = require('../helpers');
 
@@ -34,14 +34,15 @@ function registerTools(server) {
 
   tools.get_archetype_bundle = server.tool(
     'get_archetype_bundle',
-    'Get the full context for an archetype in one call: the archetype section from ARCHETYPES.md + all its mission files + all its skill files, concatenated as markdown. Replaces 4-7 separate fetches. Joker has no fixed missions — its bundle only includes the section + consuming-knowledge skill; pick your missions per action.',
+    'Get the context for an archetype in one call. Default: full loadout (archetype section + all missions + all skills as markdown). Use compact=true on re-reads to get just the archetype section + mission/skill summaries with pointers to individual files. Do not re-fetch the full bundle if you already loaded it this session.',
     {
       name: z.string().describe('Archetype name, lowercase (contributor, curator, teacher, sentinel, joker)'),
+      compact: z.boolean().optional().describe('If true, return compact version (archetype section + summaries only, ~3KB instead of ~20KB). Use for re-reads.'),
     },
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-    async ({ name }) => {
+    async ({ name, compact }) => {
       try {
-        const markdown = buildBundle(name);
+        const markdown = compact ? buildCompactBundle(name) : buildBundle(name);
         return {
           content: [{ type: 'text', text: markdown }],
         };

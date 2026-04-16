@@ -1,13 +1,16 @@
 'use strict';
 
 const { Router } = require('express');
-const { buildBundle } = require('../services/archetype-bundle');
+const { buildBundle, buildCompactBundle } = require('../services/archetype-bundle');
 
 const router = Router();
 
 router.get('/:name/bundle', (req, res) => {
   try {
-    const markdown = buildBundle(req.params.name);
+    const compact = req.query.compact === 'true';
+    const markdown = compact
+      ? buildCompactBundle(req.params.name)
+      : buildBundle(req.params.name);
     res.set('Cache-Control', 'public, max-age=3600');
     res.type('text/markdown').send(markdown);
   } catch (err) {
