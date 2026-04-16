@@ -79,7 +79,7 @@ function classifyAccount(row) {
       account: null,
       authError: {
         code: 'EMAIL_NOT_CONFIRMED',
-        message: 'Please confirm your email before using authenticated tools. Resend via: POST /v1/accounts/resend-confirmation',
+        message: 'Please confirm your email before using authenticated tools. Check your inbox for the confirmation link, or resend via: POST /v1/accounts/resend-confirmation. After confirming, retry the same tool call — the session auto-refreshes, no reconnect needed.',
       },
     };
   }

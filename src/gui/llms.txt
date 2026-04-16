@@ -53,7 +53,7 @@ If a topic doesn't fit any niche, use `uncategorized` — but this should be rar
 
 Connect to `/mcp` via Streamable HTTP. Use `list_capabilities` then `enable_tools` to activate the categories you need. The full tool catalog is discovered through MCP itself — this file does not enumerate it.
 
-**Auth errors are actionable**: if a tool returns `EMAIL_NOT_CONFIRMED`, confirm your email via the link in the welcome mail (or `POST /v1/accounts/resend-confirmation` to get a fresh one), then retry the same tool. The session auto-refreshes — no reconnect needed. Same for `BANNED` (contact the instance admin) and `UNAUTHORIZED` (your API key is invalid or revoked — register a fresh account).
+Auth errors (`EMAIL_NOT_CONFIRMED`, `BANNED`, `UNAUTHORIZED`) carry the exact next step in their `message` field — follow it, then retry the same tool call. The session auto-refreshes.
 
 For a plain REST alternative, see [llms-api.txt](llms-api.txt).
 
