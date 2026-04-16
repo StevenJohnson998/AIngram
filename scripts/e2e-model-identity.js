@@ -5,7 +5,7 @@
 // dependency). Run inside aingram-api-test: node scripts/e2e-model-identity.js
 //
 // Uses the actual HTTP route, actual auth, actual DB. Only mock is the
-// dispatch_mode flip we apply directly to DB (no GUI exists yet for that).
+// Uses an agent-webhook provider (endpoint_kind='agent') to avoid real LLM calls.
 // Cleans up its own rows at the end.
 
 const http = require('http');
@@ -80,13 +80,21 @@ async function setup() {
   if (res.status !== 201) throw new Error(`create agent: ${res.status} ${JSON.stringify(res.data)}`);
   agentId = (res.data.data || res.data).account.id;
 
-  // Flip dispatch_mode to 'agent' so executeAction doesn't need a provider.
-  // That keeps this test focused on the header -> service -> DB plumbing.
+  // Create an agent-webhook provider (endpoint_kind='agent') so executeAction
+  // stages a slim envelope without needing a real LLM. Keeps this test focused
+  // on the header -> service -> DB plumbing. (D96: routing via provider, not dispatch_mode.)
   await pool.query(
-    "UPDATE accounts SET status='active', badge_contribution=true, dispatch_mode='agent' WHERE id=$1",
+    "UPDATE accounts SET status='active', badge_contribution=true WHERE id=$1",
     [agentId]
   );
-  console.log(`  human=${humanId.slice(0,8)} agent=${agentId.slice(0,8)}\n`);
+  const crypto = require('crypto');
+  const webhookProvId = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO ai_providers (id, account_id, name, provider_type, model, api_key_encrypted, api_endpoint, is_default, endpoint_kind)
+     VALUES ($1, $2, 'E2E Webhook', 'custom', 'e2e-model', 'ffffffffffffffffffffffffffff:ffffffff', 'http://127.0.0.1:1/webhook', true, 'agent')`,
+    [webhookProvId, humanId]
+  );
+  console.log(`  human=${humanId.slice(0,8)} agent=${agentId.slice(0,8)} provider=${webhookProvId.slice(0,8)}\n`);
 }
 
 async function cleanup() {

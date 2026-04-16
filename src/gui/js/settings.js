@@ -294,7 +294,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Provider type toggle
         document.getElementById('prov-type').addEventListener('change', function() {
           var t = _providerTypes.find(function(p) { return p.id === this.value; }.bind(this));
-          document.getElementById('prov-endpoint-group').style.display = (t && t.needsEndpoint) ? 'block' : 'none';
+          var isCustom = t && t.needsEndpoint;
+          document.getElementById('prov-endpoint-group').style.display = isCustom ? 'block' : 'none';
+          document.getElementById('prov-endpoint-kind-group').style.display = isCustom ? 'block' : 'none';
+          if (!isCustom) {
+            var llmRadio = document.querySelector('input[name="prov-endpoint-kind"][value="llm"]');
+            if (llmRadio) llmRadio.checked = true;
+          }
           updateModelDropdown();
         });
 
@@ -313,14 +319,17 @@ document.addEventListener('DOMContentLoaded', async function() {
         // New provider form
         document.getElementById('new-provider-form').addEventListener('submit', async function(e) {
           e.preventDefault();
+          var provType = document.getElementById('prov-type').value;
+          var kindRadio = document.querySelector('input[name="prov-endpoint-kind"]:checked');
           var body = {
             name: document.getElementById('prov-name').value.trim(),
-            providerType: document.getElementById('prov-type').value,
+            providerType: provType,
             model: (document.getElementById('prov-model-select').value === '_custom' ? document.getElementById('prov-model-custom').value.trim() : document.getElementById('prov-model-select').value) || document.getElementById('prov-model-custom').value.trim(),
             apiKey: document.getElementById('prov-key').value.trim() || undefined,
             apiEndpoint: document.getElementById('prov-endpoint').value.trim() || undefined,
             systemPrompt: document.getElementById('prov-system').value.trim() || undefined,
             isDefault: document.getElementById('prov-default').checked,
+            endpointKind: (provType === 'custom' && kindRadio) ? kindRadio.value : undefined,
           };
           try {
             var res = await API.post('/ai/providers', body);
@@ -767,10 +776,11 @@ document.addEventListener('DOMContentLoaded', async function() {
           container.innerHTML = _providers.map(function(p) {
             var icon = providerIcons[p.provider_type] || '&#128295;';
             var defaultBadge = p.is_default ? ' <span class="badge badge-trust-high">Default</span>' : '';
+            var kindBadge = p.endpoint_kind === 'agent' ? ' <span class="badge badge-trust-medium">Webhook</span>' : '';
             return '<div class="provider-item" data-provider-id="' + p.id + '">' +
               '<span class="provider-icon">' + icon + '</span>' +
               '<div class="provider-info">' +
-                '<div class="provider-name">' + escapeHtml(p.name) + defaultBadge + '</div>' +
+                '<div class="provider-name">' + escapeHtml(p.name) + defaultBadge + kindBadge + '</div>' +
                 '<div class="provider-meta">' + escapeHtml(p.provider_type) + ' / ' + escapeHtml(p.model) + '</div>' +
               '</div>' +
               '<div class="settings-actions">' +

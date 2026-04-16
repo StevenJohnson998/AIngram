@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-04-16 -- endpoint_kind dispatch routing (ADR D96, feat/d96-endpoint-kind)
+
+Relocates dispatch routing from `accounts.dispatch_mode` to
+`ai_providers.endpoint_kind`. Statefulness is a property of the endpoint,
+not the account -- an agent can now simultaneously use LLM and webhook
+providers.
+
+**Migration 062**: adds `endpoint_kind` (VARCHAR, 'llm'|'agent', default 'llm'),
+`auth_scheme` ('bearer'|'header'|'hmac', default 'bearer'), and
+`auth_header_name` to `ai_providers`. All existing rows default to 'llm'.
+
+**Dispatch routing rewrite** (`ai-action.js`): provider is resolved first,
+then `provider.endpoint_kind` determines the path. Phase 1b fallback reads
+legacy `accounts.dispatch_mode` if `endpoint_kind` is missing. Agent-mode
+INSERT now stores `provider.id` (not NULL). `getActionHistory` fixed to use
+LEFT JOIN (old agent-mode rows with NULL provider_id were silently excluded).
+
+**Route guard relaxation** (`ai-actions.js`): autonomous agents with an
+explicit `providerId` are no longer rejected (degenerate case only).
+
+**GUI**: custom providers show an "Endpoint type" radio (LLM / Agent webhook).
+Predefined providers always LLM. Provider list shows "Webhook" badge.
+
+**MCP**: `create_provider` and `update_provider` accept `endpointKind` param.
+`list_providers` returns `endpointKind`.
+
+`accounts.dispatch_mode` remains in the DB but is no longer the primary
+routing signal. Will be dropped in a future migration.
+
 ## 2026-04-14 -- model identity on ai_actions (feat/model-identity-ai-actions)
 
 Captures which LLM model was behind each `ai_actions` row. Two paths:

@@ -1,16 +1,12 @@
 // @ts-check
 /**
- * 14 — GUI contribution dispatch mode (ADR D95)
+ * 14 — Endpoint-kind dispatch routing (ADR D96, supersedes D95 dispatch_mode)
  *
- * Verifies the per-user dispatch_mode routing in POST /v1/ai/actions:
- *   - dispatch_mode = 'llm'   → provider is called (or error if none configured)
- *   - dispatch_mode = 'agent' → slim envelope staged, NO provider call
- *   - dispatch_mode = NULL    → defaults to 'llm'
- *
- * The agent path is the observable-only form: the envelope is stored in
- * ai_actions.result and returned in the HTTP response. The receiver side
- * (agent actually pulling tasks) is out of scope until the dispatch
- * protocol (MCP queue / webhook) is picked.
+ * Verifies per-provider endpoint_kind routing in POST /v1/ai/actions:
+ *   - endpoint_kind = 'agent' → slim envelope staged, NO LLM call
+ *   - endpoint_kind = 'llm'   → provider called (or error if unreachable)
+ *   - no provider at all      → PROVIDER_REQUIRED error
+ *   - Phase 1b fallback       → legacy dispatch_mode used when endpoint_kind missing
  */
 
 const { test, expect } = require('@playwright/test');
@@ -21,21 +17,6 @@ const {
 } = require('./helpers');
 
 const API = process.env.API_CONTAINER || 'aingram-api-test';
-
-/** Set the dispatch_mode on an account row (direct DB update — test-only). */
-function setDispatchMode(accountId, mode) {
-  const modeSql = mode === null ? 'NULL' : `'${mode}'`;
-  const script = `
-    const { Pool } = require('pg');
-    const pool = new Pool({ host: process.env.DB_HOST || 'postgres', database: process.env.DB_NAME, user: process.env.DB_USER, password: process.env.DB_PASSWORD });
-    (async () => {
-      await pool.query("UPDATE accounts SET dispatch_mode = ${modeSql} WHERE id = $1", ['${accountId}']);
-      console.log('ok');
-      await pool.end();
-    })();
-  `;
-  execSync(`docker exec -i ${API} node`, { input: script, encoding: 'utf-8', timeout: 10000 });
-}
 
 /** Read back the ai_actions row for assertions. */
 function readActionRow(actionId) {
@@ -55,17 +36,18 @@ function readActionRow(actionId) {
   return JSON.parse(raw);
 }
 
-/** Create a provider for this root human (fake endpoint — won't succeed but provider exists). */
-function createProviderInDB(parentId) {
+/** Create a provider with configurable endpoint_kind. */
+function createProviderInDB(parentId, { endpointKind = 'llm' } = {}) {
   const script = `
     const crypto = require('crypto');
     const { Pool } = require('pg');
     const pool = new Pool({ host: process.env.DB_HOST || 'postgres', database: process.env.DB_NAME, user: process.env.DB_USER, password: process.env.DB_PASSWORD });
     (async () => {
       const id = crypto.randomUUID();
+      const isDefault = '${endpointKind}' === 'llm';
       await pool.query(
-        "INSERT INTO ai_providers (id, account_id, name, provider_type, model, api_key_encrypted, api_endpoint, is_default) VALUES ($1, $2, 'TestProv', 'custom', 'test-model', 'ffffffffffffffffffffffffffff:ffffffff', 'http://127.0.0.1:9', true)",
-        [id, '${parentId}']
+        "INSERT INTO ai_providers (id, account_id, name, provider_type, model, api_key_encrypted, api_endpoint, is_default, endpoint_kind) VALUES ($1, $2, 'TestProv', 'custom', 'test-model', 'ffffffffffffffffffffffffffff:ffffffff', 'http://127.0.0.1:9', $3, $4)",
+        [id, '${parentId}', isDefault, '${endpointKind}']
       );
       console.log(JSON.stringify({ id }));
       await pool.end();
@@ -75,21 +57,22 @@ function createProviderInDB(parentId) {
   return JSON.parse(raw);
 }
 
-test.describe.serial('Dispatch mode routing (D95)', () => {
+test.describe.serial('Endpoint-kind dispatch routing (D96)', () => {
   let human, agent;
 
   test.beforeAll(async () => {
-    human = createUserInDB({ prefix: 'e2e-d95' });
+    human = createUserInDB({ prefix: 'e2e-d96' });
     agent = createSubAccountInDB(human.id);
   });
 
-  test('dispatch_mode=agent stages slim envelope, no provider called', async ({ request }) => {
-    setDispatchMode(agent.id, 'agent');
+  test('endpoint_kind=agent stages slim envelope, no LLM call', async ({ request }) => {
+    const provider = createProviderInDB(human.id, { endpointKind: 'agent' });
 
     const res = await request.post(`${BASE}/v1/ai/actions`, {
       headers: apiAuth(human),
       data: {
         agentId: agent.id,
+        providerId: provider.id,
         actionType: 'contribute',
         targetType: 'topic',
         targetId: crypto.randomUUID(),
@@ -110,23 +93,24 @@ test.describe.serial('Dispatch mode routing (D95)', () => {
     expect(body.usage.inputTokens).toBe(0);
     expect(body.usage.outputTokens).toBe(0);
 
-    // DB row must have provider_id=NULL (key structural invariant for agent mode)
+    // DB row must have provider_id set (D96: agent-webhook provider exists)
     const row = readActionRow(body.actionId);
     expect(row).not.toBeNull();
-    expect(row.provider_id).toBeNull();
+    expect(row.provider_id).toBe(provider.id);
     expect(row.status).toBe('pending');
     expect(row.result.status).toBe('pending_agent_dispatch');
     expect(row.result.envelope.action).toBe('contribute');
   });
 
-  test('dispatch_mode=llm without provider returns PROVIDER_REQUIRED', async ({ request }) => {
-    setDispatchMode(agent.id, 'llm');
-    // Ensure no provider: this parent has none from beforeAll.
+  test('no provider at all returns PROVIDER_REQUIRED', async ({ request }) => {
+    // Create a fresh human with no providers
+    const human2 = createUserInDB({ prefix: 'e2e-d96-noprov' });
+    const agent2 = createSubAccountInDB(human2.id);
 
     const res = await request.post(`${BASE}/v1/ai/actions`, {
-      headers: apiAuth(human),
+      headers: apiAuth(human2),
       data: {
-        agentId: agent.id,
+        agentId: agent2.id,
         actionType: 'review',
         targetType: 'chunk',
         targetId: crypto.randomUUID(),
@@ -136,14 +120,12 @@ test.describe.serial('Dispatch mode routing (D95)', () => {
 
     expect(res.status()).toBe(400);
     const json = await res.json();
-    // Error bodies may or may not be wrapped depending on middleware
     const errBody = json.data || json;
     expect(errBody.error.code).toBe('PROVIDER_REQUIRED');
   });
 
-  test('dispatch_mode=llm with provider dispatches through the provider path', async ({ request }) => {
-    setDispatchMode(agent.id, 'llm');
-    const provider = createProviderInDB(human.id);
+  test('endpoint_kind=llm dispatches through the LLM provider path', async ({ request }) => {
+    const provider = createProviderInDB(human.id, { endpointKind: 'llm' });
 
     const res = await request.post(`${BASE}/v1/ai/actions`, {
       headers: apiAuth(human),
@@ -157,10 +139,8 @@ test.describe.serial('Dispatch mode routing (D95)', () => {
       },
     });
 
-    // Provider endpoint is 127.0.0.1:9 (unreachable) — AIngram should fail the
-    // call and record it as failed. Important: we're verifying that the LLM
-    // path was taken (provider resolved + call attempted), not that it
-    // succeeds. Success would require a real mock LLM server, out of scope here.
+    // Provider endpoint is 127.0.0.1:9 (unreachable) — verifying LLM path
+    // was taken (provider resolved + call attempted), not that it succeeds.
     expect([200, 500]).toContain(res.status());
     const json = await res.json();
     const body = json.data || json;
@@ -169,16 +149,14 @@ test.describe.serial('Dispatch mode routing (D95)', () => {
       expect(body.error).toBeDefined();
       expect(body.error.code).toBe('INTERNAL_ERROR');
     } else {
-      // If somehow 200, verify it ran through provider (non-null provider row)
       const row = readActionRow(body.actionId);
       expect(row.provider_id).not.toBeNull();
     }
   });
 
-  test('dispatch_mode=NULL defaults to llm (with provider works identically)', async ({ request }) => {
-    setDispatchMode(agent.id, null);
-    // Provider from previous test still exists (is_default=true on human).
-
+  test('default endpoint_kind (llm) works when no explicit kind set', async ({ request }) => {
+    // The providers from previous tests have is_default=true, so the agent
+    // will pick one up. Verify it doesn't accidentally go agent-mode.
     const res = await request.post(`${BASE}/v1/ai/actions`, {
       headers: apiAuth(human),
       data: {
@@ -190,9 +168,7 @@ test.describe.serial('Dispatch mode routing (D95)', () => {
       },
     });
 
-    // Same behavior as llm with unreachable provider: 500 (or 200 only if mocked).
     expect([200, 500]).toContain(res.status());
-    // Envelope status must NOT be pending_agent_dispatch (we're in llm, not agent mode).
     if (res.status() === 200) {
       const json = await res.json();
       const body = json.data || json;

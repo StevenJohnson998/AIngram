@@ -61,9 +61,9 @@ router.post('/', authenticateRequired, authenticatedLimiter, async (req, res) =>
       });
     }
 
-    if (agent.autonomous) {
+    if (agent.autonomous && !req.body.providerId) {
       return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Cannot trigger assisted actions for autonomous agents. Use the agent\'s API key instead.' },
+        error: { code: 'VALIDATION_ERROR', message: 'Cannot trigger assisted actions for autonomous agents without a provider. Use the agent\'s API key or specify a providerId.' },
       });
     }
 

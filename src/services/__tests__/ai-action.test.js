@@ -352,7 +352,7 @@ describe('ai-action service', () => {
     });
   });
 
-  describe('dispatch_mode routing', () => {
+  describe('endpoint_kind routing (D96)', () => {
     const baseParams = {
       agentId: 'agent-1',
       parentId: 'parent-1',
@@ -363,11 +363,19 @@ describe('ai-action service', () => {
       context: { topicTitle: 'Transformers' },
     };
 
-    it('stages a slim envelope and skips provider when dispatch_mode=agent', async () => {
-      // Agent fetch returns dispatch_mode=agent
+    const agentProvider = {
+      id: 'prov-agent-1', account_id: 'parent-1', provider_type: 'custom',
+      model: 'agent-webhook', endpoint_kind: 'agent', name: 'My Agent Webhook',
+      system_prompt: null, max_tokens: 1024, temperature: 0.7,
+    };
+
+    it('stages a slim envelope when provider.endpoint_kind=agent', async () => {
+      // Agent fetch
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'agent' }],
+        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: null }],
       });
+      // Provider resolved via getDefaultProvider
+      aiProviderService.getDefaultProvider.mockResolvedValueOnce(agentProvider);
       // Insert action record (agent mode branch)
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-agent-1' }] });
 
@@ -382,15 +390,30 @@ describe('ai-action service', () => {
       });
       expect(result.inputTokens).toBe(0);
       expect(result.outputTokens).toBe(0);
-      // Provider must never be called in agent mode
-      expect(aiProviderService.getProviderById).not.toHaveBeenCalled();
-      expect(aiProviderService.getDefaultProvider).not.toHaveBeenCalled();
+      // Provider is resolved but callProvider must not be called in agent mode
       expect(aiProviderService.callProvider).not.toHaveBeenCalled();
-      // Insert should carry status='pending' and provider_id=NULL (VARCHAR(10) + FK constraints)
+      // Insert should carry provider.id (not NULL) and status='pending'
       const insertCall = mockPool.query.mock.calls[1];
       expect(insertCall[0]).toContain('INSERT INTO ai_actions');
-      expect(insertCall[0]).toContain('NULL');
       expect(insertCall[0]).toContain("'pending'");
+      expect(insertCall[1]).toContain('prov-agent-1');
+    });
+
+    it('falls back to dispatch_mode when provider has no endpoint_kind (Phase 1b)', async () => {
+      const legacyProvider = {
+        id: 'prov-legacy-1', account_id: 'parent-1', provider_type: 'custom',
+        model: 'legacy', name: 'Legacy', system_prompt: null, max_tokens: 1024, temperature: 0.7,
+        // no endpoint_kind property
+      };
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'agent' }],
+      });
+      aiProviderService.getDefaultProvider.mockResolvedValueOnce(legacyProvider);
+      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-fallback-1' }] });
+
+      const result = await aiActionService.executeAction(baseParams);
+      expect(result.dispatchMode).toBe('agent');
+      expect(result.result.status).toBe('pending_agent_dispatch');
     });
 
     it('defaults to llm mode when dispatch_mode is null (backfill behavior)', async () => {
@@ -519,28 +542,42 @@ describe('ai-action service', () => {
     });
 
     it('records agentModel into ai_actions.model_used in agent mode', async () => {
+      const agentProv = {
+        id: 'prov-agent-m1', account_id: 'parent-1', provider_type: 'custom',
+        model: 'agent-webhook', endpoint_kind: 'agent', name: 'Webhook',
+        system_prompt: null, max_tokens: 1024, temperature: 0.7,
+      };
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'agent' }],
+        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: null }],
       });
+      aiProviderService.getDefaultProvider.mockResolvedValueOnce(agentProv);
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-agent-m1' }] });
 
       await aiActionService.executeAction({ ...baseParams, agentModel: 'claude-opus-4-6' });
 
       const insertCall = mockPool.query.mock.calls[1];
       expect(insertCall[0]).toContain('model_used');
+      // agentModel overrides provider.model
       expect(insertCall[1][insertCall[1].length - 1]).toBe('claude-opus-4-6');
     });
 
-    it('stores NULL model_used in agent mode when no agentModel declared', async () => {
+    it('stores provider.model as model_used in agent mode when no agentModel declared', async () => {
+      const agentProv = {
+        id: 'prov-agent-m2', account_id: 'parent-1', provider_type: 'custom',
+        model: 'agent-webhook', endpoint_kind: 'agent', name: 'Webhook',
+        system_prompt: null, max_tokens: 1024, temperature: 0.7,
+      };
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'agent' }],
+        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: null }],
       });
+      aiProviderService.getDefaultProvider.mockResolvedValueOnce(agentProv);
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-agent-m2' }] });
 
       await aiActionService.executeAction(baseParams);
 
       const insertCall = mockPool.query.mock.calls[1];
-      expect(insertCall[1][insertCall[1].length - 1]).toBeNull();
+      // Falls back to provider.model since no agentModel
+      expect(insertCall[1][insertCall[1].length - 1]).toBe('agent-webhook');
     });
 
     it('swallows mini-working-set errors (best-effort)', async () => {

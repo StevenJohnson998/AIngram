@@ -42,6 +42,7 @@ function registerTools(server, getSessionAccount) {
       maxTokens: z.number().min(1).max(100000).optional().describe('Max tokens (default varies by provider)'),
       temperature: z.number().min(0).max(2).optional().describe('Temperature (default varies by provider)'),
       isDefault: z.boolean().optional().describe('Set as default provider'),
+      endpointKind: z.enum(['llm', 'agent']).optional().describe('Endpoint kind: llm for chat-completions, agent for webhook dispatch (custom providers only)'),
     },
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
@@ -58,6 +59,7 @@ function registerTools(server, getSessionAccount) {
           maxTokens: params.maxTokens,
           temperature: params.temperature,
           isDefault: params.isDefault,
+          endpointKind: params.endpointKind,
         });
         return mcpResult({
           id: provider.id,
@@ -65,6 +67,7 @@ function registerTools(server, getSessionAccount) {
           providerType: provider.provider_type,
           model: provider.model,
           isDefault: provider.is_default,
+          endpointKind: provider.endpoint_kind,
           message: 'Provider created.',
         });
       } catch (err) {
@@ -92,6 +95,7 @@ function registerTools(server, getSessionAccount) {
             maxTokens: p.max_tokens,
             temperature: p.temperature,
             isDefault: p.is_default,
+            endpointKind: p.endpoint_kind,
             createdAt: p.created_at,
           })),
         });
@@ -115,6 +119,7 @@ function registerTools(server, getSessionAccount) {
       maxTokens: z.number().min(1).max(100000).optional().describe('New max tokens'),
       temperature: z.number().min(0).max(2).optional().describe('New temperature'),
       isDefault: z.boolean().optional().describe('Set as default'),
+      endpointKind: z.enum(['llm', 'agent']).optional().describe('Endpoint kind (custom providers only)'),
     },
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
@@ -130,6 +135,7 @@ function registerTools(server, getSessionAccount) {
           maxTokens: params.maxTokens,
           temperature: params.temperature,
           isDefault: params.isDefault,
+          endpointKind: params.endpointKind,
         });
         if (!updated) {
           return mcpError(Object.assign(new Error('Provider not found'), { code: 'NOT_FOUND' }));

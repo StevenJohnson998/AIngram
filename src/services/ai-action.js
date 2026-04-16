@@ -3,8 +3,9 @@ const aiProviderService = require('./ai-provider');
 const chunkService = require('./chunk');
 const miniWorkingSet = require('./mini-working-set');
 
+// Legacy: dispatch_mode on accounts is kept for Phase 1b fallback only.
+// Primary routing now uses ai_providers.endpoint_kind (ADR D96).
 const DEFAULT_DISPATCH_MODE = 'llm';
-const VALID_DISPATCH_MODES = new Set(['llm', 'agent']);
 
 /**
  * Build system prompt for an assisted agent.
@@ -156,7 +157,8 @@ function buildAgentTaskEnvelope({ actionType, targetType, targetId, context }) {
 async function executeAction({ agentId, parentId, providerId, actionType, targetType, targetId, context, agentModel }) {
   const pool = getPool();
 
-  // Get agent info (name, description, assigned provider, archetype, dispatch mode)
+  // Get agent info (name, description, assigned provider, archetype)
+  // dispatch_mode kept in SELECT as Phase 1b fallback (ADR D96)
   const agentResult = await pool.query(
     'SELECT name, description, provider_id, primary_archetype, dispatch_mode FROM accounts WHERE id = $1',
     [agentId]
@@ -165,35 +167,8 @@ async function executeAction({ agentId, parentId, providerId, actionType, target
   const agentName = agentRow?.name || 'AI Agent';
   const agentDescription = agentRow?.description || null;
   const agentArchetype = agentRow?.primary_archetype || null;
-  const rawMode = agentRow?.dispatch_mode || DEFAULT_DISPATCH_MODE;
-  const dispatchMode = VALID_DISPATCH_MODES.has(rawMode) ? rawMode : DEFAULT_DISPATCH_MODE;
 
-  if (dispatchMode === 'agent') {
-    // Agent mode: no provider, no LLM call. Stage a slim task envelope for
-    // the user's external agent to consume. DB row uses status='pending' +
-    // provider_id=NULL; the agent-dispatch semantics live in the JSONB result
-    // so we don't need to widen the status CHECK / VARCHAR. Agent-side
-    // receiver is future work — the envelope is observable via ai_actions.result.
-    const envelope = buildAgentTaskEnvelope({ actionType, targetType, targetId, context });
-    const agentResultPayload = { status: 'pending_agent_dispatch', envelope };
-    const actionResult = await pool.query(
-      `INSERT INTO ai_actions (agent_id, provider_id, parent_id, action_type, target_type, target_id, status, result, model_used)
-       VALUES ($1, NULL, $2, $3, $4, $5, 'pending', $6, $7)
-       RETURNING id`,
-      [agentId, parentId, actionType, targetType || null, targetId || null, JSON.stringify(agentResultPayload), agentModel || null]
-    );
-    const actionId = actionResult.rows[0].id;
-    console.log(`[AI-ACTION] ${actionType} staged-for-agent — agent=${agentName} target=${targetType}:${targetId || 'none'} action=${actionId}`);
-    return {
-      actionId,
-      result: agentResultPayload,
-      inputTokens: 0,
-      outputTokens: 0,
-      dispatchMode,
-    };
-  }
-
-  // Resolve provider: explicit > agent's assigned > parent's default
+  // Resolve provider FIRST: explicit > agent's assigned > parent's default
   let provider;
   const resolvedProviderId = providerId || agentRow?.provider_id;
   if (resolvedProviderId) {
@@ -212,11 +187,38 @@ async function executeAction({ agentId, parentId, providerId, actionType, target
     }
   }
 
-  // Snapshot the provider's configured model at action time. Freezing this
-  // string protects history from retroactive rewrites if the user later edits
-  // provider.model. Caller override (agentModel) wins if present — rare, but
-  // allows clients that route internally (e.g. per-call model selection) to
-  // record the actual model called rather than the provider default.
+  // Dispatch decision: provider.endpoint_kind is primary (D96).
+  // Phase 1b fallback: if endpoint_kind is missing, use legacy dispatch_mode.
+  const rawKind = provider.endpoint_kind || agentRow?.dispatch_mode || DEFAULT_DISPATCH_MODE;
+  const effectiveKind = (rawKind === 'llm' || rawKind === 'agent') ? rawKind : DEFAULT_DISPATCH_MODE;
+  const dispatchMode = effectiveKind;
+
+  if (effectiveKind === 'agent') {
+    // Agent-webhook mode: stage a slim task envelope for the user's external
+    // agent to consume. Provider exists (it's the webhook provider), so we
+    // store provider.id in the action row (unlike the old dispatch_mode path
+    // which used NULL).
+    const envelope = buildAgentTaskEnvelope({ actionType, targetType, targetId, context });
+    const agentResultPayload = { status: 'pending_agent_dispatch', envelope };
+    const modelUsed = agentModel || provider.model || null;
+    const actionResult = await pool.query(
+      `INSERT INTO ai_actions (agent_id, provider_id, parent_id, action_type, target_type, target_id, status, result, model_used)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8)
+       RETURNING id`,
+      [agentId, provider.id, parentId, actionType, targetType || null, targetId || null, JSON.stringify(agentResultPayload), modelUsed]
+    );
+    const actionId = actionResult.rows[0].id;
+    console.log(`[AI-ACTION] ${actionType} staged-for-agent — agent=${agentName} provider=${provider.name} target=${targetType}:${targetId || 'none'} action=${actionId}`);
+    return {
+      actionId,
+      result: agentResultPayload,
+      inputTokens: 0,
+      outputTokens: 0,
+      dispatchMode,
+    };
+  }
+
+  // LLM mode: call provider with full context
   const modelUsed = agentModel || provider.model || null;
 
   // Create action record
@@ -465,7 +467,7 @@ async function getActionHistory(parentId, { limit = 20, offset = 0 } = {}) {
             acc.name as agent_name, p.name as provider_name
      FROM ai_actions a
      JOIN accounts acc ON a.agent_id = acc.id
-     JOIN ai_providers p ON a.provider_id = p.id
+     LEFT JOIN ai_providers p ON a.provider_id = p.id
      WHERE a.parent_id = $1
      ORDER BY a.created_at DESC
      LIMIT $2 OFFSET $3`,
@@ -482,5 +484,4 @@ module.exports = {
   buildAgentTaskEnvelope,
   ARCHETYPE_BLURB,
   DEFAULT_DISPATCH_MODE,
-  VALID_DISPATCH_MODES,
 };

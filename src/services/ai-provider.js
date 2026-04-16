@@ -71,13 +71,16 @@ const PROVIDER_DEFAULTS = providerConfig.defaults;
 /**
  * Create an AI provider config.
  */
-async function createProvider({ accountId, name, providerType, apiEndpoint, model, apiKey, systemPrompt, maxTokens, temperature, isDefault }) {
+async function createProvider({ accountId, name, providerType, apiEndpoint, model, apiKey, systemPrompt, maxTokens, temperature, isDefault, endpointKind }) {
   const pool = getPool();
 
   // Validate custom endpoint against SSRF
   if (apiEndpoint) {
     validateEndpoint(apiEndpoint);
   }
+
+  // Only custom providers can use endpoint_kind='agent'
+  const effectiveKind = (providerType === 'custom' && endpointKind === 'agent') ? 'agent' : 'llm';
 
   // If setting as default, unset other defaults first
   if (isDefault) {
@@ -88,10 +91,10 @@ async function createProvider({ accountId, name, providerType, apiEndpoint, mode
   }
 
   const result = await pool.query(
-    `INSERT INTO ai_providers (account_id, name, provider_type, api_endpoint, model, api_key_encrypted, system_prompt, max_tokens, temperature, is_default)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-     RETURNING id, account_id, name, provider_type, api_endpoint, model, system_prompt, max_tokens, temperature, is_default, created_at`,
-    [accountId, name, providerType, apiEndpoint || DEFAULT_ENDPOINTS[providerType], model, encrypt(apiKey), systemPrompt || null, maxTokens || PROVIDER_DEFAULTS.maxTokens, temperature ?? PROVIDER_DEFAULTS.temperature, isDefault || false]
+    `INSERT INTO ai_providers (account_id, name, provider_type, api_endpoint, model, api_key_encrypted, system_prompt, max_tokens, temperature, is_default, endpoint_kind)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     RETURNING id, account_id, name, provider_type, api_endpoint, model, system_prompt, max_tokens, temperature, is_default, endpoint_kind, created_at`,
+    [accountId, name, providerType, apiEndpoint || DEFAULT_ENDPOINTS[providerType], model, encrypt(apiKey), systemPrompt || null, maxTokens || PROVIDER_DEFAULTS.maxTokens, temperature ?? PROVIDER_DEFAULTS.temperature, isDefault || false, effectiveKind]
   );
 
   return result.rows[0];
@@ -103,7 +106,7 @@ async function createProvider({ accountId, name, providerType, apiEndpoint, mode
 async function listProviders(accountId) {
   const pool = getPool();
   const result = await pool.query(
-    `SELECT id, account_id, name, provider_type, api_endpoint, model, system_prompt, max_tokens, temperature, is_default, created_at
+    `SELECT id, account_id, name, provider_type, api_endpoint, model, system_prompt, max_tokens, temperature, is_default, endpoint_kind, created_at
      FROM ai_providers WHERE account_id = $1
      ORDER BY is_default DESC, created_at DESC`,
     [accountId]
@@ -143,11 +146,11 @@ async function getDefaultProvider(accountId) {
 async function updateProvider(id, accountId, updates) {
   const pool = getPool();
 
-  // Validate endpoint if being updated (need to know provider type)
+  // Fetch current state when needed for validation
+  const needsCurrent = updates.apiEndpoint || updates.endpointKind !== undefined;
+  const current = needsCurrent ? await getProviderById(id) : null;
+
   if (updates.apiEndpoint) {
-    // Look up current provider type if not being changed
-    const current = await getProviderById(id);
-    const provType = updates.providerType || current?.provider_type;
     validateEndpoint(updates.apiEndpoint);
   }
 
@@ -163,6 +166,12 @@ async function updateProvider(id, accountId, updates) {
   if (updates.systemPrompt !== undefined) { fields.push(`system_prompt = $${idx++}`); values.push(updates.systemPrompt); }
   if (updates.maxTokens !== undefined) { fields.push(`max_tokens = $${idx++}`); values.push(updates.maxTokens); }
   if (updates.temperature !== undefined) { fields.push(`temperature = $${idx++}`); values.push(updates.temperature); }
+  if (updates.endpointKind !== undefined) {
+    // Only custom providers can use 'agent'; silently force 'llm' for predefined types
+    const provType = updates.providerType || current?.provider_type;
+    const kind = (provType === 'custom' && updates.endpointKind === 'agent') ? 'agent' : 'llm';
+    fields.push(`endpoint_kind = $${idx++}`); values.push(kind);
+  }
 
   if (updates.isDefault) {
     await pool.query('UPDATE ai_providers SET is_default = false WHERE account_id = $1', [accountId]);
@@ -179,7 +188,7 @@ async function updateProvider(id, accountId, updates) {
   values.push(accountId);
   const result = await pool.query(
     `UPDATE ai_providers SET ${fields.join(', ')} WHERE id = $${idx++} AND account_id = $${idx}
-     RETURNING id, account_id, name, provider_type, api_endpoint, model, system_prompt, max_tokens, temperature, is_default, created_at, updated_at`,
+     RETURNING id, account_id, name, provider_type, api_endpoint, model, system_prompt, max_tokens, temperature, is_default, endpoint_kind, created_at, updated_at`,
     values
   );
   return result.rows[0] || null;
@@ -286,6 +295,8 @@ async function callOpenAICompatible(provider, apiKey, messages, maxTokens, tempe
   };
 }
 
+const VALID_ENDPOINT_KINDS = ['llm', 'agent'];
+
 module.exports = {
   createProvider,
   listProviders,
@@ -295,4 +306,5 @@ module.exports = {
   deleteProvider,
   callProvider,
   PROVIDER_TYPES,
+  VALID_ENDPOINT_KINDS,
 };

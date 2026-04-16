@@ -1,11 +1,10 @@
 // @ts-check
 /**
- * GUI E2E — dispatch_mode with real browser + mock LLM
+ * GUI E2E — endpoint_kind routing with real browser + mock LLM (ADR D96)
  *
  * Clicks the actual "AI Review" button on a topic page with two agents:
- *   - Agent A (dispatch_mode='agent')  — no provider, slim envelope staged
- *   - Agent B (dispatch_mode='llm')    — provider points to a mock LLM
- *                                         running on the docker host gateway
+ *   - Agent A — provider with endpoint_kind='agent', slim envelope staged
+ *   - Agent B — provider with endpoint_kind='llm' pointing to a mock LLM
  *
  * Both results are rendered in the same GUI container (#ai-result-<chunkId>).
  * Screenshots are written to test-results/ so the run is visually auditable.
@@ -60,16 +59,16 @@ function seedScenario(mockPortInsideContainer) {
         [userId, pwHash, keyHash, pfx]
       );
 
-      // Two assisted agents — note dispatch_mode column (migration 060)
+      // Two assisted agents (D96: routing is via provider.endpoint_kind, not account.dispatch_mode)
       const agentA = crypto.randomUUID();
       const agentB = crypto.randomUUID();
-      for (const [id, name, mode] of [[agentA, 'AgentMode-A', 'agent'], [agentB, 'LlmMode-B', 'llm']]) {
+      for (const [id, name] of [[agentA, 'AgentMode-A'], [agentB, 'LlmMode-B']]) {
         await pool.query(
           \`INSERT INTO accounts (id, name, type, owner_email, parent_id, status, autonomous, tier,
-             first_contribution_at, terms_version_accepted, dispatch_mode)
+             first_contribution_at, terms_version_accepted)
             VALUES ($1, $2, 'ai', '${email}', $3, 'active', false, 0,
-                    now(), '2026-03-21-v1', $4)\`,
-          [id, name, userId, mode]
+                    now(), '2026-03-21-v1')\`,
+          [id, name, userId]
         );
       }
 
@@ -102,17 +101,30 @@ function seedScenario(mockPortInsideContainer) {
       const encrypted = Buffer.concat([cipher.update(rawKey, 'utf8'), cipher.final()]);
       const stored = iv.toString('hex') + ':' + encrypted.toString('hex');
 
+      // Provider for Agent A: agent-webhook (endpoint_kind='agent')
+      const providerAgentId = crypto.randomUUID();
+      await pool.query(
+        \`INSERT INTO ai_providers (id, account_id, name, provider_type, api_endpoint, model, api_key_encrypted, max_tokens, temperature, is_default, endpoint_kind)
+          VALUES ($1, $2, 'AgentWebhook', 'custom', 'http://127.0.0.1:1/webhook', 'agent-model', $3, 1024, 0.7, false, 'agent')\`,
+        [providerAgentId, userId, stored]
+      );
+      // Assign agent-webhook provider to Agent A
+      await pool.query("UPDATE accounts SET provider_id = $1 WHERE id = $2", [providerAgentId, agentA]);
+
+      // Provider for Agent B: LLM (endpoint_kind='llm', default)
       const providerId = crypto.randomUUID();
       await pool.query(
-        \`INSERT INTO ai_providers (id, account_id, name, provider_type, api_endpoint, model, api_key_encrypted, max_tokens, temperature, is_default)
-          VALUES ($1, $2, 'MockProv', 'custom', $3, 'mock-model', $4, 1024, 0.7, true)\`,
+        \`INSERT INTO ai_providers (id, account_id, name, provider_type, api_endpoint, model, api_key_encrypted, max_tokens, temperature, is_default, endpoint_kind)
+          VALUES ($1, $2, 'MockProv', 'custom', $3, 'mock-model', $4, 1024, 0.7, true, 'llm')\`,
         [providerId, userId, 'http://127.0.0.1:${mockPort}/v1/chat/completions', stored]
       );
+      // Assign LLM provider to Agent B
+      await pool.query("UPDATE accounts SET provider_id = $1 WHERE id = $2", [providerId, agentB]);
 
       console.log(JSON.stringify({
         userId, email: '${email}', password: '${pwd}',
         agentA, agentB, topicId, topicSlug, chunkId,
-        providerId,
+        providerId, providerAgentId,
       }));
       await pool.end();
     })();
@@ -136,7 +148,7 @@ function readActionRow(actionId) {
   return JSON.parse(execInApi(script));
 }
 
-test.describe.serial('GUI dispatch_mode (D95) — real browser + mock LLM', () => {
+test.describe.serial('GUI endpoint_kind (D96) — real browser + mock LLM', () => {
   let scenario;
   const mockCountFile = `/tmp/mock-llm-count-${unique()}.txt`;
 
@@ -262,11 +274,11 @@ test.describe.serial('GUI dispatch_mode (D95) — real browser + mock LLM', () =
     // Mock LLM must not have been touched in agent mode
     expect(readMockCount()).toBe(receivedBefore);
 
-    // DB side-effect: ai_actions row has provider_id=NULL and our payload in result
+    // DB side-effect: ai_actions row has provider_id set to the webhook provider (D96)
     const json = await aiRes.json();
     const actionId = (json.data || json).actionId;
     const row = readActionRow(actionId);
-    expect(row.provider_id).toBeNull();
+    expect(row.provider_id).toBe(scenario.providerAgentId);
     expect(row.status).toBe('pending');
     expect(row.result.status).toBe('pending_agent_dispatch');
 

@@ -29,7 +29,7 @@ router.post('/', authenticateRequired, authenticatedLimiter, async (req, res) =>
       });
     }
 
-    const { name, providerType, apiEndpoint, model, apiKey, systemPrompt, maxTokens, temperature, isDefault } = req.body;
+    const { name, providerType, apiEndpoint, model, apiKey, systemPrompt, maxTokens, temperature, isDefault, endpointKind } = req.body;
 
     if (!name || !providerType || !model) {
       return res.status(400).json({
@@ -49,6 +49,18 @@ router.post('/', authenticateRequired, authenticatedLimiter, async (req, res) =>
       });
     }
 
+    if (endpointKind && !aiProviderService.VALID_ENDPOINT_KINDS.includes(endpointKind)) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: `endpointKind must be one of: ${aiProviderService.VALID_ENDPOINT_KINDS.join(', ')}` },
+      });
+    }
+
+    if (endpointKind === 'agent' && providerType !== 'custom') {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Only custom providers can use endpoint_kind \'agent\'' },
+      });
+    }
+
     const provider = await aiProviderService.createProvider({
       accountId: req.account.id,
       name,
@@ -60,6 +72,7 @@ router.post('/', authenticateRequired, authenticatedLimiter, async (req, res) =>
       maxTokens,
       temperature,
       isDefault,
+      endpointKind,
     });
 
     return res.status(201).json({ provider });
@@ -104,6 +117,11 @@ router.put('/:id', authenticateRequired, authenticatedLimiter, async (req, res) 
     if (req.body.temperature !== undefined && (typeof req.body.temperature !== 'number' || req.body.temperature < 0 || req.body.temperature > 2)) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'temperature must be a number between 0 and 2' },
+      });
+    }
+    if (req.body.endpointKind !== undefined && !aiProviderService.VALID_ENDPOINT_KINDS.includes(req.body.endpointKind)) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: `endpointKind must be one of: ${aiProviderService.VALID_ENDPOINT_KINDS.join(', ')}` },
       });
     }
 
