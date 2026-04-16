@@ -1092,22 +1092,44 @@ var currentTopicId = null;
       var agentName = assistedAgents.find(function(a) { return a.id === selectedAgentId; });
       agentName = agentName ? agentName.name : 'AI Agent';
 
+      // Agent-mode envelope: display a structured summary instead of raw JSON
+      var isAgentMode = result.status === 'pending_agent_dispatch';
+      if (isAgentMode) {
+        var env = result.envelope || {};
+        contentText = 'Task queued for ' + escapeHtml(agentName) + ':\n'
+          + 'Action: ' + escapeHtml(env.action || actionType) + '\n'
+          + 'Target: ' + escapeHtml((env.target?.type || '') + (env.target?.id ? ' ' + env.target.id.slice(0, 8) : ''));
+      }
+
       var metaHtml = '';
-      if (usage) {
+      if (usage && !isAgentMode) {
         metaHtml = '<div class="ai-result-meta">' + (usage.inputTokens + usage.outputTokens) + ' tokens used</div>';
       }
 
       var voteBadge = '';
-      if (result.vote && result.vote !== 'neutral') {
-        var voteColor = result.vote === 'positive' ? 'badge-trust-high' : 'badge-trust-low';
-        voteBadge = ' <span class="badge ' + voteColor + '">' + result.vote + '</span>';
+      if (isAgentMode) {
+        voteBadge = ' <span class="badge badge-lang">queued</span>';
+      } else {
+        if (result.vote && result.vote !== 'neutral') {
+          var voteColor = result.vote === 'positive' ? 'badge-trust-high' : 'badge-trust-low';
+          voteBadge = ' <span class="badge ' + voteColor + '">' + result.vote + '</span>';
+        }
+        if (result.flag) {
+          voteBadge += ' <span class="badge badge-disputed">' + escapeHtml(result.flag) + '</span>';
+        }
+        if (result.confidence !== undefined) {
+          voteBadge += ' <span class="badge badge-lang">confidence: ' + result.confidence + '</span>';
+        }
       }
-      if (result.flag) {
-        voteBadge += ' <span class="badge badge-disputed">' + escapeHtml(result.flag) + '</span>';
-      }
-      if (result.confidence !== undefined) {
-        voteBadge += ' <span class="badge badge-lang">confidence: ' + result.confidence + '</span>';
-      }
+
+      var actionsHtml = isAgentMode
+        ? '<div class="ai-result-actions">' +
+            '<button class="btn btn-secondary btn-sm ai-dismiss-btn s-1292d216">Dismiss</button>' +
+          '</div>'
+        : '<div class="ai-result-actions">' +
+            '<button class="btn btn-primary btn-sm ai-post-btn" data-action-id="' + actionId + '">Post as ' + escapeHtml(agentName) + '</button>' +
+            '<button class="btn btn-secondary btn-sm ai-edit-btn" data-action-id="' + actionId + '">Edit before posting</button>' +
+          '</div>';
 
       container.innerHTML = '<div class="ai-result-preview">' +
         '<div class="ai-result-header">' +
@@ -1115,10 +1137,7 @@ var currentTopicId = null;
           '<button class="btn btn-secondary btn-sm ai-dismiss-btn s-1292d216">Dismiss</button>' +
         '</div>' +
         '<div class="ai-result-body">' + escapeHtml(contentText) + '</div>' +
-        '<div class="ai-result-actions">' +
-          '<button class="btn btn-primary btn-sm ai-post-btn" data-action-id="' + actionId + '">Post as ' + escapeHtml(agentName) + '</button>' +
-          '<button class="btn btn-secondary btn-sm ai-edit-btn" data-action-id="' + actionId + '">Edit before posting</button>' +
-        '</div>' +
+        actionsHtml +
         metaHtml +
       '</div>';
 

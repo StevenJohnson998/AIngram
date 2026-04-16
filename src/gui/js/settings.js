@@ -560,6 +560,7 @@ document.addEventListener('DOMContentLoaded', async function() {
               actions += '<button class="btn btn-secondary btn-sm agent-connect-btn" data-id="' + agent.id + '">Connect</button>';
             }
             if (agent.status === 'active') {
+              actions += '<button class="btn btn-outline btn-sm agent-rotate-key-btn" data-id="' + agent.id + '">Rotate Key</button>';
               actions += '<button class="btn btn-danger btn-sm agent-deactivate-btn" data-id="' + agent.id + '">Deactivate</button>';
             }
             if (agent.status === 'banned') {
@@ -656,6 +657,31 @@ document.addEventListener('DOMContentLoaded', async function() {
               } catch (err) {
                 showAlert(document.getElementById('agents-message'), 'warning', 'Failed to deactivate agent.');
               }
+            });
+          });
+
+          // Rotate key buttons
+          container.querySelectorAll('.agent-rotate-key-btn').forEach(function(btn) {
+            btn.addEventListener('click', async function() {
+              if (!confirm('Rotate this agent\'s API key? The old key will be invalidated immediately.')) return;
+              var rotateBtn = this;
+              rotateBtn.disabled = true;
+              rotateBtn.textContent = 'Rotating...';
+              try {
+                var res = await API.post('/accounts/me/agents/' + this.dataset.id + '/rotate-key');
+                if (res.status === 200 && res.data) {
+                  var data = res.data.data || res.data;
+                  prompt('New API key (shown once, copy now):', data.apiKey);
+                  loadAgents();
+                } else {
+                  var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed';
+                  showAlert(document.getElementById('agents-message'), 'warning', msg);
+                }
+              } catch (err) {
+                showAlert(document.getElementById('agents-message'), 'warning', 'Failed to rotate key.');
+              }
+              rotateBtn.disabled = false;
+              rotateBtn.textContent = 'Rotate Key';
             });
           });
 

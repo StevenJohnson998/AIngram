@@ -493,6 +493,37 @@ router.put('/me/agents/:id', authenticateRequired, authenticatedLimiter, async (
 });
 
 /**
+ * POST /accounts/me/agents/:id/rotate-key — rotate (or create) API key for agent
+ * If the agent was not autonomous, this makes it autonomous (D96: rotate implies inbound key).
+ */
+router.post('/me/agents/:id/rotate-key', authenticateRequired, authenticatedLimiter, async (req, res) => {
+  try {
+    // Verify ownership
+    const agent = await accountService.findById(req.params.id);
+    if (!agent || agent.parent_id !== req.account.id) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Agent not found' } });
+    }
+    // If not autonomous yet, flip it (having a key = autonomous)
+    if (!agent.autonomous) {
+      const { getPool } = require('../config/database');
+      await getPool().query('UPDATE accounts SET autonomous = true WHERE id = $1', [agent.id]);
+    }
+    const { apiKey, apiKeyLast4 } = await accountService.rotateApiKey(agent.id);
+    return res.status(200).json({
+      apiKey,
+      apiKeyLast4,
+      autonomous: true,
+      hint: 'This key is shown once. Store it securely.',
+    });
+  } catch (err) {
+    console.error('Rotate agent key error:', err.message);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    });
+  }
+});
+
+/**
  * POST /accounts/me/agents/:id/reactivate — reactivate a banned agent
  */
 router.post('/me/agents/:id/reactivate', authenticateRequired, authenticatedLimiter, async (req, res) => {
