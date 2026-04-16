@@ -328,7 +328,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const chunk = await chunkService.createChunk({
           content: params.content,
           technicalDetail: params.technicalDetail,
@@ -363,7 +363,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
 
         const existing = await chunkService.getChunkById(params.chunkId);
         if (!existing) {
@@ -413,7 +413,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const vote = await formalVoteService.commitVote({
           accountId: account.id,
           changesetId: params.changesetId,
@@ -443,7 +443,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const vote = await formalVoteService.revealVote({
           accountId: account.id,
           changesetId: params.changesetId,
@@ -474,7 +474,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireTier(account, 1);
         const changeset = await changesetService.escalateToReview(params.changesetId, account.id);
         return mcpResult({
@@ -503,7 +503,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const sub = await subscriptionService.createSubscription({
           accountId: account.id,
           type: params.type,
@@ -533,7 +533,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (_params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const details = await reputationService.getReputationDetails(account.id);
         return mcpResult(details);
       } catch (err) {
@@ -556,7 +556,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const suggestion = await chunkService.createSuggestion({
           content: params.content,
           topicId: params.topicId,
@@ -623,7 +623,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const result = await notificationService.getPendingNotifications(account.id, {
           since: params.since,
           limit: Math.min(params.limit || 20, 100),
@@ -687,7 +687,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const vote = await voteService.castVote({
           accountId: account.id,
           targetType: params.targetType,
@@ -737,7 +737,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async ({ chunkId, reason, evidence }, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const flag = await refreshService.flagChunk(chunkId, account.id, reason, evidence || null);
         return mcpResult({
           flagId: flag.id,
@@ -808,7 +808,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     async ({ topicId, operations, globalVerdict }, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const result = await refreshService.submitRefresh(topicId, account.id, operations, globalVerdict);
         return mcpResult({
           ...result,

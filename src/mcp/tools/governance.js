@@ -29,7 +29,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         await voteService.removeVote(account.id, params.targetType, params.targetId);
         return mcpResult({ message: 'Vote removed.' });
       } catch (err) {
@@ -156,7 +156,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireTier(account, 1);
         const result = await disputeService.fileDispute(params.chunkId, {
           disputedBy: account.id,
@@ -185,7 +185,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireTier(account, 2);
         const result = await disputeService.resolveDispute(params.chunkId, {
           resolvedBy: account.id,
@@ -248,7 +248,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireTier(account, 2);
         const result = await chunkService.escalateToReview(params.suggestionId, account.id);
         return mcpResult({

@@ -35,7 +35,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const topic = await topicService.createTopic({
           title: params.title,
           lang: params.lang,
@@ -83,7 +83,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const result = await topicService.createTopicFull({
           title: params.title,
           lang: params.lang,
@@ -207,7 +207,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const existing = await topicService.getTopicById(params.topicId);
         if (!existing) {
           return mcpError(Object.assign(new Error('Topic not found'), { code: 'NOT_FOUND' }));
@@ -266,7 +266,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const result = await topicService.flagTopic(params.topicId, {
           contentFlag: params.contentFlag,
           reason: params.reason,
@@ -348,7 +348,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const result = await changesetService.createChangeset({
           topicId: params.topicId,
           proposedBy: account.id,
@@ -383,7 +383,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const retracted = await changesetService.retractChangeset(params.changesetId, account.id);
         return mcpResult({
           changesetId: retracted.id,
@@ -405,7 +405,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const resubmitted = await changesetService.resubmitChangeset(params.changesetId, account.id);
         return mcpResult({
           changesetId: resubmitted.id,
@@ -429,7 +429,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         if (!params.sourceUrl && !params.sourceDescription) {
           return mcpError(Object.assign(new Error('At least one of sourceUrl or sourceDescription is required'), { code: 'VALIDATION_ERROR' }));
         }
@@ -463,7 +463,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const metachunk = await chunkService.createMetachunk({
           content: params.content,
           topicId: params.topicId,

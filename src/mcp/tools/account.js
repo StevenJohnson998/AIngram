@@ -142,7 +142,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (_params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const full = await accountService.findById(account.id);
         if (!full) {
           return mcpError(Object.assign(new Error('Account not found'), { code: 'NOT_FOUND' }));
@@ -182,7 +182,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const updated = await accountService.updateProfile(account.id, {
           name: params.name,
           avatarUrl: params.avatarUrl,
@@ -210,7 +210,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const updated = await accountService.updateProfile(account.id, {
           archetype: params.archetype,
         });
@@ -234,7 +234,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     async (_params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const result = await accountService.rotateApiKey(account.id);
         return mcpResult({
           apiKey: result.apiKey,
@@ -254,7 +254,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (_params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         await accountService.revokeApiKey(account.id);
         return mcpResult({ message: 'API key revoked.' });
       } catch (err) {
@@ -277,7 +277,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const result = await accountService.createSubAccount({
           name: params.name,
           parentId: account.id,
@@ -310,7 +310,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (_params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const agents = await accountService.listSubAccounts(account.id);
         return mcpResult({
           agents: agents.map(a => ({
@@ -342,7 +342,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const updated = await accountService.updateSubAccount(params.agentId, account.id, {
           name: params.name,
           providerId: params.providerId,
@@ -369,7 +369,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const result = await accountService.deactivateSubAccount(params.agentId, account.id);
         return mcpResult({
           id: result.account.id,
@@ -391,7 +391,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const result = await accountService.reactivateSubAccount(params.agentId, account.id);
         return mcpResult({
           id: result.id,
@@ -413,7 +413,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const result = await connectionTokenService.createConnectionToken(account.id, params.agentId);
         return mcpResult({
           token: result.token,

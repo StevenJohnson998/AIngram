@@ -62,11 +62,47 @@ function createMcpServer(getSessionAccount) {
 const MAX_MCP_SESSIONS = 200;
 const MCP_SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
+/**
+ * Classify a raw account row into either a usable session account or an auth error.
+ * Used at session init AND by refreshAccount() to re-evaluate the state when the
+ * user may have fixed the blocker (confirmed email, got unbanned, etc.).
+ */
+function classifyAccount(row) {
+  if (row.status === 'banned') {
+    return {
+      account: null,
+      authError: { code: 'BANNED', message: 'Your account is banned and cannot use authenticated tools.' },
+    };
+  }
+  if (!row.parent_id && row.email_confirmed === false) {
+    return {
+      account: null,
+      authError: {
+        code: 'EMAIL_NOT_CONFIRMED',
+        message: 'Please confirm your email before using authenticated tools. Resend via: POST /v1/accounts/resend-confirmation',
+      },
+    };
+  }
+  return {
+    account: {
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      status: row.status,
+      tier: row.tier || 0,
+      badgeContribution: !!row.badge_contribution,
+      badgePolicing: !!row.badge_policing,
+      badgeElite: !!row.badge_elite,
+    },
+    authError: null,
+  };
+}
+
 function mountMcp(app) {
   const { isInitializeRequest } = require('@modelcontextprotocol/sdk/types.js');
   const { extractAccount } = require('../middleware/auth');
 
-  // Track active sessions: sessionId → { transport, server, lastActivity, account }
+  // Track active sessions: sessionId → { transport, server, lastActivity, account, authError, accountId }
   const sessions = new Map();
 
   // Closure: look up account for a session
@@ -78,6 +114,33 @@ function mountMcp(app) {
   getSessionAccount.getAuthError = function (sessionId) {
     const entry = sessions.get(sessionId);
     return entry ? entry.authError || null : null;
+  };
+  // Re-query the DB and re-classify. Self-heals sessions when the user fixes a
+  // blocker mid-session (confirms email, gets unbanned, loses a probation, etc.).
+  // Returns the fresh account if now usable, null otherwise. Safe on concurrent
+  // calls — the session Map is updated atomically.
+  getSessionAccount.refreshAccount = async function (sessionId) {
+    const entry = sessions.get(sessionId);
+    if (!entry || !entry.accountId) return null;
+
+    try {
+      const { getPool } = require('../config/database');
+      const { rows } = await getPool().query(
+        `SELECT id, name, type, status, tier, email_confirmed, parent_id,
+                badge_contribution, badge_policing, badge_elite
+         FROM accounts WHERE id = $1`,
+        [entry.accountId]
+      );
+      if (rows.length === 0) return null;
+
+      const { account, authError } = classifyAccount(rows[0]);
+      entry.account = account;
+      entry.authError = authError;
+      return account;
+    } catch (err) {
+      console.warn('[MCP] refreshAccount failed:', err.message);
+      return null;
+    }
   };
 
   // Sweep stale sessions every 5 minutes
@@ -109,33 +172,23 @@ function mountMcp(app) {
         // Authenticate: extract account from Bearer token (optional — read tools work without)
         // Classify auth failures so tools can surface the specific reason (banned, email not
         // confirmed, etc.) instead of a generic UNAUTHORIZED.
+        // Classify auth at init time. We also store the accountId (even when
+        // the state is blocking) so later tool calls can re-check the DB and
+        // auto-heal if the user confirms their email / gets unbanned mid-session.
         let account = null;
         let authError = null;
+        let accountId = null;
         try {
           const row = await extractAccount(req);
           if (!row) {
-            // Only set authError if caller actually provided a Bearer — anonymous use is valid
             if (req.headers.authorization) {
               authError = { code: 'UNAUTHORIZED', message: 'Invalid or revoked API key.' };
             }
-          } else if (row.status === 'banned') {
-            authError = { code: 'BANNED', message: 'Your account is banned and cannot use authenticated tools.' };
-          } else if (!row.parent_id && row.email_confirmed === false) {
-            authError = {
-              code: 'EMAIL_NOT_CONFIRMED',
-              message: 'Please confirm your email before using authenticated tools. Resend via: POST /v1/accounts/resend-confirmation',
-            };
           } else {
-            account = {
-              id: row.id,
-              name: row.name,
-              type: row.type,
-              status: row.status,
-              tier: row.tier || 0,
-              badgeContribution: !!row.badge_contribution,
-              badgePolicing: !!row.badge_policing,
-              badgeElite: !!row.badge_elite,
-            };
+            accountId = row.id;
+            const classified = classifyAccount(row);
+            account = classified.account;
+            authError = classified.authError;
           }
         } catch (_authErr) {
           authError = { code: 'UNAUTHORIZED', message: 'Authentication failed.' };
@@ -144,7 +197,7 @@ function mountMcp(app) {
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => require('crypto').randomUUID(),
           onsessioninitialized: (sid) => {
-            sessions.set(sid, { transport, server, lastActivity: Date.now(), account, authError });
+            sessions.set(sid, { transport, server, lastActivity: Date.now(), account, authError, accountId });
           },
         });
         transport.onclose = () => {

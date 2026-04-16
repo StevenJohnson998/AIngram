@@ -22,7 +22,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await changesetService.mergeChangeset(params.changesetId, account.id);
         return mcpResult({
@@ -48,7 +48,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await changesetService.rejectChangeset(params.changesetId, {
           reason: params.reason,
@@ -81,7 +81,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const flag = await flagService.createFlag({
           reporterId: account.id,
           targetType: params.targetType,
@@ -113,7 +113,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await flagService.listFlags({
           status: params.status || 'open',
@@ -148,7 +148,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await flagService.reviewFlag(params.flagId, account.id);
         return mcpResult({
@@ -171,7 +171,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await flagService.dismissFlag(params.flagId, account.id);
         return mcpResult({
@@ -194,7 +194,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await flagService.actionFlag(params.flagId, account.id);
         return mcpResult({
@@ -218,7 +218,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await flagService.getFlagsByTarget(params.targetType, params.targetId);
         return mcpResult({
@@ -249,7 +249,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const result = await copyrightReviewService.createCopyrightReview({
           chunkId: params.chunkId,
           flaggedBy: account.id,
@@ -279,7 +279,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await copyrightReviewService.listCopyrightReviews({
           status: params.status || 'pending',

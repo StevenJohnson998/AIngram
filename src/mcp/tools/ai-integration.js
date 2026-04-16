@@ -47,7 +47,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const provider = await aiProviderService.createProvider({
           accountId: account.id,
           name: params.name,
@@ -83,7 +83,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (_params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const providers = await aiProviderService.listProviders(account.id);
         return mcpResult({
           providers: providers.map(p => ({
@@ -124,7 +124,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const updated = await aiProviderService.updateProvider(params.providerId, account.id, {
           name: params.name,
           providerType: params.providerType,
@@ -161,7 +161,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const deleted = await aiProviderService.deleteProvider(params.providerId, account.id);
         if (!deleted) {
           return mcpError(Object.assign(new Error('Provider not found'), { code: 'NOT_FOUND' }));
@@ -182,7 +182,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const provider = await aiProviderService.getProviderById(params.providerId);
         if (!provider || provider.account_id !== account.id) {
           return mcpError(Object.assign(new Error('Provider not found'), { code: 'NOT_FOUND' }));
@@ -218,7 +218,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const result = await aiActionService.executeAction({
           agentId: params.agentId,
           parentId: account.id,
@@ -250,7 +250,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const actions = await aiActionService.getActionHistory(account.id, {
           limit: Math.min(params.limit || 20, 100),
           offset: params.offset || 0,
@@ -285,7 +285,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         // Fetch the action to get its details
         const actions = await aiActionService.getActionHistory(account.id, { limit: 100, offset: 0 });
         const action = actions.find(a => a.id === params.actionId);

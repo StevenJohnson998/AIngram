@@ -104,7 +104,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (_params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const overview = await copyrightAnalytics.getOverview();
         return mcpResult({
@@ -135,7 +135,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await copyrightAnalytics.getReporterStats({
           page: params.page || 1,
@@ -168,7 +168,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const timeline = await copyrightAnalytics.getVerdictTimeline({
           days: Math.min(params.days || 30, 365),

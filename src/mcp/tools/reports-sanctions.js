@@ -55,7 +55,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await reportService.listReports({
           status: params.status || 'pending',
@@ -91,7 +91,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await reportService.resolveReport(params.reportId, {
           status: params.status,
@@ -118,7 +118,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await reportService.takedownReport(params.reportId, {
           takenDownBy: account.id,
@@ -175,7 +175,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const sanction = await sanctionService.createSanction({
           accountId: params.accountId,
@@ -206,7 +206,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await sanctionService.liftSanction(params.sanctionId);
         return mcpResult({
@@ -231,7 +231,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await sanctionService.listAllActive({
           page: params.page || 1,

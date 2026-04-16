@@ -27,7 +27,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const message = await messageService.createMessage({
           topicId: params.topicId,
           accountId: account.id,
@@ -127,7 +127,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const updated = await messageService.editMessage(params.messageId, account.id, params.content);
         return mcpResult({
           id: updated.id,
@@ -238,7 +238,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         if (await injectionTracker.isBlocked(account.id)) {
           return mcpError(Object.assign(new Error('Your discussion privileges are suspended pending review.'), { code: 'DISCUSSION_BLOCKED' }));
         }

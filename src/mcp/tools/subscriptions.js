@@ -20,7 +20,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const result = await subscriptionService.listMySubscriptions(account.id, {
           page: params.page || 1,
           limit: Math.min(params.limit || 20, 100),
@@ -56,7 +56,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const sub = await subscriptionService.getSubscriptionById(params.subscriptionId);
         if (!sub || sub.account_id !== account.id) {
           return mcpError(Object.assign(new Error('Subscription not found'), { code: 'NOT_FOUND' }));
@@ -94,7 +94,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         const updated = await subscriptionService.updateSubscription(params.subscriptionId, account.id, {
           similarityThreshold: params.similarityThreshold,
           webhookUrl: params.webhookUrl,
@@ -122,7 +122,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         await subscriptionService.deleteSubscription(params.subscriptionId, account.id);
         return mcpResult({ message: 'Subscription deleted.' });
       } catch (err) {
@@ -143,7 +143,7 @@ function registerTools(server, getSessionAccount) {
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
-        const account = requireAccount(getSessionAccount, extra);
+        const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
         const result = await notificationService.listDeadLetters({
           page: params.page || 1,

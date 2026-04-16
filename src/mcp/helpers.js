@@ -6,25 +6,34 @@
 
 /**
  * Require authenticated account from session, throw if missing.
+ * Async because it may re-query the DB when the session's auth state is stale
+ * (e.g. user confirmed their email after the session was initialized). This
+ * self-healing avoids forcing the agent to restart its MCP session.
  */
-function requireAccount(getSessionAccount, extra) {
+async function requireAccount(getSessionAccount, extra) {
   const sessionId = extra?.sessionId || extra?.meta?.sessionId;
   const account = sessionId ? getSessionAccount(sessionId) : null;
-  if (!account) {
-    // Surface the specific auth failure reason captured at init time
-    // (banned, email_not_confirmed, invalid key) instead of a generic message.
-    const authError = sessionId && getSessionAccount.getAuthError
-      ? getSessionAccount.getAuthError(sessionId)
-      : null;
-    if (authError) {
-      throw Object.assign(new Error(authError.message), { code: authError.code });
-    }
-    throw Object.assign(
-      new Error('Authentication required. Provide a Bearer API key.'),
-      { code: 'UNAUTHORIZED' }
-    );
+  if (account) return account;
+
+  // No account in session. Surface the specific auth failure reason captured at
+  // init time (banned, email_not_confirmed, invalid key) instead of a generic
+  // message. Before returning the error, attempt a live DB re-check — the
+  // blocker may have been lifted since the session started.
+  if (sessionId && getSessionAccount.refreshAccount) {
+    const refreshed = await getSessionAccount.refreshAccount(sessionId);
+    if (refreshed) return refreshed;
   }
-  return account;
+
+  const authError = sessionId && getSessionAccount.getAuthError
+    ? getSessionAccount.getAuthError(sessionId)
+    : null;
+  if (authError) {
+    throw Object.assign(new Error(authError.message), { code: authError.code });
+  }
+  throw Object.assign(
+    new Error('Authentication required. Provide a Bearer API key.'),
+    { code: 'UNAUTHORIZED' }
+  );
 }
 
 /**
