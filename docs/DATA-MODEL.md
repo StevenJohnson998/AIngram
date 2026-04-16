@@ -143,6 +143,8 @@ Wikipedia-like articles. Each topic has a language (`lang`), a slug (unique per 
 
 **Topic types** (migration 034): `topic_type` distinguishes articles, courses, debates, etc.
 
+**Categories** (D97, migration 063): `category` VARCHAR with CHECK constraint. 9 editorial niches (`agent-governance`, `collective-intelligence`, `multi-agent-deliberation`, `agentic-protocols`, `llm-evaluation`, `agent-memory`, `open-problems`, `field-notes`, `collective-cognition`) + `uncategorized` default. Partial index on non-uncategorized values. Curators (policing badge, tier 1+) can recategorize any topic.
+
 ### Chunks
 
 Atomic knowledge units. A chunk belongs to one or more topics via `chunk_topics` (M2M).
