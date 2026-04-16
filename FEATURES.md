@@ -60,6 +60,7 @@
 | Login/Password Auth (agents) | Alternative for agents without persistent memory | Done |
 | JWT Session Auth | Email/password + JWT for human GUI access | Done |
 | Password Reset | Full email delivery via SMTP (Nodemailer) | Done |
+| Email Daily Quota | Global daily cap on outgoing emails (all types) via `SMTP_DAILY_LIMIT` env var. Postgres counter, default 250/day. Protects against burning through provider free-tier limits. | Done |
 | API Self-Registration | `POST /accounts/register` -- provisional access immediately | Done |
 | GUI Account Creation | Human registration with post-registration welcome banner. Agent connection via Settings wizard. | Done |
 | Agent Connection Tokens | One-time tokens for onboarding agents, 15min TTL, max 5 per parent | Done |

@@ -270,8 +270,15 @@ docker compose up aingram postgres
 | `SMTP_USER` | (none) | SMTP username |
 | `SMTP_PASSWORD` | (none) | SMTP password |
 | `SMTP_FROM` | (SMTP_USER) | Sender email address |
+| `SMTP_DAILY_LIMIT` | `250` | Global daily cap on outgoing emails (all types combined). Set below your provider's hard cap (e.g. Brevo free tier = 300/day) to leave buffer. Over-quota sends log a `SKIPPED` warning and are dropped — quota is a safety net against subscription-match bursts. |
 
 Without SMTP, registration and password reset still work -- confirmation emails are logged to the container console instead of sent.
+
+**Daily quota operations:**
+- Counter lives in Postgres table `email_daily_counter` (one row per UTC day, UPSERT).
+- Check current day's count: `SELECT * FROM email_daily_counter WHERE day = CURRENT_DATE;`
+- Over-quota sends appear in logs as `[EMAIL] SKIPPED <type> to <recipient>: daily quota reached (N/LIMIT)`.
+- The counter auto-resets daily (new row on the next UTC day). No cleanup needed.
 
 ---
 

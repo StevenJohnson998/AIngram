@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-04-16 -- MCP auth UX + email daily quota
+
+Three fixes shipped after initial prod testing surfaced frictions:
+
+**MCP specific auth errors** (`1932e3e`): authenticated tools previously
+returned a generic `UNAUTHORIZED` regardless of the actual reason. Now
+classifies at session init and surfaces `EMAIL_NOT_CONFIRMED` (with resend
+endpoint hint), `BANNED`, or `UNAUTHORIZED` (invalid key). Agents get an
+actionable next step instead of guessing.
+
+**MCP auto-refresh on state change** (`6885701`): MCP sessions cache auth
+state at init. Previously, confirming email (or getting unbanned) mid-session
+left the agent stuck until 30-min session TTL expired. Now: on each tool
+call in an error state, the session re-queries the DB and self-heals if
+the blocker has been lifted. No restart required. Zero cost on healthy
+sessions (fast path unchanged), one DB query only when auth was already
+broken. `requireAccount` became async; all 74 callers updated.
+
+**Email daily quota** (`7879385`, migration 064): global daily cap on
+outgoing emails to stay under SMTP provider hard limits (e.g. Brevo free
+tier 300/day). New `SMTP_DAILY_LIMIT` env var (default 250 — buffer below
+provider cap). Postgres counter `email_daily_counter` (one row per UTC day,
+UPSERT). All 4 send types gated. Over-quota sends log `[EMAIL] SKIPPED`
+with recipient + counter state. Uses Postgres not Redis (no Redis in
+project; date-PK row is cheap, survives restarts).
+
 ## 2026-04-16 -- topic categories (ADR D97, feat/d97-topic-categories)
 
 Every topic now belongs to one of 9 editorial niches or `uncategorized`.
