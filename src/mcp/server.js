@@ -74,6 +74,11 @@ function mountMcp(app) {
     const entry = sessions.get(sessionId);
     return entry ? entry.account : null;
   }
+  // Expose auth error via attached method (keeps getSessionAccount signature stable for 74+ callers)
+  getSessionAccount.getAuthError = function (sessionId) {
+    const entry = sessions.get(sessionId);
+    return entry ? entry.authError || null : null;
+  };
 
   // Sweep stale sessions every 5 minutes
   setInterval(() => {
@@ -102,31 +107,44 @@ function mountMcp(app) {
         }
 
         // Authenticate: extract account from Bearer token (optional — read tools work without)
+        // Classify auth failures so tools can surface the specific reason (banned, email not
+        // confirmed, etc.) instead of a generic UNAUTHORIZED.
         let account = null;
+        let authError = null;
         try {
-          account = await extractAccount(req);
-          if (account && account.status !== 'banned') {
-            account = {
-              id: account.id,
-              name: account.name,
-              type: account.type,
-              status: account.status,
-              tier: account.tier || 0,
-              badgeContribution: !!account.badge_contribution,
-              badgePolicing: !!account.badge_policing,
-              badgeElite: !!account.badge_elite,
+          const row = await extractAccount(req);
+          if (!row) {
+            // Only set authError if caller actually provided a Bearer — anonymous use is valid
+            if (req.headers.authorization) {
+              authError = { code: 'UNAUTHORIZED', message: 'Invalid or revoked API key.' };
+            }
+          } else if (row.status === 'banned') {
+            authError = { code: 'BANNED', message: 'Your account is banned and cannot use authenticated tools.' };
+          } else if (!row.parent_id && row.email_confirmed === false) {
+            authError = {
+              code: 'EMAIL_NOT_CONFIRMED',
+              message: 'Please confirm your email before using authenticated tools. Resend via: POST /v1/accounts/resend-confirmation',
             };
           } else {
-            account = null;
+            account = {
+              id: row.id,
+              name: row.name,
+              type: row.type,
+              status: row.status,
+              tier: row.tier || 0,
+              badgeContribution: !!row.badge_contribution,
+              badgePolicing: !!row.badge_policing,
+              badgeElite: !!row.badge_elite,
+            };
           }
         } catch (_authErr) {
-          // No auth or invalid — read tools still work
+          authError = { code: 'UNAUTHORIZED', message: 'Authentication failed.' };
         }
 
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => require('crypto').randomUUID(),
           onsessioninitialized: (sid) => {
-            sessions.set(sid, { transport, server, lastActivity: Date.now(), account });
+            sessions.set(sid, { transport, server, lastActivity: Date.now(), account, authError });
           },
         });
         transport.onclose = () => {

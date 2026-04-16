@@ -11,6 +11,14 @@ function requireAccount(getSessionAccount, extra) {
   const sessionId = extra?.sessionId || extra?.meta?.sessionId;
   const account = sessionId ? getSessionAccount(sessionId) : null;
   if (!account) {
+    // Surface the specific auth failure reason captured at init time
+    // (banned, email_not_confirmed, invalid key) instead of a generic message.
+    const authError = sessionId && getSessionAccount.getAuthError
+      ? getSessionAccount.getAuthError(sessionId)
+      : null;
+    if (authError) {
+      throw Object.assign(new Error(authError.message), { code: authError.code });
+    }
     throw Object.assign(
       new Error('Authentication required. Provide a Bearer API key.'),
       { code: 'UNAUTHORIZED' }
