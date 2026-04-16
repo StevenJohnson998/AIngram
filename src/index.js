@@ -218,9 +218,18 @@ app.use((_req, res) => {
   if (_req.accepts('html') && !_req.path.startsWith('/v1/') && !_req.path.startsWith('/accounts/') && !_req.path.startsWith('/mcp')) {
     return res.status(404).sendFile(path.join(__dirname, 'gui', '404.html'));
   }
-  res.status(404).json({
-    error: { code: 'NOT_FOUND', message: 'Endpoint not found' },
-  });
+  const routeSuggester = require('./utils/route-suggester');
+  const suggestions = routeSuggester.suggest(_req.path);
+  const error = {
+    code: 'NOT_FOUND',
+    message: 'Endpoint not found',
+    hint: 'See GET /llms-api.txt for the full API reference.',
+  };
+  if (suggestions.length > 0) {
+    error.did_you_mean = suggestions[0].href;
+    error.suggestions = suggestions;
+  }
+  res.status(404).json({ error });
 });
 
 // Error handler
