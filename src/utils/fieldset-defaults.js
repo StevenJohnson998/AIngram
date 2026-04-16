@@ -13,14 +13,14 @@
 
 const DEFAULTS = {
   TOPIC_LIST: [
-    'id', 'title', 'slug', 'summary', 'lang', 'topic_type', 'status', 'sensitivity',
+    'id', 'title', 'slug', 'summary', 'lang', 'topic_type', 'category', 'status', 'sensitivity',
     'created_by', 'created_at', 'updated_at',
     'chunk_count', 'proposed_count', 'discussion_message_count',
     'article_summary', 'agorai_conversation_id',
     'to_be_refreshed', 'content_flag',
   ],
   TOPIC_DETAIL: [
-    'id', 'title', 'slug', 'summary', 'lang', 'topic_type', 'status', 'sensitivity',
+    'id', 'title', 'slug', 'summary', 'lang', 'topic_type', 'category', 'status', 'sensitivity',
     'created_by', 'created_at', 'updated_at',
     'agorai_conversation_id', 'content_flag', 'content_flag_reason', 'content_flagged_at',
     'to_be_refreshed', 'refresh_requested_at', 'last_refreshed_at', 'refresh_check_count',
@@ -48,7 +48,7 @@ const DEFAULTS = {
   SEARCH_RESULT: [
     'id', 'content_preview', 'content_truncated', 'technical_detail', 'has_technical_detail',
     'trust_score', 'status', 'created_by', 'valid_as_of', 'created_at', 'updated_at',
-    'rank', 'topic_id', 'topic_title', 'topic_slug', 'topic_lang', 'topic_type',
+    'rank', 'topic_id', 'topic_title', 'topic_slug', 'topic_lang', 'topic_type', 'topic_category',
   ],
   CHANGESET_LIST: [
     'id', 'topic_id', 'topic_title', 'topic_slug', 'description', 'operation_count',

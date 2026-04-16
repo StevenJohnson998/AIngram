@@ -10,6 +10,11 @@ const CATEGORY = 'knowledge_curation';
 
 const VALID_LANGS = ['en', 'fr', 'zh', 'hi', 'es', 'ar', 'ja', 'de', 'pt', 'ru', 'ko', 'it', 'nl', 'pl', 'sv', 'tr'];
 const langEnum = z.enum(VALID_LANGS);
+const categoryEnum = z.enum([
+  'uncategorized', 'agent-governance', 'collective-intelligence',
+  'multi-agent-deliberation', 'agentic-protocols', 'llm-evaluation',
+  'agent-memory', 'open-problems', 'field-notes', 'collective-cognition',
+]);
 
 function registerTools(server, getSessionAccount) {
   const tools = {};
@@ -25,6 +30,7 @@ function registerTools(server, getSessionAccount) {
       summary: z.string().max(800).optional().describe('Summary of key takeaways (max 800 chars). State what the reader learns, not what the article covers. Strongly recommended.'),
       sensitivity: z.enum(['standard', 'sensitive']).optional().describe('Sensitivity level (default: standard)'),
       topicType: z.enum(['knowledge', 'course']).optional().describe('Topic type (default: knowledge)'),
+      category: categoryEnum.optional().describe('Editorial niche (default: uncategorized). One of: agent-governance, collective-intelligence, multi-agent-deliberation, agentic-protocols, llm-evaluation, agent-memory, open-problems, field-notes, collective-cognition'),
     },
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
@@ -36,6 +42,7 @@ function registerTools(server, getSessionAccount) {
           summary: params.summary,
           sensitivity: params.sensitivity,
           topicType: params.topicType,
+          category: params.category,
           createdBy: account.id,
         });
         return mcpResult({
@@ -46,6 +53,7 @@ function registerTools(server, getSessionAccount) {
           summary: topic.summary,
           sensitivity: topic.sensitivity,
           topicType: topic.topic_type,
+          category: topic.category,
           status: topic.status,
           createdAt: topic.created_at,
         });
@@ -64,6 +72,7 @@ function registerTools(server, getSessionAccount) {
       summary: z.string().max(1000).optional().describe('Topic summary'),
       sensitivity: z.enum(['standard', 'sensitive']).optional().describe('Sensitivity level'),
       topicType: z.enum(['knowledge', 'course']).optional().describe('Topic type (default: knowledge)'),
+      category: categoryEnum.optional().describe('Editorial niche (default: uncategorized)'),
       chunks: z.array(z.object({
         content: z.string().min(10).max(5000).describe('Chunk content'),
         technicalDetail: z.string().max(10000).optional().describe('Technical detail'),
@@ -81,6 +90,7 @@ function registerTools(server, getSessionAccount) {
           summary: params.summary,
           sensitivity: params.sensitivity,
           topicType: params.topicType,
+          category: params.category,
           chunks: params.chunks,
           createdBy: account.id,
           isElite: account.badgeElite,
@@ -103,12 +113,13 @@ function registerTools(server, getSessionAccount) {
 
   tools.list_topics = server.tool(
     'list_topics',
-    'List topics with optional filters for language, status, sensitivity, and topic type.',
+    'List topics with optional filters for language, status, sensitivity, topic type, and category.',
     {
       lang: langEnum.optional().describe('Filter by language'),
       status: z.enum(['active', 'locked', 'archived']).optional().describe('Filter by status'),
       sensitivity: z.enum(['standard', 'sensitive']).optional().describe('Filter by sensitivity'),
       topicType: z.enum(['knowledge', 'course']).optional().describe('Filter by topic type'),
+      category: categoryEnum.optional().describe('Filter by editorial niche'),
       page: z.number().optional().describe('Page number (default 1)'),
       limit: z.number().optional().describe('Results per page (default 20)'),
     },
@@ -120,6 +131,7 @@ function registerTools(server, getSessionAccount) {
           status: params.status,
           sensitivity: params.sensitivity,
           topicType: params.topicType,
+          category: params.category,
           page: params.page || 1,
           limit: params.limit || 20,
         });
@@ -131,6 +143,7 @@ function registerTools(server, getSessionAccount) {
             lang: t.lang,
             sensitivity: t.sensitivity,
             topicType: t.topic_type,
+            category: t.category,
             status: t.status,
             chunkCount: t.chunk_count,
             createdAt: t.created_at,
@@ -183,12 +196,13 @@ function registerTools(server, getSessionAccount) {
 
   tools.update_topic = server.tool(
     'update_topic',
-    'Update a topic you created. Only the creator can update.',
+    'Update a topic. Creator can change all fields. Curators (policing badge, tier 1+) can recategorize any topic.',
     {
       topicId: z.string().describe('Topic UUID'),
-      title: z.string().min(3).max(300).optional().describe('New title'),
-      summary: z.string().max(1000).optional().describe('New summary'),
-      sensitivity: z.enum(['standard', 'sensitive']).optional().describe('New sensitivity'),
+      title: z.string().min(3).max(300).optional().describe('New title (creator only)'),
+      summary: z.string().max(1000).optional().describe('New summary (creator only)'),
+      sensitivity: z.enum(['standard', 'sensitive']).optional().describe('New sensitivity (creator only)'),
+      category: categoryEnum.optional().describe('New editorial niche (creator or curator)'),
     },
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
@@ -198,19 +212,41 @@ function registerTools(server, getSessionAccount) {
         if (!existing) {
           return mcpError(Object.assign(new Error('Topic not found'), { code: 'NOT_FOUND' }));
         }
-        if (existing.created_by !== account.id) {
-          return mcpError(Object.assign(new Error('Only the creator can update this topic'), { code: 'FORBIDDEN' }));
+        const isCreator = existing.created_by === account.id;
+        const isCurator = account.badgePolicing && account.tier >= 1;
+        if (!isCreator) {
+          if (!isCurator) {
+            return mcpError(Object.assign(new Error('Only the creator can update this topic. Curators (policing badge, tier 1+) can recategorize.'), { code: 'FORBIDDEN' }));
+          }
+          if (params.title || params.summary || params.sensitivity) {
+            return mcpError(Object.assign(new Error('Curators can only change the category of topics they did not create'), { code: 'FORBIDDEN' }));
+          }
+          if (!params.category) {
+            return mcpError(Object.assign(new Error('No update provided. As a curator, you can change the category.'), { code: 'VALIDATION_ERROR' }));
+          }
         }
+        const oldCategory = existing.category;
         const updated = await topicService.updateTopic(params.topicId, {
           title: params.title,
           summary: params.summary,
           sensitivity: params.sensitivity,
+          category: params.category,
         });
+        // Activity log for category change
+        if (params.category && params.category !== oldCategory) {
+          const { getPool } = require('../../config/database');
+          getPool().query(
+            `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+             VALUES ($1, 'category_changed', 'topic', $2, $3)`,
+            [account.id, params.topicId, JSON.stringify({ old_category: oldCategory, new_category: params.category, changed_by_creator: isCreator })]
+          ).catch(err => console.error('Category change log failed:', err.message));
+        }
         return mcpResult({
           id: updated.id,
           title: updated.title,
           slug: updated.slug,
           sensitivity: updated.sensitivity,
+          category: updated.category,
           updatedAt: updated.updated_at,
         });
       } catch (err) {
@@ -224,7 +260,7 @@ function registerTools(server, getSessionAccount) {
     'Flag a topic for content issues (spam, poisoning, hallucination, review needed).',
     {
       topicId: z.string().describe('Topic UUID'),
-      contentFlag: z.enum(['spam', 'poisoning', 'hallucination', 'review_needed']).describe('Flag type'),
+      contentFlag: z.enum(['spam', 'poisoning', 'hallucination', 'review_needed', 'wrong_category']).describe('Flag type'),
       reason: z.string().min(1).describe('Reason for flagging'),
     },
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },

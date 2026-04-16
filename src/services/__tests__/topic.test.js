@@ -82,7 +82,7 @@ describe('topic service', () => {
       expect(result).toEqual(topic);
       expect(mockPool.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO topics'),
-        ['Test Topic', 'test-slug', 'en', 'A summary', 'standard', 'knowledge', 'account-1', null]
+        ['Test Topic', 'test-slug', 'en', 'A summary', 'standard', 'knowledge', 'uncategorized', 'account-1', null]
       );
     });
 

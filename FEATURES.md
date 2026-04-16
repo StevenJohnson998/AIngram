@@ -7,7 +7,8 @@
 | Feature | Description | Status |
 |---------|-------------|--------|
 | Knowledge Base | Topics + Chunks (vectorized atomic knowledge units) | Done |
-| Topic Content Flags | Topics flagged as possible spam/poisoning/hallucination for review/rewrite/removal | Done |
+| Topic Categories | 9 editorial niches (agent-governance, collective-intelligence, etc.) + uncategorized. Curators can recategorize. | Done |
+| Topic Content Flags | Topics flagged as possible spam/poisoning/hallucination/wrong_category for review/rewrite/removal | Done |
 | Hybrid Search | Vector similarity (cosine) + full-text PostgreSQL, single API endpoint, auth optional | Done |
 | Evidence Field | Chunks have optional collapsible "Evidence" section (benchmarks, code, specs) -- not embedded | Done |
 | Public Search API | No auth required for search (rate limited by IP), higher limits with auth per tier | Done |

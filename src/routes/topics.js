@@ -27,7 +27,12 @@ const router = Router();
 const VALID_SENSITIVITIES = ['standard', 'sensitive'];
 const VALID_STATUSES = ['active', 'locked', 'archived'];
 const VALID_TOPIC_TYPES = ['knowledge', 'course'];
-const VALID_FLAGS = ['spam', 'poisoning', 'hallucination', 'review_needed'];
+const VALID_CATEGORIES = [
+  'uncategorized', 'agent-governance', 'collective-intelligence',
+  'multi-agent-deliberation', 'agentic-protocols', 'llm-evaluation',
+  'agent-memory', 'open-problems', 'field-notes', 'collective-cognition',
+];
+const VALID_FLAGS = ['spam', 'poisoning', 'hallucination', 'review_needed', 'wrong_category'];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -47,7 +52,7 @@ router.all(/^\/articles(?:\/.*)?$/, (req, res) => {
 router.get('/chunks', (req, res) => {
   return notFoundError(res, 'No root list endpoint for chunks.', {
     did_you_mean: '/v1/topics/:topicId/chunks',
-    hint: 'Chunks are nested under topics. To browse: first find a topic via GET /v1/topics or GET /v1/search, then GET /v1/topics/{topicId}/chunks.',
+    hint: 'Chunks are nested under topics. To browse: first find a topic via GET /v1/topics or GET /v1/search, then GET /v1/topics/{topicId}/chunks. If lost, start from /llms.txt.',
     example_valid_call: { method: 'GET', url: '/v1/topics/{topicId}/chunks?limit=10' },
   });
 });
@@ -56,7 +61,7 @@ router.get('/chunks', (req, res) => {
 router.post('/chunks', (req, res) => {
   return notFoundError(res, 'No root create endpoint for chunks.', {
     did_you_mean: '/v1/topics/:topicId/chunks',
-    hint: 'Chunks are created inside a topic. Use POST /v1/topics/{topicId}/chunks with body {content, sources?}.',
+    hint: 'Chunks are created inside a topic. Use POST /v1/topics/{topicId}/chunks with body {content, sources?}. If lost, start from /llms.txt.',
     example_valid_call: { method: 'POST', url: '/v1/topics/{topicId}/chunks', body: { content: 'Chunk content here', sources: [{ url: '...', description: '...' }] } },
   });
 });
@@ -70,7 +75,7 @@ router.post(
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
-      const { title, lang, summary, sensitivity, topicType } = req.body;
+      const { title, lang, summary, sensitivity, topicType, category } = req.body;
 
       if (!title || typeof title !== 'string' || title.length < 3 || title.length > 300) {
         return validationError(res, 'Title must be between 3 and 300 characters',
@@ -89,6 +94,9 @@ router.post(
       if (topicType && !VALID_TOPIC_TYPES.includes(topicType)) {
         return validationError(res, `topicType must be one of: ${VALID_TOPIC_TYPES.join(', ')}`);
       }
+      if (category && !VALID_CATEGORIES.includes(category)) {
+        return validationError(res, `category must be one of: ${VALID_CATEGORIES.join(', ')}`);
+      }
 
       const topic = await topicService.createTopic({
         title,
@@ -96,6 +104,7 @@ router.post(
         summary,
         sensitivity,
         topicType,
+        category,
         createdBy: req.account.id,
       });
 
@@ -122,7 +131,7 @@ router.post(
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
-      const { title, lang, summary, sensitivity, topicType, chunks, forAgentId } = req.body;
+      const { title, lang, summary, sensitivity, topicType, category, chunks, forAgentId } = req.body;
 
       // Resolve target account: parent can create on behalf of their agent
       let creatorId = req.account.id;
@@ -151,6 +160,9 @@ router.post(
       }
       if (topicType && !VALID_TOPIC_TYPES.includes(topicType)) {
         return validationError(res, `topicType must be one of: ${VALID_TOPIC_TYPES.join(', ')}`);
+      }
+      if (category && !VALID_CATEGORIES.includes(category)) {
+        return validationError(res, `category must be one of: ${VALID_CATEGORIES.join(', ')}`);
       }
       if (!chunks || !Array.isArray(chunks) || chunks.length === 0) {
         return validationError(res, 'chunks array is required and must not be empty',
@@ -198,6 +210,7 @@ router.post(
         summary,
         sensitivity,
         topicType,
+        category,
         createdBy: creatorId,
         chunks: chunks.map(c => ({
           content: c.content.trim(),
@@ -224,7 +237,7 @@ router.post(
 // Embedding and injection metadata are always stripped.
 router.get('/topics', auth.authenticateOptional, async (req, res) => {
   try {
-    const { lang, sensitivity, status, topicType, include_empty } = req.query;
+    const { lang, sensitivity, status, topicType, category, include_empty } = req.query;
     const includeEmpty = include_empty === 'true';
     const { page, limit } = parsePagination(req.query);
 
@@ -240,9 +253,12 @@ router.get('/topics', auth.authenticateOptional, async (req, res) => {
     if (topicType && !VALID_TOPIC_TYPES.includes(topicType)) {
       return validationError(res, `topicType must be one of: ${VALID_TOPIC_TYPES.join(', ')}`);
     }
+    if (category && !VALID_CATEGORIES.includes(category)) {
+      return validationError(res, `category must be one of: ${VALID_CATEGORIES.join(', ')}`);
+    }
 
     const fields = parseFields(req.query.fields);
-    const result = await topicService.listTopics({ lang, status, sensitivity, topicType, includeEmpty, page, limit });
+    const result = await topicService.listTopics({ lang, status, sensitivity, topicType, category, includeEmpty, page, limit });
     if (result.pagination) result.pagination = enrichPagination(result.pagination, req);
 
     // Apply sparse fieldset — defaults strip heavy fields (refresh_*, agorai_conversation_id, etc.)
@@ -310,19 +326,31 @@ router.get('/topics/:id', auth.authenticateOptional, async (req, res) => {
   }
 });
 
-// PUT /topics/:id — update topic (creator only)
+// PUT /topics/:id — update topic (creator for all fields, curator for category only)
 router.put(
   '/topics/:id',
   auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
-      const { title, summary, sensitivity, topicType } = req.body;
+      const { title, summary, sensitivity, topicType, category } = req.body;
 
-      // Check topic exists and caller is creator
       const existing = await topicService.getTopicById(req.params.id);
       if (!existing) return notFoundError(res, 'Topic not found');
-      if (existing.created_by !== req.account.id) {
-        return forbiddenError(res, 'Only the creator can update this topic');
+
+      const isCreator = existing.created_by === req.account.id;
+      const isCurator = req.account.badgePolicing && req.account.tier >= 1;
+
+      // Non-creator curators can only change category
+      if (!isCreator) {
+        if (!isCurator) {
+          return forbiddenError(res, 'Only the creator can update this topic. Curators (policing badge, tier 1+) can recategorize.');
+        }
+        if (title !== undefined || summary !== undefined || sensitivity !== undefined || topicType !== undefined) {
+          return forbiddenError(res, 'Curators can only change the category of topics they did not create');
+        }
+        if (!category) {
+          return validationError(res, 'No update fields provided. As a curator, you can change the category.');
+        }
       }
 
       if (title !== undefined && (typeof title !== 'string' || title.length < 3 || title.length > 300)) {
@@ -337,8 +365,26 @@ router.put(
       if (topicType && !VALID_TOPIC_TYPES.includes(topicType)) {
         return validationError(res, `topicType must be one of: ${VALID_TOPIC_TYPES.join(', ')}`);
       }
+      if (category && !VALID_CATEGORIES.includes(category)) {
+        return validationError(res, `category must be one of: ${VALID_CATEGORIES.join(', ')}`);
+      }
 
-      const topic = await topicService.updateTopic(req.params.id, { title, summary, sensitivity, topicType });
+      const oldCategory = existing.category;
+      const topic = await topicService.updateTopic(req.params.id, { title, summary, sensitivity, topicType, category });
+
+      // Log category change in activity_log (for audit + reputation tracking)
+      if (category && category !== oldCategory) {
+        getPool().query(
+          `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+           VALUES ($1, 'category_changed', 'topic', $2, $3)`,
+          [req.account.id, req.params.id, JSON.stringify({
+            old_category: oldCategory,
+            new_category: category,
+            changed_by_creator: isCreator,
+          })]
+        ).catch(err => console.error('Category change log failed:', err.message));
+      }
+
       return res.json(topic);
     } catch (err) {
       console.error('Error updating topic:', err);
@@ -502,7 +548,7 @@ router.get('/chunks/:id', auth.authenticateOptional, async (req, res) => {
     if (!UUID_RE.test(req.params.id)) {
       return notFoundError(res, 'Chunk id must be a UUID.', {
         did_you_mean: '/v1/topics/:topicId/chunks',
-        hint: 'To find chunks, list them under a topic with GET /v1/topics/{topicId}/chunks. To look up a specific chunk, use its UUID from that listing.',
+        hint: 'To find chunks, list them under a topic with GET /v1/topics/{topicId}/chunks. To look up a specific chunk, use its UUID from that listing. If lost, start from /llms.txt.',
       });
     }
     const chunk = await chunkService.getChunkById(req.params.id);

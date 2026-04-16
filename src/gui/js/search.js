@@ -53,6 +53,12 @@ var currentQuery = '';
         else loadRecentTopics();
       });
 
+      document.getElementById('filter-category').addEventListener('change', function() {
+        var q = document.getElementById('search-input').value.trim();
+        if (q) doSearch(q);
+        else loadRecentTopics();
+      });
+
       document.getElementById('load-more-btn').addEventListener('click', function() {
         if (!window._searchResults) return;
         var container = document.getElementById('results-container');
@@ -104,9 +110,11 @@ var currentQuery = '';
     async function loadRecentTopics() {
       var topicType = document.getElementById('filter-topic-type').value;
       var lang = document.getElementById('filter-lang').value;
+      var category = document.getElementById('filter-category').value;
       var url = '/topics?limit=20';
       if (topicType) url += '&topicType=' + topicType;
       if (lang) url += '&lang=' + lang;
+      if (category) url += '&category=' + category;
 
       var container = document.getElementById('results-container');
       container.innerHTML = '';
@@ -127,9 +135,12 @@ var currentQuery = '';
             var typeBadge = topic.topic_type === 'course'
               ? '<span class="badge s-109a5b77">Course</span> '
               : '';
+            var catBadge = (topic.category && topic.category !== 'uncategorized')
+              ? '<span class="badge badge-category">' + escapeHtml(topic.category) + '</span> '
+              : '';
             return '<a href="./topic.html?id=' + topic.id + '" class="card trust-border ' + tc + ' mb-md s-f5d2e27e">' +
               '<div class="flex items-center gap-sm mb-sm">' +
-                typeBadge +
+                typeBadge + catBadge +
                 '<span class="s-f64f240b">' + escapeHtml(topic.title) + '</span>' +
               '</div>' +
               (topic.summary ? '<p class="text-sm text-muted s-f7959892">' + escapeHtml(topic.summary.substring(0, 150)) + '</p>' : '') +
@@ -159,6 +170,7 @@ var currentQuery = '';
       var type = document.getElementById('filter-type').value;
       var lang = document.getElementById('filter-lang').value;
       var topicType = document.getElementById('filter-topic-type').value;
+      var category = document.getElementById('filter-category').value;
 
       var container = document.getElementById('results-container');
       container.innerHTML = '<p class="text-muted" id="results-loading">&#8987; Searching...</p><p class="text-muted" id="results-empty" class="s-5790ffba">No results found.</p>';
@@ -170,6 +182,7 @@ var currentQuery = '';
       var url = '/search?q=' + encodeURIComponent(q) + '&type=' + type + '&page=1&limit=' + SEARCH_MAX;
       if (lang) url += '&lang=' + lang;
       if (topicType) url += '&topicType=' + topicType;
+      if (category) url += '&category=' + category;
 
       try {
         var res = await API.get(url);

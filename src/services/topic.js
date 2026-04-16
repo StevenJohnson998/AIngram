@@ -13,7 +13,7 @@ const TOPIC_EMBEDDING_DIM = 768;
 /**
  * Create a new topic.
  */
-async function createTopic({ title, lang, summary, sensitivity, topicType, createdBy }) {
+async function createTopic({ title, lang, summary, sensitivity, topicType, category, createdBy }) {
   const pool = getPool();
   const { generateEmbedding } = require('./ollama');
 
@@ -82,10 +82,10 @@ async function createTopic({ title, lang, summary, sensitivity, topicType, creat
 
   const embeddingValue = titleEmbedding ? `[${titleEmbedding.join(',')}]` : null;
   const { rows } = await pool.query(
-    `INSERT INTO topics (title, slug, lang, summary, sensitivity, topic_type, created_by, embedding)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO topics (title, slug, lang, summary, sensitivity, topic_type, category, created_by, embedding)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
-    [title, slug, lang, summary || null, sensitivity || 'standard', topicType || 'knowledge', createdBy, embeddingValue]
+    [title, slug, lang, summary || null, sensitivity || 'standard', topicType || 'knowledge', category || 'uncategorized', createdBy, embeddingValue]
   );
 
   // Auto-subscribe the creator to their own topic (fire-and-forget)
@@ -146,7 +146,7 @@ async function getTopicBySlug(slug, lang) {
 /**
  * List topics with filters and pagination.
  */
-async function listTopics({ lang, status, sensitivity, topicType, includeEmpty = false, page = 1, limit = 20 } = {}) {
+async function listTopics({ lang, status, sensitivity, topicType, category, includeEmpty = false, page = 1, limit = 20 } = {}) {
   const pool = getPool();
   const conditions = [];
   const params = [];
@@ -167,6 +167,10 @@ async function listTopics({ lang, status, sensitivity, topicType, includeEmpty =
   if (topicType) {
     conditions.push(`t.topic_type = $${idx++}`);
     params.push(topicType);
+  }
+  if (category) {
+    conditions.push(`t.category = $${idx++}`);
+    params.push(category);
   }
 
   // Hide topics with zero published chunks from public listings (unless includeEmpty)
@@ -230,7 +234,7 @@ async function listTopics({ lang, status, sensitivity, topicType, includeEmpty =
 /**
  * Update a topic. Regenerates slug if title changed.
  */
-async function updateTopic(id, { title, summary, sensitivity, topicType }) {
+async function updateTopic(id, { title, summary, sensitivity, topicType, category }) {
   const pool = getPool();
 
   // S4: defensive injection telemetry
@@ -266,10 +270,11 @@ async function updateTopic(id, { title, summary, sensitivity, topicType }) {
          slug = $2,
          summary = COALESCE($3, summary),
          sensitivity = COALESCE($4, sensitivity),
+         category = COALESCE($5, category),
          updated_at = now()
-     WHERE id = $5
+     WHERE id = $6
      RETURNING *`,
-    [title || topic.title, slug, summary, sensitivity, id]
+    [title || topic.title, slug, summary, sensitivity, category, id]
   );
 
   return rows[0] || null;
@@ -349,7 +354,7 @@ async function linkTranslation(topicId, translatedId) {
  * Create a topic with multiple chunks in a single atomic transaction.
  * All chunks start as 'proposed'. Embeddings + subscription matching fire-and-forget after commit.
  */
-async function createTopicFull({ title, lang, summary, sensitivity, topicType, createdBy, chunks, isElite = false, hasBadgeContribution = false }) {
+async function createTopicFull({ title, lang, summary, sensitivity, topicType, category, createdBy, chunks, isElite = false, hasBadgeContribution = false }) {
   const pool = getPool();
   const client = await pool.connect();
   const chunkService = require('./chunk');
@@ -374,10 +379,10 @@ async function createTopicFull({ title, lang, summary, sensitivity, topicType, c
     const baseSlug = generateSlug(title);
     const slug = await ensureUniqueSlug(baseSlug, lang, pool);
     const { rows: topicRows } = await client.query(
-      `INSERT INTO topics (title, slug, lang, summary, sensitivity, topic_type, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO topics (title, slug, lang, summary, sensitivity, topic_type, category, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [title, slug, lang, summary || null, sensitivity || 'standard', topicType || 'knowledge', createdBy]
+      [title, slug, lang, summary || null, sensitivity || 'standard', topicType || 'knowledge', category || 'uncategorized', createdBy]
     );
     const topic = topicRows[0];
 

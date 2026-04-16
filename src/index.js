@@ -222,8 +222,9 @@ app.use((_req, res) => {
   const suggestions = routeSuggester.suggest(_req.path);
   const error = {
     code: 'NOT_FOUND',
-    message: 'Endpoint not found',
-    hint: 'See GET /llms-api.txt for the full API reference.',
+    message: 'Endpoint not found. Stop guessing URLs — read /llms.txt first. It lists every valid endpoint.',
+    docs: '/llms.txt',
+    api_reference: '/llms-api.txt',
   };
   if (suggestions.length > 0) {
     error.did_you_mean = suggestions[0].href;

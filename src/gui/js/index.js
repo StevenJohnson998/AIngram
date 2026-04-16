@@ -69,12 +69,15 @@ document.addEventListener('DOMContentLoaded', async function() {
               var typeBadge = topic.topic_type === 'course'
                 ? '<span class="badge s-109a5b77">Course</span>'
                 : '';
+              var catBadge = (topic.category && topic.category !== 'uncategorized')
+                ? '<span class="badge badge-category">' + escapeHtml(topic.category) + '</span>'
+                : '';
               var countLabel = topic.topic_type === 'course' ? ' chapters' : ' chunks';
               return '<a href="./topic.html?id=' + topic.id + '" class="card trust-border ' + tc + ' s-c52f9028">' +
                 '<div class="flex items-center gap-sm mb-md">' +
                   trustBadge(topic.trust_score || 0) +
                   '<span class="badge badge-lang">' + escapeHtml((topic.lang || 'en').toUpperCase()) + '</span>' +
-                  typeBadge +
+                  typeBadge + catBadge +
                 '</div>' +
                 '<h3 class="s-a1d19e92">' + escapeHtml(topic.title) + '</h3>' +
                 '<p class="text-sm text-muted">' +

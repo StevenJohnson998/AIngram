@@ -83,6 +83,10 @@ var currentTopicId = null;
           '<span class="sep">&middot;</span>',
           '<span>Updated ' + timeAgo(topic.updated_at || topic.created_at) + '</span>',
         ];
+        if (topic.category && topic.category !== 'uncategorized') {
+          metaParts.push('<span class="sep">&middot;</span>');
+          metaParts.push('<span class="badge badge-category">' + escapeHtml(topic.category) + '</span>');
+        }
         if (topic.topic_type === 'course') {
           metaParts.unshift('<span class="badge s-b84fb6be">Course</span>');
           metaParts.splice(1, 0, '<span class="sep">&middot;</span>');

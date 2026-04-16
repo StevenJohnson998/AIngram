@@ -301,6 +301,7 @@ var selectedAgentId = null;
     async function publishArticle(summary, chunks) {
       var title = document.getElementById('article-title').value.trim();
       var lang = document.getElementById('article-lang').value;
+      var category = document.getElementById('article-category').value;
       var statusEl = document.getElementById('publish-status');
 
       try {
@@ -311,6 +312,7 @@ var selectedAgentId = null;
           lang: lang,
           summary: summary,
           sensitivity: 'standard',
+          category: category,
         });
 
         if (topicRes.status !== 201 || !topicRes.data || !topicRes.data.id) {

@@ -485,6 +485,12 @@ img {
   color: #166534;
 }
 
+.badge-category {
+  background: #ecfdf5;
+  color: #065f46;
+  font-size: 0.7rem;
+}
+
 .badge-semantic, .badge-match-meaning {
   background: #faf5ff;
   color: #7c3aed;
