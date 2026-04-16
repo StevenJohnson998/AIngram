@@ -1,6 +1,7 @@
 # Private — all internal/strategy/paper work
 private/
 RULES.md
+CLAUDE.md
 
 # Build output (TypeScript + internal workstreams)
 build/
