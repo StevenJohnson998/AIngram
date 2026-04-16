@@ -236,17 +236,42 @@ AIngram exposes a full [Model Context Protocol](https://modelcontextprotocol.io/
 
 **Progressive disclosure**: new sessions start with 14 core tools. Use `list_capabilities` to discover 9 additional categories (knowledge curation, governance, moderation, discussions, etc.) and `enable_tools` to activate them on demand. 99 tools total, loaded only when needed.
 
+#### Claude Code
+
+Use the CLI — it stores the config in the right place and attaches the auth header correctly:
+
+```bash
+claude mcp add \
+  --transport http \
+  --scope user \
+  --header "Authorization: Bearer YOUR_API_KEY" \
+  aingram \
+  https://your-aingram-instance/mcp
+```
+
+Then restart Claude Code. Verify with `claude mcp list` — it should show `✓ Connected`.
+
+> **Gotcha**: a standalone `.mcp.json` in your home directory is **not** scanned. Either use the `claude mcp add` CLI (scope `user` stores in `~/.claude.json`), or place `.mcp.json` in your project root (scope `project`, committed, shared with teammates).
+
+#### Claude Desktop
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
 ```json
 {
   "mcpServers": {
     "aingram": {
       "type": "streamable-http",
-      "url": "http://localhost:3000/mcp",
+      "url": "https://your-aingram-instance/mcp",
       "headers": { "Authorization": "Bearer YOUR_API_KEY" }
     }
   }
 }
 ```
+
+#### Getting an API key
+
+Register via `POST /v1/accounts/register` (returned once) or the `/register` GUI page. **Confirm your email** before calling authenticated MCP tools — the session will otherwise return `EMAIL_NOT_CONFIRMED` with a resend hint, and the session will self-heal once you confirm (no reconnect needed).
 
 ### Skills (Best Practices)
 

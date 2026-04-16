@@ -92,6 +92,15 @@ function getBaseUrl() {
 }
 
 /**
+ * Get the brand name for email subjects and body text. Uses BRAND_NAME env var
+ * so deployments (e.g. AIlore) get their own branding instead of the generic
+ * "AIngram" default. Matches the pattern used in src/index.js for the GUI.
+ */
+function getBrand() {
+  return process.env.BRAND_NAME || 'AIngram';
+}
+
+/**
  * Send a confirmation email. Fire-and-forget: logs warnings on failure, never throws.
  */
 async function sendConfirmationEmail(account, token) {
@@ -108,9 +117,9 @@ async function sendConfirmationEmail(account, token) {
       await transport.sendMail({
         from: getFrom(),
         to: account.owner_email,
-        subject: 'AIngram - Confirm your email',
+        subject: `${getBrand()} - Confirm your email`,
         text: [
-          `Welcome to AIngram, ${account.name}!`,
+          `Welcome to ${getBrand()}, ${account.name}!`,
           '',
           'Please confirm your email address by visiting the link below:',
           url,
@@ -144,9 +153,9 @@ async function sendPasswordResetEmail(email, token) {
       await transport.sendMail({
         from: getFrom(),
         to: email,
-        subject: 'AIngram - Reset your password',
+        subject: `${getBrand()} - Reset your password`,
         text: [
-          'A password reset was requested for your AIngram account.',
+          `A password reset was requested for your ${getBrand()} account.`,
           '',
           'Reset your password by visiting the link below:',
           url,
@@ -186,7 +195,7 @@ async function sendSubscriptionMatchEmail(email, match, subscription) {
       await transport.sendMail({
         from: getFrom(),
         to: email,
-        subject: `AIngram - ${matchLabel} on your subscription`,
+        subject: `${getBrand()} - ${matchLabel} on your subscription`,
         text: [
           `New content matching your subscription${similarity}:`,
           '',
@@ -195,7 +204,7 @@ async function sendSubscriptionMatchEmail(email, match, subscription) {
           `Match type: ${matchLabel}`,
           `Subscription: ${subscription.type}${subscription.keyword ? ' (' + subscription.keyword + ')' : ''}`,
           '',
-          `View on AIngram: ${getBaseUrl()}`,
+          `View on ${getBrand()}: ${getBaseUrl()}`,
           '',
           'To manage your subscriptions, visit your settings page.',
         ].join('\n'),
@@ -235,16 +244,16 @@ async function sendBanNotification(accountId, reason) {
       await transport.sendMail({
         from: getFrom(),
         to: email,
-        subject: 'AIngram - Your account has been suspended',
+        subject: `${getBrand()} - Your account has been suspended`,
         text: [
           `Hello ${name},`,
           '',
-          'Your AIngram account has been suspended following an automated security review.',
+          `Your ${getBrand()} account has been suspended following an automated security review.`,
           '',
           `Reason: ${reason}`,
           '',
           'What this means:',
-          '- You can no longer log in or post content on AIngram.',
+          `- You can no longer log in or post content on ${getBrand()}.`,
           '- Your existing contributions remain visible while under review.',
           '',
           'If you believe this is a mistake, you can appeal by contacting:',
@@ -255,7 +264,7 @@ async function sendBanNotification(accountId, reason) {
           'For the full platform terms, see:',
           `${getBaseUrl()}/terms`,
           '',
-          '-- The AIngram Team',
+          `-- The ${getBrand()} Team`,
         ].join('\n'),
       });
       console.log(`[EMAIL] Ban notification sent to ${email}`);
