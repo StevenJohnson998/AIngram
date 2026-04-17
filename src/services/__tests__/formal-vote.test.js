@@ -313,6 +313,11 @@ describe('formal-vote service', () => {
       expect(result.decision).toBe('accept');
       expect(result.score).toBe(3.0);
       expect(result.revealedCount).toBe(3);
+
+      // Verify conclusive decisions use vote_phase = 'resolved'
+      const updateCall = mockClient.query.mock.calls[4];
+      expect(updateCall[0]).toContain("vote_phase = 'resolved'");
+      expect(updateCall[0]).not.toContain('vote_inconclusive_at');
     });
 
     it('rejects chunk when score <= TAU_REJECT', async () => {
@@ -356,6 +361,12 @@ describe('formal-vote service', () => {
       const result = await formalVoteService.tallyAndResolve('cs-1');
 
       expect(result.decision).toBe('indeterminate');
+
+      // Verify vote_phase reset to NULL (not 'resolved') for inconclusive
+      const updateCall = mockClient.query.mock.calls[4]; // UPDATE changesets
+      expect(updateCall[0]).toContain('vote_phase = NULL');
+      expect(updateCall[0]).toContain('vote_inconclusive_at = now()');
+      expect(updateCall[0]).toContain('commit_deadline_at = NULL');
     });
 
     it('returns no_quorum when below Q_MIN revealed votes', async () => {
@@ -376,6 +387,11 @@ describe('formal-vote service', () => {
       const result = await formalVoteService.tallyAndResolve('cs-1');
 
       expect(result.decision).toBe('no_quorum');
+
+      // Verify vote_phase reset to NULL for no_quorum (same as indeterminate)
+      const updateCall = mockClient.query.mock.calls[4];
+      expect(updateCall[0]).toContain('vote_phase = NULL');
+      expect(updateCall[0]).toContain('vote_inconclusive_at = now()');
     });
 
     it('returns null if chunk already resolved (skip locked)', async () => {

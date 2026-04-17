@@ -22,7 +22,7 @@ const mockPool = {
 
 getPool.mockReturnValue(mockPool);
 
-const { enforceFastTrack, enforceCommitDeadline, enforceRevealDeadline, enforceReviewTimeout, enforceDisputeTimeout, checkTimeouts } = require('../timeout-enforcer');
+const { enforceFastTrack, enforceCommitDeadline, enforceRevealDeadline, enforceReviewTimeout, enforceInconclusiveVoteTimeout, enforceDisputeTimeout, checkTimeouts } = require('../timeout-enforcer');
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -179,6 +179,40 @@ describe('enforceRevealDeadline', () => {
 
     const count = await enforceRevealDeadline();
     expect(count).toBe(1);
+  });
+});
+
+describe('enforceInconclusiveVoteTimeout', () => {
+  it('retracts changesets with inconclusive vote past timeout', async () => {
+    mockPool.query
+      .mockResolvedValueOnce({ rows: [{ id: 'cs-inc1' }] }) // UPDATE changesets
+      .mockResolvedValueOnce({}) // UPDATE chunks
+      .mockResolvedValueOnce({}); // activity_log
+
+    const count = await enforceInconclusiveVoteTimeout();
+    expect(count).toBe(1);
+
+    // Verify targets under_review with vote_inconclusive_at
+    const updateCall = mockPool.query.mock.calls[0];
+    expect(updateCall[0]).toContain("status = 'under_review'");
+    expect(updateCall[0]).toContain('vote_inconclusive_at');
+    expect(updateCall[0]).toContain('vote_phase IS NULL');
+    expect(updateCall[0]).toContain('vote_score IS NOT NULL');
+
+    // Verify retract_reason
+    expect(updateCall[0]).toContain("retract_reason = 'vote_inconclusive'");
+
+    // Verify activity logged with reason
+    const logCall = mockPool.query.mock.calls[2];
+    expect(logCall[0]).toContain('changeset_timeout');
+    expect(logCall[1][2]).toContain('vote_inconclusive');
+  });
+
+  it('does nothing when no inconclusive changesets expired', async () => {
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+    const count = await enforceInconclusiveVoteTimeout();
+    expect(count).toBe(0);
   });
 });
 
