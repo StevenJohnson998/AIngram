@@ -278,12 +278,14 @@
 | E2E Pipeline Tests | 13 domain-specific specs (55 tests), runnable independently via `npm run test:e2e` | Done |
 | Playwright E2E Tests | 22 headless browser tests (smoke + user journeys), ~12s | Done |
 | Content Seeding | 138 topics, 296 chunks across 5 verticals | Done |
+| Curator Agent | Cron (5min) polls review queue, DeepSeek judges, merges good content. Contribution badge. | Done |
+| Sentinel Agent | Cron (5min) watches proposals/flags/reports, Mistral judges, rejects abuse. Policing badge. | Done |
 
 ## Seed and Growth
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| AI Moderation | Assisted review done | Partial (autonomous patrol deferred) |
+| AI Moderation | Curator (editorial merge) + Sentinel (abuse detection) agents running autonomously | Done |
 
 ## GUI UX
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-04-17 -- Sentinel agent + GUI review wording
+
+**Sentinel agent**: `scripts/sentinel-agent/` — Python cron script (every 5min)
+that watches three queues: proposals (merge safe / reject abuse), flags
+(action/dismiss/review), and reports (resolve/dismiss). Uses Mistral
+(`mistral-small-latest`) for judgment. Complements the curator (editorial)
+with a security/abuse focus. Requires policing badge.
+
+**GUI review wording** (`769104d`): "Publish" replaced with "Submit for review"
+throughout the new-article flow (stepper, buttons, status messages). Topic pages
+now show a pending review banner when no chunks are published yet (with a
+personalized variant when redirected from article creation).
+
+**Dry-run fix**: both curator and sentinel no longer persist `seen.json` in
+`--dry-run` mode.
+
 ## 2026-04-17 -- Merge permissions + embedding safety + curator agent
 
 **Contribution badge merge** (`0ddfca4`, `55e7802`): contribution badge holders

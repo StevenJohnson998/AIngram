@@ -54,5 +54,6 @@ test-results/
 Thumbs.db
 __pycache__/
 venv/
-scripts/curator-agent/seen.json
+scripts/curator-agent/
+scripts/sentinel-agent/
 tests/snapshots/

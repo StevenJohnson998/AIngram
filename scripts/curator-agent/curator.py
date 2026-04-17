@@ -254,7 +254,8 @@ def run(dry_run: bool = False):
                 "topic": topic_title,
             }
 
-    save_seen(seen)
+    if not dry_run:
+        save_seen(seen)
     log.info("Done. Processed %d item(s).", len(new_items))
 
 
