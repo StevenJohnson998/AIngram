@@ -114,12 +114,16 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
   else prior = trustConfig.CHUNK_PRIOR_NEW;
   const initialTrust = prior[0] / (prior[0] + prior[1]);
 
+  // Embedding generated during dedup check; reused for storage to avoid a second Ollama call
+  let contentEmbedding = null;
+
   try {
     // Near-duplicate detection: check if a very similar chunk already exists on this topic
     // Non-blocking: if embedding or DB check fails, we skip the guard (better to allow than to block on infra error)
     try {
       const embedding = await generateEmbedding(content);
       if (embedding) {
+        contentEmbedding = embedding;
         const vectorStr = `[${embedding.join(',')}]`;
         const dupeResult = await pool.query(
           `SELECT c.id, 1 - (c.embedding <=> $1::vector) AS similarity
@@ -165,6 +169,13 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
     chunk.changeset_id = csRows[0].id;
 
     await client.query('COMMIT');
+
+    // Store embedding if generated during dedup (fire-and-forget to avoid blocking the response)
+    if (contentEmbedding) {
+      const vectorStr = `[${contentEmbedding.join(',')}]`;
+      pool.query('UPDATE chunks SET embedding = $1::vector WHERE id = $2', [vectorStr, chunk.id])
+        .catch(err => console.error(`Failed to store embedding for chunk ${chunk.id}:`, err.message));
+    }
 
     // Fire-and-forget: update interaction count + tier
     accountService.incrementInteractionAndUpdateTier(createdBy)

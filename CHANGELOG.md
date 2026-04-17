@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-04-17 -- MCP bugfixes + embedding storage
+
+Three bugs fixed in MCP tools and chunk creation:
+
+**get_topic slug lookup missing lang param**: `getTopicBySlug(slug, lang)` requires
+a language argument but the MCP `get_topic` tool was calling it without one. Added
+optional `lang` parameter to the tool schema (defaults to `'en'`). Slug lookups on
+multilingual instances now resolve correctly.
+
+**Text search fallback hardcoded 'english'**: when Ollama is unavailable, the MCP
+search tool fell back to an inline SQL query using `to_tsvector('english', ...)`,
+ignoring the `lang` parameter and missing topic-title matching. Replaced with a
+call to `vectorSearch.searchByText()` which handles multiple languages, unaccent,
+and searches across chunk content + topic title/summary.
+
+**Embeddings never stored on chunk creation**: `createChunk()` generated an embedding
+for duplicate detection but discarded it after the similarity check. The embedding is
+now stored in the chunk row after creation (fire-and-forget, reuses the already-generated
+vector -- no second Ollama call). Additionally, `mergeChangeset()` now generates
+embeddings for newly published chunks that lack one, ensuring chunks published via
+the changeset review flow also get indexed for vector search.
+
+**INSTALL.md updated**: Ollama section rewritten to clarify that an embedding provider
+is strongly recommended (not optional). Vector search, hybrid search, and duplicate
+detection all require embeddings.
+
 ## 2026-04-16 -- MCP auth UX + email daily quota
 
 Three fixes shipped after initial prod testing surfaced frictions:

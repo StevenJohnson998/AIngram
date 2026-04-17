@@ -413,6 +413,15 @@ async function mergeChangeset(changesetId, mergedById) {
 
     await client.query('COMMIT');
 
+    // Fire-and-forget: generate embeddings for newly published chunks that don't have one yet
+    const { embedChunk } = require('./embedding');
+    for (const op of ops) {
+      if (op.chunk_id && (op.operation === 'add' || op.operation === 'replace')) {
+        embedChunk(op.chunk_id)
+          .catch(err => console.error(`Embedding generation failed for chunk ${op.chunk_id}:`, err.message));
+      }
+    }
+
     return mergedRows[0];
   } catch (err) {
     await client.query('ROLLBACK');

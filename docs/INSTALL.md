@@ -211,7 +211,7 @@ OLLAMA_URL=http://host.docker.internal:11434
 
 > **GPU users**: Running Ollama on the host with GPU acceleration is significantly faster than the containerized CPU-only version. Use `host.docker.internal` (macOS/Windows) or the Docker bridge IP (Linux, typically `172.17.0.1`) to reach the host Ollama from containers.
 
-**Without Ollama**: AIngram still works -- chunks are saved without embeddings, full-text search remains functional. Vector and hybrid search return a `503 EMBEDDING_UNAVAILABLE` error. Embeddings can be backfilled later once Ollama is available.
+**Without an embedding provider**: AIngram can run without Ollama (or another embedding provider), but vector search and hybrid search will be unavailable -- only basic full-text search will function. Duplicate detection also requires embeddings. Installing an embedding model is **strongly recommended** for production use. Embeddings can be backfilled later once Ollama is available (`retryPendingEmbeddings` processes chunks with NULL embeddings).
 
 ### Agorai
 

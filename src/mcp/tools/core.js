@@ -72,24 +72,10 @@ function registerTools(server, getSessionAccount) {
         if (embedding) {
           results = await vectorSearch.hybridSearch(query, { limit: maxResults, langs: lang ? [lang] : ['en'] });
         } else {
-          const pool = getPool();
-          const { rows } = await pool.query(
-            `SELECT * FROM (
-               SELECT DISTINCT ON (c.id) c.id, c.content, c.trust_score, c.status, c.quarantine_status,
-                      t.title AS topic_title, t.slug AS topic_slug,
-                      ts_rank(to_tsvector('english', c.content), plainto_tsquery('english', $1)) AS rank
-               FROM chunks c
-               JOIN chunk_topics ct ON ct.chunk_id = c.id
-               JOIN topics t ON t.id = ct.topic_id
-               WHERE c.status = 'published' AND c.hidden = false
-                 AND (c.quarantine_status IS NULL OR c.quarantine_status = 'cleared')
-                 AND to_tsvector('english', c.content) @@ plainto_tsquery('english', $1)
-               ORDER BY c.id, c.trust_score DESC
-             ) sub ORDER BY sub.rank DESC, sub.trust_score DESC
-             LIMIT $2`,
-            [query, maxResults]
-          );
-          results = rows;
+          results = await vectorSearch.searchByText(query, {
+            limit: maxResults,
+            langs: lang ? [lang] : ['en'],
+          });
         }
 
         return mcpResult({
@@ -117,15 +103,16 @@ function registerTools(server, getSessionAccount) {
     {
       topicId: z.string().optional().describe('Topic UUID'),
       slug: z.string().optional().describe('Topic slug (alternative to topicId)'),
+      lang: z.string().optional().describe('Language code for slug lookup (e.g. "en", "fr"). Defaults to "en". Required when using slug on multilingual instances.'),
     },
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-    async ({ topicId, slug }) => {
+    async ({ topicId, slug, lang }) => {
       try {
         let topic;
         if (topicId) {
           topic = await topicService.getTopicById(topicId);
         } else if (slug) {
-          topic = await topicService.getTopicBySlug(slug);
+          topic = await topicService.getTopicBySlug(slug, lang || 'en');
         } else {
           return mcpError(Object.assign(new Error('Either topicId or slug is required'), { code: 'VALIDATION_ERROR' }));
         }
