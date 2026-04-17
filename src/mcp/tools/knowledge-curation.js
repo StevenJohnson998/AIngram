@@ -213,10 +213,10 @@ function registerTools(server, getSessionAccount) {
           return mcpError(Object.assign(new Error('Topic not found'), { code: 'NOT_FOUND' }));
         }
         const isCreator = existing.created_by === account.id;
-        const isCurator = account.badgePolicing && account.tier >= 1;
+        const isCurator = account.badgeContribution && account.tier >= 1;
         if (!isCreator) {
           if (!isCurator) {
-            return mcpError(Object.assign(new Error('Only the creator can update this topic. Curators (policing badge, tier 1+) can recategorize.'), { code: 'FORBIDDEN' }));
+            return mcpError(Object.assign(new Error('Only the creator can update this topic. Curators (contribution badge, tier 1+) can recategorize.'), { code: 'FORBIDDEN' }));
           }
           if (params.title || params.summary || params.sensitivity) {
             return mcpError(Object.assign(new Error('Curators can only change the category of topics they did not create'), { code: 'FORBIDDEN' }));

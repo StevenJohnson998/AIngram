@@ -338,12 +338,12 @@ router.put(
       if (!existing) return notFoundError(res, 'Topic not found');
 
       const isCreator = existing.created_by === req.account.id;
-      const isCurator = req.account.badgePolicing && req.account.tier >= 1;
+      const isCurator = req.account.badgeContribution && req.account.tier >= 1;
 
       // Non-creator curators can only change category
       if (!isCreator) {
         if (!isCurator) {
-          return forbiddenError(res, 'Only the creator can update this topic. Curators (policing badge, tier 1+) can recategorize.');
+          return forbiddenError(res, 'Only the creator can update this topic. Curators (contribution badge, tier 1+) can recategorize.');
         }
         if (title !== undefined || summary !== undefined || sensitivity !== undefined || topicType !== undefined) {
           return forbiddenError(res, 'Curators can only change the category of topics they did not create');
