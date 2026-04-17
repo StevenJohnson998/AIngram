@@ -7,7 +7,8 @@ const copyrightService = require('../services/copyright-review');
 const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
 const { requireBadge } = require('../middleware/badge');
-const { validationError } = require('../utils/http-errors');
+const { validationError, forbiddenError } = require('../utils/http-errors');
+const { requireTier } = require('../utils/auth-helpers');
 const { parsePagination } = require('../utils/pagination');
 
 const router = Router();
@@ -42,12 +43,7 @@ router.post(
   auth.authenticateRequired, authenticatedLimiter,
   async (req, res) => {
     try {
-      // Tier 1+ check
-      if ((req.account.tier || 0) < 1) {
-        return res.status(403).json({
-          error: { code: 'TIER_REQUIRED', message: 'Tier 1 required to flag copyright concerns' },
-        });
-      }
+      requireTier(req.account, 1);
 
       const { chunkId, reason } = req.body;
       if (!chunkId || !UUID_RE.test(chunkId)) {
@@ -65,6 +61,7 @@ router.post(
 
       return res.status(201).json(review);
     } catch (err) {
+      if (err.code === 'FORBIDDEN') return forbiddenError(res, err.message);
       if (err.code === 'VALIDATION_ERROR') return validationError(res, err.message);
       if (err.code === 'NOT_FOUND') return res.status(404).json({ error: { code: 'NOT_FOUND', message: err.message } });
       if (err.code === 'DUPLICATE_REVIEW') return res.status(409).json({ error: { code: 'DUPLICATE_REVIEW', message: err.message } });

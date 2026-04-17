@@ -19,6 +19,7 @@ const {
   T_REVIEW_MS,
   T_DISPUTE_MS,
   T_COPYRIGHT_REVIEW_DEADLINE_MS,
+  T_VOTE_INCONCLUSIVE_MS,
 } = require('../config/protocol');
 const changesetService = require('../services/changeset');
 const formalVoteService = require('../services/formal-vote');
@@ -127,6 +128,7 @@ async function enforceReviewTimeout() {
     `UPDATE changesets SET status = 'retracted', retract_reason = 'timeout', updated_at = now()
      WHERE status = 'under_review' AND under_review_at IS NOT NULL AND under_review_at < $1
        AND vote_phase IS NULL
+       AND vote_inconclusive_at IS NULL
      RETURNING id`,
     [cutoff]
   );
@@ -277,6 +279,48 @@ async function enforceCopyrightReviewDeadline() {
 }
 
 /**
+ * Inconclusive vote timeout: retract under_review changesets whose formal vote
+ * ended indeterminate or no_quorum and haven't been re-escalated within
+ * T_VOTE_INCONCLUSIVE_MS (default 48h).
+ */
+async function enforceInconclusiveVoteTimeout() {
+  const pool = getPool();
+  const cutoff = new Date(Date.now() - T_VOTE_INCONCLUSIVE_MS);
+
+  const { rows } = await pool.query(
+    `UPDATE changesets SET status = 'retracted', retract_reason = 'vote_inconclusive', updated_at = now()
+     WHERE status = 'under_review'
+       AND vote_inconclusive_at IS NOT NULL AND vote_inconclusive_at < $1
+       AND vote_phase IS NULL
+       AND vote_score IS NOT NULL
+     RETURNING id`,
+    [cutoff]
+  );
+
+  if (rows.length > 0) {
+    const changesetIds = rows.map(r => r.id);
+
+    await pool.query(
+      `UPDATE chunks SET status = 'retracted', updated_at = now()
+       WHERE id IN (SELECT chunk_id FROM changeset_operations WHERE changeset_id = ANY($1) AND chunk_id IS NOT NULL)`,
+      [changesetIds]
+    );
+
+    for (const cs of rows) {
+      await pool.query(
+        `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+         VALUES ($1, 'changeset_timeout', 'changeset', $2, $3)`,
+        [SYSTEM_ACCOUNT_ID, cs.id, JSON.stringify({ reason: 'vote_inconclusive', timeout_ms: T_VOTE_INCONCLUSIVE_MS })]
+      );
+    }
+
+    console.log(`Timeout enforcer: retracted ${rows.length} changeset(s) from inconclusive vote timeout`);
+  }
+
+  return rows.length;
+}
+
+/**
  * Run all timeout checks. Called by the worker on interval.
  */
 async function checkTimeouts() {
@@ -284,6 +328,7 @@ async function checkTimeouts() {
   await enforceCommitDeadline();
   await enforceRevealDeadline();
   await enforceReviewTimeout();
+  await enforceInconclusiveVoteTimeout();
   await enforceDisputeTimeout();
   await enforceCopyrightReviewDeadline();
 }
@@ -294,6 +339,7 @@ module.exports = {
   enforceCommitDeadline,
   enforceRevealDeadline,
   enforceReviewTimeout,
+  enforceInconclusiveVoteTimeout,
   enforceDisputeTimeout,
   enforceCopyrightReviewDeadline,
 };

@@ -6,7 +6,8 @@ const { Router } = require('express');
 const disputeService = require('../services/dispute');
 const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
-const { validationError } = require('../utils/http-errors');
+const { validationError, forbiddenError } = require('../utils/http-errors');
+const { requireTier } = require('../utils/auth-helpers');
 const { parsePagination, enrichPagination } = require('../utils/pagination');
 
 const router = Router();
@@ -23,12 +24,7 @@ router.post(
       const { id } = req.params;
       if (!UUID_RE.test(id)) return validationError(res, 'Invalid chunk ID');
 
-      // Tier check: T1+ can file disputes
-      if ((req.account.tier || 0) < 1) {
-        return res.status(403).json({
-          error: { code: 'FORBIDDEN', message: 'Tier 1+ required to file disputes. Contribute first to increase your tier.' },
-        });
-      }
+      requireTier(req.account, 1);
 
       const { reason, reasonTag } = req.body;
 
@@ -47,6 +43,7 @@ router.post(
 
       return res.status(200).json(chunk);
     } catch (err) {
+      if (err.code === 'FORBIDDEN') return forbiddenError(res, err.message);
       if (err.code === 'VALIDATION_ERROR') return validationError(res, err.message);
       if (err.code === 'NOT_FOUND') return res.status(404).json({ error: { code: 'NOT_FOUND', message: err.message } });
       if (err.name === 'LifecycleError') return res.status(409).json({ error: { code: 'LIFECYCLE_ERROR', message: err.message } });
@@ -66,12 +63,7 @@ router.post(
       const { id } = req.params;
       if (!UUID_RE.test(id)) return validationError(res, 'Invalid chunk ID');
 
-      // Tier check: T2+ can resolve disputes
-      if ((req.account.tier || 0) < 2) {
-        return res.status(403).json({
-          error: { code: 'FORBIDDEN', message: 'Tier 2+ required to resolve disputes.' },
-        });
-      }
+      requireTier(req.account, 2);
 
       const { verdict, notes } = req.body;
 
@@ -87,6 +79,7 @@ router.post(
 
       return res.status(200).json(chunk);
     } catch (err) {
+      if (err.code === 'FORBIDDEN') return forbiddenError(res, err.message);
       if (err.code === 'VALIDATION_ERROR') return validationError(res, err.message);
       if (err.code === 'NOT_FOUND') return res.status(404).json({ error: { code: 'NOT_FOUND', message: err.message } });
       if (err.name === 'LifecycleError') return res.status(409).json({ error: { code: 'LIFECYCLE_ERROR', message: err.message } });

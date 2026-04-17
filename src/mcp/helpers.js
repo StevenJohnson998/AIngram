@@ -36,17 +36,7 @@ async function requireAccount(getSessionAccount, extra) {
   );
 }
 
-/**
- * Require minimum tier level. Throws if account tier is below minTier.
- */
-function requireTier(account, minTier) {
-  if ((account.tier || 0) < minTier) {
-    throw Object.assign(
-      new Error(`Tier ${minTier}+ required. Your current tier: ${account.tier || 0}`),
-      { code: 'FORBIDDEN' }
-    );
-  }
-}
+const { requireTier } = require('../utils/auth-helpers');
 
 /**
  * Require a specific badge. Throws if account lacks the badge.

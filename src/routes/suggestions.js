@@ -9,7 +9,8 @@ const chunkService = require('../services/chunk');
 const formalVoteService = require('../services/formal-vote');
 const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
-const { validationError } = require('../utils/http-errors');
+const { validationError, forbiddenError } = require('../utils/http-errors');
+const { requireTier } = require('../utils/auth-helpers');
 const { SUGGESTION_CATEGORIES } = require('../../build/config/protocol');
 
 const router = Router();
@@ -155,11 +156,7 @@ router.post(
       if (!UUID_RE.test(req.params.id)) {
         return validationError(res, 'Invalid suggestion ID');
       }
-      if ((req.account.tier || 0) < 2) {
-        return res.status(403).json({
-          error: { code: 'TIER_REQUIRED', message: 'Tier 2 required to escalate suggestions to formal vote' },
-        });
-      }
+      requireTier(req.account, 2);
 
       const chunk = await chunkService.getChunkById(req.params.id);
       if (!chunk || chunk.chunk_type !== 'suggestion') {
@@ -170,6 +167,7 @@ router.post(
 
       return res.json(escalated);
     } catch (err) {
+      if (err.code === 'FORBIDDEN') return forbiddenError(res, err.message);
       if (err.name === 'LifecycleError') {
         return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: err.message } });
       }

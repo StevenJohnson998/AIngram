@@ -23,6 +23,9 @@ export const T_REVIEW_MS = parseInt(process.env.REVIEW_TIMEOUT_MS || '', 10) || 
 /** Dispute timeout (ms) — max time in disputed before retraction — default 48h */
 export const T_DISPUTE_MS = parseInt(process.env.DISPUTE_TIMEOUT_MS || '', 10) || 48 * 60 * 60 * 1000;
 
+/** Vote inconclusive timeout (ms) — auto-retract after indeterminate/no_quorum — default 48h */
+export const T_VOTE_INCONCLUSIVE_MS = parseInt(process.env.T_VOTE_INCONCLUSIVE_MS || '', 10) || 48 * 60 * 60 * 1000;
+
 /** Timeout enforcer check interval (ms) — default 5min */
 export const TIMEOUT_CHECK_MS = parseInt(process.env.TIMEOUT_CHECK_INTERVAL_MS || '', 10) || 5 * 60 * 1000;
 

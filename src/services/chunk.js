@@ -857,15 +857,18 @@ async function createSuggestion({ content, topicId, createdBy, suggestionCategor
   const client = await pool.connect();
 
   const initialTrust = trustConfig.CHUNK_PRIOR_NEW[0] / (trustConfig.CHUNK_PRIOR_NEW[0] + trustConfig.CHUNK_PRIOR_NEW[1]);
+  const injectionResult = analyzeContent(content);
 
   try {
     await client.query('BEGIN');
 
     const { rows } = await client.query(
-      `INSERT INTO chunks (content, created_by, trust_score, title, status, chunk_type, suggestion_category, rationale)
-       VALUES ($1, $2, $3, $4, 'proposed', 'suggestion', $5, $6)
+      `INSERT INTO chunks (content, created_by, trust_score, title, status, chunk_type, suggestion_category, rationale,
+                           injection_risk_score, injection_flags)
+       VALUES ($1, $2, $3, $4, 'proposed', 'suggestion', $5, $6, $7, $8)
        RETURNING *`,
-      [content, createdBy, initialTrust, title, suggestionCategory, rationale || null]
+      [content, createdBy, initialTrust, title, suggestionCategory, rationale || null,
+       injectionResult.score, injectionResult.flags.length > 0 ? injectionResult.flags : null]
     );
 
     const chunk = rows[0];
@@ -896,9 +899,26 @@ async function createSuggestion({ content, topicId, createdBy, suggestionCategor
     );
     chunk.changeset_id = csRows[0].id;
 
+    // Log injection flag if suspicious
+    if (injectionResult.suspicious) {
+      await client.query(
+        `INSERT INTO activity_log (account_id, action, target_type, target_id, metadata)
+         VALUES ($1, 'suggestion_injection_flagged', 'chunk', $2, $3)`,
+        [createdBy, chunk.id, JSON.stringify({ score: injectionResult.score, flags: injectionResult.flags })]
+      );
+    }
+
     await client.query('COMMIT');
 
-    // Fire-and-forget: update interaction count + tier
+    // Fire-and-forget: quarantine check
+    const quarantineResult = shouldQuarantine(injectionResult);
+    if (quarantineResult.quarantined) {
+      quarantineChunk(chunk.id, injectionResult)
+        .catch(err => console.error('Quarantine failed (suggestion still visible):', err));
+    } else {
+      matchAndNotify(chunk.id, 'proposed');
+    }
+
     accountService.incrementInteractionAndUpdateTier(createdBy)
       .catch(err => console.error('Tier update failed:', err));
 

@@ -12,6 +12,7 @@ const { getPool } = require('../config/database');
 const trustConfig = require('../config/trust');
 const { analyzeContent } = require('./injection-detector');
 const { matchAndNotify } = require('./chunk');
+const { transition } = require('../domain');
 const {
   T_COMMIT_MS,
   T_REVEAL_MS,
@@ -322,10 +323,7 @@ async function mergeChangeset(changesetId, mergedById) {
       if (exists.length === 0) {
         throw Object.assign(new Error('Changeset not found'), { code: 'NOT_FOUND' });
       }
-      throw Object.assign(
-        new Error(`Cannot merge changeset in '${exists[0].status}' status`),
-        { code: 'INVALID_TRANSITION' }
-      );
+      transition(exists[0].status, exists[0].status === 'under_review' ? 'VOTE_ACCEPT' : 'AUTO_MERGE');
     }
     const changeset = csRows[0];
 
@@ -444,10 +442,7 @@ async function rejectChangeset(changesetId, { reason, category, suggestions, rej
       if (exists.length === 0) {
         throw Object.assign(new Error('Changeset not found'), { code: 'NOT_FOUND' });
       }
-      throw Object.assign(
-        new Error(`Cannot reject changeset in '${exists[0].status}' status`),
-        { code: 'INVALID_TRANSITION' }
-      );
+      transition(exists[0].status, 'VOTE_REJECT');
     }
 
     // Retract all new chunks (from add/replace operations)
@@ -521,10 +516,7 @@ async function retractChangeset(changesetId, accountId, { reason } = {}) {
 
     // Validate status
     if (!['proposed', 'under_review'].includes(changeset.status)) {
-      throw Object.assign(
-        new Error(`Cannot retract changeset in '${changeset.status}' status`),
-        { code: 'INVALID_TRANSITION' }
-      );
+      transition(changeset.status, 'WITHDRAW');
     }
 
     // Retract all new chunks
@@ -600,10 +592,7 @@ async function resubmitChangeset(changesetId, accountId, { updatedContent } = {}
 
     // Validate status
     if (changeset.status !== 'retracted') {
-      throw Object.assign(
-        new Error(`Cannot resubmit changeset in '${changeset.status}' status (must be retracted)`),
-        { code: 'INVALID_TRANSITION' }
-      );
+      transition(changeset.status, 'RESUBMIT');
     }
 
     // If updated content provided, update the chunk content and re-run injection analysis
@@ -669,6 +658,18 @@ async function resubmitChangeset(changesetId, accountId, { updatedContent } = {}
 
     await client.query('COMMIT');
 
+    // Post-commit: quarantine check on updated content
+    const { shouldQuarantine, quarantineChunk } = require('./quarantine-validator');
+    for (const op of ops) {
+      if (op.chunk_id && updatedContent?.[op.chunk_id]?.content) {
+        const injResult = analyzeContent(updatedContent[op.chunk_id].content);
+        if (shouldQuarantine(injResult).quarantined) {
+          quarantineChunk(op.chunk_id, injResult)
+            .catch(err => console.error(`Quarantine on resubmit failed for chunk ${op.chunk_id}:`, err.message));
+        }
+      }
+    }
+
     return resubmittedRows[0];
   } catch (err) {
     await client.query('ROLLBACK');
@@ -710,10 +711,7 @@ async function escalateToReview(changesetId, escalatedBy) {
     if (exists.length === 0) {
       throw Object.assign(new Error('Changeset not found'), { code: 'NOT_FOUND' });
     }
-    throw Object.assign(
-      new Error(`Cannot escalate changeset in '${exists[0].status}' status (must be proposed)`),
-      { code: 'INVALID_TRANSITION' }
-    );
+    transition(exists[0].status, 'OBJECT');
   }
 
   // Activity log

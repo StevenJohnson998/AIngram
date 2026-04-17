@@ -128,7 +128,7 @@ async function commitVote({ accountId, changesetId, commitHash }) {
 
   // Validate account
   const { rows: accountRows } = await pool.query(
-    `SELECT id, status, first_contribution_at, created_at, reputation_contribution
+    `SELECT id, status, tier, first_contribution_at, created_at, reputation_contribution
      FROM accounts WHERE id = $1`,
     [accountId]
   );
@@ -155,17 +155,11 @@ async function commitVote({ accountId, changesetId, commitHash }) {
     );
   }
 
-  // Suggestion changesets require higher tier to vote
-  if (cs.is_suggestion) {
-    const { rows: tierRows } = await pool.query(
-      'SELECT tier FROM accounts WHERE id = $1', [accountId]
+  if (cs.is_suggestion && (account.tier || 0) < SUGGESTION_VOTE_MIN_TIER) {
+    throw Object.assign(
+      new Error(`Voting on suggestions requires Tier ${SUGGESTION_VOTE_MIN_TIER}+`),
+      { code: 'TIER_TOO_LOW' }
     );
-    if ((tierRows[0]?.tier || 0) < SUGGESTION_VOTE_MIN_TIER) {
-      throw Object.assign(
-        new Error(`Voting on suggestions requires Tier ${SUGGESTION_VOTE_MIN_TIER}+`),
-        { code: 'TIER_TOO_LOW' }
-      );
-    }
   }
 
   // Compute weight and reject if too low (before clamping)
@@ -380,11 +374,26 @@ async function tallyAndResolve(changesetId) {
     const decision = evaluateDecision(score, revealedCount, qMin, tauAccept, tauReject);
 
     // Update changeset vote metadata
-    await client.query(
-      `UPDATE changesets SET vote_phase = 'resolved', vote_score = $2, updated_at = now()
-       WHERE id = $1`,
-      [changesetId, score]
-    );
+    // For accept/reject: vote_phase = 'resolved' (terminal).
+    // For indeterminate/no_quorum: reset vote_phase to NULL, record inconclusive timestamp.
+    // This allows re-escalation or timeout-enforcer auto-retraction after T_VOTE_INCONCLUSIVE_MS.
+    const isConclusive = decision === 'accept' || decision === 'reject';
+    if (isConclusive) {
+      await client.query(
+        `UPDATE changesets SET vote_phase = 'resolved', vote_score = $2, updated_at = now()
+         WHERE id = $1`,
+        [changesetId, score]
+      );
+    } else {
+      await client.query(
+        `UPDATE changesets SET vote_phase = NULL, vote_score = $2,
+           vote_inconclusive_at = now(),
+           commit_deadline_at = NULL, reveal_deadline_at = NULL,
+           updated_at = now()
+         WHERE id = $1`,
+        [changesetId, score]
+      );
+    }
 
     const action = decision === 'accept' ? 'changeset_vote_accepted'
       : decision === 'reject' ? 'changeset_vote_rejected'
@@ -408,7 +417,8 @@ async function tallyAndResolve(changesetId) {
         rejectedBy: changesetService.SYSTEM_ACCOUNT_ID,
       });
     }
-    // 'indeterminate': changeset stays under_review, only vote_phase is resolved
+    // 'indeterminate' / 'no_quorum': changeset stays under_review with vote_phase=NULL.
+    // timeout-enforcer will auto-retract after T_VOTE_INCONCLUSIVE_MS.
 
     // Post-tally: award deliberation bonus (fire-and-forget)
     // Uses changesetId — the deliberation bonus function targets the changeset proposer

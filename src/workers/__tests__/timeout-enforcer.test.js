@@ -183,7 +183,7 @@ describe('enforceRevealDeadline', () => {
 });
 
 describe('checkTimeouts', () => {
-  it('runs all five enforcers', async () => {
+  it('runs all enforcers', async () => {
     // Fast track: no candidates
     mockClient.query
       .mockResolvedValueOnce({}) // BEGIN
@@ -195,6 +195,8 @@ describe('checkTimeouts', () => {
     // Reveal deadline: none
     mockPool.query.mockResolvedValueOnce({ rows: [] });
     // Review timeout: none
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
+    // Inconclusive vote timeout: none
     mockPool.query.mockResolvedValueOnce({ rows: [] });
     // Dispute timeout: none
     mockPool.query.mockResolvedValueOnce({ rows: [] });

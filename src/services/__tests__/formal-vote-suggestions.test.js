@@ -88,12 +88,10 @@ describe('formal-vote — suggestion chunk awareness', () => {
       mockPool.query.mockResolvedValueOnce({
         rows: [{ id: 'cs-1', vote_phase: 'commit', commit_deadline_at: new Date(Date.now() + 100000), proposed_by: 'other', is_suggestion: true }],
       });
-      // account lookup
+      // account lookup (tier included — T1, below suggestion threshold)
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: 'acc-1', status: 'active', first_contribution_at: new Date(), created_at: new Date('2025-01-01'), reputation_contribution: 0.5 }],
+        rows: [{ id: 'acc-1', status: 'active', tier: 1, first_contribution_at: new Date(), created_at: new Date('2025-01-01'), reputation_contribution: 0.5 }],
       });
-      // tier lookup — T1
-      mockPool.query.mockResolvedValueOnce({ rows: [{ tier: 1 }] });
 
       await expect(
         formalVoteService.commitVote({ accountId: 'acc-1', changesetId: 'cs-1', commitHash: 'abc123' })
@@ -105,12 +103,10 @@ describe('formal-vote — suggestion chunk awareness', () => {
       mockPool.query.mockResolvedValueOnce({
         rows: [{ id: 'cs-1', vote_phase: 'commit', commit_deadline_at: new Date(Date.now() + 100000), proposed_by: 'other', is_suggestion: true }],
       });
-      // account lookup
+      // account lookup (tier included — T2, meets suggestion threshold)
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: 'acc-1', status: 'active', first_contribution_at: new Date(), created_at: new Date('2025-01-01'), reputation_contribution: 0.8 }],
+        rows: [{ id: 'acc-1', status: 'active', tier: 2, first_contribution_at: new Date(), created_at: new Date('2025-01-01'), reputation_contribution: 0.8 }],
       });
-      // tier lookup — T2
-      mockPool.query.mockResolvedValueOnce({ rows: [{ tier: 2 }] });
       // upsert vote
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'vote-1', weight: 1.0 }] });
 

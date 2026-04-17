@@ -176,6 +176,8 @@ When escalated, a changeset enters `vote_phase`:
 2. `reveal`: voters reveal their actual vote + salt. Hash must match.
 3. `resolved`: votes tallied, changeset merged or rejected.
 
+If tally is **inconclusive** (indeterminate or no_quorum): `vote_phase` resets to NULL, `vote_inconclusive_at` records the timestamp. The changeset stays `under_review` for 48h (T_VOTE_INCONCLUSIVE_MS), allowing re-escalation. If no action is taken, the timeout enforcer auto-retracts it.
+
 Formal votes stored in `formal_votes` table (separate from quick `votes`).
 
 ---
