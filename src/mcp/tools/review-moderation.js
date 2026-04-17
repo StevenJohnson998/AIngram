@@ -35,7 +35,7 @@ function registerTools(server, getSessionAccount) {
           if (params.confirmSensitivity !== 'standard') {
             throw Object.assign(new Error('Contribution badge holders must pass confirmSensitivity: "standard" to merge. Sensitive topics require policing badge.'), { code: 'FORBIDDEN' });
           }
-          const changeset = await changesetService.getChangeset(params.changesetId);
+          const changeset = await changesetService.getChangesetById(params.changesetId);
           if (!changeset) throw Object.assign(new Error('Changeset not found'), { code: 'NOT_FOUND' });
 
           const { getPool } = require('../../config/database');

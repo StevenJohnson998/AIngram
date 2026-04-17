@@ -196,7 +196,7 @@ router.put(
         if (confirmSensitivity !== 'standard') {
           return forbiddenError(res, 'Contribution badge holders must pass confirmSensitivity: "standard" to merge. Sensitive topics require policing badge.');
         }
-        const changeset = await changesetService.getChangeset(req.params.id);
+        const changeset = await changesetService.getChangesetById(req.params.id);
         if (!changeset) return notFoundError(res, 'Changeset not found');
 
         const { getPool } = require('../config/database');
