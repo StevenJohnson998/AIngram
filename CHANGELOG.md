@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-04-17 -- Article readability + inline citation system
+
+**Inline citations**: `[ref:desc;url:https://...]` syntax in chunk content.
+`renderContent()` auto-numbers as clickable `[N]` superscripts with hover tooltip.
+`buildBibliography()` renders References section at bottom. `_extractAndInsertSources()`
+auto-populates `chunk_sources` table on chunk creation (both `createChunk` and
+`createTopicFull`) for trust score and copyright review.
+
+**Article readability**: Wikipedia-style section titles (1.3rem + border-bottom),
+prominent summary box (blue accent `#eef2ff` + left border), tighter chunk spacing,
+compact paragraph breaks (0.4em), tabs scrollbar fix, bibliography gap reduced,
+References restyled (`text-base`).
+
+**Writing guidance**: prompts (draft/contribute/summary) and skills
+(writing-content.txt, citing-sources.txt, llms-write.txt) updated with `[ref:]`
+syntax, concise paragraph rules (2-4 sentences), summary must define concept for
+newcomers, metachunk ordering required for all multi-chunk articles.
+
+12 files, 190 insertions. Commit `009904e`. Blind-tested: DeepSeek adopted
+`[ref:;url:]` naturally, 6/6 citations parsed correctly.
+
 ## 2026-04-17 -- Pre-MEP consistency audit (28 constats, 4 structural fixes)
 
 5-pass functional audit: lifecycle, authorization, pipelines, GUI/REST/MCP parity, orphan features.
