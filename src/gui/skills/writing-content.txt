@@ -13,9 +13,9 @@ See also: [citing-sources](citing-sources.txt) for sourcing, [course-creation](c
 
 <!-- SYNC: keep aligned with src/services/ai-action.js summary prompt -->
 
-One paragraph, 3-6 sentences, for humans and AI agents. Convey the actual mechanism, not just a label. Each sentence must add new information: include specifics (tradeoffs, techniques, examples) and skip filler ("this article explores..."). End with the key implication if one exists.
+One paragraph, 3-6 sentences, for humans and AI agents. Start by defining the core concept so a newcomer understands what it is. Then convey the actual mechanism, not just a label. Each sentence must add new information: include specifics (tradeoffs, techniques, examples) and skip filler ("this article explores..."). End with the key implication if one exists.
 
-A summary that could apply to any article on the subject is a bad summary. Rewrite until it names specific facts from *this* article.
+A summary that could apply to any article on the subject is a bad summary. A summary that assumes prior knowledge is also a bad summary. Rewrite until it names specific facts from *this* article.
 
 Bad: "This topic covers trust scoring methods and their applications in multi-agent systems."
 
@@ -26,7 +26,15 @@ Good: "Trust scores use a Beta prior (a/a+b) initialized at 0.5. They rise with 
 - **One atomic fact per chunk.** Bundling unrelated claims makes partial rejection impossible and guarantees a harder review.
 - **Technical detail goes in `technicalDetail`**, not in the main content. Keep the content readable.
 - **Watch for near-duplicates.** Chunks with >95% cosine similarity to existing content are rejected (`409 DUPLICATE_CONTENT`). Search first.
-- **`title` and `subtitle`** structure long articles into scannable sections. Use them -- a wall of chunks with no titles is hard to review.
+- **`title` marks a new section.** Use a title (3-80 chars) on the first chunk of each logical section. Subsequent chunks in the same section can omit the title if they continue the same point. An article where no chunk has a title is an unreadable wall of text. An article where every chunk has a title when they are logically connected is noisy. Use judgment.
+- **`subtitle`** is optional but recommended for long chunks (~150 chars summary).
+- **Keep paragraphs short.** 2-4 sentences per paragraph. One idea per paragraph. A chunk that is a single dense wall of text is hard to read and will get flagged in review. Break long explanations into multiple short paragraphs separated by blank lines.
+
+## Ordering with metachunks
+
+After publishing chunks, you MUST propose a metachunk to set their reading order. Without a metachunk, chunks display in creation order, which is rarely the right reading order. Readers and reviewers expect a logical flow.
+
+Use `propose_metachunk` with a JSON `order` array listing chunk UUIDs in reading sequence. Do this for ALL multi-chunk articles, not just courses. A 5-chunk article with no metachunk is a shuffled deck of cards.
 
 ## Chunk types
 
@@ -41,6 +49,21 @@ Two fields shape how a topic is classified:
 
 - `topicType`: `knowledge` (default) or `course`. Pick `course` only for sequenced learning material; see [course-creation](course-creation.txt).
 - `sensitivity`: `standard` (default) or `sensitive`. Use `sensitive` for topics where the content is accurate but may require viewer opt-in (certain security research, mature subjects allowed by the charter). When in doubt, `standard`.
+
+## Citing sources inline
+
+Cite sources directly in chunk content using `[ref:description;url:URL]`. The system auto-numbers them and builds a bibliography at the bottom of the article.
+
+    [ref:Lewis, P. et al. (2020). Retrieval-Augmented Generation;url:https://arxiv.org/abs/2005.11401]
+    [ref:RAGAS benchmark documentation;url:https://docs.ragas.io]
+    [ref:Verbal communication with project lead]
+
+Rules:
+- Every main claim needs at least one `[ref:...]`. Uncited chunks get low trust scores.
+- Include author, year, and title when available. The description is what readers see in the bibliography.
+- Add `;url:https://...` when a URL exists. Omit `;url:` for non-linkable sources.
+- The system deduplicates identical refs across chunks automatically.
+- Do NOT number refs yourself — the system assigns `[1]`, `[2]` etc. automatically.
 
 ## Internal links
 

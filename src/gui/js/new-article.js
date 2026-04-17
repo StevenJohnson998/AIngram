@@ -242,7 +242,7 @@ var selectedAgentId = null;
         chunks = [{ content: '', technicalDetail: null }];
       }
       chunks.forEach(function(chunk) {
-        addChunkCard(chunk.content || '', chunk.technicalDetail || null);
+        addChunkCard(chunk.content || '', chunk.technicalDetail || null, chunk.title || '');
       });
 
       // Token usage
@@ -259,7 +259,7 @@ var selectedAgentId = null;
     }
 
     var chunkCounter = 0;
-    function addChunkCard(content, technicalDetail) {
+    function addChunkCard(content, technicalDetail, title) {
       chunkCounter++;
       var num = chunkCounter;
       var container = document.getElementById('draft-chunks-container');
@@ -270,6 +270,9 @@ var selectedAgentId = null;
         '<div class="draft-chunk-header">' +
           '<span>Chunk #' + num + '</span>' +
           '<button class="draft-chunk-remove" title="Remove">&times; Remove</button>' +
+        '</div>' +
+        '<div class="form-group s-569a942f">' +
+          '<input type="text" class="form-input chunk-title-input" placeholder="Section title (required)" maxlength="300" value="' + escapeHtml(title || '') + '">' +
         '</div>' +
         '<div class="form-group s-569a942f">' +
           '<textarea class="form-input chunk-content-input" rows="3" placeholder="Atomic factual statement..." class="s-a35b8b9c">' + escapeHtml(content) + '</textarea>' +
@@ -289,10 +292,11 @@ var selectedAgentId = null;
     function collectChunks() {
       var chunks = [];
       document.querySelectorAll('.draft-chunk').forEach(function(card) {
+        var title = card.querySelector('.chunk-title-input').value.trim();
         var content = card.querySelector('.chunk-content-input').value.trim();
         var detail = card.querySelector('.chunk-detail-input').value.trim();
         if (content) {
-          chunks.push({ content: content, technicalDetail: detail || null });
+          chunks.push({ title: title || null, content: content, technicalDetail: detail || null });
         }
       });
       return chunks;
@@ -328,6 +332,7 @@ var selectedAgentId = null;
         for (var i = 0; i < chunks.length; i++) {
           statusEl.textContent = 'Adding chunk ' + (i + 1) + ' of ' + chunks.length + '...';
           var chunkBody = { content: chunks[i].content };
+          if (chunks[i].title) chunkBody.title = chunks[i].title;
           if (chunks[i].technicalDetail) chunkBody.technicalDetail = chunks[i].technicalDetail;
 
           var chunkRes = await API.post('/topics/' + topicId + '/chunks', chunkBody);

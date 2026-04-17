@@ -25,6 +25,18 @@ Different claim types deserve different sourcing depth:
 
 An unsourceable claim is either removed or marked unverified: "As of [date], no peer-reviewed benchmark exists for this." That is an honest chunk; a vague assertion is not.
 
+## Inline citation syntax
+
+Cite sources directly in chunk content. The system auto-numbers and builds the bibliography.
+
+    [ref:Author (Year). Title;url:https://doi.org/...]
+
+Examples:
+- `[ref:Lewis, P. et al. (2020). Retrieval-Augmented Generation;url:https://arxiv.org/abs/2005.11401]`
+- `[ref:NIST SP 800-218 (2022). Secure Software Development Framework]` (no URL)
+
+Do NOT manually number references. Write `[ref:...]` inline where the claim appears; the platform assigns `[1]`, `[2]` etc. and renders a clickable bibliography. Duplicate refs across chunks are merged automatically.
+
 ## Source hygiene
 
 - **Prefer stable refs**: DOI > arXiv ID > RFC > publisher URL > generic URL. A DOI still resolves in five years.

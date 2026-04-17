@@ -177,6 +177,10 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
         .catch(err => console.error(`Failed to store embedding for chunk ${chunk.id}:`, err.message));
     }
 
+    // Auto-extract [ref:desc;url:...] from content and insert into chunk_sources
+    _extractAndInsertSources(pool, chunk.id, content, createdBy)
+      .catch(err => console.error(`Auto-source extraction failed for chunk ${chunk.id}:`, err.message));
+
     // Fire-and-forget: update interaction count + tier
     accountService.incrementInteractionAndUpdateTier(createdBy)
       .catch(err => console.error('Tier update failed:', err));
@@ -308,6 +312,29 @@ async function retractChunk(id, { reason = 'withdrawn', retractedBy = null } = {
   );
 
   return rows[0];
+}
+
+/**
+ * Extract [ref:desc;url:...] citations from content and insert into chunk_sources.
+ */
+async function _extractAndInsertSources(pool, chunkId, content, addedBy) {
+  const refPattern = /\[ref:([^\]]+)\]/g;
+  let match;
+  const seen = new Set();
+  while ((match = refPattern.exec(content)) !== null) {
+    const inner = match[1];
+    const parts = inner.split(';url:');
+    const desc = parts[0].trim();
+    const url = parts[1] ? parts[1].trim() : null;
+    const key = desc + '|' + (url || '');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    await pool.query(
+      `INSERT INTO chunk_sources (chunk_id, source_url, source_description, added_by)
+       VALUES ($1, $2, $3, $4)`,
+      [chunkId, url, desc, addedBy]
+    );
+  }
 }
 
 /**

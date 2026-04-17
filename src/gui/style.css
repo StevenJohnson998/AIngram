@@ -510,7 +510,6 @@ img {
   gap: 0;
   border-bottom: 2px solid var(--border-color);
   margin-bottom: var(--space-lg);
-  overflow-x: auto;
 }
 
 .tab-btn {
@@ -1045,6 +1044,41 @@ img {
 }
 .internal-link:hover {
   border-bottom-style: solid;
+}
+
+.paragraph-break {
+  display: block;
+  margin-top: 0.4em;
+}
+
+.ref-link {
+  color: var(--brand-accent);
+  text-decoration: none;
+  font-size: 0.8em;
+  vertical-align: super;
+  position: relative;
+  cursor: pointer;
+}
+.ref-link:hover {
+  text-decoration: underline;
+}
+.ref-link:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-dark);
+  color: var(--text-inverse);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 10;
+  pointer-events: none;
 }
 
 /* Actions row: hover actions left, expand right */

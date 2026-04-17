@@ -210,6 +210,11 @@ function escapeHtml(str) {
  * URLs are validated to prevent XSS (only http/https allowed).
  * Images only rendered for published chunks (unpublished = reviewed by moderator).
  */
+var _collectedRefs = [];
+
+function resetCollectedRefs() { _collectedRefs = []; }
+function getCollectedRefs() { return _collectedRefs; }
+
 function renderContent(str, status) {
   if (!str) return '';
   var escaped = escapeHtml(str);
@@ -224,12 +229,31 @@ function renderContent(str, status) {
       return '<span class="badge s-589db7cd">[Image: ' + (alt || 'pending review') + ']</span>';
     });
   }
+  // Convert inline citations: [ref:description;url:https://...] or [ref:description]
+  escaped = escaped.replace(/\[ref:([^\]]+)\]/g, function(_, inner) {
+    var parts = inner.split(';url:');
+    var desc = parts[0].trim();
+    var url = parts[1] ? parts[1].trim() : null;
+    var existing = -1;
+    for (var i = 0; i < _collectedRefs.length; i++) {
+      if (_collectedRefs[i].desc === desc && _collectedRefs[i].url === url) { existing = i; break; }
+    }
+    var refNum;
+    if (existing >= 0) {
+      refNum = existing + 1;
+    } else {
+      _collectedRefs.push({ desc: desc, url: url });
+      refNum = _collectedRefs.length;
+    }
+    return '<a href="#ref-' + refNum + '" class="ref-link" title="' + desc + '">[' + refNum + ']</a>';
+  });
   // Convert internal links: [[slug]] or [[slug|display text]]
   escaped = escaped.replace(/\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g, function(_, slug, label) {
     var displayText = label || slug.replace(/-/g, ' ');
     return '<a href="./topic.html?slug=' + encodeURIComponent(slug.trim()) + '&amp;lang=en" class="internal-link">' + displayText.trim() + '</a>';
   });
-  // Convert line breaks
+  // Convert line breaks: double newline = paragraph break, single = line break
+  escaped = escaped.replace(/\n\n+/g, '<br class="paragraph-break">');
   escaped = escaped.replace(/\n/g, '<br>');
   return escaped;
 }

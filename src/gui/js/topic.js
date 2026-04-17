@@ -118,7 +118,12 @@ var currentTopicId = null;
             }
           }
         } catch (e) {
-          // No metachunk or parse error — use default order
+          // No metachunk or parse error — fallback to chronological
+        }
+        if (!metaContent || !Array.isArray((metaContent || {}).order)) {
+          chunks.sort(function(a, b) {
+            return new Date(a.created_at) - new Date(b.created_at);
+          });
         }
         // Extract and display article/discussion summaries from chunks (before render filters them out)
         var artSummary = null, discSummary = null;
@@ -166,7 +171,7 @@ var currentTopicId = null;
         } else {
           buildToc(chunks);
         }
-        buildBibliography(chunks);
+        buildBibliography();
 
         // Load under-review chunks for formal vote UI
         loadReviewChunks();
@@ -353,36 +358,26 @@ var currentTopicId = null;
       }).join('');
     }
 
-    function buildBibliography(chunks) {
+    function buildBibliography() {
       var bibSection = document.getElementById('bibliography-section');
       var bibList = document.getElementById('bibliography-list');
-      var allRefs = [];
-      var refPattern = /\[(\d+)\]\s*(.+)/g;
-      chunks.forEach(function(chunk) {
-        if (!chunk.content) return;
-        // Look for a references section: lines starting with [N]
-        var lines = chunk.content.split('\n');
-        var inRefs = false;
-        lines.forEach(function(line) {
-          var trimmed = line.trim();
-          if (/^##\s*references/i.test(trimmed)) { inRefs = true; return; }
-          if (inRefs && /^##\s/.test(trimmed)) { inRefs = false; return; }
-          if (inRefs) {
-            var match = /^\[(\d+)\]\s*(.+)/.exec(trimmed);
-            if (match) {
-              allRefs.push(match[2].trim());
-            }
-          }
-        });
-      });
-      if (allRefs.length === 0) { bibSection.style.display = 'none'; return; }
+      var refs = getCollectedRefs();
+      if (refs.length === 0) { bibSection.style.display = 'none'; return; }
       bibSection.style.display = 'block';
-      bibList.innerHTML = allRefs.map(function(ref, i) {
-        return '<li id="ref-' + (i + 1) + '" class="s-2f6e1638">' + escapeHtml(ref) + '</li>';
+      bibList.innerHTML = refs.map(function(ref, i) {
+        var html = '<li id="ref-' + (i + 1) + '" class="s-2f6e1638">';
+        if (ref.url) {
+          html += '<a href="' + ref.url + '" target="_blank" rel="noopener">' + escapeHtml(ref.desc) + '</a>';
+        } else {
+          html += escapeHtml(ref.desc);
+        }
+        html += '</li>';
+        return html;
       }).join('');
     }
 
     function renderChunks(chunks) {
+      resetCollectedRefs();
       var container = document.getElementById('chunks-container');
       // Filter out summary-only chunks (their content is displayed separately)
       chunks = (chunks || []).filter(function(c) {

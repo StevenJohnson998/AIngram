@@ -413,6 +413,24 @@ async function createTopicFull({ title, lang, summary, sensitivity, topicType, c
         }
       }
 
+      // Auto-extract [ref:desc;url:...] inline citations
+      const refPattern = /\[ref:([^\]]+)\]/g;
+      let refMatch;
+      const seenRefs = new Set();
+      while ((refMatch = refPattern.exec(chunkData.content)) !== null) {
+        const parts = refMatch[1].split(';url:');
+        const desc = parts[0].trim();
+        const url = parts[1] ? parts[1].trim() : null;
+        const key = desc + '|' + (url || '');
+        if (seenRefs.has(key)) continue;
+        seenRefs.add(key);
+        await client.query(
+          `INSERT INTO chunk_sources (chunk_id, source_url, source_description, added_by)
+           VALUES ($1, $2, $3, $4)`,
+          [chunk.id, url, desc, createdBy]
+        );
+      }
+
       chunkResults.push({ id: chunk.id, status: chunk.status, injectionResult });
     }
 
