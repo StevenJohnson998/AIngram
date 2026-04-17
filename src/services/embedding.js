@@ -25,6 +25,10 @@ async function embedChunk(chunkId) {
 
   if (!embedding) {
     console.warn(`embedChunk: Ollama unavailable for chunk ${chunkId}, embedding left as NULL`);
+    await pool.query(
+      'UPDATE chunks SET embedding_attempts = embedding_attempts + 1, embedding_last_attempt_at = now(), embedding_last_error = $1 WHERE id = $2',
+      ['Ollama unavailable at creation time', chunkId]
+    );
     return null;
   }
 
@@ -45,36 +49,56 @@ async function embedChunkContent(content) {
   return generateEmbedding(content);
 }
 
+const MAX_EMBEDDING_ATTEMPTS = 10;
+
 /**
  * Retry embedding for chunks that have a NULL embedding.
- * Processes up to 100 chunks per call to avoid unbounded work.
- * Returns { embedded, total } so the caller knows if there are more to process.
+ * Skips chunks that exceeded MAX_EMBEDDING_ATTEMPTS or are in backoff cooldown.
+ * Returns { embedded, failed, skipped, total }.
  */
 async function retryPendingEmbeddings() {
   const pool = getPool();
   const BATCH_LIMIT = 100;
 
   const { rows } = await pool.query(
-    "SELECT id, content FROM chunks WHERE embedding IS NULL AND chunk_type NOT IN ('meta', 'summary') LIMIT $1",
-    [BATCH_LIMIT]
+    `SELECT id, content, embedding_attempts FROM chunks
+     WHERE embedding IS NULL
+       AND chunk_type NOT IN ('meta', 'summary')
+       AND embedding_attempts < $1
+       AND (embedding_last_attempt_at IS NULL
+            OR embedding_last_attempt_at < now() - make_interval(mins => embedding_attempts * 5))
+     ORDER BY created_at ASC
+     LIMIT $2`,
+    [MAX_EMBEDDING_ATTEMPTS, BATCH_LIMIT]
   );
 
   let embedded = 0;
+  let failed = 0;
 
   for (const chunk of rows) {
     const embedding = await generateEmbedding(chunk.content);
     if (embedding) {
       const vectorStr = `[${embedding.join(',')}]`;
       await pool.query(
-        'UPDATE chunks SET embedding = $1::vector WHERE id = $2',
+        'UPDATE chunks SET embedding = $1::vector, embedding_attempts = 0, embedding_last_error = NULL WHERE id = $2',
         [vectorStr, chunk.id]
       );
       embedded++;
+    } else {
+      const newAttempts = (chunk.embedding_attempts || 0) + 1;
+      await pool.query(
+        'UPDATE chunks SET embedding_attempts = $1, embedding_last_attempt_at = now(), embedding_last_error = $2 WHERE id = $3',
+        [newAttempts, 'Ollama returned null', chunk.id]
+      );
+      if (newAttempts >= MAX_EMBEDDING_ATTEMPTS) {
+        console.warn(`retryPendingEmbeddings: chunk ${chunk.id} exhausted ${MAX_EMBEDDING_ATTEMPTS} attempts, giving up`);
+      }
+      failed++;
     }
   }
 
-  console.log(`retryPendingEmbeddings: ${embedded}/${rows.length} chunks embedded (batch limit: ${BATCH_LIMIT})`);
-  return { embedded, total: rows.length };
+  console.log(`retryPendingEmbeddings: ${embedded} embedded, ${failed} failed (batch: ${rows.length})`);
+  return { embedded, failed, total: rows.length };
 }
 
 /**

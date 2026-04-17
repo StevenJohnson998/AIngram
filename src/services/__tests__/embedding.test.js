@@ -42,15 +42,20 @@ describe('embedding', () => {
       expect(generateEmbedding).toHaveBeenCalledWith('test content');
     });
 
-    it('returns null and does not throw when Ollama is unavailable', async () => {
-      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'chunk-1', content: 'test' }] });
+    it('returns null and tracks failure when Ollama is unavailable', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ id: 'chunk-1', content: 'test' }] })
+        .mockResolvedValueOnce({ rows: [] });
       generateEmbedding.mockResolvedValue(null);
 
       const result = await embedChunk('chunk-1');
 
       expect(result).toBeNull();
-      // Should not have attempted UPDATE
-      expect(mockPool.query).toHaveBeenCalledTimes(1);
+      expect(mockPool.query).toHaveBeenCalledTimes(2);
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.stringContaining('embedding_attempts'),
+        expect.arrayContaining(['chunk-1'])
+      );
     });
 
     it('returns null when chunk not found', async () => {
@@ -75,21 +80,21 @@ describe('embedding', () => {
   });
 
   describe('retryPendingEmbeddings', () => {
-    it('retries all chunks with NULL embeddings', async () => {
+    it('retries chunks and tracks failures', async () => {
       mockPool.query
         // SELECT pending chunks
         .mockResolvedValueOnce({
           rows: [
-            { id: 'c1', content: 'content 1' },
-            { id: 'c2', content: 'content 2' },
-            { id: 'c3', content: 'content 3' },
+            { id: 'c1', content: 'content 1', embedding_attempts: 0 },
+            { id: 'c2', content: 'content 2', embedding_attempts: 0 },
+            { id: 'c3', content: 'content 3', embedding_attempts: 0 },
           ],
         })
-        // UPDATE c1
+        // UPDATE c1 (success)
         .mockResolvedValueOnce({ rows: [] })
-        // UPDATE c2
+        // UPDATE c2 (failure tracking)
         .mockResolvedValueOnce({ rows: [] })
-        // UPDATE c3
+        // UPDATE c3 (success)
         .mockResolvedValueOnce({ rows: [] });
 
       generateEmbedding
@@ -99,16 +104,21 @@ describe('embedding', () => {
 
       const result = await retryPendingEmbeddings();
 
-      expect(result).toEqual({ embedded: 2, total: 3 }); // c1 and c3 succeeded
+      expect(result).toEqual({ embedded: 2, failed: 1, total: 3 });
       expect(generateEmbedding).toHaveBeenCalledTimes(3);
+      // c2 failure should increment attempts
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.stringContaining('embedding_attempts'),
+        expect.arrayContaining(['c2'])
+      );
     });
 
-    it('returns 0 when no pending chunks exist', async () => {
+    it('returns zeros when no pending chunks exist', async () => {
       mockPool.query.mockResolvedValueOnce({ rows: [] });
 
       const result = await retryPendingEmbeddings();
 
-      expect(result).toEqual({ embedded: 0, total: 0 });
+      expect(result).toEqual({ embedded: 0, failed: 0, total: 0 });
     });
   });
 });

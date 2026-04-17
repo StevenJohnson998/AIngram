@@ -53,4 +53,6 @@ test-results/
 .DS_Store
 Thumbs.db
 __pycache__/
+venv/
+scripts/curator-agent/seen.json
 tests/snapshots/

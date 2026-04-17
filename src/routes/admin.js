@@ -8,6 +8,8 @@
  *   GET  /admin/ban-reviews?status=...      list injection_auto flags with enriched context
  *   POST /admin/ban-reviews/:flagId/confirm admin confirms the ban (triggers sanction)
  *   POST /admin/ban-reviews/:flagId/dismiss admin dismisses the flag (unblocks account)
+ *   GET  /admin/embeddings/failed           list chunks that exhausted embedding retries
+ *   POST /admin/embeddings/reset/:chunkId   reset retry counter for a chunk
  */
 
 'use strict';
@@ -203,6 +205,49 @@ router.post('/ban-reviews/:flagId/dismiss', async (req, res) => {
   } catch (err) {
     console.error('[admin/ban-reviews/dismiss]', err.message);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to dismiss ban review' } });
+  }
+});
+
+/**
+ * GET /admin/embeddings/failed — chunks that exhausted retry attempts.
+ */
+router.get('/embeddings/failed', async (_req, res) => {
+  try {
+    const pool = getPool();
+    const { rows } = await pool.query(
+      `SELECT c.id, c.content, c.embedding_attempts, c.embedding_last_attempt_at, c.embedding_last_error,
+              ct.topic_id, t.title AS topic_title
+       FROM chunks c
+       LEFT JOIN chunk_topics ct ON ct.chunk_id = c.id
+       LEFT JOIN topics t ON t.id = ct.topic_id
+       WHERE c.embedding IS NULL AND c.embedding_attempts >= 10
+       ORDER BY c.embedding_last_attempt_at DESC
+       LIMIT 100`
+    );
+    res.json({ data: rows });
+  } catch (err) {
+    console.error('[admin/embeddings/failed]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list failed embeddings' } });
+  }
+});
+
+/**
+ * POST /admin/embeddings/reset/:chunkId — reset retry counter to re-attempt embedding.
+ */
+router.post('/embeddings/reset/:chunkId', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { rowCount } = await pool.query(
+      'UPDATE chunks SET embedding_attempts = 0, embedding_last_error = NULL WHERE id = $1',
+      [req.params.chunkId]
+    );
+    if (rowCount === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Chunk not found' } });
+    }
+    res.json({ data: { chunk_id: req.params.chunkId, reset: true } });
+  } catch (err) {
+    console.error('[admin/embeddings/reset]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to reset embedding counter' } });
   }
 });
 
