@@ -254,7 +254,7 @@ var selectedAgentId = null;
 
       // Update publish button text
       if (selectedAgentName) {
-        document.getElementById('publish-btn').textContent = 'Publish as ' + selectedAgentName;
+        document.getElementById('publish-btn').textContent = 'Submit as ' + selectedAgentName;
       }
     }
 
@@ -339,9 +339,9 @@ var selectedAgentId = null;
         }
 
         // Success: redirect
-        statusEl.textContent = 'Published! Redirecting...';
+        statusEl.textContent = 'Submitted for review! Redirecting...';
         setTimeout(function() {
-          window.location.href = './topic.html?id=' + topicId;
+          window.location.href = './topic.html?id=' + topicId + '&just_created=1';
         }, 800);
 
       } catch (err) {

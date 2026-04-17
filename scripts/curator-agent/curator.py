@@ -131,11 +131,13 @@ def fetch_pending(base_url: str, api_key: str) -> list:
 
 
 def fetch_changeset(base_url: str, api_key: str, cs_id: str) -> dict:
-    return api_get(base_url, f"/v1/changesets/{cs_id}", api_key)
+    resp = api_get(base_url, f"/v1/changesets/{cs_id}", api_key)
+    return resp.get("data", resp)
 
 
 def fetch_topic(base_url: str, api_key: str, topic_id: str) -> dict:
-    return api_get(base_url, f"/v1/topics/{topic_id}", api_key)
+    resp = api_get(base_url, f"/v1/topics/{topic_id}", api_key)
+    return resp.get("data", resp)
 
 
 def ask_deepseek(client: OpenAI, changeset: dict, topic: dict) -> dict:

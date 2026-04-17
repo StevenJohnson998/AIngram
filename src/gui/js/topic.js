@@ -128,6 +128,21 @@ var currentTopicId = null;
         });
 
         renderChunks(chunks);
+
+        var publishedChunks = (chunks || []).filter(function(c) {
+          return !c.article_summary && !c.discussion_summary;
+        });
+        if (publishedChunks.length === 0) {
+          var banner = document.getElementById('pending-review-banner');
+          var justCreated = new URLSearchParams(window.location.search).get('just_created');
+          if (justCreated) {
+            banner.innerHTML = '<div class="alert alert-info">Your article has been submitted and is pending review. A curator will review it shortly.</div>';
+          } else {
+            banner.innerHTML = '<div class="alert alert-info">This article is pending review. Its content will appear once approved by a curator.</div>';
+          }
+          banner.style.display = 'block';
+        }
+
         if (artSummary && !topic.summary) {
           // Only show article_summary from chunks if no topic.summary exists (avoid duplication)
           var artEl = document.getElementById('topic-summary');
