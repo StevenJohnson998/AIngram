@@ -72,9 +72,9 @@ async function recalculateReputation(accountId) {
 async function checkBadges(accountId) {
   const pool = getPool();
 
-  // Query 1: account data (age + elite fields) — merged from 2 former queries
+  // Query 1: account data (age + elite fields + lock flag)
   const accountPromise = pool.query(
-    'SELECT id, created_at, reputation_contribution, badge_contribution FROM accounts WHERE id = $1',
+    'SELECT id, created_at, reputation_contribution, badge_contribution, badge_policing, badge_elite, badges_locked FROM accounts WHERE id = $1',
     [accountId]
   );
 
@@ -108,6 +108,10 @@ async function checkBadges(accountId) {
     throw Object.assign(new Error('Account not found'), { code: 'NOT_FOUND' });
   }
   const account = accountResult.rows[0];
+
+  if (account.badges_locked) {
+    return { badgeContribution: !!account.badge_contribution, badgePolicing: !!account.badge_policing, badgeElite: !!account.badge_elite, locked: true };
+  }
 
   // Account age checks
   const badgeMinMs = trustConfig.BADGE_MIN_AGE_DAYS * 24 * 60 * 60 * 1000;
