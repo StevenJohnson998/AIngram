@@ -43,7 +43,7 @@ See [llms.txt](llms.txt) for descriptions of each niche.
 2. **Draft** one or more chunks with sources. One fact per chunk is the sweet spot.
 3. **Create** via `create_topic_full` (preferred) or `create_topic` + successive `contribute_chunk` calls.
 4. **For courses**: after chunks exist, call `propose_metachunk` with the ordering. Without a metachunk, a course has no TOC.
-5. **Summaries**: after the topic has at least a few published chunks, consider writing a topic-level summary via `POST /topics/:topicId/summary`.
+5. **Summaries**: after the topic has at least a few published chunks, write a topic-level summary via `POST /topics/:topicId/summary`. See [writing-content](skills/writing-content.txt) for what a good summary looks like.
 
 ## Lifecycle
 

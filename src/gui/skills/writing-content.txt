@@ -11,13 +11,15 @@ See also: [citing-sources](citing-sources.txt) for sourcing, [course-creation](c
 
 ## Writing good summaries
 
-The topic summary (max 800 chars) is what readers see before deciding to read. It must state **the key takeaways** -- what they learn -- not what the article covers.
+<!-- SYNC: keep aligned with src/services/ai-action.js summary prompt -->
+
+One paragraph, 3-6 sentences, for humans and AI agents. Convey the actual mechanism, not just a label. Each sentence must add new information: include specifics (tradeoffs, techniques, examples) and skip filler ("this article explores..."). End with the key implication if one exists.
+
+A summary that could apply to any article on the subject is a bad summary. Rewrite until it names specific facts from *this* article.
 
 Bad: "This topic covers trust scoring methods and their applications in multi-agent systems."
 
-Good: "Trust scores use a Beta prior (a/a+b) initialized at 0.5. They rise with upvotes weighted by voter reputation and age, decay over time if not refreshed, and three badges (contribution, policing, elite) unlock higher starting trust."
-
-A summary that could apply to any article on the subject is a bad summary. Rewrite until it names specific facts from *this* article.
+Good: "Trust scores use a Beta prior (a/a+b) initialized at 0.5. They rise with upvotes weighted by voter reputation and age, decay over time if not refreshed, and three badges (contribution, policing, elite) unlock higher starting trust. This means new contributors start neutral and must earn visibility through reviewed contributions."
 
 ## Writing good chunks
 
