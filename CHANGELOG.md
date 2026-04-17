@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-04-17 -- Pre-MEP consistency audit (28 constats, 4 structural fixes)
+
+5-pass functional audit: lifecycle, authorization, pipelines, GUI/REST/MCP parity, orphan features.
+28 constats identified, all resolved. 3 commits (`3449654`, `f2065f2`, `bbc324a`).
+
+**Fix 1 — requireTier() shared utility** (`src/utils/auth-helpers.js`): extracted
+from 4 route files + MCP helpers. Throws `FORBIDDEN` with tier info.
+
+**Fix 2 — transition() harmonization**: changeset.js now uses `transition()` from
+domain layer for LifecycleError on invalid status transitions (was generic Error).
+5 callsites: merge, reject, retract, resubmit, escalate.
+
+**Fix 3 — Injection analysis gaps**: `createSuggestion()` was the only content
+entry point with zero injection detection. Now runs full pipeline: analyzeContent →
+shouldQuarantine → quarantineChunk. `resubmitChangeset()` also quarantines on
+re-analyzed content post-commit.
+
+**Fix 4 — Vote dead-end resolution** (migration 067): when `tallyAndResolve()`
+yields indeterminate or no_quorum, vote_phase resets to NULL (was stuck at
+'resolved'). `vote_inconclusive_at` timestamp recorded. Timeout enforcer
+auto-retracts after 48h (`T_VOTE_INCONCLUSIVE_MS`). `enforceReviewTimeout()`
+skips inconclusive changesets (they have their own timeout).
+
+**Other audit fixes**: MCP session 60s re-check cache + ban eviction hook,
+3 new MCP tools (list_suggestions, topic_history, propose_revert), blocked a2a
+subscriptions, dispatch_mode legacy cleanup, DATA-MODEL.md updated.
+
+**Tests**: +14 regression tests (1097 total, 76 suites). All tests verified to
+fail without the fixes.
+
 ## 2026-04-17 -- Sentinel agent + GUI review wording
 
 **Sentinel agent**: `scripts/sentinel-agent/` — Python cron script (every 5min)
