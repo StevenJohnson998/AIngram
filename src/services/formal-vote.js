@@ -241,6 +241,14 @@ async function revealVote({ accountId, changesetId, voteValue, reasonTag, salt }
     );
   }
 
+  // Check vote suspension (could have been sanctioned between commit and reveal)
+  if (await isVoteSuspended(accountId)) {
+    throw Object.assign(
+      new Error('Your voting rights are suspended'),
+      { code: 'VOTE_SUSPENDED' }
+    );
+  }
+
   // Validate vote_value
   if (![-1, 0, 1].includes(voteValue)) {
     throw Object.assign(

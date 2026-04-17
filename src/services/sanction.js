@@ -7,6 +7,10 @@ const flagService = require('./flag');
 const { recalculateChunkTrust } = require('./reputation');
 const { analyzeUserInput } = require('./injection-detector');
 
+// Hook for MCP session eviction on ban/suspend. Set by MCP mount at startup.
+let _onAccountBlocked = null;
+function onAccountBlocked(fn) { _onAccountBlocked = fn; }
+
 /**
  * Escalation rules: determine sanction type based on prior active minor sanctions.
  */
@@ -80,6 +84,11 @@ async function createSanction({ accountId, severity, reason, issuedBy }) {
     throw err;
   } finally {
     client.release();
+  }
+
+  // Evict from active MCP sessions immediately
+  if (sanction.type === 'ban' || sanction.type === 'account_freeze') {
+    try { _onAccountBlocked?.(accountId); } catch {}
   }
 
   // Post-ban audit runs OUTSIDE the transaction (non-critical, fire-and-forget)
@@ -346,4 +355,5 @@ module.exports = {
   isVoteSuspended,
   postBanAudit,
   nullifyVotesOnBan,
+  onAccountBlocked,
 };

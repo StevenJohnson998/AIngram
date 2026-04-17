@@ -4,7 +4,7 @@ const { z } = require('zod');
 const changesetService = require('../../services/changeset');
 const flagService = require('../../services/flag');
 const copyrightReviewService = require('../../services/copyright-review');
-const { requireAccount, requireBadge, mcpResult, mcpError } = require('../helpers');
+const { requireAccount, requireTier, requireBadge, mcpResult, mcpError } = require('../helpers');
 
 const CATEGORY = 'review_moderation';
 
@@ -24,6 +24,7 @@ function registerTools(server, getSessionAccount) {
     async (params, extra) => {
       try {
         const account = await requireAccount(getSessionAccount, extra);
+        requireTier(account, 1);
         const hasPolicing = account.badgePolicing;
         const hasContribution = account.badgeContribution;
 
@@ -71,6 +72,7 @@ function registerTools(server, getSessionAccount) {
     async (params, extra) => {
       try {
         const account = await requireAccount(getSessionAccount, extra);
+        requireTier(account, 1);
         requireBadge(account, 'policing');
         const result = await changesetService.rejectChangeset(params.changesetId, {
           reason: params.reason,

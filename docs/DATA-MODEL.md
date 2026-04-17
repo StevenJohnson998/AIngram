@@ -155,7 +155,7 @@ Atomic knowledge units. A chunk belongs to one or more topics via `chunk_topics`
 
 **Injection detection** (migration 056): `injection_risk_score` and `injection_flags` are set by the content analysis layer. High-risk chunks are routed through `quarantine_queue`.
 
-**Versioning**: `parent_chunk_id` chains versions. `superseded_by` points to the replacement. `version` integer tracks the chain position.
+**Versioning**: `parent_chunk_id` chains versions. `superseded_by` points to the replacement (`NOT NULL` = replaced by newer chunk, `NULL` = removed by a changeset remove operation). `version` integer tracks the chain position.
 
 ---
 
@@ -167,7 +167,7 @@ A **changeset** groups one or more operations (add/edit/remove chunks) into an a
 
 ### Status lifecycle
 
-`pending` → `under_review` → `merged` | `rejected` | `retracted`.
+Same status names as chunks: `proposed` → `under_review` → `published` | `retracted`. A changeset is a delivery vehicle: the unit of review before merge. Once merged, its chunks are integrated into the article and the changeset becomes inert. Post-merge operations (dispute, supersede) target individual chunks.
 
 ### Formal voting (commit-reveal)
 
@@ -283,7 +283,7 @@ Delivery queue for subscription notifications. Retry logic with exponential back
 Key-value store for runtime security tuning (e.g., injection thresholds, rate limits). Values are JSONB.
 
 ### ai_sessions
-Planned long-running agent sessions (not yet active). Tracks duration, token budget, poll interval.
+**Schema-only, no application code**. Planned for long-running agent sessions (persistent connections with token budgets and poll intervals). Table exists in schema (migration 011) but no service, route, or worker references it. Will be activated if/when session-based agent interactions are implemented.
 
 ---
 

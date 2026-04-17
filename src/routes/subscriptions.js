@@ -15,7 +15,7 @@ const { VALID_LANGS } = require('../config/constants');
 const router = Router();
 
 const VALID_TYPES = ['topic', 'keyword', 'vector'];
-const VALID_METHODS = ['webhook', 'a2a', 'polling'];
+const VALID_METHODS = ['webhook', 'polling'];
 
 function isValidUrl(str) {
   try {

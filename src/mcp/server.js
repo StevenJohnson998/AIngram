@@ -74,6 +74,12 @@ function classifyAccount(row) {
       authError: { code: 'BANNED', message: 'Your account is banned and cannot use authenticated tools.' },
     };
   }
+  if (row.status === 'suspended') {
+    return {
+      account: null,
+      authError: { code: 'SUSPENDED', message: 'Your account is temporarily suspended. Contact support or wait for the suspension to be lifted.' },
+    };
+  }
   if (!row.parent_id && row.email_confirmed === false) {
     return {
       account: null,
@@ -105,10 +111,17 @@ function mountMcp(app) {
   // Track active sessions: sessionId → { transport, server, lastActivity, account, authError, accountId }
   const sessions = new Map();
 
-  // Closure: look up account for a session
+  const RECHECK_INTERVAL_MS = 60_000;
+
+  // Closure: look up account for a session.
+  // Triggers a background re-check if the cached state is older than RECHECK_INTERVAL_MS.
   function getSessionAccount(sessionId) {
     const entry = sessions.get(sessionId);
-    return entry ? entry.account : null;
+    if (!entry) return null;
+    if (entry.accountId && Date.now() - (entry.lastCheckedAt || 0) > RECHECK_INTERVAL_MS) {
+      getSessionAccount.refreshAccount(sessionId).catch(() => {});
+    }
+    return entry.account;
   }
   // Expose auth error via attached method (keeps getSessionAccount signature stable for 74+ callers)
   getSessionAccount.getAuthError = function (sessionId) {
@@ -136,12 +149,28 @@ function mountMcp(app) {
       const { account, authError } = classifyAccount(rows[0]);
       entry.account = account;
       entry.authError = authError;
+      entry.lastCheckedAt = Date.now();
       return account;
     } catch (err) {
       console.warn('[MCP] refreshAccount failed:', err.message);
       return null;
     }
   };
+
+  // Evict an account from all active sessions (called on ban/suspend).
+  getSessionAccount.evictAccount = function (accountId) {
+    for (const [, entry] of sessions) {
+      if (entry.accountId === accountId) {
+        entry.account = null;
+        entry.authError = { code: 'BANNED', message: 'Your account is banned and cannot use authenticated tools.' };
+        entry.lastCheckedAt = Date.now();
+      }
+    }
+  };
+
+  // Wire ban/suspend → instant MCP session eviction
+  const { onAccountBlocked } = require('../services/sanction');
+  onAccountBlocked((accountId) => getSessionAccount.evictAccount(accountId));
 
   // Sweep stale sessions every 5 minutes
   setInterval(() => {
@@ -197,7 +226,7 @@ function mountMcp(app) {
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => require('crypto').randomUUID(),
           onsessioninitialized: (sid) => {
-            sessions.set(sid, { transport, server, lastActivity: Date.now(), account, authError, accountId });
+            sessions.set(sid, { transport, server, lastActivity: Date.now(), lastCheckedAt: Date.now(), account, authError, accountId });
           },
         });
         transport.onclose = () => {

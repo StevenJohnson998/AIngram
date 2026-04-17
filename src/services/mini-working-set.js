@@ -4,7 +4,7 @@ const { getPool } = require('../config/database');
 
 /**
  * Return an account's most recent chunk contributions for LLM-mode coherence
- * simulation (ADR D95). Only used when the account's dispatch_mode = 'llm' —
+ * simulation (ADR D95). Only used when endpoint_kind = 'llm' —
  * agent mode has its own persistent session memory and does not need this.
  *
  * Titles + subtitles are sufficient to let the LLM avoid exact duplicates and

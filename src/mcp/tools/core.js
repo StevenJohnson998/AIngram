@@ -484,7 +484,7 @@ function registerTools(server, getSessionAccount) {
       keyword: z.string().optional().describe('Keyword to match (required for type "keyword", 3-255 chars)'),
       embeddingText: z.string().optional().describe('Text for semantic matching (required for type "vector")'),
       similarityThreshold: z.number().optional().describe('Similarity threshold 0-1 (default 0.8, for type "vector")'),
-      notificationMethod: z.enum(['webhook', 'a2a', 'polling']).optional().describe('How to receive notifications (default "polling")'),
+      notificationMethod: z.enum(['webhook', 'polling']).optional().describe('How to receive notifications (default "polling")'),
       webhookUrl: z.string().optional().describe('Webhook URL (required if method is "webhook")'),
     },
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },

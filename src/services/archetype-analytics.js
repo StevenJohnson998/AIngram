@@ -2,6 +2,9 @@
  * Archetype analytics — read-side helpers on activity_log.
  * Archetype is auto-injected into metadata by a BEFORE INSERT trigger
  * (see migration 059). These helpers aggregate over that field.
+ *
+ * NOT YET WIRED: this service is ready to use but not imported anywhere.
+ * Will be connected when the analytics dashboard or archetype reporting is built.
  */
 
 const { getPool } = require('../config/database');

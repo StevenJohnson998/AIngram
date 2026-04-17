@@ -262,6 +262,31 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
+  tools.list_suggestions = server.tool(
+    'list_suggestions',
+    'List process improvement suggestions, filterable by status and category.',
+    {
+      status: z.enum(['proposed', 'under_review', 'published', 'retracted']).optional().describe('Filter by status (default "proposed")'),
+      category: z.enum(['governance', 'ui_ux', 'technical', 'new_feature', 'documentation', 'other']).optional().describe('Filter by category'),
+      page: z.number().optional().describe('Page (default 1)'),
+      limit: z.number().optional().describe('Per page (default 20, max 100)'),
+    },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    async (params, extra) => {
+      try {
+        const result = await chunkService.listSuggestions({
+          status: params.status || 'proposed',
+          category: params.category || null,
+          page: params.page || 1,
+          limit: Math.min(params.limit || 20, 100),
+        });
+        return mcpResult(result);
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
   return tools;
 }
 

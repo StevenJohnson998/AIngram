@@ -11,6 +11,7 @@
 const { getPool } = require('../config/database');
 const trustConfig = require('../config/trust');
 const { analyzeContent } = require('./injection-detector');
+const { matchAndNotify } = require('./chunk');
 const {
   T_COMMIT_MS,
   T_REVEAL_MS,
@@ -249,27 +250,10 @@ async function createChangeset({ topicId, proposedBy, description, operations, i
 
     await client.query('COMMIT');
 
-    // Fire-and-forget: subscription matching for new chunks (1 notification per topic subscription)
-    const { matchNewChunk } = require('./subscription-matcher');
-    const { dispatchNotification } = require('./notification');
-    const matchedSubs = new Set();
+    // Fire-and-forget: subscription matching for new chunks
     for (const op of resultOps) {
       if (op.chunkId) {
-        (async () => {
-          try {
-            const matches = await matchNewChunk(op.chunkId, 'proposed');
-            for (const match of matches) {
-              // Deduplicate: only 1 notification per subscription per changeset
-              const key = match.subscriptionId;
-              if (!matchedSubs.has(key)) {
-                matchedSubs.add(key);
-                await dispatchNotification(match).catch(() => {});
-              }
-            }
-          } catch (err) {
-            console.error(`Match-and-notify failed for chunk ${op.chunkId}:`, err.message);
-          }
-        })();
+        matchAndNotify(op.chunkId, 'proposed');
       }
     }
 
@@ -413,12 +397,13 @@ async function mergeChangeset(changesetId, mergedById) {
 
     await client.query('COMMIT');
 
-    // Fire-and-forget: generate embeddings for newly published chunks that don't have one yet
+    // Fire-and-forget: generate embeddings then notify for newly published chunks
     const { embedChunk } = require('./embedding');
     for (const op of ops) {
       if (op.chunk_id && (op.operation === 'add' || op.operation === 'replace')) {
         embedChunk(op.chunk_id)
-          .catch(err => console.error(`Embedding generation failed for chunk ${op.chunk_id}:`, err.message));
+          .then(() => matchAndNotify(op.chunk_id, 'published'))
+          .catch(err => console.error(`Post-merge pipeline failed for chunk ${op.chunk_id}:`, err.message));
       }
     }
 
@@ -621,7 +606,7 @@ async function resubmitChangeset(changesetId, accountId, { updatedContent } = {}
       );
     }
 
-    // If updated content provided, update the chunk content before resubmitting
+    // If updated content provided, update the chunk content and re-run injection analysis
     if (updatedContent && typeof updatedContent === 'object') {
       const { rows: ops } = await client.query(
         'SELECT id, chunk_id FROM changeset_operations WHERE changeset_id = $1 ORDER BY sort_order',
@@ -638,6 +623,15 @@ async function resubmitChangeset(changesetId, accountId, { updatedContent } = {}
           if (update.subtitle !== undefined) { sets.push(`subtitle = $${idx++}`); vals.push(update.subtitle); }
           if (update.technicalDetail !== undefined) { sets.push(`technical_detail = $${idx++}`); vals.push(update.technicalDetail); }
           if (sets.length > 0) {
+            // Re-run injection analysis on updated content
+            const contentToAnalyze = update.content || null;
+            if (contentToAnalyze) {
+              const injectionResult = analyzeContent(contentToAnalyze);
+              sets.push(`injection_risk_score = $${idx++}`);
+              vals.push(injectionResult.score);
+              sets.push(`injection_flags = $${idx++}`);
+              vals.push(injectionResult.flags.length > 0 ? injectionResult.flags : null);
+            }
             sets.push(`updated_at = now()`);
             vals.push(op.chunk_id);
             await client.query(`UPDATE chunks SET ${sets.join(', ')} WHERE id = $${idx}`, vals);

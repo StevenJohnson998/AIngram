@@ -508,6 +508,59 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
+  tools.topic_history = server.tool(
+    'topic_history',
+    'Get the version history of all chunks in a topic (who contributed what, when).',
+    {
+      topicId: z.string().describe('Topic UUID'),
+      page: z.number().optional().describe('Page (default 1)'),
+      limit: z.number().optional().describe('Per page (default 20, max 100)'),
+    },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    async (params, extra) => {
+      try {
+        const result = await chunkService.getTopicHistory(params.topicId, {
+          page: params.page || 1,
+          limit: Math.min(params.limit || 20, 100),
+        });
+        return mcpResult(result);
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  tools.propose_revert = server.tool(
+    'propose_revert',
+    'Propose reverting a chunk to a previous version. Creates a changeset with the old content.',
+    {
+      chunkId: z.string().describe('Current chunk UUID'),
+      targetVersion: z.number().describe('Version number to revert to'),
+      reason: z.string().optional().describe('Reason for reverting'),
+      topicId: z.string().describe('Topic UUID (for changeset context)'),
+    },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    async (params, extra) => {
+      try {
+        const account = await requireAccount(getSessionAccount, extra);
+        const result = await chunkService.proposeRevert({
+          chunkId: params.chunkId,
+          targetVersion: params.targetVersion,
+          reason: params.reason,
+          proposedBy: account.id,
+          topicId: params.topicId,
+        });
+        return mcpResult({
+          changesetId: result.changeset_id || result.id,
+          status: result.status,
+          message: `Revert to version ${params.targetVersion} proposed.`,
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
   return tools;
 }
 

@@ -35,10 +35,15 @@ async function enforceFastTrack() {
   const client = await pool.connect();
   let mergedCount = 0;
 
+  // Phase 1: collect eligible changeset IDs inside a transaction (FOR UPDATE
+  // SKIP LOCKED prevents concurrent workers from picking the same rows).
+  // COMMIT before merging so mergeChangeset can acquire its own lock without
+  // deadlocking — same pattern as tallyAndResolve in formal-vote.js.
+  const eligible = [];
+
   try {
     await client.query('BEGIN');
 
-    // Find proposed changesets older than the shortest fast-track timeout
     const minAge = Math.min(T_FAST_LOW_MS, T_FAST_HIGH_MS);
     const cutoff = new Date(Date.now() - minAge);
 
@@ -69,7 +74,6 @@ async function enforceFastTrack() {
       const age = Date.now() - new Date(candidate.created_at).getTime();
       if (age < timeout) continue;
 
-      // Check for down-votes on the changeset
       const { rows: voteRows } = await client.query(
         `SELECT COUNT(*)::int AS down_count
          FROM votes
@@ -79,25 +83,31 @@ async function enforceFastTrack() {
 
       if (voteRows[0].down_count > 0) continue;
 
-      try {
-        await changesetService.mergeChangeset(candidate.id, SYSTEM_ACCOUNT_ID);
-        mergedCount++;
-      } catch (err) {
-        if (err.code === 'NOT_FOUND') continue; // benign race
-        console.error(`Fast-track merge failed for changeset ${candidate.id}:`, err.message);
-      }
+      eligible.push(candidate.id);
     }
 
     await client.query('COMMIT');
-
-    if (mergedCount > 0) {
-      console.log(`Timeout enforcer: fast-track merged ${mergedCount} changeset(s)`);
-    }
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch {}
     console.error('Fast-track enforcement error:', err.message);
+    return 0;
   } finally {
     client.release();
+  }
+
+  // Phase 2: merge outside the transaction (each mergeChangeset manages its own locks)
+  for (const changesetId of eligible) {
+    try {
+      await changesetService.mergeChangeset(changesetId, SYSTEM_ACCOUNT_ID);
+      mergedCount++;
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') continue;
+      console.error(`Fast-track merge failed for changeset ${changesetId}:`, err.message);
+    }
+  }
+
+  if (mergedCount > 0) {
+    console.log(`Timeout enforcer: fast-track merged ${mergedCount} changeset(s)`);
   }
 
   return mergedCount;

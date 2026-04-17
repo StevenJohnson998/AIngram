@@ -3,9 +3,7 @@ const aiProviderService = require('./ai-provider');
 const chunkService = require('./chunk');
 const miniWorkingSet = require('./mini-working-set');
 
-// Legacy: dispatch_mode on accounts is kept for Phase 1b fallback only.
-// Primary routing now uses ai_providers.endpoint_kind (ADR D96).
-const DEFAULT_DISPATCH_MODE = 'llm';
+const DEFAULT_ENDPOINT_KIND = 'llm';
 
 /**
  * Build system prompt for an assisted agent.
@@ -134,7 +132,7 @@ function buildMessages(actionType, context) {
 }
 
 /**
- * Build a slim task envelope for dispatch_mode='agent' (ADR D95).
+ * Build a slim task envelope for endpoint_kind='agent' (ADR D95/D96).
  * The agent holds its own archetype, skills and action instructions via its
  * persistent session; AIngram only ships the task-specific payload.
  */
@@ -148,19 +146,16 @@ function buildAgentTaskEnvelope({ actionType, targetType, targetId, context }) {
 
 /**
  * Execute an AI action on behalf of an assisted agent.
- * Routes to an LLM provider (dispatch_mode='llm', default) or stages a slim
- * task envelope for the user's agent to pick up (dispatch_mode='agent',
- * ADR D95 — agent-side receiver not yet wired, envelope is observable via
- * ai_actions.result for now).
+ * Routes via provider.endpoint_kind: 'llm' (default) calls chat-completions,
+ * 'agent' stages a slim task envelope (ADR D95/D96).
  * Returns { actionId, result, inputTokens, outputTokens, dispatchMode }.
  */
 async function executeAction({ agentId, parentId, providerId, actionType, targetType, targetId, context, agentModel }) {
   const pool = getPool();
 
   // Get agent info (name, description, assigned provider, archetype)
-  // dispatch_mode kept in SELECT as Phase 1b fallback (ADR D96)
   const agentResult = await pool.query(
-    'SELECT name, description, provider_id, primary_archetype, dispatch_mode FROM accounts WHERE id = $1',
+    'SELECT name, description, provider_id, primary_archetype FROM accounts WHERE id = $1',
     [agentId]
   );
   const agentRow = agentResult.rows[0];
@@ -187,17 +182,15 @@ async function executeAction({ agentId, parentId, providerId, actionType, target
     }
   }
 
-  // Dispatch decision: provider.endpoint_kind is primary (D96).
-  // Phase 1b fallback: if endpoint_kind is missing, use legacy dispatch_mode.
-  const rawKind = provider.endpoint_kind || agentRow?.dispatch_mode || DEFAULT_DISPATCH_MODE;
-  const effectiveKind = (rawKind === 'llm' || rawKind === 'agent') ? rawKind : DEFAULT_DISPATCH_MODE;
+  // Dispatch decision: provider.endpoint_kind (D96). NOT NULL in schema.
+  const rawKind = provider.endpoint_kind || DEFAULT_ENDPOINT_KIND;
+  const effectiveKind = (rawKind === 'llm' || rawKind === 'agent') ? rawKind : DEFAULT_ENDPOINT_KIND;
   const dispatchMode = effectiveKind;
 
   if (effectiveKind === 'agent') {
     // Agent-webhook mode: stage a slim task envelope for the user's external
     // agent to consume. Provider exists (it's the webhook provider), so we
-    // store provider.id in the action row (unlike the old dispatch_mode path
-    // which used NULL).
+    // store provider.id in the action row.
     const envelope = buildAgentTaskEnvelope({ actionType, targetType, targetId, context });
     const agentResultPayload = { status: 'pending_agent_dispatch', envelope };
     const modelUsed = agentModel || provider.model || null;
@@ -483,5 +476,5 @@ module.exports = {
   buildSystemPrompt,
   buildAgentTaskEnvelope,
   ARCHETYPE_BLURB,
-  DEFAULT_DISPATCH_MODE,
+  DEFAULT_ENDPOINT_KIND,
 };

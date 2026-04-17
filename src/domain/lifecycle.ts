@@ -1,9 +1,13 @@
 /**
- * Chunk lifecycle state machine — pure function, no I/O.
+ * Chunk & changeset lifecycle state machine — pure function, no I/O.
  * Implements the 6-state lifecycle from Paper 3 (Deliberative Curation).
  *
  * States: proposed → under_review → published → disputed → retracted → superseded
  * All transitions are guarded. Invalid transitions throw LifecycleError.
+ *
+ * Chunks use all 6 states. Changesets share the same status names but only
+ * reach proposed, under_review, published, and retracted (disputes and
+ * supersession operate at chunk level).
  */
 
 export const CHUNK_STATES = ['proposed', 'under_review', 'published', 'disputed', 'retracted', 'superseded'] as const;
@@ -18,6 +22,7 @@ export const LIFECYCLE_EVENTS = [
   'VOTE_REJECT',      // formal vote rejected → under_review → retracted
   'DISPUTE',          // dispute filed → published → disputed
   'SUPERSEDE',        // newer version merged → published → superseded
+  'DMCA_TAKEDOWN',    // DMCA/copyright takedown → published → retracted
   'DISPUTE_UPHELD',   // dispute resolved in favor of content → disputed → published
   'DISPUTE_REMOVED',  // dispute resolved against content → disputed → retracted
   'RESUBMIT',         // resubmission after retraction → retracted → proposed
@@ -55,6 +60,7 @@ const TRANSITIONS: Partial<Record<ChunkState, Partial<Record<LifecycleEvent, Chu
   published: {
     DISPUTE: 'disputed',
     SUPERSEDE: 'superseded',
+    DMCA_TAKEDOWN: 'retracted',
   },
   disputed: {
     DISPUTE_UPHELD: 'published',
@@ -114,6 +120,7 @@ const EVENT_TO_RETRACT_REASON: Partial<Record<LifecycleEvent, RetractReason>> = 
   WITHDRAW: 'withdrawn',
   TIMEOUT: 'timeout',
   DISPUTE_REMOVED: 'rejected',
+  DMCA_TAKEDOWN: 'copyright',
 };
 
 /**

@@ -140,7 +140,7 @@
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| 6-State Lifecycle | proposed → under_review → published → disputed → retracted → superseded. All transitions enforced via domain/lifecycle.ts. | Done |
+| 6-State Lifecycle | proposed → under_review → published → disputed → retracted → superseded. Shared by chunks and changesets (changesets only reach proposed/under_review/published/retracted; disputes and supersession are chunk-level). All transitions enforced via domain/lifecycle.ts. | Done |
 | Objection Mechanism | Tier 1+ can object to proposed chunks with reason tag. POST /chunks/:id/object | Done |
 | Chunk Escalation | Tier 1+ can escalate proposed → under_review. POST /chunks/:id/escalate | Done |
 | Chunk Resubmission | Creator can resubmit retracted → proposed (max 3 attempts). POST /chunks/:id/resubmit | Done |

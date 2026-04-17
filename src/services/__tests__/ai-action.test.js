@@ -372,7 +372,7 @@ describe('ai-action service', () => {
     it('stages a slim envelope when provider.endpoint_kind=agent', async () => {
       // Agent fetch
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: null }],
+        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null }],
       });
       // Provider resolved via getDefaultProvider
       aiProviderService.getDefaultProvider.mockResolvedValueOnce(agentProvider);
@@ -399,24 +399,7 @@ describe('ai-action service', () => {
       expect(insertCall[1]).toContain('prov-agent-1');
     });
 
-    it('falls back to dispatch_mode when provider has no endpoint_kind (Phase 1b)', async () => {
-      const legacyProvider = {
-        id: 'prov-legacy-1', account_id: 'parent-1', provider_type: 'custom',
-        model: 'legacy', name: 'Legacy', system_prompt: null, max_tokens: 1024, temperature: 0.7,
-        // no endpoint_kind property
-      };
-      mockPool.query.mockResolvedValueOnce({
-        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'agent' }],
-      });
-      aiProviderService.getDefaultProvider.mockResolvedValueOnce(legacyProvider);
-      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-fallback-1' }] });
-
-      const result = await aiActionService.executeAction(baseParams);
-      expect(result.dispatchMode).toBe('agent');
-      expect(result.result.status).toBe('pending_agent_dispatch');
-    });
-
-    it('defaults to llm mode when dispatch_mode is null (backfill behavior)', async () => {
+    it('defaults to llm when provider has no endpoint_kind property', async () => {
       const provider = {
         id: 'prov-1', account_id: 'parent-1', provider_type: 'claude',
         model: 'claude', system_prompt: null, max_tokens: 1024, temperature: 0.7,
@@ -428,7 +411,7 @@ describe('ai-action service', () => {
       });
 
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: null }],
+        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null }],
       });
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-llm-1' }] });
       mockPool.query.mockResolvedValueOnce({ rows: [] });
@@ -436,27 +419,6 @@ describe('ai-action service', () => {
       const result = await aiActionService.executeAction({ ...baseParams, actionType: 'review', targetType: 'chunk', targetId: 'chunk-1', context: { content: 'x' } });
       expect(result.dispatchMode).toBe('llm');
       expect(aiProviderService.callProvider).toHaveBeenCalled();
-    });
-
-    it('falls back to llm for unknown dispatch_mode values', async () => {
-      const provider = {
-        id: 'prov-1', account_id: 'parent-1', provider_type: 'claude',
-        model: 'claude', system_prompt: null, max_tokens: 1024, temperature: 0.7,
-      };
-      aiProviderService.getDefaultProvider.mockResolvedValueOnce(provider);
-      aiProviderService.callProvider.mockResolvedValueOnce({
-        content: '{"content":"ok","vote":"positive","flag":null,"confidence":0.9}',
-        inputTokens: 1, outputTokens: 1,
-      });
-
-      mockPool.query.mockResolvedValueOnce({
-        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'hybrid-nonsense' }],
-      });
-      mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-fallback-1' }] });
-      mockPool.query.mockResolvedValueOnce({ rows: [] });
-
-      const result = await aiActionService.executeAction({ ...baseParams, actionType: 'review', targetType: 'chunk', targetId: 'chunk-1', context: { content: 'x' } });
-      expect(result.dispatchMode).toBe('llm');
     });
 
     it('injects mini-working-set text into system prompt in llm mode', async () => {
@@ -477,7 +439,7 @@ describe('ai-action service', () => {
       });
 
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'llm' }],
+        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null }],
       });
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-ws-1' }] });
       mockPool.query.mockResolvedValueOnce({ rows: [] });
@@ -502,7 +464,7 @@ describe('ai-action service', () => {
       });
 
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'llm' }],
+        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null }],
       });
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-model-1' }] });
       mockPool.query.mockResolvedValueOnce({ rows: [] });
@@ -527,7 +489,7 @@ describe('ai-action service', () => {
       });
 
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'llm' }],
+        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null }],
       });
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-model-2' }] });
       mockPool.query.mockResolvedValueOnce({ rows: [] });
@@ -548,7 +510,7 @@ describe('ai-action service', () => {
         system_prompt: null, max_tokens: 1024, temperature: 0.7,
       };
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: null }],
+        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null }],
       });
       aiProviderService.getDefaultProvider.mockResolvedValueOnce(agentProv);
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-agent-m1' }] });
@@ -568,7 +530,7 @@ describe('ai-action service', () => {
         system_prompt: null, max_tokens: 1024, temperature: 0.7,
       };
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: null }],
+        rows: [{ name: 'AgentBot', description: null, provider_id: null, primary_archetype: null }],
       });
       aiProviderService.getDefaultProvider.mockResolvedValueOnce(agentProv);
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-agent-m2' }] });
@@ -596,7 +558,7 @@ describe('ai-action service', () => {
       });
 
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null, dispatch_mode: 'llm' }],
+        rows: [{ name: 'Bot', description: null, provider_id: null, primary_archetype: null }],
       });
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'action-wserr-1' }] });
       mockPool.query.mockResolvedValueOnce({ rows: [] });
