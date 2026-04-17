@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-04-17 -- Merge permissions + embedding safety + curator agent
+
+**Contribution badge merge** (`0ddfca4`, `55e7802`): contribution badge holders
+(Tier 1+) can now merge changesets on standard-sensitivity topics by passing
+`confirmSensitivity: "standard"` in the merge call. Sensitive topics still
+require policing badge. Recategorization also moved from policing to contribution
+badge (editorial act, not moderation).
+
+**Badges locked** (`55e7802`, migration 066): `badges_locked` flag prevents
+the hourly reputation recalc from overwriting manually promoted badges. Used
+for system accounts like the curator agent.
+
+**Embedding retry safety** (`2450eca`, migration 065): chunks that fail embedding
+10 times are evicted from the retry queue (linear backoff: 5min × attempt count).
+New admin endpoints: `GET /admin/embeddings/failed`, `POST /admin/embeddings/reset/:id`.
+Default timeout bumped from 3s to 15s for CPU cold-start tolerance.
+
+**Curator agent scaffold**: `scripts/curator-agent/` — Python cron script that
+polls the review queue, calls DeepSeek for judgment on new items, and merges or
+flags accordingly. Only acts when unseen items exist (zero LLM calls on empty queue).
+
 ## 2026-04-17 -- GUI branding + MCP bugfixes + embedding storage
 
 **Complete runtime branding** (`f57f7ef`): `brand.js` now replaces "AIngram"

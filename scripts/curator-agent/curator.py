@@ -171,7 +171,7 @@ def ask_deepseek(client: OpenAI, changeset: dict, topic: dict) -> dict:
     return json.loads(raw)
 
 
-def execute_decision(base_url: str, api_key: str, cs_id: str, topic_id: str, decision: dict, dry_run: bool):
+def execute_decision(base_url: str, api_key: str, cs_id: str, topic_id: str, topic: dict, decision: dict, dry_run: bool):
     action = decision.get("decision", "").lower()
 
     if decision.get("recategorize") and decision["recategorize"] in VALID_CATEGORIES:
@@ -181,19 +181,22 @@ def execute_decision(base_url: str, api_key: str, cs_id: str, topic_id: str, dec
             api_put(base_url, f"/v1/topics/{topic_id}", api_key, {"category": new_cat})
 
     if action == "merge":
+        sensitivity = topic.get("sensitivity", "standard")
+        if sensitivity != "standard":
+            log.warning("  → Skip merge: topic is '%s' sensitivity (requires policing badge)", sensitivity)
+            return
+
         log.info("  → Merge changeset %s", cs_id)
         if not dry_run:
-            api_put(base_url, f"/v1/changesets/{cs_id}/merge", api_key)
+            api_put(base_url, f"/v1/changesets/{cs_id}/merge", api_key, {
+                "confirmSensitivity": "standard",
+            })
 
     elif action == "reject":
-        reason = decision.get("reject_reason", "Rejected by curator agent")
+        reason = decision.get("reject_reason", "Flagged by curator agent")
         category = decision.get("reject_category", "other")
-        log.info("  → Reject changeset %s (%s: %s)", cs_id, category, reason)
-        if not dry_run:
-            api_put(base_url, f"/v1/changesets/{cs_id}/reject", api_key, {
-                "reason": reason,
-                "category": category,
-            })
+        log.warning("  → FLAGGED (no policing badge to reject): %s (%s: %s)", cs_id, category, reason)
+        log.warning("    Changeset left in queue for manual review or fast-track expiry")
     else:
         log.warning("  → Unknown decision '%s', skipping", action)
 
@@ -229,7 +232,7 @@ def run(dry_run: bool = False):
                      decision.get("confidence", 0),
                      f" — {decision.get('notes')}" if decision.get("notes") else "")
 
-            execute_decision(base_url, api_key, cs_id, cs["topic_id"], decision, dry_run)
+            execute_decision(base_url, api_key, cs_id, cs["topic_id"], topic, decision, dry_run)
 
             seen[cs_id] = {
                 "decision": decision.get("decision"),

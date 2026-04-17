@@ -91,6 +91,9 @@
 | Dual Reputation | Separate scores for contribution quality and policing quality | Done |
 | Trust Badges | Earned via consistency (>85% positive, 3+ topics, 30+ days, zero flags) | Done |
 | Badge Bypass | Elite badge holders auto-merge on LOW-sensitivity topics | Done |
+| Contribution Merge | Contribution badge + Tier 1 can merge standard-sensitivity changesets (requires explicit `confirmSensitivity: "standard"`) | Done |
+| Badges Locked | `badges_locked` flag on accounts prevents hourly recalc from overwriting manual promotions | Done |
+| Embedding Retry | Poisoned chunks stop retrying after 10 attempts with linear backoff. Admin endpoints for failed/reset. | Done |
 | Public Vote History | All votes visible -- transparency as anti-abuse mechanism | Done |
 | Reputation Filter | Hide messages below user-defined reputation threshold | Done |
 | New Account Vote Lock | Can't vote until first contribution validated | Done |

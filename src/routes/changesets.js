@@ -171,15 +171,40 @@ router.put(
   }
 );
 
-// PUT /changesets/:id/merge — merge changeset (policing badge required)
+// PUT /changesets/:id/merge — merge changeset
+// Policing badge: can merge anything.
+// Contribution badge + tier 1: can merge standard-sensitivity topics only, requires confirmSensitivity: "standard".
 router.put(
   '/changesets/:id/merge',
   auth.authenticateRequired, authenticatedLimiter,
-  requireTier(1), requireBadge('policing'),
+  requireTier(1),
   async (req, res) => {
     try {
       if (!UUID_RE.test(req.params.id)) {
         return validationError(res, 'Changeset ID must be a valid UUID');
+      }
+
+      const hasPolicing = req.account.badgePolicing;
+      const hasContribution = req.account.badgeContribution;
+
+      if (!hasPolicing && !hasContribution) {
+        return forbiddenError(res, 'Requires contribution or policing badge to merge');
+      }
+
+      if (!hasPolicing) {
+        const { confirmSensitivity } = req.body || {};
+        if (confirmSensitivity !== 'standard') {
+          return forbiddenError(res, 'Contribution badge holders must pass confirmSensitivity: "standard" to merge. Sensitive topics require policing badge.');
+        }
+        const changeset = await changesetService.getChangeset(req.params.id);
+        if (!changeset) return notFoundError(res, 'Changeset not found');
+
+        const { getPool } = require('../config/database');
+        const { rows } = await getPool().query('SELECT sensitivity FROM topics WHERE id = $1', [changeset.topic_id]);
+        if (rows.length === 0) return notFoundError(res, 'Topic not found');
+        if (rows[0].sensitivity !== 'standard') {
+          return forbiddenError(res, 'This topic is marked as sensitive. Only policing badge holders can merge sensitive changesets.');
+        }
       }
 
       const merged = await changesetService.mergeChangeset(req.params.id, req.account.id);

@@ -75,8 +75,8 @@ POST /v1/chunks/:id/sources — add source (sourceUrl, sourceDescription)
 ## Changesets
 POST /v1/changesets — create changeset (batch operations on one topic)
 GET /v1/changesets/:id — get changeset details and operations
-PUT /v1/changesets/:id/merge — merge (policing badge, atomic)
-PUT /v1/changesets/:id/reject — reject (reason required)
+PUT /v1/changesets/:id/merge — merge (contribution badge + confirmSensitivity:"standard" for standard topics, or policing badge for any topic)
+PUT /v1/changesets/:id/reject — reject (policing badge, reason required)
 PUT /v1/changesets/:id/retract — retract (creator only)
 PUT /v1/changesets/:id/resubmit — resubmit retracted changeset
 POST /v1/changesets/:id/escalate — escalate to formal review (Tier 1+)

@@ -15,15 +15,37 @@ function registerTools(server, getSessionAccount) {
 
   tools.merge_changeset = server.tool(
     'merge_changeset',
-    'Merge a changeset (atomically publish all its operations). Requires policing badge.',
+    'Merge a changeset (atomically publish all its operations). Policing badge can merge anything. Contribution badge + tier 1 can merge standard-sensitivity topics only (must set confirmSensitivity to "standard").',
     {
       changesetId: z.string().describe('Changeset UUID'),
+      confirmSensitivity: z.enum(['standard']).optional().describe('Required for contribution-badge merges: confirm the topic is standard sensitivity'),
     },
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = await requireAccount(getSessionAccount, extra);
-        requireBadge(account, 'policing');
+        const hasPolicing = account.badgePolicing;
+        const hasContribution = account.badgeContribution;
+
+        if (!hasPolicing && !hasContribution) {
+          throw Object.assign(new Error('Requires contribution or policing badge to merge'), { code: 'FORBIDDEN' });
+        }
+
+        if (!hasPolicing) {
+          if (params.confirmSensitivity !== 'standard') {
+            throw Object.assign(new Error('Contribution badge holders must pass confirmSensitivity: "standard" to merge. Sensitive topics require policing badge.'), { code: 'FORBIDDEN' });
+          }
+          const changeset = await changesetService.getChangeset(params.changesetId);
+          if (!changeset) throw Object.assign(new Error('Changeset not found'), { code: 'NOT_FOUND' });
+
+          const { getPool } = require('../../config/database');
+          const { rows } = await getPool().query('SELECT sensitivity FROM topics WHERE id = $1', [changeset.topic_id]);
+          if (rows.length === 0) throw Object.assign(new Error('Topic not found'), { code: 'NOT_FOUND' });
+          if (rows[0].sensitivity !== 'standard') {
+            throw Object.assign(new Error('This topic is marked as sensitive. Only policing badge holders can merge sensitive changesets.'), { code: 'FORBIDDEN' });
+          }
+        }
+
         const result = await changesetService.mergeChangeset(params.changesetId, account.id);
         return mcpResult({
           changesetId: result.id,
