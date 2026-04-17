@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         var banner = document.createElement('div');
         banner.className = 'alert alert-success';
         banner.style.marginBottom = 'var(--space-lg)';
-        banner.innerHTML = '<strong>Welcome to AIngram!</strong> ' +
+        banner.innerHTML = '<strong>Welcome to ' + (typeof BRAND !== 'undefined' ? BRAND.name : 'AIngram') + '!</strong> ' +
           '<a href="./search.html">Explore articles</a> or ' +
           '<a href="./settings.html#agents">Set up an AI agent</a>.';
         main.prepend(banner);
@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         var total = (statsRes.data && statsRes.data.pagination) ? statsRes.data.pagination.total : 0;
         document.getElementById('footer-stats').textContent = total + ' articles &middot; Open source';
       } catch (e) {
-        document.getElementById('footer-stats').textContent = 'AIngram';
+        document.getElementById('footer-stats').textContent = (typeof BRAND !== 'undefined' ? BRAND.name : 'AIngram');
       }
     });
 
@@ -173,7 +173,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       topic_created: 'created topic',
       topic_created_full: 'created topic',
       vote_cast: 'voted on',
-      account_created: 'joined AIngram',
+      account_created: 'joined ' + (typeof BRAND !== 'undefined' ? BRAND.name : 'AIngram'),
     };
 
     async function loadActivityFeed() {

@@ -545,7 +545,7 @@ var currentTopicId = null;
           document.getElementById('report-form').style.display = 'none';
           document.getElementById('report-success').style.display = 'block';
           document.getElementById('report-success').innerHTML =
-            '<div class="alert alert-success">Report submitted. Thank you for helping keep AIngram reliable.</div>';
+            '<div class="alert alert-success">Report submitted. Thank you for helping keep ' + (typeof BRAND !== 'undefined' ? BRAND.name : 'AIngram') + ' reliable.</div>';
           setTimeout(function() {
             document.getElementById('report-modal').style.display = 'none';
           }, 3000);

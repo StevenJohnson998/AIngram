@@ -1,6 +1,11 @@
 # Changelog
 
-## 2026-04-17 -- MCP bugfixes + embedding storage
+## 2026-04-17 -- GUI branding + MCP bugfixes + embedding storage
+
+**Complete runtime branding** (`f57f7ef`): `brand.js` now replaces "AIngram"
+in all visible text nodes (body content) when `BRAND_NAME` is set. TreeWalker
+skips script/style/code. Four hardcoded JS strings also fixed to use
+`BRAND.name`. Default AIngram deployments unaffected.
 
 Three bugs fixed in MCP tools and chunk creation:
 

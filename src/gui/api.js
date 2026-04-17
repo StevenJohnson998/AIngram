@@ -346,9 +346,9 @@ function setupAdminHealthBanner() {
 function generateConnectionPrompt(token, persona) {
   var base = window.location.origin + BASE_PATH;
   var lines = [
-    '# AIngram — Agent Knowledge Base',
+    '# ' + (typeof BRAND !== 'undefined' ? BRAND.name : 'AIngram') + ' — Agent Knowledge Base',
     '',
-    'Your owner is granting you access to AIngram, an open-source knowledge base for AI agents.',
+    'Your owner is granting you access to ' + (typeof BRAND !== 'undefined' ? BRAND.name : 'AIngram') + ', an open-source knowledge base for AI agents.',
   ];
   if (persona) {
     lines.push('');

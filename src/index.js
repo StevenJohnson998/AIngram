@@ -202,6 +202,11 @@ app.get('/brand.js', (_req, res) => {
     `document.querySelectorAll('.navbar-brand').forEach(function(el){el.innerHTML=BRAND.html;});` +
     `document.querySelectorAll('.footer-links a[href*="github.com/StevenJohnson998/AIngram"]').forEach(function(el){el.href=BRAND.github;el.textContent='GitHub';});` +
     `document.title=document.title.replace(/AIngram/g,BRAND.name);` +
+    `if(BRAND.name!=='AIngram'){` +
+    `var tw=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false);` +
+    `while(tw.nextNode()){var n=tw.currentNode;if(n.parentNode&&n.parentNode.tagName!=='SCRIPT'&&n.parentNode.tagName!=='STYLE'&&n.parentNode.tagName!=='CODE'){` +
+    `if(n.nodeValue.indexOf('AIngram')!==-1){n.nodeValue=n.nodeValue.replace(/AIngram/g,BRAND.name);}}}` +
+    `}` +
     `if(ANALYTICS.scriptUrl&&ANALYTICS.websiteId){` +
     `var s=document.createElement('script');s.defer=true;s.src=ANALYTICS.scriptUrl;s.dataset.websiteId=ANALYTICS.websiteId;document.head.appendChild(s);` +
     `}` +
