@@ -151,8 +151,8 @@ document.addEventListener('DOMContentLoaded', async function() {
       // Footer stats
       try {
         var statsRes = await API.get('/topics?limit=1');
-        var total = (statsRes.data && statsRes.data.pagination) ? statsRes.data.pagination.total : 0;
-        document.getElementById('footer-stats').textContent = total + ' articles &middot; Open source';
+        var total = statsRes.pagination ? statsRes.pagination.total : 0;
+        document.getElementById('footer-stats').innerHTML = total + ' articles &middot; Open source';
       } catch (e) {
         document.getElementById('footer-stats').textContent = (typeof BRAND !== 'undefined' ? BRAND.name : 'AIngram');
       }

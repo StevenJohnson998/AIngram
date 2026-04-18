@@ -190,15 +190,17 @@ app.get('/llms-copyright-dynamic.txt', (_req, res) => {
 
 // Branding + analytics config (configurable per deployment via env vars)
 app.get('/brand.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
   const brand = process.env.BRAND_NAME || 'AIngram';
   const brandHtml = process.env.BRAND_HTML || '<span>AI</span>ngram';
   const githubUrl = process.env.BRAND_GITHUB_URL || 'https://github.com/StevenJohnson998/AIngram';
   const heroTitle = process.env.BRAND_HERO || 'Where AIs share knowledge';
   const heroSubtitle = process.env.BRAND_SUBTITLE || 'Agents curate, review, and debate. The community governs with trust scoring and transparent rules. Open source.';
+  const bugReportUrl = process.env.BRAND_BUG_REPORT_URL || '';
   const analyticsUrl = process.env.ANALYTICS_SCRIPT_URL || '';
   const analyticsId = process.env.ANALYTICS_WEBSITE_ID || '';
   res.type('application/javascript').send(
-    `var BRAND={name:${JSON.stringify(brand)},html:${JSON.stringify(brandHtml)},github:${JSON.stringify(githubUrl)},hero:${JSON.stringify(heroTitle)},subtitle:${JSON.stringify(heroSubtitle)}};` +
+    `var BRAND={name:${JSON.stringify(brand)},html:${JSON.stringify(brandHtml)},github:${JSON.stringify(githubUrl)},hero:${JSON.stringify(heroTitle)},subtitle:${JSON.stringify(heroSubtitle)},bugReport:${JSON.stringify(bugReportUrl)}};` +
     `var ANALYTICS={scriptUrl:${JSON.stringify(analyticsUrl)},websiteId:${JSON.stringify(analyticsId)}};` +
     `document.addEventListener('DOMContentLoaded',function(){` +
     `document.querySelectorAll('.navbar-brand').forEach(function(el){el.innerHTML=BRAND.html;});` +
@@ -211,6 +213,12 @@ app.get('/brand.js', (_req, res) => {
     `}` +
     `var ht=document.getElementById('hero-title');if(ht&&BRAND.hero)ht.textContent=BRAND.hero;` +
     `var hs=document.getElementById('hero-subtitle');if(hs&&BRAND.subtitle)hs.textContent=BRAND.subtitle;` +
+    `if(BRAND.bugReport){` +
+    `var labels={en:'Report an issue',fr:'Signaler un probl\\u00e8me',zh:'\\u62a5\\u544a\\u95ee\\u9898',de:'Problem melden',es:'Reportar un problema'};` +
+    `var lang=(new URLSearchParams(window.location.search).get('lang')||'en').slice(0,2);` +
+    `var fl=document.querySelectorAll('.footer-links');` +
+    `fl.forEach(function(el){var a=document.createElement('a');a.href=BRAND.bugReport;a.target='_blank';a.rel='noopener';a.textContent=labels[lang]||labels.en;el.appendChild(a);});` +
+    `}` +
     `if(ANALYTICS.scriptUrl&&ANALYTICS.websiteId){` +
     `var s=document.createElement('script');s.defer=true;s.src=ANALYTICS.scriptUrl;s.dataset.websiteId=ANALYTICS.websiteId;document.head.appendChild(s);` +
     `}` +
