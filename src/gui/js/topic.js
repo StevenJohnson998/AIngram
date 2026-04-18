@@ -122,7 +122,9 @@ var currentTopicId = null;
         }
         if (!metaContent || !Array.isArray((metaContent || {}).order)) {
           chunks.sort(function(a, b) {
-            return new Date(a.created_at) - new Date(b.created_at);
+            var dt = new Date(a.created_at) - new Date(b.created_at);
+            if (dt !== 0) return dt;
+            return (a.title || '').localeCompare(b.title || '', undefined, { numeric: true });
           });
         }
         // Extract and display article/discussion summaries from chunks (before render filters them out)

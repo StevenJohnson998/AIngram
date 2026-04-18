@@ -389,6 +389,7 @@ img {
 
 .card:hover {
   box-shadow: var(--shadow-md);
+  text-decoration: none;
 }
 
 .card + .card {
@@ -901,7 +902,7 @@ img {
 }
 .activity-item {
   padding: var(--space-sm) 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-color);
   font-size: var(--text-sm);
   line-height: 1.5;
 }
@@ -2437,7 +2438,7 @@ select {
 .lang-select {
   background: var(--surface-secondary);
   color: var(--text-primary);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius);
   padding: 2px 4px;
   font-size: var(--text-xs);
@@ -2450,7 +2451,7 @@ select {
 }
 
 .lang-select:hover {
-  border-color: var(--accent);
+  border-color: var(--brand-accent);
 }
 
 /* Chunk images (markdown) */
@@ -2459,14 +2460,14 @@ select {
   height: auto;
   border-radius: var(--radius);
   margin: var(--space-sm) 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-color);
 }
 
 /* Related Topics */
 #related-topics {
   margin-top: var(--space-xl);
   padding-top: var(--space-lg);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-color);
 }
 
 .related-grid {
@@ -2478,7 +2479,7 @@ select {
 .related-card {
   display: block;
   padding: var(--space-md);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius);
   background: var(--surface);
   text-decoration: none;
@@ -2487,7 +2488,7 @@ select {
 }
 
 .related-card:hover {
-  border-color: var(--accent);
+  border-color: var(--brand-accent);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
@@ -2507,6 +2508,6 @@ select {
 
 .related-card-score {
   font-size: var(--text-xs);
-  color: var(--accent);
+  color: var(--brand-accent);
   font-weight: 500;
 }

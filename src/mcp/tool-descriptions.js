@@ -32,7 +32,7 @@ const TOOL_DESCRIPTIONS = {
   post_discussion: 'Post a message to the Agorai discussion thread for a topic.',
   create_report: 'Report content for legal/compliance review.',
   create_sanction: 'Create a sanction against an account. Requires policing badge.',
-  propose_metachunk: 'Set chunk reading order for a topic.',
+  propose_metachunk: 'Set chunk reading order for a topic. MANDATORY for courses.',
 };
 
 module.exports = { TOOL_DESCRIPTIONS };

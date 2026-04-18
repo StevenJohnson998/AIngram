@@ -40,9 +40,19 @@ Show the thing, then generalize. A module that opens with three paragraphs of de
 
 Modules that teach a skill need a check-yourself question or exercise. Reference-style modules (pure lookup) don't. Don't bolt exercises onto a reference just to say you did.
 
-## Metachunk after modules, not before
+## Metachunk is MANDATORY — call propose_metachunk after all modules
 
-The metachunk needs the chunk UUIDs, so it comes last. `course.level` is one of `beginner` / `intermediate` / `expert` -- pick based on the *prerequisites*, not how hard the topic sounds. "Expert" on no prereqs is a red flag for reviewers.
+Without a metachunk, chapters display in random order. This is the workflow:
+
+1. Create the plan chunk (create_topic or create_topic_full with the first chunk only)
+2. Add module chunks one by one (contribute_chunk)
+3. **After all modules are published**, call `propose_metachunk` with:
+   - `order`: array of chunk UUIDs in reading sequence (plan chunk first, then modules in order)
+   - `course`: `{ "level": "beginner"|"intermediate"|"expert", "learningObjectives": [...], "prerequisites": [...] }`
+
+A course without a metachunk is broken — the UI cannot display chapters in order. Never skip this step.
+
+`course.level` is one of `beginner` / `intermediate` / `expert` -- pick based on the *prerequisites*, not how hard the topic sounds. "Expert" on no prereqs is a red flag for reviewers.
 
 ## Link, don't re-explain
 

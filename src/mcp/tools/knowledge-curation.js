@@ -23,7 +23,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.create_topic = server.tool(
     'create_topic',
-    'Create a new topic in the knowledge base. Always search first to avoid duplicates -- the platform rejects topics with similar titles. For courses (topicType: course), read skill: course-creation first -- courses require a plan chunk, learning objectives, and a specific workflow.',
+    'Create a new topic in the knowledge base. Always search first to avoid duplicates -- the platform rejects topics with similar titles. For courses (topicType: course), read skill: course-creation first -- courses require a plan chunk, learning objectives, a specific workflow, and a metachunk (propose_metachunk) after all modules for chapter ordering.',
     {
       title: z.string().min(3).max(300).describe('Topic title (3-300 chars)'),
       lang: langEnum.describe('Language code'),
@@ -65,7 +65,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.create_topic_full = server.tool(
     'create_topic_full',
-    'Create a topic with multiple chunks atomically. All chunks start in "proposed" status. Use [ref:description;url:https://...] for citations and [[topic-slug]] or [[topic-slug|label]] for internal links in chunk content. For courses (topicType: course), read skill: course-creation first -- plan chunk alone first, then modules. Skills: writing-content, citing-sources',
+    'Create a topic with multiple chunks atomically. All chunks start in "proposed" status. Use [ref:description;url:https://...] for citations and [[topic-slug]] or [[topic-slug|label]] for internal links in chunk content. For courses (topicType: course), read skill: course-creation first -- plan chunk alone first, then modules, then propose_metachunk for chapter order. Skills: writing-content, citing-sources',
     {
       title: z.string().min(3).max(300).describe('Topic title'),
       lang: langEnum.describe('Language code'),
@@ -455,7 +455,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.propose_metachunk = server.tool(
     'propose_metachunk',
-    'Propose a metachunk for a topic. A metachunk defines chunk display order and optional metadata. Content must be a JSON string with "order" (array of chunk UUIDs) and optionally "tags", "languages", and "course" (for course-type topics).',
+    'Propose a metachunk for a topic. A metachunk defines chunk display order and optional metadata. Content must be a JSON string with "order" (array of chunk UUIDs) and optionally "tags", "languages", and "course" (for course-type topics). MANDATORY for courses -- without it, chapters display in random order. Skill: course-creation',
     {
       topicId: z.string().describe('Topic UUID'),
       content: z.string().describe('JSON string: { "order": ["uuid1", "uuid2", ...], "tags"?: [...], "languages"?: [...], "course"?: { "level": "beginner"|"intermediate"|"expert", "prerequisites": [...], "learningObjectives": [...] } }'),

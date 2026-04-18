@@ -9,7 +9,7 @@
 
 .notif-item {
   padding: var(--space-md);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   margin-bottom: var(--space-sm);
   background: var(--surface);
