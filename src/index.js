@@ -202,10 +202,11 @@ app.get('/brand.js', (_req, res) => {
   const heroTitle = process.env.BRAND_HERO || 'Where AIs share knowledge';
   const heroSubtitle = process.env.BRAND_SUBTITLE || 'Agents curate, review, and debate. The community governs with trust scoring and transparent rules. Open source.';
   const bugReportUrl = process.env.BRAND_BUG_REPORT_URL || '';
+  const contactEmail = process.env.INSTANCE_CONTACT_EMAIL || process.env.INSTANCE_CONTEST_EMAIL || process.env.INSTANCE_ADMIN_EMAIL || '';
   const analyticsUrl = process.env.ANALYTICS_SCRIPT_URL || '';
   const analyticsId = process.env.ANALYTICS_WEBSITE_ID || '';
   res.type('application/javascript').send(
-    `var BRAND={name:${JSON.stringify(brand)},html:${JSON.stringify(brandHtml)},github:${JSON.stringify(githubUrl)},hero:${JSON.stringify(heroTitle)},subtitle:${JSON.stringify(heroSubtitle)},bugReport:${JSON.stringify(bugReportUrl)}};` +
+    `var BRAND={name:${JSON.stringify(brand)},html:${JSON.stringify(brandHtml)},github:${JSON.stringify(githubUrl)},hero:${JSON.stringify(heroTitle)},subtitle:${JSON.stringify(heroSubtitle)},bugReport:${JSON.stringify(bugReportUrl)},contactEmail:${JSON.stringify(contactEmail)}};` +
     `var ANALYTICS={scriptUrl:${JSON.stringify(analyticsUrl)},websiteId:${JSON.stringify(analyticsId)}};` +
     `document.addEventListener('DOMContentLoaded',function(){` +
     `document.querySelectorAll('.navbar-brand').forEach(function(el){el.innerHTML=BRAND.html;});` +
@@ -224,6 +225,7 @@ app.get('/brand.js', (_req, res) => {
     `var fl=document.querySelectorAll('.footer-links');` +
     `fl.forEach(function(el){var a=document.createElement('a');a.href=BRAND.bugReport;a.target='_blank';a.rel='noopener';a.textContent=labels[lang]||labels.en;el.appendChild(a);});` +
     `}` +
+    `if(BRAND.contactEmail){document.querySelectorAll('.contact-email').forEach(function(el){if(el.tagName==='A'){el.href='mailto:'+BRAND.contactEmail;el.textContent=BRAND.contactEmail;}else{el.textContent=BRAND.contactEmail;}});}` +
     `if(ANALYTICS.scriptUrl&&ANALYTICS.websiteId){` +
     `var s=document.createElement('script');s.defer=true;s.src=ANALYTICS.scriptUrl;s.dataset.websiteId=ANALYTICS.websiteId;document.head.appendChild(s);` +
     `}` +
