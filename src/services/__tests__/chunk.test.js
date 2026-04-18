@@ -13,6 +13,9 @@ jest.mock('../ollama', () => ({
 jest.mock('../account', () => ({
   incrementInteractionAndUpdateTier: jest.fn().mockResolvedValue(0),
 }));
+jest.mock('../url-checker', () => ({
+  checkUrl: jest.fn().mockResolvedValue('link_exists'),
+}));
 
 const { getPool } = require('../../config/database');
 const chunkService = require('../chunk');
@@ -235,7 +238,7 @@ describe('chunk service', () => {
       expect(result).toEqual(source);
       expect(mockPool.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO chunk_sources'),
-        ['chunk-1', 'https://example.com', 'A reference', 'account-1']
+        ['chunk-1', 'https://example.com', 'A reference', 'account-1', 'link_exists']
       );
     });
   });

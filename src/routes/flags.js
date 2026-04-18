@@ -166,8 +166,8 @@ router.get(
   async (req, res) => {
     try {
       const { target_type, target_id } = req.query;
-      if (!target_type || !['message', 'chunk', 'account'].includes(target_type)) {
-        return validationError(res, 'target_type must be one of: message, chunk, account');
+      if (!target_type || !['message', 'chunk', 'account', 'source'].includes(target_type)) {
+        return validationError(res, 'target_type must be one of: message, chunk, account, source');
       }
       if (!target_id || !UUID_RE.test(target_id)) {
         return validationError(res, 'target_id must be a valid UUID');

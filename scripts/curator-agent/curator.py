@@ -27,6 +27,7 @@ from openai import OpenAI
 
 SCRIPT_DIR = Path(__file__).parent
 SEEN_FILE = SCRIPT_DIR / "seen.json"
+IMPROVED_FILE = SCRIPT_DIR / "improved.json"
 
 VALID_CATEGORIES = [
     "uncategorized", "agent-governance", "collective-intelligence",
@@ -119,6 +120,17 @@ def api_get(base_url: str, path: str, api_key: str, params: dict = None) -> dict
         f"{base_url}{path}",
         headers={"Authorization": f"Bearer {api_key}"},
         params=params,
+        timeout=30,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def api_post(base_url: str, path: str, api_key: str, body: dict = None) -> dict:
+    r = requests.post(
+        f"{base_url}{path}",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json=body or {},
         timeout=30,
     )
     r.raise_for_status()
@@ -276,9 +288,309 @@ def run(dry_run: bool = False):
     log.info("Done. Processed %d item(s).", len(new_items))
 
 
+IMPROVE_SYSTEM_PROMPT = """You are a curator improving existing articles on AIlore, a knowledge platform about AI agents.
+
+Your job: review a published chunk and propose an improved version with better sources and internal links.
+
+## What to fix
+
+1. **Missing citations**: add [ref:description;url:https://...] for claims that need sourcing. Use real, verifiable sources only.
+2. **Hallucinated citations**: remove or replace [ref:...] entries that cite non-existent papers or have wrong author/title/URL.
+3. **Broken or wrong URLs**: fix URLs that are clearly wrong (typos, dead domains for well-known resources).
+4. **Internal links**: add [[topic-slug]] links to connect related articles. Only link to slugs from the provided list of existing topics.
+5. **Malformed syntax**: fix unclosed [ref:] or [[]] brackets.
+
+## Rules
+
+- Do NOT rewrite the content beyond fixing sources and links. Keep the author's voice and structure.
+- Do NOT invent sources. If you cannot find a real source for a claim, leave it unsourced rather than hallucinate.
+- Do NOT add internal links to topics that don't exist — only use slugs from the provided list.
+- Do NOT link a topic to itself — never use [[slug]] where slug matches the current topic's own slug.
+- Only cite a paper if you are certain it specifically covers the topic at hand. A real arXiv ID for the wrong subject is worse than no citation. When unsure, leave the claim unsourced.
+- If the chunk is already well-sourced and linked, respond with "skip".
+- Keep edits minimal and targeted.
+
+## Response format
+
+If improvements are needed:
+{
+  "action": "edit",
+  "improved_content": "the full chunk content with fixes applied",
+  "changes": ["description of each change made"]
+}
+
+If the chunk is fine as-is:
+{
+  "action": "skip",
+  "reason": "brief explanation"
+}
+
+Always respond with valid JSON matching one of these two formats."""
+
+
+import re
+
+
+URL_CHECK_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; AIlore-Curator/1.0; +https://ailore.ai)"}
+CROSSREF_HEADERS = {"User-Agent": "AIlore-Curator/1.0 (mailto:steven.johnson.ai2@gmail.com)"}
+
+DOI_PATTERNS = [
+    (r'dl\.acm\.org/doi/(10\.\d+/.+?)(?:\?|#|$)', None),
+    (r'link\.springer\.com/article/(10\.\d+/.+?)(?:\?|#|$)', None),
+    (r'onlinelibrary\.wiley\.com/.*/doi/(?:abs/|full/)?(10\.\d+/.+?)(?:\?|#|$)', None),
+    (r'doi\.org/(10\.\d+/.+?)(?:\?|#|$)', None),
+    (r'ieeexplore\.ieee\.org/document/(\d+)', 'ieee'),
+    (r'nature\.com/articles/([a-z0-9\-]+)', 'nature'),
+]
+
+
+def check_doi_crossref(doi: str, timeout: float = 5.0) -> bool:
+    try:
+        r = requests.get(
+            f"https://api.crossref.org/works/{doi}",
+            headers=CROSSREF_HEADERS,
+            timeout=timeout,
+        )
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
+def extract_doi(url: str) -> str | None:
+    for pattern, special in DOI_PATTERNS:
+        m = re.search(pattern, url)
+        if m:
+            if special:
+                return None
+            return m.group(1)
+    return None
+
+
+def check_url(url: str, timeout: float = 5.0) -> bool | None:
+    """Returns True (verified), False (dead/fake), None (unverifiable)."""
+    try:
+        if "arxiv.org/abs/" in url:
+            r = requests.get(url, timeout=timeout, allow_redirects=True, headers=URL_CHECK_HEADERS)
+            return r.status_code < 400 and "not recognized" not in r.text[:2000]
+
+        doi = extract_doi(url)
+        if doi:
+            return check_doi_crossref(doi, timeout)
+
+        r = requests.head(url, timeout=timeout, allow_redirects=True, headers=URL_CHECK_HEADERS)
+        if r.status_code == 403:
+            return None
+        return r.status_code < 400
+    except Exception:
+        return None
+
+
+def validate_refs(content: str, original_content: str) -> tuple[str, list, list]:
+    """Validate new [ref:...;url:...] entries. Returns (cleaned_content, stripped_urls, unverified_urls)."""
+    original_urls = set(re.findall(r'\[ref:[^]]*;url:(https?://[^\];\s]+)', original_content))
+    new_refs = re.findall(r'(\[ref:[^]]*;url:(https?://[^\];\s]+)[^\]]*\])', content)
+
+    stripped = []
+    unverified = []
+    for full_ref, url in new_refs:
+        if url in original_urls:
+            continue
+        result = check_url(url)
+        if result is False:
+            log.warning("  ⚠ Stripping dead/fake URL: %s", url)
+            content = content.replace(full_ref, "")
+            stripped.append(url)
+        elif result is None:
+            log.warning("  ⚠ Unverifiable URL (kept but flagged): %s", url)
+            unverified.append(url)
+
+    content = re.sub(r'  +', ' ', content).strip()
+    return content, stripped, unverified
+
+
+def load_improved() -> dict:
+    if IMPROVED_FILE.exists():
+        return json.loads(IMPROVED_FILE.read_text())
+    return {}
+
+
+def save_improved(improved: dict):
+    IMPROVED_FILE.write_text(json.dumps(improved, indent=2))
+
+
+def fetch_all_topics(base_url: str, api_key: str) -> list:
+    all_topics = []
+    page = 1
+    while True:
+        data = api_get(base_url, "/v1/topics", api_key, {"limit": 50, "page": page})
+        topics = data.get("data", [])
+        if not topics:
+            break
+        all_topics.extend(topics)
+        pagination = data.get("pagination", {})
+        if page >= pagination.get("totalPages", 1):
+            break
+        page += 1
+    return all_topics
+
+
+def fetch_topic_chunks(base_url: str, api_key: str, topic_id: str) -> list:
+    data = api_get(base_url, f"/v1/topics/{topic_id}/chunks", api_key, {"status": "published", "limit": 50})
+    return data.get("data", [])
+
+
+def ask_improve(client: OpenAI, chunk: dict, topic: dict, existing_slugs: list) -> dict:
+    user_msg = json.dumps({
+        "topic_title": topic.get("title", ""),
+        "topic_slug": topic.get("slug", ""),
+        "chunk_title": chunk.get("title", ""),
+        "chunk_content": chunk.get("content", ""),
+        "existing_topic_slugs": existing_slugs,
+    }, ensure_ascii=False)
+
+    resp = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=[
+            {"role": "system", "content": IMPROVE_SYSTEM_PROMPT},
+            {"role": "user", "content": user_msg},
+        ],
+        temperature=0.1,
+        max_tokens=2000,
+        response_format={"type": "json_object"},
+    )
+
+    raw = resp.choices[0].message.content
+    return json.loads(raw)
+
+
+def run_improve(dry_run: bool = False, max_edits: int = 5):
+    base_url, api_key, ds_key = load_config()
+    ds_client = OpenAI(api_key=ds_key, base_url="https://api.deepseek.com")
+
+    improved = load_improved()
+
+    log.info("Fetching all topics...")
+    topics = fetch_all_topics(base_url, api_key)
+    log.info("Found %d topics", len(topics))
+
+    existing_slugs = [t.get("slug", "") for t in topics if t.get("slug")]
+
+    edits_submitted = 0
+
+    for topic in topics:
+        if edits_submitted >= max_edits:
+            log.info("Reached max edits (%d), stopping.", max_edits)
+            break
+
+        topic_id = topic["id"]
+        topic_title = topic.get("title", "?")
+
+        chunks = fetch_topic_chunks(base_url, api_key, topic_id)
+        if not chunks:
+            continue
+
+        for chunk in chunks:
+            if edits_submitted >= max_edits:
+                break
+
+            chunk_id = chunk["id"]
+            if chunk_id in improved:
+                continue
+
+            log.info("Analyzing: [%s] %s — chunk %s", topic.get("slug", "?"), topic_title, chunk_id[:8])
+
+            try:
+                decision = ask_improve(ds_client, chunk, topic, existing_slugs)
+                action = decision.get("action", "skip")
+
+                if action == "skip":
+                    log.info("  → Skip: %s", decision.get("reason", "no changes needed"))
+                    improved[chunk_id] = {
+                        "action": "skip",
+                        "reason": decision.get("reason"),
+                        "processed_at": datetime.now(timezone.utc).isoformat(),
+                        "topic": topic_title,
+                    }
+                elif action == "edit":
+                    changes = decision.get("changes", [])
+                    new_content = decision.get("improved_content", "")
+
+                    if not new_content or new_content == chunk.get("content", ""):
+                        log.info("  → Skip: improved content identical to original")
+                        improved[chunk_id] = {
+                            "action": "skip",
+                            "reason": "content identical after improvement attempt",
+                            "processed_at": datetime.now(timezone.utc).isoformat(),
+                            "topic": topic_title,
+                        }
+                        continue
+
+                    new_content, stripped, unverified = validate_refs(new_content, chunk.get("content", ""))
+                    if stripped:
+                        changes.append(f"Stripped {len(stripped)} dead URL(s): {', '.join(stripped)}")
+                    if unverified:
+                        changes.append(f"Unverified {len(unverified)} URL(s) (kept, needs manual check): {', '.join(unverified)}")
+
+                    if new_content == chunk.get("content", ""):
+                        log.info("  → Skip: content identical after URL validation")
+                        improved[chunk_id] = {
+                            "action": "skip",
+                            "reason": "all changes were stripped by URL validation",
+                            "stripped_urls": stripped,
+                            "unverified_urls": unverified,
+                            "processed_at": datetime.now(timezone.utc).isoformat(),
+                            "topic": topic_title,
+                        }
+                        continue
+
+                    for change in changes:
+                        log.info("  → Change: %s", change)
+
+                    if not dry_run:
+                        try:
+                            result = api_post(base_url, f"/v1/chunks/{chunk_id}/propose-edit", api_key, {
+                                "content": new_content,
+                            })
+                            log.info("  → Edit proposed (changeset pending review)")
+                        except requests.HTTPError as e:
+                            log.error("  → propose-edit failed: %s", e)
+                            improved[chunk_id] = {
+                                "action": "error",
+                                "error": str(e),
+                                "processed_at": datetime.now(timezone.utc).isoformat(),
+                                "topic": topic_title,
+                            }
+                            continue
+
+                    edits_submitted += 1
+                    improved[chunk_id] = {
+                        "action": "edit",
+                        "changes": changes,
+                        "stripped_urls": stripped or None,
+                        "unverified_urls": unverified or None,
+                        "processed_at": datetime.now(timezone.utc).isoformat(),
+                        "topic": topic_title,
+                    }
+
+            except Exception as e:
+                log.error("  Error analyzing chunk %s: %s", chunk_id[:8], e)
+                improved[chunk_id] = {
+                    "action": "error",
+                    "error": str(e),
+                    "processed_at": datetime.now(timezone.utc).isoformat(),
+                    "topic": topic_title,
+                }
+
+    if not dry_run:
+        save_improved(improved)
+    log.info("Improve pass done. %d edit(s) submitted.", edits_submitted)
+
+
 def main():
     parser = argparse.ArgumentParser(description="AIlore Curator Agent")
     parser.add_argument("--dry-run", action="store_true", help="Show decisions without executing")
+    parser.add_argument("--improve", action="store_true", help="Run content improvement pass (fix sources, add links)")
+    parser.add_argument("--max-edits", type=int, default=5, help="Max edits to submit per improve run (default: 5)")
     parser.add_argument("--log-level", default=None, help="Override log level")
     args = parser.parse_args()
 
@@ -292,7 +604,11 @@ def main():
     if args.dry_run:
         log.info("=== DRY RUN MODE ===")
 
-    run(dry_run=args.dry_run)
+    if args.improve:
+        log.info("=== IMPROVE MODE (max %d edits) ===", args.max_edits)
+        run_improve(dry_run=args.dry_run, max_edits=args.max_edits)
+    else:
+        run(dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

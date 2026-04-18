@@ -5,7 +5,7 @@
 const { getPool } = require('../config/database');
 const { analyzeUserInput } = require('./injection-detector');
 
-const VALID_TARGET_TYPES = ['message', 'account', 'chunk', 'topic'];
+const VALID_TARGET_TYPES = ['message', 'account', 'chunk', 'topic', 'source'];
 const VALID_DETECTION_TYPES = ['manual', 'temporal_burst', 'network_cluster', 'creator_cluster', 'topic_concentration', 'injection_auto'];
 const VALID_STATUSES = ['open', 'reviewing', 'dismissed', 'actioned'];
 

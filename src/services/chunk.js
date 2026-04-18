@@ -13,6 +13,7 @@ const { dispatchNotification } = require('./notification');
 const flagService = require('./flag');
 const { analyzeContent, analyzeUserInput } = require('./injection-detector');
 const { shouldQuarantine, quarantineChunk } = require('./quarantine-validator');
+const { checkUrl } = require('./url-checker');
 const { stripInternalFields } = require('../utils/sparse-fieldset');
 
 /**
@@ -219,7 +220,8 @@ async function getChunkById(id) {
                   'source_url', cs.source_url,
                   'source_description', cs.source_description,
                   'added_by', cs.added_by,
-                  'created_at', cs.created_at
+                  'created_at', cs.created_at,
+                  'url_status', cs.url_status
                 )
               ) FILTER (WHERE cs.id IS NOT NULL),
               '[]'::json
@@ -321,6 +323,7 @@ async function _extractAndInsertSources(pool, chunkId, content, addedBy) {
   const refPattern = /\[ref:([^\]]+)\]/g;
   let match;
   const seen = new Set();
+  const refs = [];
   while ((match = refPattern.exec(content)) !== null) {
     const inner = match[1];
     const parts = inner.split(';url:');
@@ -329,10 +332,20 @@ async function _extractAndInsertSources(pool, chunkId, content, addedBy) {
     const key = desc + '|' + (url || '');
     if (seen.has(key)) continue;
     seen.add(key);
+    refs.push({ desc, url });
+  }
+
+  const uniqueUrls = [...new Set(refs.map(r => r.url).filter(Boolean))];
+  const statusMap = new Map();
+  const results = await Promise.all(uniqueUrls.map(u => checkUrl(u)));
+  uniqueUrls.forEach((u, i) => statusMap.set(u, results[i]));
+
+  for (const { desc, url } of refs) {
+    const urlStatus = url ? (statusMap.get(url) || 'unverifiable') : 'unverifiable';
     await pool.query(
-      `INSERT INTO chunk_sources (chunk_id, source_url, source_description, added_by)
-       VALUES ($1, $2, $3, $4)`,
-      [chunkId, url, desc, addedBy]
+      `INSERT INTO chunk_sources (chunk_id, source_url, source_description, added_by, url_status)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [chunkId, url, desc, addedBy, urlStatus]
     );
   }
 }
@@ -346,11 +359,13 @@ async function addSource(chunkId, { sourceUrl, sourceDescription, addedBy }) {
   // S4: defensive injection telemetry on source description (URL is structurally validated elsewhere)
   if (sourceDescription) analyzeUserInput(sourceDescription, 'chunk.source.description', { chunkId, addedBy });
 
+  const urlStatus = sourceUrl ? await checkUrl(sourceUrl) : 'unverifiable';
+
   const { rows } = await pool.query(
-    `INSERT INTO chunk_sources (chunk_id, source_url, source_description, added_by)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO chunk_sources (chunk_id, source_url, source_description, added_by, url_status)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [chunkId, sourceUrl || null, sourceDescription || null, addedBy]
+    [chunkId, sourceUrl || null, sourceDescription || null, addedBy, urlStatus]
   );
 
   return rows[0];
@@ -415,7 +430,8 @@ async function getChunksWithSourcesByTopic(topicId, { status = 'published', page
                     'source_url', cs.source_url,
                     'source_description', cs.source_description,
                     'added_by', cs.added_by,
-                    'created_at', cs.created_at
+                    'created_at', cs.created_at,
+                    'url_status', cs.url_status
                   )
                 ) FILTER (WHERE cs.id IS NOT NULL),
                 '[]'::json
@@ -499,6 +515,10 @@ async function proposeEdit({ originalChunkId, content, technicalDetail, proposed
     chunk.changeset_id = csRows[0].id;
 
     await client.query('COMMIT');
+
+    // Auto-extract [ref:desc;url:...] from content and insert into chunk_sources
+    _extractAndInsertSources(pool, chunk.id, content, proposedBy)
+      .catch(err => console.error(`Auto-source extraction failed for proposed edit ${chunk.id}:`, err.message));
 
     // Quarantine check (same as createChunk)
     const quarantineResult = shouldQuarantine(injectionResult);
