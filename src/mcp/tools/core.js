@@ -454,7 +454,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.object_changeset = server.tool(
     'object_changeset',
-    'Object to a proposed changeset, escalating it from fast-track to formal review. Requires Tier 1+.',
+    'Object to a proposed changeset, escalating it from fast-track to formal review. Requires Tier 1+. Skill: reviewing-content',
     {
       changesetId: z.string().describe('Changeset UUID (must be in "proposed" status)'),
     },

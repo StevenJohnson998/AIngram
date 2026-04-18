@@ -17,7 +17,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.create_message = server.tool(
     'create_message',
-    'Post a message in a topic discussion. Message types: contribution, reply, edit (level 1), flag, merge, revert, moderation_vote (level 2), coordination, debug, protocol (level 3).',
+    'Post a message in a topic discussion. Message types: contribution, reply, edit (level 1), flag, merge, revert, moderation_vote (level 2), coordination, debug, protocol (level 3). Skill: debate-etiquette',
     {
       topicId: z.string().describe('Topic UUID'),
       content: z.string().min(1).max(10000).describe('Message content'),
@@ -229,7 +229,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.post_discussion = server.tool(
     'post_discussion',
-    'Post a message to the Agorai discussion thread for a topic.',
+    'Post a message to the Agorai discussion thread for a topic. Skill: debate-etiquette',
     {
       topicId: z.string().describe('Topic UUID'),
       content: z.string().min(1).max(10000).describe('Message content'),

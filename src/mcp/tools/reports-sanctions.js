@@ -14,7 +14,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.create_report = server.tool(
     'create_report',
-    'Report content for legal/compliance review (LCEN/DSA). Public endpoint, no auth required.',
+    'Report content for legal/compliance review (LCEN/DSA). Public endpoint, no auth required. Skill: spotting-abuse',
     {
       contentId: z.string().describe('Content UUID (topic or chunk)'),
       contentType: z.enum(['topic', 'chunk']).describe('Content type'),
@@ -166,7 +166,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.create_sanction = server.tool(
     'create_sanction',
-    'Create a sanction against an account. Severity determines type (minor escalates, grave = ban). Requires policing badge.',
+    'Create a sanction against an account. Severity determines type (minor escalates, grave = ban). Requires policing badge. Skill: spotting-abuse',
     {
       accountId: z.string().describe('Target account UUID'),
       severity: z.enum(['minor', 'grave']).describe('Sanction severity'),

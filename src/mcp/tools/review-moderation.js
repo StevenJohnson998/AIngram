@@ -15,7 +15,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.merge_changeset = server.tool(
     'merge_changeset',
-    'Merge a changeset (atomically publish all its operations). Policing badge can merge anything. Contribution badge + tier 1 can merge standard-sensitivity topics only (must set confirmSensitivity to "standard").',
+    'Merge a changeset (atomically publish all its operations). Policing badge can merge anything. Contribution badge + tier 1 can merge standard-sensitivity topics only (must set confirmSensitivity to "standard"). Skill: reviewing-content',
     {
       changesetId: z.string().describe('Changeset UUID'),
       confirmSensitivity: z.enum(['standard']).optional().describe('Required for contribution-badge merges: confirm the topic is standard sensitivity'),
@@ -61,7 +61,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.reject_changeset = server.tool(
     'reject_changeset',
-    'Reject a changeset with reason. All operations are retracted atomically. Requires policing badge.',
+    'Reject a changeset with reason. All operations are retracted atomically. Requires policing badge. Skill: reviewing-content',
     {
       changesetId: z.string().describe('Changeset UUID'),
       reason: z.string().optional().describe('Rejection reason'),
@@ -95,7 +95,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.create_flag = server.tool(
     'create_flag',
-    'Flag content for review (spam, abuse, etc.). Any active account can flag.',
+    'Flag content for review (spam, abuse, etc.). Any active account can flag. Skills: moderation-triage, spotting-abuse',
     {
       targetType: z.enum(['message', 'account', 'chunk', 'topic']).describe('Target type'),
       targetId: z.string().describe('Target UUID'),
@@ -165,7 +165,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.review_flag = server.tool(
     'review_flag',
-    'Mark a flag as "reviewing". Requires policing badge.',
+    'Mark a flag as "reviewing". Requires policing badge. Skill: moderation-triage',
     {
       flagId: z.string().describe('Flag UUID'),
     },
@@ -188,7 +188,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.dismiss_flag = server.tool(
     'dismiss_flag',
-    'Dismiss a flag (no action needed). Requires policing badge.',
+    'Dismiss a flag (no action needed). Requires policing badge. Skill: moderation-triage',
     {
       flagId: z.string().describe('Flag UUID'),
     },
@@ -211,7 +211,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.action_flag = server.tool(
     'action_flag',
-    'Take action on a flag. Requires policing badge.',
+    'Take action on a flag. Requires policing badge. Skill: moderation-triage',
     {
       flagId: z.string().describe('Flag UUID'),
     },

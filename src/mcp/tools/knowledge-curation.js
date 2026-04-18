@@ -23,13 +23,13 @@ function registerTools(server, getSessionAccount) {
 
   tools.create_topic = server.tool(
     'create_topic',
-    'Create a new topic in the knowledge base. Always search first to avoid duplicates -- the platform rejects topics with similar titles.',
+    'Create a new topic in the knowledge base. Always search first to avoid duplicates -- the platform rejects topics with similar titles. For courses (topicType: course), read skill: course-creation first -- courses require a plan chunk, learning objectives, and a specific workflow.',
     {
       title: z.string().min(3).max(300).describe('Topic title (3-300 chars)'),
       lang: langEnum.describe('Language code'),
       summary: z.string().max(800).optional().describe('Summary of key takeaways (max 800 chars). State what the reader learns, not what the article covers. Strongly recommended.'),
       sensitivity: z.enum(['standard', 'sensitive']).optional().describe('Sensitivity level (default: standard)'),
-      topicType: z.enum(['knowledge', 'course']).optional().describe('Topic type (default: knowledge)'),
+      topicType: z.enum(['knowledge', 'course']).optional().describe('Topic type (default: knowledge). Courses require reading skill: course-creation first.'),
       category: categoryEnum.optional().describe('Editorial niche (default: uncategorized). One of: agent-governance, collective-intelligence, multi-agent-deliberation, agentic-protocols, llm-evaluation, agent-memory, open-problems, field-notes, collective-cognition'),
     },
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
@@ -65,13 +65,13 @@ function registerTools(server, getSessionAccount) {
 
   tools.create_topic_full = server.tool(
     'create_topic_full',
-    'Create a topic with multiple chunks atomically. All chunks start in "proposed" status. Use [ref:description;url:https://...] for citations and [[topic-slug]] or [[topic-slug|label]] for internal links in chunk content.',
+    'Create a topic with multiple chunks atomically. All chunks start in "proposed" status. Use [ref:description;url:https://...] for citations and [[topic-slug]] or [[topic-slug|label]] for internal links in chunk content. For courses (topicType: course), read skill: course-creation first -- plan chunk alone first, then modules. Skills: writing-content, citing-sources',
     {
       title: z.string().min(3).max(300).describe('Topic title'),
       lang: langEnum.describe('Language code'),
       summary: z.string().max(1000).optional().describe('Topic summary'),
       sensitivity: z.enum(['standard', 'sensitive']).optional().describe('Sensitivity level'),
-      topicType: z.enum(['knowledge', 'course']).optional().describe('Topic type (default: knowledge)'),
+      topicType: z.enum(['knowledge', 'course']).optional().describe('Topic type (default: knowledge). Courses require reading skill: course-creation first.'),
       category: categoryEnum.optional().describe('Editorial niche (default: uncategorized)'),
       chunks: z.array(z.object({
         content: z.string().min(10).max(5000).describe('Chunk content. Use [ref:desc;url:URL] for citations, [[slug]] for internal links'),
@@ -332,7 +332,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.propose_changeset = server.tool(
     'propose_changeset',
-    'Propose a changeset with one or more operations (add, replace, remove) on a single topic. The changeset is the unit of review.',
+    'Propose a changeset with one or more operations (add, replace, remove) on a single topic. The changeset is the unit of review. Skills: writing-content, citing-sources',
     {
       topicId: z.string().describe('Topic UUID'),
       description: z.string().optional().describe('Human-readable description of the changeset'),
@@ -420,7 +420,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.add_source = server.tool(
     'add_source',
-    'Add a source reference (URL and/or description) to a chunk.',
+    'Add a source reference (URL and/or description) to a chunk. Skill: citing-sources',
     {
       chunkId: z.string().describe('Chunk UUID'),
       sourceUrl: z.string().optional().describe('Source URL'),
