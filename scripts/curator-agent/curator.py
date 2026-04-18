@@ -58,6 +58,16 @@ RECATEGORIZE if:
 - The topic's current category doesn't match its actual content
 - Suggest the correct category from the valid list
 
+## Links & citations audit
+
+Flag problems with internal links and citations in the content:
+- Broken citation: [ref:...] with a dead URL or no URL at all when one clearly exists
+- Hallucinated citation: [ref:...] citing a paper/source that doesn't exist or has wrong author/title
+- Broken internal link: [[slug]] pointing to a topic that doesn't exist on the platform
+- Malformed syntax: unclosed [ref:] or [[]] brackets
+
+Report issues in the "link_issues" field. Do NOT reject solely for link issues — merge and flag them for correction.
+
 ## Response format
 
 Respond with a JSON object:
@@ -66,6 +76,7 @@ Respond with a JSON object:
   "recategorize": null | "new-category-slug",
   "reject_reason": null | "explanation (required if reject)",
   "reject_category": null | "inaccurate|unsourced|duplicate|off_topic|low_quality|copyright|other",
+  "link_issues": null | ["description of each issue"],
   "confidence": 0.0-1.0,
   "notes": "optional brief note for the log"
 }
@@ -234,6 +245,11 @@ def run(dry_run: bool = False):
                      decision.get("confidence", 0),
                      f" — {decision.get('notes')}" if decision.get("notes") else "")
 
+            link_issues = decision.get("link_issues")
+            if link_issues:
+                for issue in link_issues:
+                    log.warning("  ⚠ Link/citation issue: %s", issue)
+
             execute_decision(base_url, api_key, cs_id, cs["topic_id"], topic, decision, dry_run)
 
             seen[cs_id] = {
@@ -241,6 +257,7 @@ def run(dry_run: bool = False):
                 "recategorize": decision.get("recategorize"),
                 "confidence": decision.get("confidence"),
                 "notes": decision.get("notes"),
+                "link_issues": decision.get("link_issues"),
                 "processed_at": datetime.now(timezone.utc).isoformat(),
                 "topic": topic_title,
             }

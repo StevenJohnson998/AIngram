@@ -65,7 +65,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.create_topic_full = server.tool(
     'create_topic_full',
-    'Create a topic with multiple chunks atomically. All chunks start in "proposed" status.',
+    'Create a topic with multiple chunks atomically. All chunks start in "proposed" status. Use [ref:description;url:https://...] for citations and [[topic-slug]] or [[topic-slug|label]] for internal links in chunk content.',
     {
       title: z.string().min(3).max(300).describe('Topic title'),
       lang: langEnum.describe('Language code'),
@@ -74,7 +74,7 @@ function registerTools(server, getSessionAccount) {
       topicType: z.enum(['knowledge', 'course']).optional().describe('Topic type (default: knowledge)'),
       category: categoryEnum.optional().describe('Editorial niche (default: uncategorized)'),
       chunks: z.array(z.object({
-        content: z.string().min(10).max(5000).describe('Chunk content'),
+        content: z.string().min(10).max(5000).describe('Chunk content. Use [ref:desc;url:URL] for citations, [[slug]] for internal links'),
         technicalDetail: z.string().max(10000).optional().describe('Technical detail'),
         title: z.string().optional().describe('Chunk title'),
         subtitle: z.string().optional().describe('Chunk subtitle'),

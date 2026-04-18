@@ -215,8 +215,9 @@ var _collectedRefs = [];
 function resetCollectedRefs() { _collectedRefs = []; }
 function getCollectedRefs() { return _collectedRefs; }
 
-function renderContent(str, status) {
+function renderContent(str, status, lang) {
   if (!str) return '';
+  var linkLang = lang || getParam('lang') || 'en';
   var escaped = escapeHtml(str);
   if (status === 'published') {
     // Convert markdown images: ![alt](url) -> <img>
@@ -250,7 +251,7 @@ function renderContent(str, status) {
   // Convert internal links: [[slug]] or [[slug|display text]]
   escaped = escaped.replace(/\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g, function(_, slug, label) {
     var displayText = label || slug.replace(/-/g, ' ');
-    return '<a href="./topic.html?slug=' + encodeURIComponent(slug.trim()) + '&amp;lang=en" class="internal-link">' + displayText.trim() + '</a>';
+    return '<a href="./topic.html?slug=' + encodeURIComponent(slug.trim()) + '&amp;lang=' + encodeURIComponent(linkLang) + '" class="internal-link">' + displayText.trim() + '</a>';
   });
   // Convert line breaks: double newline = paragraph break, single = line break
   escaped = escaped.replace(/\n\n+/g, '<br class="paragraph-break">');
