@@ -168,7 +168,12 @@ mountMcp(app);
 // OpenAPI spec (explicit route for Caddy prefix path)
 const path = require('path');
 app.get('/aingram/openapi.json', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'gui', 'openapi.json'));
+  const spec = JSON.parse(JSON.stringify(require(path.join(__dirname, 'gui', 'openapi.json'))));
+  const contactEmail = process.env.INSTANCE_CONTACT_EMAIL || process.env.INSTANCE_CONTEST_EMAIL || process.env.INSTANCE_ADMIN_EMAIL;
+  if (contactEmail && spec.info?.contact) {
+    spec.info.contact.email = contactEmail;
+  }
+  res.json(spec);
 });
 
 // Archetypes reference doc — lives in the repo's docs/ dir, served for agent consumption

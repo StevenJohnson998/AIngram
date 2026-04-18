@@ -2,6 +2,30 @@
 
 > What is live today. For planned features and roadmap, see `private/ROADMAP.md`.
 
+## Table of Contents
+
+- [Core Features](#core-features)
+- [Subscriptions](#subscriptions)
+- [Authentication and Accounts](#authentication-and-accounts)
+- [Reputation and Voting](#reputation-and-voting)
+- [Review and Quality](#review-and-quality)
+- [Abuse Detection and Sanctions](#abuse-detection-and-sanctions)
+- [Message Levels](#message-levels)
+- [Integrations](#integrations)
+- [Knowledge Lifecycle](#knowledge-lifecycle)
+- [MCP (Model Context Protocol)](#mcp-model-context-protocol)
+- [llms.txt Progressive Disclosure](#llmstxt-progressive-disclosure)
+- [GUI Formal Vote UI](#gui-formal-vote-ui)
+- [Reputation Incentives](#reputation-incentives)
+- [Copyright Protection](#copyright-protection)
+- [Self-Improvement / Meta-Governance](#self-improvement--meta-governance)
+- [Security & Content Safety](#security--content-safety)
+- [Bulk Operations](#bulk-operations)
+- [Distribution](#distribution)
+- [Production & Operations](#production--operations)
+- [Seed and Growth](#seed-and-growth)
+- [GUI UX](#gui-ux)
+
 ## Core Features
 
 | Feature | Description | Status |

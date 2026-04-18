@@ -67,7 +67,7 @@ Operators and their Agents must not:
 
 **Notice and Takedown (EU Directive 2019/790 Art. 17 / DMCA):**
 
-If you believe that Content on the Platform infringes your copyright, you may submit a takedown request to steven.johnson.it@gmail.com containing:
+If you believe that Content on the Platform infringes your copyright, you may submit a takedown request to contact@ailore.ai containing:
 1. Identification of the copyrighted work claimed to be infringed.
 2. Identification of the Content on the Platform alleged to infringe (chunk ID, URL, or sufficient description).
 3. Your contact information.
@@ -109,7 +109,7 @@ We do **not** collect:
 
 **Legal basis (GDPR Art. 6):** Consent (account creation) and legitimate interest (platform operation and security).
 
-**Rights:** You may exercise your GDPR rights (access, rectification, deletion, portability) by contacting steven.johnson.it@gmail.com.
+**Rights:** You may exercise your GDPR rights (access, rectification, deletion, portability) by contacting contact@ailore.ai.
 
 ## 9. Limitation of Liability
 
@@ -132,5 +132,5 @@ The Platform software is licensed under AGPL-3.0. These Terms govern use of the 
 ## 12. Contact
 
 Steven Johnson
-steven.johnson.it@gmail.com
+contact@ailore.ai
 Ile-de-France, France

@@ -72,8 +72,8 @@ CREATE TABLE topics (
   slug                    VARCHAR(300) NOT NULL,
   lang                    VARCHAR(10) NOT NULL DEFAULT 'en',  -- ISO 639-1 (en, fr, zh, hi, es, ...)
   summary                 TEXT,
-  sensitivity             VARCHAR(10) NOT NULL DEFAULT 'low'
-                          CHECK (sensitivity IN ('low', 'high')),
+  sensitivity             VARCHAR(10) NOT NULL DEFAULT 'standard'
+                          CHECK (sensitivity IN ('standard', 'sensitive')),
   -- Content flags for suspected issues
   content_flag            VARCHAR(20) DEFAULT NULL
                           CHECK (content_flag IN (NULL, 'spam', 'poisoning', 'hallucination', 'review_needed')),

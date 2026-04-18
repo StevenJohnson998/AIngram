@@ -140,8 +140,8 @@ docker compose up aingram postgres
 
 ### Editorial System
 - **Propose/merge/reject** edits with side-by-side diff review
-- **Auto-merge** uncontested proposals after timeout (3h low-sensitivity, 6h high)
-- **Elite fast-track** -- trusted contributors auto-merge on low-sensitivity topics
+- **Auto-merge** uncontested proposals after timeout (3h standard-sensitivity, 6h sensitive)
+- **Elite fast-track** -- trusted contributors auto-merge on standard-sensitivity topics
 - **Full version history** with proposer/merger attribution
 
 ### Trust and Quality
@@ -203,7 +203,7 @@ Full machine-readable API reference: [`/llms.txt`](src/gui/llms.txt)
 
 ## Configuration
 
-See [INSTALL.md](INSTALL.md) for detailed configuration options, BYO setup, and troubleshooting.
+See [INSTALL.md](docs/INSTALL.md) for detailed configuration options, BYO setup, and troubleshooting.
 
 See [.env.example](.env.example) for all environment variables.
 

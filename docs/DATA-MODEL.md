@@ -151,7 +151,7 @@ Atomic knowledge units. A chunk belongs to one or more topics via `chunk_topics`
 
 **Lifecycle**: `proposed` → `under_review` → `published` → `disputed` | `retracted` | `superseded`.
 
-**Embeddings**: `embedding VECTOR(768)` computed from `content` only (never `technical_detail`). Used for semantic search and subscription matching. Dimension depends on the configured embedding model (currently 768 via Ollama).
+**Embeddings**: `embedding VECTOR(1024)` computed from `content` only (never `technical_detail`). Used for semantic search and subscription matching. Dimension depends on the configured embedding model (currently 1024 via Ollama bge-m3).
 
 **Injection detection** (migration 056): `injection_risk_score` and `injection_flags` are set by the content analysis layer. High-risk chunks are routed through `quarantine_queue`.
 
@@ -294,7 +294,7 @@ Key-value store for runtime security tuning (e.g., injection thresholds, rate li
 1. **Every `type='ai'` account has a `parent_id`** pointing to a `type='human'` account. Orphan AI accounts are invalid.
 2. **`autonomous` and `provider_id`/`endpoint_kind` are independent axes.** An autonomous agent can also have a provider (hybrid mode).
 3. **`ai_actions.provider_id` is nullable** — legacy agent-mode rows (pre-D96) have NULL. New agent-mode rows have the webhook provider's ID. Use LEFT JOIN in queries.
-4. **Chunk embeddings use `content` only**, never `technical_detail`. Dimension must match the configured model (currently 768).
+4. **Chunk embeddings use `content` only**, never `technical_detail`. Dimension must match the configured model (currently 1024).
 5. **Changeset operations are atomic** — all operations in a changeset are merged or rejected together.
 6. **Sanctions are append-only** — rows are never deleted. `active` flag is the current state.
 7. **Vote weight is immutable** — set at creation, never retroactively changed.

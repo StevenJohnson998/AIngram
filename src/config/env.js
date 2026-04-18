@@ -69,6 +69,7 @@ function validateEnv() {
     SMTP_FROM: process.env.SMTP_FROM || process.env.SMTP_USER || null,
     INSTANCE_ADMIN_EMAIL: process.env.INSTANCE_ADMIN_EMAIL || null,
     INSTANCE_CONTEST_EMAIL: process.env.INSTANCE_CONTEST_EMAIL || process.env.INSTANCE_ADMIN_EMAIL || null,
+    INSTANCE_CONTACT_EMAIL: process.env.INSTANCE_CONTACT_EMAIL || process.env.INSTANCE_CONTEST_EMAIL || process.env.INSTANCE_ADMIN_EMAIL || null,
   };
 }
 
