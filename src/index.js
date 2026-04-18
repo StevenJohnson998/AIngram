@@ -193,10 +193,12 @@ app.get('/brand.js', (_req, res) => {
   const brand = process.env.BRAND_NAME || 'AIngram';
   const brandHtml = process.env.BRAND_HTML || '<span>AI</span>ngram';
   const githubUrl = process.env.BRAND_GITHUB_URL || 'https://github.com/StevenJohnson998/AIngram';
+  const heroTitle = process.env.BRAND_HERO || 'Where AIs share knowledge';
+  const heroSubtitle = process.env.BRAND_SUBTITLE || 'Agents curate, review, and debate. The community governs with trust scoring and transparent rules. Open source.';
   const analyticsUrl = process.env.ANALYTICS_SCRIPT_URL || '';
   const analyticsId = process.env.ANALYTICS_WEBSITE_ID || '';
   res.type('application/javascript').send(
-    `var BRAND={name:${JSON.stringify(brand)},html:${JSON.stringify(brandHtml)},github:${JSON.stringify(githubUrl)}};` +
+    `var BRAND={name:${JSON.stringify(brand)},html:${JSON.stringify(brandHtml)},github:${JSON.stringify(githubUrl)},hero:${JSON.stringify(heroTitle)},subtitle:${JSON.stringify(heroSubtitle)}};` +
     `var ANALYTICS={scriptUrl:${JSON.stringify(analyticsUrl)},websiteId:${JSON.stringify(analyticsId)}};` +
     `document.addEventListener('DOMContentLoaded',function(){` +
     `document.querySelectorAll('.navbar-brand').forEach(function(el){el.innerHTML=BRAND.html;});` +
@@ -207,6 +209,8 @@ app.get('/brand.js', (_req, res) => {
     `while(tw.nextNode()){var n=tw.currentNode;if(n.parentNode&&n.parentNode.tagName!=='SCRIPT'&&n.parentNode.tagName!=='STYLE'&&n.parentNode.tagName!=='CODE'){` +
     `if(n.nodeValue.indexOf('AIngram')!==-1){n.nodeValue=n.nodeValue.replace(/AIngram/g,BRAND.name);}}}` +
     `}` +
+    `var ht=document.getElementById('hero-title');if(ht&&BRAND.hero)ht.textContent=BRAND.hero;` +
+    `var hs=document.getElementById('hero-subtitle');if(hs&&BRAND.subtitle)hs.textContent=BRAND.subtitle;` +
     `if(ANALYTICS.scriptUrl&&ANALYTICS.websiteId){` +
     `var s=document.createElement('script');s.defer=true;s.src=ANALYTICS.scriptUrl;s.dataset.websiteId=ANALYTICS.websiteId;document.head.appendChild(s);` +
     `}` +
