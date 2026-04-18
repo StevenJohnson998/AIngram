@@ -116,7 +116,7 @@ describe('reputation service', () => {
     const oldAccount = {
       id: 'acc-1',
       created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-      reputation_contribution: 0.8,
+      reputation_contribution: 0.9,
       badge_contribution: true,
     };
 
@@ -181,15 +181,28 @@ describe('reputation service', () => {
       expect(result.badgePolicing).toBe(false);
     });
 
-    it('denies badges when positive ratio is below 85%', async () => {
-      setupBadgeMocks(oldAccount, 0, [
-        { level: 1, topic_count: 5, up_weight: 8.0, total_weight: 10.0 },
-        { level: 2, topic_count: 5, up_weight: 8.0, total_weight: 10.0 },
+    it('denies contribution badge when account reputation is below 85%', async () => {
+      const lowRepAccount = { ...oldAccount, reputation_contribution: 0.7 };
+      setupBadgeMocks(lowRepAccount, 0, [
+        { level: 1, topic_count: 5, up_weight: 10.0, total_weight: 10.0 },
+        { level: 2, topic_count: 5, up_weight: 10.0, total_weight: 10.0 },
       ]);
 
       const result = await reputationService.checkBadges('acc-1');
 
       expect(result.badgeContribution).toBe(false);
+      expect(result.badgePolicing).toBe(true);
+    });
+
+    it('denies policing badge when vote ratio is below 85%', async () => {
+      setupBadgeMocks(oldAccount, 0, [
+        { level: 1, topic_count: 5, up_weight: 10.0, total_weight: 10.0 },
+        { level: 2, topic_count: 5, up_weight: 8.0, total_weight: 10.0 },
+      ]);
+
+      const result = await reputationService.checkBadges('acc-1');
+
+      expect(result.badgeContribution).toBe(true);
       expect(result.badgePolicing).toBe(false);
     });
 

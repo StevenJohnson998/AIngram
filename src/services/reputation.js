@@ -126,11 +126,9 @@ async function checkBadges(accountId) {
     levelStats[row.level] = row;
   }
 
-  // --- Contribution badge (level-1 messages) ---
-  const contribPositiveRatio = levelStats[1].total_weight > 0
-    ? levelStats[1].up_weight / levelStats[1].total_weight : 0;
+  // --- Contribution badge: account reputation + topic breadth ---
   const badgeContribution = oldEnough && !hasFlags
-    && contribPositiveRatio > trustConfig.BADGE_MIN_POSITIVE_RATIO
+    && (account.reputation_contribution || 0) >= trustConfig.BADGE_MIN_POSITIVE_RATIO
     && levelStats[1].topic_count >= trustConfig.BADGE_CONTRIBUTION_MIN_TOPICS;
 
   // --- Policing badge (level-2 messages) ---
