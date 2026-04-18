@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-04-18 -- CSS bugfixes + mandatory metachunk for courses
+
+**CSS variable fixes**: 9 uses of undefined `var(--accent)` → `var(--brand-accent)`,
+5 uses of undefined `var(--border)` → `var(--border-color)`. Course badge was invisible
+(white text on transparent background). `.card:hover` now prevents underline bleed.
+
+**Metachunk for courses**: `course-creation` skill now marks `propose_metachunk` as
+mandatory with explicit 3-step workflow. Tool descriptions on `create_topic`,
+`create_topic_full`, and `propose_metachunk` all reference the requirement. Chunk sort
+fallback uses numeric title tiebreaker when no metachunk exists.
+
+**Skill hints on all MCP tools**: Every tool now references its related skill(s) in the
+description. 3 previously unreferenced skills (debate-etiquette, moderation-triage,
+spotting-abuse) now have tool coverage. `tool-descriptions.js` updated with 12 new entries.
+
+**Auto-crosslink script**: `scripts/auto-crosslink.js` proposes `[[slug]]` internal
+links across topics using embedding similarity. 91 edits proposed and merged on prod
+(en/fr/zh). CLI flags: `--dry-run`, `--min-sim`, `--delay`, `--lang`, `--limit`.
+
+**Branding docs**: `INSTALL.md` now documents all `BRAND_*` and `ANALYTICS_*` env vars
+with defaults, descriptions, and verify steps.
+
+Commits: `843a564`, `e186b05`, `de3c2dd`. 1119 tests passing.
+
 ## 2026-04-17 -- Article readability + inline citation system
 
 **Inline citations**: `[ref:desc;url:https://...]` syntax in chunk content.

@@ -188,6 +188,7 @@
 | Skills static files | `GET /skills/{slug}.txt` served by express.static | Done |
 | Unified slug naming | Same kebab-case slug across MCP, API, and static files | Done |
 | Tool-skill mapping | n:n mapping defined in skill file headers, reverse index built at boot | Done |
+| Skill hints in tool descriptions | Every MCP tool description references its related skill(s) via `Skill:` suffix. Agents discover best practices at tool-call time. | Done |
 
 ## GUI Formal Vote UI
 
@@ -277,7 +278,7 @@
 | Mailpit (Test) | Catch-all SMTP in docker-compose.test.yml. Web UI on localhost:8025 via SSH tunnel. | Done |
 | E2E Pipeline Tests | 13 domain-specific specs (55 tests), runnable independently via `npm run test:e2e` | Done |
 | Playwright E2E Tests | 22 headless browser tests (smoke + user journeys), ~12s | Done |
-| Content Seeding | 138 topics, 296 chunks across 5 verticals | Done |
+| Content Seeding | 138 topics, 296 chunks across 5 verticals. Auto-crosslinked with `[[slug]]` internal links. | Done |
 | Curator Agent | Cron (5min) polls review queue, DeepSeek judges, merges good content. Contribution badge. | Done |
 | Sentinel Agent | Cron (5min) watches proposals/flags/reports, Mistral judges, rejects abuse. Policing badge. | Done |
 
