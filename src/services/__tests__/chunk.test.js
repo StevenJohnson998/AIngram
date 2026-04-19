@@ -51,6 +51,8 @@ describe('chunk service', () => {
         created_by: 'account-1',
       };
 
+      mockPool.query.mockResolvedValueOnce({ rows: [{ cnt: 0 }] }); // chunk count check
+
       mockClient.query
         .mockResolvedValueOnce() // BEGIN
         .mockResolvedValueOnce({ rows: [chunk] }) // INSERT chunk
@@ -79,8 +81,24 @@ describe('chunk service', () => {
       expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
     });
 
+    it('rejects when topic has reached MAX_CHUNKS_PER_TOPIC', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [{ cnt: 20 }] }); // at limit
+
+      await expect(
+        chunkService.createChunk({
+          content: 'Content that should be rejected',
+          topicId: 'topic-full',
+          createdBy: 'account-1',
+        })
+      ).rejects.toMatchObject({ code: 'TOPIC_CHUNK_LIMIT' });
+
+      expect(mockClient.query).not.toHaveBeenCalledWith('BEGIN');
+    });
+
     it('sets has_technical_detail when technicalDetail provided', async () => {
       const chunk = { id: 'chunk-1', has_technical_detail: true };
+
+      mockPool.query.mockResolvedValueOnce({ rows: [{ cnt: 0 }] }); // chunk count check
 
       mockClient.query
         .mockResolvedValueOnce() // BEGIN
@@ -105,6 +123,8 @@ describe('chunk service', () => {
     });
 
     it('rolls back on error', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [{ cnt: 0 }] }); // chunk count check
+
       mockClient.query
         .mockResolvedValueOnce() // BEGIN
         .mockRejectedValueOnce(new Error('DB error'));

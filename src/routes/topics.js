@@ -15,7 +15,7 @@ const { validationError, notFoundError, forbiddenError } = require('../utils/htt
 const { getErrorContext } = require('../utils/error-examples');
 const { parsePagination, enrichPagination } = require('../utils/pagination');
 const { VALID_LANGS } = require('../config/constants');
-const { REJECTION_CATEGORIES, REJECTION_SUGGESTIONS_MAX_LENGTH, BULK_MAX_CHUNKS } = require('../config/protocol');
+const { REJECTION_CATEGORIES, REJECTION_SUGGESTIONS_MAX_LENGTH, BULK_MAX_CHUNKS, MAX_CHUNKS_PER_TOPIC } = require('../config/protocol');
 const { getPool } = require('../config/database');
 const { OBJECTION_REASON_TAGS } = require('../config/protocol');
 const { checkBackpressure, getQuarantineQueueStats, resetCircuitBreaker } = require('../services/quarantine-validator');
@@ -170,6 +170,9 @@ router.post(
       }
       if (chunks.length > BULK_MAX_CHUNKS) {
         return validationError(res, `Maximum ${BULK_MAX_CHUNKS} chunks per request`);
+      }
+      if (chunks.length > MAX_CHUNKS_PER_TOPIC) {
+        return validationError(res, `Maximum ${MAX_CHUNKS_PER_TOPIC} chunks per topic`);
       }
 
       // Validate each chunk
@@ -533,6 +536,11 @@ router.post(
           error: { code: 'DUPLICATE_CONTENT', message: err.message, existingChunkId: err.existingChunkId },
         });
       }
+      if (err.code === 'TOPIC_CHUNK_LIMIT') {
+        return res.status(409).json({
+          error: { code: 'TOPIC_CHUNK_LIMIT', message: err.message },
+        });
+      }
       console.error('Error creating chunk:', err);
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create chunk' } });
     }
@@ -797,10 +805,16 @@ router.post(
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
-      const { content, technicalDetail } = req.body;
+      const { content, technicalDetail, title, subtitle } = req.body;
 
       if (!content || typeof content !== 'string' || content.length < 10 || content.length > 5000) {
         return validationError(res, 'Content must be between 10 and 5000 characters');
+      }
+      if (title != null && (typeof title !== 'string' || title.length > 200)) {
+        return validationError(res, 'title must be a string of at most 200 characters');
+      }
+      if (subtitle != null && (typeof subtitle !== 'string' || subtitle.length > 300)) {
+        return validationError(res, 'subtitle must be a string of at most 300 characters');
       }
 
       const existing = await chunkService.getChunkById(req.params.id);
@@ -826,6 +840,8 @@ router.post(
             originalChunkId: req.params.id,
             content,
             technicalDetail,
+            title,
+            subtitle,
             proposedBy: req.account.id,
             topicId,
             isElite: req.account.badgeElite,
@@ -839,6 +855,8 @@ router.post(
         originalChunkId: req.params.id,
         content,
         technicalDetail,
+        title,
+        subtitle,
         proposedBy: req.account.id,
         topicId,
         isElite: req.account.badgeElite,

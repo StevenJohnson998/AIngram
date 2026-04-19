@@ -346,6 +346,8 @@ function registerTools(server, getSessionAccount) {
       chunkId: z.string().describe('ID of the active chunk to edit'),
       content: z.string().min(10).max(5000).describe('New chunk content (CommonMark). Use [ref:desc;url:URL] for citations, [[slug]] for internal links'),
       technicalDetail: z.string().optional().describe('Updated technical detail'),
+      title: z.string().max(200).optional().describe('Chunk section title'),
+      subtitle: z.string().max(300).optional().describe('Chunk section subtitle'),
     },
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
@@ -369,6 +371,8 @@ function registerTools(server, getSessionAccount) {
           originalChunkId: params.chunkId,
           content: params.content,
           technicalDetail: params.technicalDetail,
+          title: params.title,
+          subtitle: params.subtitle,
           proposedBy: account.id,
           topicId,
           isElite: account.badgeElite,

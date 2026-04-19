@@ -290,42 +290,57 @@ def run(dry_run: bool = False):
 
 IMPROVE_SYSTEM_PROMPT = """You are a curator improving existing articles on AIlore, a knowledge platform about AI agents.
 
-Your job: review a published chunk and propose an improved version with better sources and internal links.
+Your job: review ALL published chunks of a topic and propose improvements.
 
-## What to fix
+## What to fix (per chunk)
 
-1. **Missing citations**: add [ref:description;url:https://...] for claims that need sourcing. Use real, verifiable sources only.
-2. **Hallucinated citations**: remove or replace [ref:...] entries that cite non-existent papers or have wrong author/title/URL.
-3. **Broken or wrong URLs**: fix URLs that are clearly wrong (typos, dead domains for well-known resources).
-4. **Internal links**: add [[topic-slug]] links to connect related articles. Only link to slugs from the provided list of existing topics.
-5. **Malformed syntax**: fix unclosed [ref:] or [[]] brackets.
+1. **Missing title/subtitle**: if a chunk has no title, generate a concise section title (max 10 words). If no subtitle, generate a one-line subtitle that summarizes the chunk's angle. Titles should read like section headings, not sentences.
+2. **Content quality**: if the content is superficial, vague, or reads like generic filler, rewrite it to be more specific and substantive. Keep the same topic angle but add depth.
+3. **Missing citations**: add [ref:description;url:https://...] for claims that need sourcing. Use real, verifiable sources only.
+4. **Hallucinated citations**: remove or replace [ref:...] entries that cite non-existent papers or have wrong author/title/URL.
+5. **Broken or wrong URLs**: fix URLs that are clearly wrong (typos, dead domains for well-known resources).
+6. **Internal links**: add [[topic-slug]] links to connect related articles. Only link to slugs from the provided list of existing topics.
+7. **Malformed syntax**: fix unclosed [ref:] or [[]] brackets.
+
+## Duplicate detection
+
+If two or more chunks in the topic cover essentially the same ground, flag them as duplicates. The platform will handle deduplication — your job is to identify them.
+
+## Chunk ordering
+
+Propose a logical reading order for all chunks. Consider: general→specific, foundational→advanced, problem→solution.
 
 ## Rules
 
-- Do NOT rewrite the content beyond fixing sources and links. Keep the author's voice and structure.
-- Do NOT invent sources. If you cannot find a real source for a claim, leave it unsourced rather than hallucinate.
+- Do NOT invent sources. If you cannot find a real source, leave the claim unsourced.
 - Do NOT add internal links to topics that don't exist — only use slugs from the provided list.
-- Do NOT link a topic to itself — never use [[slug]] where slug matches the current topic's own slug.
-- Only cite a paper if you are certain it specifically covers the topic at hand. A real arXiv ID for the wrong subject is worse than no citation. When unsure, leave the claim unsourced.
-- If the chunk is already well-sourced and linked, respond with "skip".
-- Keep edits minimal and targeted.
+- Do NOT link a topic to itself.
+- Only cite a paper if you are certain it specifically covers the topic at hand.
+- If a chunk is already good (has title, good content, proper sources/links), mark it as "skip".
+- Content rewrites should preserve the author's core argument and expertise level.
 
 ## Response format
 
-If improvements are needed:
+Respond with a JSON object:
 {
-  "action": "edit",
-  "improved_content": "the full chunk content with fixes applied",
-  "changes": ["description of each change made"]
+  "chunks": [
+    {
+      "chunk_id": "uuid",
+      "action": "edit" | "skip",
+      "title": "proposed title (or null if already has one)",
+      "subtitle": "proposed subtitle (or null if already has one)",
+      "improved_content": "full chunk content with fixes (only if action=edit)",
+      "changes": ["description of each change"],
+      "reason": "why skip (only if action=skip)"
+    }
+  ],
+  "duplicates": [
+    {"chunk_ids": ["uuid1", "uuid2"], "reason": "why these are duplicates"}
+  ],
+  "suggested_order": ["chunk_id_1", "chunk_id_2", "..."]
 }
 
-If the chunk is fine as-is:
-{
-  "action": "skip",
-  "reason": "brief explanation"
-}
-
-Always respond with valid JSON matching one of these two formats."""
+Always respond with valid JSON."""
 
 
 import re
@@ -439,12 +454,20 @@ def fetch_topic_chunks(base_url: str, api_key: str, topic_id: str) -> list:
     return data.get("data", [])
 
 
-def ask_improve(client: OpenAI, chunk: dict, topic: dict, existing_slugs: list) -> dict:
+def ask_improve_topic(client: OpenAI, chunks: list, topic: dict, existing_slugs: list) -> dict:
+    chunks_data = []
+    for c in chunks:
+        chunks_data.append({
+            "chunk_id": c.get("id"),
+            "title": c.get("title"),
+            "subtitle": c.get("subtitle"),
+            "content": c.get("content", ""),
+        })
+
     user_msg = json.dumps({
         "topic_title": topic.get("title", ""),
         "topic_slug": topic.get("slug", ""),
-        "chunk_title": chunk.get("title", ""),
-        "chunk_content": chunk.get("content", ""),
+        "chunks": chunks_data,
         "existing_topic_slugs": existing_slugs,
     }, ensure_ascii=False)
 
@@ -455,7 +478,7 @@ def ask_improve(client: OpenAI, chunk: dict, topic: dict, existing_slugs: list) 
             {"role": "user", "content": user_msg},
         ],
         temperature=0.1,
-        max_tokens=2000,
+        max_tokens=4000,
         response_format={"type": "json_object"},
     )
 
@@ -484,97 +507,150 @@ def run_improve(dry_run: bool = False, max_edits: int = 5):
 
         topic_id = topic["id"]
         topic_title = topic.get("title", "?")
+        topic_slug = topic.get("slug", "?")
 
         chunks = fetch_topic_chunks(base_url, api_key, topic_id)
         if not chunks:
             continue
 
-        for chunk in chunks:
-            if edits_submitted >= max_edits:
-                break
+        # Skip topics where all chunks have already been processed
+        unprocessed = [c for c in chunks if c["id"] not in improved]
+        if not unprocessed:
+            continue
 
-            chunk_id = chunk["id"]
-            if chunk_id in improved:
-                continue
+        log.info("Analyzing topic: [%s] %s (%d chunks, %d unprocessed)",
+                 topic_slug, topic_title, len(chunks), len(unprocessed))
 
-            log.info("Analyzing: [%s] %s — chunk %s", topic.get("slug", "?"), topic_title, chunk_id[:8])
+        try:
+            result = ask_improve_topic(ds_client, chunks, topic, existing_slugs)
 
-            try:
-                decision = ask_improve(ds_client, chunk, topic, existing_slugs)
-                action = decision.get("action", "skip")
+            # Process per-chunk decisions
+            for chunk_decision in result.get("chunks", []):
+                if edits_submitted >= max_edits:
+                    break
+
+                chunk_id = chunk_decision.get("chunk_id")
+                if not chunk_id or chunk_id in improved:
+                    continue
+
+                action = chunk_decision.get("action", "skip")
+                chunk_data = next((c for c in chunks if c["id"] == chunk_id), None)
+                if not chunk_data:
+                    continue
 
                 if action == "skip":
-                    log.info("  → Skip: %s", decision.get("reason", "no changes needed"))
+                    log.info("  [%s] Skip: %s", chunk_id[:8], chunk_decision.get("reason", "no changes needed"))
                     improved[chunk_id] = {
                         "action": "skip",
-                        "reason": decision.get("reason"),
+                        "reason": chunk_decision.get("reason"),
                         "processed_at": datetime.now(timezone.utc).isoformat(),
                         "topic": topic_title,
                     }
-                elif action == "edit":
-                    changes = decision.get("changes", [])
-                    new_content = decision.get("improved_content", "")
+                    continue
 
-                    if not new_content or new_content == chunk.get("content", ""):
-                        log.info("  → Skip: improved content identical to original")
-                        improved[chunk_id] = {
-                            "action": "skip",
-                            "reason": "content identical after improvement attempt",
-                            "processed_at": datetime.now(timezone.utc).isoformat(),
-                            "topic": topic_title,
-                        }
-                        continue
+                # Build edit payload
+                new_content = chunk_decision.get("improved_content", chunk_data.get("content", ""))
+                new_title = chunk_decision.get("title")
+                new_subtitle = chunk_decision.get("subtitle")
+                changes = chunk_decision.get("changes", [])
 
-                    new_content, stripped, unverified = validate_refs(new_content, chunk.get("content", ""))
+                content_changed = new_content and new_content != chunk_data.get("content", "")
+                title_changed = new_title and new_title != chunk_data.get("title")
+                subtitle_changed = new_subtitle and new_subtitle != chunk_data.get("subtitle")
+
+                if not content_changed and not title_changed and not subtitle_changed:
+                    log.info("  [%s] Skip: no effective changes", chunk_id[:8])
+                    improved[chunk_id] = {
+                        "action": "skip",
+                        "reason": "no effective changes after analysis",
+                        "processed_at": datetime.now(timezone.utc).isoformat(),
+                        "topic": topic_title,
+                    }
+                    continue
+
+                # Validate new URLs in content
+                stripped = []
+                unverified = []
+                if content_changed:
+                    new_content, stripped, unverified = validate_refs(new_content, chunk_data.get("content", ""))
                     if stripped:
                         changes.append(f"Stripped {len(stripped)} dead URL(s): {', '.join(stripped)}")
                     if unverified:
-                        changes.append(f"Unverified {len(unverified)} URL(s) (kept, needs manual check): {', '.join(unverified)}")
+                        changes.append(f"Unverified {len(unverified)} URL(s) (kept): {', '.join(unverified)}")
 
-                    if new_content == chunk.get("content", ""):
-                        log.info("  → Skip: content identical after URL validation")
+                    if new_content == chunk_data.get("content", "") and not title_changed and not subtitle_changed:
+                        log.info("  [%s] Skip: content identical after URL validation", chunk_id[:8])
                         improved[chunk_id] = {
                             "action": "skip",
-                            "reason": "all changes were stripped by URL validation",
-                            "stripped_urls": stripped,
-                            "unverified_urls": unverified,
+                            "reason": "all content changes stripped by URL validation",
                             "processed_at": datetime.now(timezone.utc).isoformat(),
                             "topic": topic_title,
                         }
                         continue
 
-                    for change in changes:
-                        log.info("  → Change: %s", change)
+                for change in changes:
+                    log.info("  [%s] Change: %s", chunk_id[:8], change)
+                if title_changed:
+                    log.info("  [%s] Title: %s", chunk_id[:8], new_title)
+                if subtitle_changed:
+                    log.info("  [%s] Subtitle: %s", chunk_id[:8], new_subtitle)
 
-                    if not dry_run:
-                        try:
-                            result = api_post(base_url, f"/v1/chunks/{chunk_id}/propose-edit", api_key, {
-                                "content": new_content,
-                            })
-                            log.info("  → Edit proposed (changeset pending review)")
-                        except requests.HTTPError as e:
-                            log.error("  → propose-edit failed: %s", e)
-                            improved[chunk_id] = {
-                                "action": "error",
-                                "error": str(e),
-                                "processed_at": datetime.now(timezone.utc).isoformat(),
-                                "topic": topic_title,
-                            }
-                            continue
+                if not dry_run:
+                    try:
+                        payload = {"content": new_content or chunk_data.get("content", "")}
+                        if title_changed:
+                            payload["title"] = new_title
+                        if subtitle_changed:
+                            payload["subtitle"] = new_subtitle
+                        api_post(base_url, f"/v1/chunks/{chunk_id}/propose-edit", api_key, payload)
+                        log.info("  [%s] Edit proposed", chunk_id[:8])
+                    except requests.HTTPError as e:
+                        log.error("  [%s] propose-edit failed: %s", chunk_id[:8], e)
+                        improved[chunk_id] = {
+                            "action": "error",
+                            "error": str(e),
+                            "processed_at": datetime.now(timezone.utc).isoformat(),
+                            "topic": topic_title,
+                        }
+                        continue
 
-                    edits_submitted += 1
-                    improved[chunk_id] = {
-                        "action": "edit",
-                        "changes": changes,
-                        "stripped_urls": stripped or None,
-                        "unverified_urls": unverified or None,
-                        "processed_at": datetime.now(timezone.utc).isoformat(),
-                        "topic": topic_title,
-                    }
-
-            except Exception as e:
-                log.error("  Error analyzing chunk %s: %s", chunk_id[:8], e)
+                edits_submitted += 1
                 improved[chunk_id] = {
+                    "action": "edit",
+                    "changes": changes,
+                    "title": new_title,
+                    "subtitle": new_subtitle,
+                    "stripped_urls": stripped or None,
+                    "unverified_urls": unverified or None,
+                    "processed_at": datetime.now(timezone.utc).isoformat(),
+                    "topic": topic_title,
+                }
+
+            # Log duplicates
+            for dupe in result.get("duplicates", []):
+                dupe_ids = dupe.get("chunk_ids", [])
+                log.warning("  ⚠ Duplicates detected: %s — %s",
+                            ", ".join(i[:8] for i in dupe_ids), dupe.get("reason", ""))
+
+            # Log suggested order
+            order = result.get("suggested_order", [])
+            if order:
+                log.info("  Suggested order: %s", " → ".join(i[:8] for i in order))
+
+                # Submit metachunk if not in dry-run
+                if not dry_run and len(order) > 1:
+                    try:
+                        api_post(base_url, f"/v1/topics/{topic_id}/metachunk", api_key, {
+                            "order": order,
+                        })
+                        log.info("  Metachunk proposed for topic %s", topic_slug)
+                    except requests.HTTPError as e:
+                        log.warning("  Metachunk proposal failed: %s", e)
+
+        except Exception as e:
+            log.error("  Error analyzing topic %s: %s", topic_slug, e)
+            for c in unprocessed:
+                improved[c["id"]] = {
                     "action": "error",
                     "error": str(e),
                     "processed_at": datetime.now(timezone.utc).isoformat(),

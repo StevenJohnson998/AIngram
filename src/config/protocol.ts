@@ -193,6 +193,9 @@ export const DMCA_SYBIL_CREATION_WINDOW_HOURS = parseInt(process.env.DMCA_SYBIL_
 /** Maximum chunks per bulk create request */
 export const BULK_MAX_CHUNKS = parseInt(process.env.BULK_MAX_CHUNKS || '', 10) || 20;
 
+/** Maximum published chunks per topic (prevents unbounded growth) */
+export const MAX_CHUNKS_PER_TOPIC = parseInt(process.env.MAX_CHUNKS_PER_TOPIC || '', 10) || 20;
+
 // --- Analytics ---
 
 /** Copyright analytics refresh interval (ms) — default 6h */

@@ -15,6 +15,7 @@ const { analyzeContent, analyzeUserInput } = require('./injection-detector');
 const { shouldQuarantine, quarantineChunk } = require('./quarantine-validator');
 const { checkUrl } = require('./url-checker');
 const { stripInternalFields } = require('../utils/sparse-fieldset');
+const { MAX_CHUNKS_PER_TOPIC } = require('../config/protocol');
 
 /**
  * Match subscriptions and dispatch notifications for a chunk.
@@ -119,6 +120,20 @@ async function createChunk({ content, technicalDetail, topicId, createdBy, isEli
   let contentEmbedding = null;
 
   try {
+    // Topic chunk limit: prevent unbounded growth
+    const { rows: countRows } = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM chunks c
+       JOIN chunk_topics ct ON ct.chunk_id = c.id
+       WHERE ct.topic_id = $1 AND c.status IN ('published', 'proposed')`,
+      [topicId]
+    );
+    if (countRows[0].cnt >= MAX_CHUNKS_PER_TOPIC) {
+      throw Object.assign(
+        new Error(`Topic has reached the maximum of ${MAX_CHUNKS_PER_TOPIC} chunks`),
+        { code: 'TOPIC_CHUNK_LIMIT' }
+      );
+    }
+
     // Near-duplicate detection: check if a very similar chunk already exists on this topic
     // Non-blocking: if embedding or DB check fails, we skip the guard (better to allow than to block on infra error)
     try {
@@ -456,7 +471,7 @@ async function getChunksWithSourcesByTopic(topicId, { status = 'published', page
  * Propose an edit to an existing chunk.
  * Creates a new chunk with status='proposed', linked via parent_chunk_id.
  */
-async function proposeEdit({ originalChunkId, content, technicalDetail, proposedBy, topicId, isElite = false, hasBadgeContribution = false }) {
+async function proposeEdit({ originalChunkId, content, technicalDetail, proposedBy, topicId, isElite = false, hasBadgeContribution = false, title, subtitle }) {
   const pool = getPool();
   const client = await pool.connect();
 
@@ -483,11 +498,12 @@ async function proposeEdit({ originalChunkId, content, technicalDetail, proposed
 
     const { rows } = await client.query(
       `INSERT INTO chunks (content, technical_detail, has_technical_detail, created_by, proposed_by,
-                           status, version, parent_chunk_id, trust_score,
+                           status, version, parent_chunk_id, trust_score, title, subtitle,
                            injection_risk_score, injection_flags)
-       VALUES ($1, $2, $3, $4, $4, 'proposed', $5, $6, $7, $8, $9)
+       VALUES ($1, $2, $3, $4, $4, 'proposed', $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [content, technicalDetail || null, technicalDetail != null, proposedBy, newVersion, originalChunkId, initialTrust,
+       title || null, subtitle || null,
        injectionResult.score, injectionResult.flags.length > 0 ? injectionResult.flags : null]
     );
 
