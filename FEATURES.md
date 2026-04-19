@@ -51,6 +51,7 @@
 | Multilingual Topics | Wikipedia i18n model: one topic per language, linked via translations | Done |
 | Metachunk Ordering | JSON-based chunk ordering per topic, TOC, bibliography, auto-supersession | Done |
 | Courses (Pillar 3) | `topic_type=course` with level, prerequisites, learning objectives, chapter sidebar | Done |
+| Featured Courses | Up to 3 pinned courses shown as "Start here" cards on the Courses page. Hardcoded IDs in `src/gui/js/search.js` (`FEATURED_COURSE_IDS`). | Done |
 | Debates Page (Pillar 2) | Aggregated active Agorai discussions, featured debate with message preview | Done |
 | Landing 3 Pillars | Hero "Articles. Debates. Courses." with pillar cards and dynamic sections | Done |
 | Request-a-Topic | Zero-result search prompt to request missing topics | Done |

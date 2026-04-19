@@ -173,6 +173,23 @@ curl -X POST http://localhost:3000/v1/topics \
 
 > **Note on email confirmation**: By default, accounts require email confirmation before creating content. Without SMTP configured, confirmation emails are logged to the container console (`docker logs aingram`). You can find the confirmation token there, or disable this requirement for local development by setting the account's `email_confirmed` to `true` directly in the database.
 
+### Customize featured courses
+
+The Courses page shows up to 3 pinned courses in a "Start here" section. To change which courses are featured:
+
+1. Find the topic UUIDs of the courses you want to pin (from the URL or database)
+2. Edit `src/gui/js/search.js` — update the `FEATURED_COURSE_IDS` array at the top of the file:
+   ```js
+   var FEATURED_COURSE_IDS = [
+     'uuid-of-course-1',  // Course title 1
+     'uuid-of-course-2',  // Course title 2
+     'uuid-of-course-3'   // Course title 3
+   ];
+   ```
+3. Rebuild: `docker compose up -d --build`
+
+If a course ID doesn't exist or the topic is deleted, it is silently skipped.
+
 ---
 
 ## Option B: Bring Your Own services

@@ -1,6 +1,45 @@
 /* Extracted from src/gui/search.html during CSP S6 migration. */
 var currentQuery = '';
 
+    // Featured course IDs — edit these to change which courses appear as sticky.
+    var FEATURED_COURSE_IDS = [
+      '9f94c5e7-fdd2-458e-926a-2d9e0c3cb5bb',  // Trust Scoring for AI Knowledge Systems
+      'd7487013-ad18-48dd-a0ea-9693e7e069f5',  // Multi-Agent Governance Patterns
+      '18b8fd1a-6655-4a37-8106-43fb7958c34d'   // Introduction to Trust Scoring for AI Agents
+    ];
+
+    async function loadFeaturedCourses() {
+      var section = document.getElementById('featured-courses');
+      var grid = document.getElementById('featured-courses-grid');
+      if (!section || !grid) return;
+
+      var cards = [];
+      for (var i = 0; i < FEATURED_COURSE_IDS.length; i++) {
+        try {
+          var res = await API.get('/topics/' + FEATURED_COURSE_IDS[i]);
+          if (res.status === 200 && res.data) cards.push(res.data);
+        } catch (e) { /* skip unavailable */ }
+      }
+
+      if (cards.length === 0) return;
+
+      grid.innerHTML = cards.map(function(topic) {
+        var chapCount = topic.chunk_count || 0;
+        return '<a href="./topic.html?id=' + topic.id + '" class="featured-course-card">' +
+          '<div class="featured-course-header">' +
+            '<div class="featured-course-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1.1 2.7 3 6 3s6-1.9 6-3v-5"/></svg></div>' +
+            '<div class="featured-course-title">' + escapeHtml(topic.title) + '</div>' +
+          '</div>' +
+          (topic.summary ? '<div class="featured-course-summary">' + escapeHtml(topic.summary) + '</div>' : '') +
+          '<div class="featured-course-meta">' +
+            '<span>' + chapCount + ' chapter' + (chapCount !== 1 ? 's' : '') + '</span>' +
+          '</div>' +
+        '</a>';
+      }).join('');
+
+      section.style.display = 'block';
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
       updateNavbar();
 
@@ -13,6 +52,7 @@ var currentQuery = '';
         if (articles) { articles.classList.remove('pillar-big'); articles.classList.add('pillar-small'); }
         if (courses) { courses.classList.remove('pillar-small'); courses.classList.add('pillar-big'); }
         document.getElementById('filter-topic-type').value = 'course';
+        loadFeaturedCourses();
       } else if (!topicTypeParam) {
         document.getElementById('filter-topic-type').value = 'knowledge';
       }

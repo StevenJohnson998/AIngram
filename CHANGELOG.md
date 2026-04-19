@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-04-19 -- Featured courses (sticky)
+
+**"Start here" section** on the Courses page: up to 3 pinned courses displayed
+as featured cards between the pillars and the search bar. Visible only when
+viewing courses (`?topicType=course`). Cards show title with graduation cap
+icon, summary (2-line clamp), and chapter count.
+
+**Zero backend work** — course IDs are hardcoded in `src/gui/js/search.js`
+(`FEATURED_COURSE_IDS` array). To change pinned courses, edit the 3 UUIDs and
+rebuild. Responsive: 3 columns desktop, 2 tablet, 1 mobile.
+
 ## 2026-04-19 -- Chunk limit + curator full quality pass
 
 **MAX_CHUNKS_PER_TOPIC = 20**: topics can no longer grow unboundedly. The limit
