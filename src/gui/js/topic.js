@@ -1328,7 +1328,7 @@ var currentTopicId = null;
         return '<div class="chunk-item trust-medium" data-chunk-id="' + chunk.id + '">' +
           '' +
           '<div class="chunk-body">' +
-            '<div class="chunk-content">' + escapeHtml(chunk.content) + '</div>' +
+            '<div class="chunk-content">' + renderContent(chunk.content, chunk.status) + '</div>' +
             '<div class="chunk-actions-row">' +
               '<div class="flex items-center gap-sm">' +
                 '<span class="badge ' + phaseClass + '">' + phaseLabel + countdownHtml + '</span>' +

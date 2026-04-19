@@ -218,20 +218,12 @@ function getCollectedRefs() { return _collectedRefs; }
 function renderContent(str, status, lang) {
   if (!str) return '';
   var linkLang = lang || getParam('lang') || 'en';
-  var escaped = escapeHtml(str);
-  if (status === 'published') {
-    // Convert markdown images: ![alt](url) -> <img>
-    escaped = escaped.replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, function(_, alt, url) {
-      return '<img src="' + url + '" alt="' + alt + '" class="chunk-img" loading="lazy">';
-    });
-  } else {
-    // Non-published: show placeholder instead of rendering image
-    escaped = escaped.replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, function(_, alt) {
-      return '<span class="badge s-589db7cd">[Image: ' + (alt || 'pending review') + ']</span>';
-    });
-  }
-  // Convert inline citations: [ref:description;url:https://...] or [ref:description]
-  escaped = escaped.replace(/\[ref:([^\]]+)\]/g, function(_, inner) {
+  var raw = str;
+
+  // Phase 1: extract custom syntax BEFORE markdown parsing (on raw text)
+  // Replace [ref:...] with unique placeholders to protect from markdown
+  var refPlaceholders = [];
+  raw = raw.replace(/\[ref:([^\]]+)\]/g, function(_, inner) {
     var parts = inner.split(';url:');
     var desc = parts[0].trim();
     var url = parts[1] ? parts[1].trim() : null;
@@ -246,17 +238,53 @@ function renderContent(str, status, lang) {
       _collectedRefs.push({ desc: desc, url: url });
       refNum = _collectedRefs.length;
     }
-    return '<a href="#ref-' + refNum + '" class="ref-link" title="' + desc + '">[' + refNum + ']</a>';
+    var ph = '\x00REF' + refPlaceholders.length + '\x00';
+    refPlaceholders.push('<a href="#ref-' + refNum + '" class="ref-link" title="' + escapeHtml(desc) + '">[' + refNum + ']</a>');
+    return ph;
   });
-  // Convert internal links: [[slug]] or [[slug|display text]]
-  escaped = escaped.replace(/\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g, function(_, slug, label) {
+
+  // Replace [[internal links]] with placeholders
+  var linkPlaceholders = [];
+  raw = raw.replace(/\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g, function(_, slug, label) {
     var displayText = label || slug.replace(/-/g, ' ');
-    return '<a href="./topic.html?slug=' + encodeURIComponent(slug.trim()) + '&amp;lang=' + encodeURIComponent(linkLang) + '" class="internal-link">' + displayText.trim() + '</a>';
+    var ph = '\x00LINK' + linkPlaceholders.length + '\x00';
+    linkPlaceholders.push('<a href="./topic.html?slug=' + encodeURIComponent(slug.trim()) + '&lang=' + encodeURIComponent(linkLang) + '" class="internal-link">' + escapeHtml(displayText.trim()) + '</a>');
+    return ph;
   });
-  // Convert line breaks: double newline = paragraph break, single = line break
-  escaped = escaped.replace(/\n\n+/g, '<br class="paragraph-break">');
-  escaped = escaped.replace(/\n/g, '<br>');
-  return escaped;
+
+  // Handle images based on publication status
+  if (status !== 'published') {
+    raw = raw.replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, function(_, alt) {
+      return '<span class="badge s-589db7cd">[Image: ' + escapeHtml(alt || 'pending review') + ']</span>';
+    });
+  }
+
+  // Phase 2: parse CommonMark via marked
+  var html;
+  if (typeof marked !== 'undefined') {
+    html = marked.parse(raw, { gfm: false, breaks: false });
+  } else {
+    html = '<p>' + escapeHtml(raw).replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+  }
+
+  // Phase 3: restore placeholders
+  for (var i = 0; i < refPlaceholders.length; i++) {
+    html = html.split('\x00REF' + i + '\x00').join(refPlaceholders[i]);
+  }
+  for (var j = 0; j < linkPlaceholders.length; j++) {
+    html = html.split('\x00LINK' + j + '\x00').join(linkPlaceholders[j]);
+  }
+
+  // Phase 4: sanitize with DOMPurify
+  if (typeof DOMPurify !== 'undefined') {
+    html = DOMPurify.sanitize(html, {
+      ADD_TAGS: ['img'],
+      ADD_ATTR: ['loading', 'class', 'title', 'href', 'src', 'alt'],
+      ALLOW_DATA_ATTR: false,
+    });
+  }
+
+  return html;
 }
 
 /**

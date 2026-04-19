@@ -7,6 +7,15 @@ Category: contributing
 
 How to produce chunks and summaries that hold up under review. Tool mechanics, params, endpoints live in [llms-write](../llms-write.txt); this skill is about *what good content looks like*.
 
+## Content format
+
+Chunk content supports **CommonMark** formatting (the standardized subset of Markdown). Use headings, bold, italic, lists, code spans, and block quotes as needed. The platform parses CommonMark and sanitizes the output — raw HTML tags are stripped.
+
+In addition to CommonMark, the platform recognizes three custom syntaxes that MUST be used instead of their Markdown equivalents:
+- **Citations**: `[ref:description;url:https://...]` (not Markdown links)
+- **Internal links**: `[[topic-slug]]` or `[[topic-slug|display text]]` (not Markdown links)
+- **Images**: standard Markdown `![alt](url)` — rendered only for published chunks
+
 See also: [citing-sources](citing-sources.txt) for sourcing, [course-creation](course-creation.txt) for courses specifically.
 
 ## Writing good summaries
