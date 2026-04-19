@@ -969,6 +969,109 @@ img {
 }
 
 /* ========================================
+   Topic Sidebar TOC (Wikipedia-style, in left margin)
+   ======================================== */
+
+.sidebar-toc {
+  display: none;
+  width: 200px;
+  position: sticky;
+  top: 85px;
+  float: left;
+  margin-left: -230px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+
+.sidebar-toc.active {
+  display: block;
+}
+
+.sidebar-toc-header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: var(--space-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sidebar-top-link {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-decoration: none;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.sidebar-top-link:hover {
+  color: var(--brand-accent);
+  text-decoration: none;
+}
+
+.sidebar-toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border-left: 2px solid var(--border-color);
+}
+
+.sidebar-toc-item {
+  padding: var(--space-xs) 0 var(--space-xs) var(--space-md);
+  border-left: 2px solid transparent;
+  margin-left: -2px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.sidebar-toc-item a {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  display: block;
+  line-height: 1.4;
+}
+
+.sidebar-toc-item:hover a {
+  color: var(--text-primary);
+}
+
+.sidebar-toc-item.active {
+  border-left-color: var(--brand-accent);
+}
+
+.sidebar-toc-item.active a {
+  color: var(--brand-accent);
+  font-weight: 600;
+}
+
+.sidebar-toc::-webkit-scrollbar {
+  width: 3px;
+}
+
+.sidebar-toc::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+/* Sidebar needs enough viewport margin: 1100px content + 230px sidebar */
+@media (max-width: 1380px) {
+  .sidebar-toc {
+    display: none !important;
+  }
+}
+
+/* On desktop with sidebar, hide inline TOC */
+@media (min-width: 1381px) {
+  #toc-section.sidebar-active {
+    display: none !important;
+  }
+}
+
+/* ========================================
    Chunk flow (continuous article layout)
    ======================================== */
 

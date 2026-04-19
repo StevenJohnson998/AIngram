@@ -314,14 +314,16 @@ var currentTopicId = null;
     }
 
     function buildChapterSidebar(chunks) {
-      // For courses, replace the TOC with a chapter sidebar
-      var tocSection = document.getElementById('toc-section');
-      var tocList = document.getElementById('toc-list');
       var items = chunks.filter(function(c) { return c._ordered; });
       if (items.length === 0) return;
 
+      // Build sidebar (desktop) + inline fallback (mobile)
+      buildSidebarToc(items, 'Chapters', true);
+
+      // Inline fallback for mobile
+      var tocSection = document.getElementById('toc-section');
+      var tocList = document.getElementById('toc-list');
       tocSection.style.display = 'block';
-      // Override TOC header for courses
       tocSection.querySelector('h4').textContent = 'Chapters';
       tocList.innerHTML = items.map(function(c, i) {
         var label = c.title ? escapeHtml(c.title) : 'Chapter ' + (i + 1);
@@ -352,12 +354,89 @@ var currentTopicId = null;
     function buildToc(chunks) {
       var tocSection = document.getElementById('toc-section');
       var tocList = document.getElementById('toc-list');
-      var items = chunks.filter(function(c) { return c.title && c._ordered; });
+      // Show TOC for all titled chunks (ordered first, then unordered)
+      var items = chunks.filter(function(c) { return c.title && !c.article_summary && !c.discussion_summary; });
       if (items.length < 2) { tocSection.style.display = 'none'; return; }
+
+      // Build sidebar (desktop)
+      buildSidebarToc(items, 'Contents', false);
+
+      // Inline fallback (mobile)
       tocSection.style.display = 'block';
       tocList.innerHTML = items.map(function(c, i) {
         return '<li class="s-2f6e1638"><a href="#chunk-' + c.id + '" class="s-040a57cc">' + escapeHtml(c.title) + '</a></li>';
       }).join('');
+    }
+
+    var tocObserver = null;
+
+    function buildSidebarToc(items, headerText, isChapters) {
+      var sidebar = document.getElementById('sidebar-toc');
+      if (!sidebar || items.length < 2) return;
+
+      sidebar.innerHTML = '<div class="sidebar-toc-header"><span>' + escapeHtml(headerText) + '</span><a href="#" class="sidebar-top-link">Top &#8593;</a></div>' +
+        '<ol class="sidebar-toc-list">' +
+        items.map(function(c, i) {
+          var label = c.title ? escapeHtml(c.title) : (isChapters ? 'Chapter ' + (i + 1) : 'Section ' + (i + 1));
+          var prefix = isChapters ? (i + 1) + '. ' : '';
+          return '<li class="sidebar-toc-item" data-chunk-id="' + c.id + '">' +
+            '<a href="#chunk-' + c.id + '">' + prefix + label + '</a></li>';
+        }).join('') +
+        '</ol>';
+
+      sidebar.classList.add('active');
+      document.getElementById('toc-section').classList.add('sidebar-active');
+
+      sidebar.querySelectorAll('.sidebar-toc-list a').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          var target = document.querySelector(this.getAttribute('href'));
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            history.replaceState(null, '', this.getAttribute('href'));
+          }
+        });
+      });
+
+      sidebar.querySelector('.sidebar-top-link').addEventListener('click', function(e) {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      initTocObserver(items);
+    }
+
+    function initTocObserver(items) {
+      if (tocObserver) tocObserver.disconnect();
+
+      var chunkIds = items.map(function(c) { return c.id; });
+      var elements = chunkIds.map(function(id) {
+        return document.getElementById('chunk-' + id);
+      }).filter(Boolean);
+
+      if (elements.length === 0) return;
+
+      tocObserver = new IntersectionObserver(function(entries) {
+        var visibleIds = [];
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting) {
+            visibleIds.push(entry.target.dataset.chunkId || entry.target.id.replace('chunk-', ''));
+          }
+        });
+
+        if (visibleIds.length > 0) {
+          var sidebar = document.getElementById('sidebar-toc');
+          if (!sidebar) return;
+          sidebar.querySelectorAll('.sidebar-toc-item').forEach(function(item) {
+            item.classList.toggle('active', item.dataset.chunkId === visibleIds[0]);
+          });
+        }
+      }, {
+        rootMargin: '-60px 0px -70% 0px',
+        threshold: 0
+      });
+
+      elements.forEach(function(el) { tocObserver.observe(el); });
     }
 
     function buildBibliography() {

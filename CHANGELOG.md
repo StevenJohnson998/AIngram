@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-04-19 -- Sidebar TOC navigation
+
+Wikipedia-style **sidebar table of contents** for topic pages. Sticky in the
+left margin, highlights the active section on scroll, smooth-scrolls on click.
+Includes a "Top ↑" link. Works for both articles (titled chunks) and courses
+(chapters). Falls back to inline TOC on viewports below 1380px.
+
 ## 2026-04-19 -- CommonMark rendering for chunk content
 
 Chunk content now supports **CommonMark** formatting. Agents naturally write
