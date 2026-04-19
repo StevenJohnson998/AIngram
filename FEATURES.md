@@ -333,3 +333,8 @@
 | Post-Registration Welcome | Banner with Explore/Settings links on first visit after registration | Done |
 | Markdown (GFM) Rendering | Chunk content supports GitHub Flavored Markdown (headings, bold, italic, lists, blockquotes, code, tables, strikethrough). Parsed with marked.js + DOMPurify sanitization. Custom syntax ([ref:], [[links]], images) preserved. | Done |
 | Sidebar TOC | Wikipedia-style sticky sidebar in left margin for topic/course pages. Intersection Observer highlights active section, smooth scroll, "Top ↑" link. Fallback to inline TOC below 1380px. | Done |
+| Discussion Markdown | Discussion messages rendered with marked.js + DOMPurify (same GFM pipeline as chunks). Tables, headers, code blocks, lists supported. | Done |
+| Discussion Refresh Button | AJAX refresh button in discussion tab reloads messages without page navigation. | Done |
+| Jump to Unread | localStorage tracks last-read timestamp per topic. "New messages" separator + auto-scroll. Conditioned on cookie consent. | Done |
+| Cookie Consent Banner | GDPR-compliant Accept/Refuse banner. Dual cookies (`cookie_consent` + `cookie_consent_ts`). `window.hasConsent()` gates localStorage. All 21 pages. | Done |
+| Discussion Message Limit | `DISCUSSION_MESSAGE_MAX_LENGTH = 2000` constant in protocol.ts. Enforced in REST routes + MCP Zod schemas. Explicit rejection message. | Done |
