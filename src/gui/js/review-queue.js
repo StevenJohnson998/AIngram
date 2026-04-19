@@ -255,7 +255,7 @@ var currentPage = 1;
     async function confirmReject() {
       var reason = document.getElementById('reject-reason').value.trim();
       if (!reason) {
-        document.getElementById('reject-reason').style.borderColor = '#ef4444';
+        document.getElementById('reject-reason').style.borderColor = '#b06060';
         return;
       }
       var report = document.getElementById('reject-report').checked;

@@ -286,10 +286,11 @@ var currentTopicId = null;
 
       // Level badge
       var levelBadge = document.getElementById('course-level-badge');
-      var levelColors = { beginner: '#22c55e', intermediate: '#f59e0b', expert: '#ef4444' };
+      var levelColors = { beginner: 'rgba(42, 92, 64, 0.3)', intermediate: 'rgba(138, 112, 16, 0.3)', expert: 'rgba(139, 58, 58, 0.3)' };
+      var levelTextColors = { beginner: '#4a6e5a', intermediate: '#8a7a40', expert: '#b06060' };
       levelBadge.textContent = (courseData.level || 'beginner').charAt(0).toUpperCase() + (courseData.level || 'beginner').slice(1);
       levelBadge.style.background = levelColors[courseData.level] || levelColors.beginner;
-      levelBadge.style.color = '#fff';
+      levelBadge.style.color = levelTextColors[courseData.level] || levelTextColors.beginner;
 
       // Chapter count
       document.getElementById('course-chapter-count').textContent = chunkCount + ' chapter' + (chunkCount !== 1 ? 's' : '');
@@ -503,7 +504,7 @@ var currentTopicId = null;
                 '<button class="chunk-action-btn chunk-vote-up" title="Upvote" data-id="' + chunk.id + '">&#128077;</button>' +
                 '<button class="chunk-action-btn chunk-vote-down" title="Downvote" data-id="' + chunk.id + '">&#128078;</button>' +
                 '<button class="chunk-action-btn chunk-report-btn" title="Report" data-id="' + chunk.id + '" data-type="chunk">&#9888;</button>' +
-                '<span class="chunk-action-btn chunk-trust-label ' + trustClass(chunk.trust_score || 0) + '-text s-e08afbbb" data-tip="Confidence score (0-1) from reviews and votes">Trust: ' + (chunk.trust_score || 0).toFixed(2) + '</span>' +
+                '<span class="chunk-action-btn chunk-trust-label ' + trustClass(chunk.trust_score || 0) + '-text s-e08afbbb" data-tip="Trust score: ' + (chunk.trust_score || 0).toFixed(2) + '">' + (chunk.trust_score >= 0.7 ? 'High' : chunk.trust_score >= 0.4 ? 'Medium' : 'Low') + ' Trust</span>' +
                 '<a class="chunk-action-btn" href="./profile.html?id=' + (chunk.proposed_by || chunk.created_by) + '" class="s-8655f746">' + escapeHtml(chunk.proposed_by_name || 'Unknown') + ' &middot; ' + timeAgo(chunk.created_at) + '</a>' +
                 aiBtn +
               '</div>' +
@@ -720,8 +721,10 @@ var currentTopicId = null;
               '<div class="message-body">' +
                 '<div class="message-header">' +
                   authorLink +
-                  typeBadge +
-                  '<span class="message-time">' + timeAgo(msg.created_at || msg.createdAt) + '</span>' +
+                  '<div class="message-header-right">' +
+                    typeBadge +
+                    '<span class="message-time">' + timeAgo(msg.created_at || msg.createdAt) + '</span>' +
+                  '</div>' +
                 '</div>' +
                 '<p class="message-text">' + escapeHtml(msg.content) + '</p>' +
                 '<div class="message-hover-actions">' +

@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         var heading = document.getElementById('topics-heading');
         container.innerHTML = '<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>';
 
-        var url = '/topics?limit=12&lang=' + currentLang;
+        var url = '/topics?limit=6&lang=' + currentLang;
         if (topicType) url += '&topicType=' + topicType;
         heading.textContent = topicType === 'course' ? 'Courses' : topicType === 'knowledge' ? 'Articles' : 'Hot Articles';
 
@@ -144,10 +144,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
       }
 
-      // Load activity feed
-      loadActivityFeed();
-      setInterval(loadActivityFeed, 60000); // refresh every 60s
-
       // Footer stats
       try {
         var statsRes = await API.get('/topics?limit=1');
@@ -158,47 +154,4 @@ document.addEventListener('DOMContentLoaded', async function() {
       }
     });
 
-    var ACTION_LABELS = {
-      chunk_proposed: 'proposed a change on',
-      chunk_merged: 'merged a change on',
-      chunk_retracted: 'retracted a change on',
-      chunk_escalated: 'escalated a change on',
-      chunk_resubmitted: 'resubmitted a change on',
-      changeset_proposed: 'proposed changes on',
-      changeset_merged: 'merged changes on',
-      changeset_retracted: 'retracted changes on',
-      changeset_resubmitted: 'resubmitted changes on',
-      changeset_escalated: 'escalated a review on',
-      suggestion_proposed: 'suggested an improvement on',
-      topic_created: 'created topic',
-      topic_created_full: 'created topic',
-      vote_cast: 'voted on',
-      account_created: 'joined ' + (typeof BRAND !== 'undefined' ? BRAND.name : 'AIngram'),
-    };
 
-    async function loadActivityFeed() {
-      try {
-        var res = await API.get('/activity?limit=10');
-        var container = document.getElementById('activity-feed');
-        if (res.status === 200 && res.data && res.data.length > 0) {
-          container.innerHTML = '<ul class="activity-list">' + res.data.map(function(item) {
-            var label = ACTION_LABELS[item.action] || item.action.replace(/_/g, ' ');
-            var topicLink = '';
-            if (item.topicSlug && item.targetTitle) {
-              topicLink = ' <a href="./topic.html?slug=' + encodeURIComponent(item.topicSlug) + '">' + escapeHtml(item.targetTitle) + '</a>';
-            } else if (item.targetTitle) {
-              topicLink = ' ' + escapeHtml(item.targetTitle);
-            }
-            return '<li class="activity-item">' +
-              '<span class="activity-actor">' + escapeHtml(item.actorName) + '</span> ' +
-              label + topicLink +
-              ' <span class="text-muted text-sm">' + timeAgo(item.createdAt) + '</span>' +
-            '</li>';
-          }).join('') + '</ul>';
-        } else {
-          container.innerHTML = '<p class="text-muted">No activity yet.</p>';
-        }
-      } catch (err) {
-        // Silent fail on refresh, keep previous content
-      }
-    }

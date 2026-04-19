@@ -80,19 +80,17 @@ var currentQuery = '';
         var topicTitle = item.topic_title || 'Unknown topic';
         var topicLang = (item.topic_lang || 'en').toUpperCase();
         return '<div class="card trust-border ' + tc + ' mb-md">' +
-          '<div class="flex items-center justify-between flex-wrap gap-sm mb-md">' +
-            '<div>' +
-              '<a href="' + topicLink + '" class="search-result-title">' + escapeHtml(topicTitle) + '</a>' +
-              '<div class="meta-row mt-sm">' +
-                '<span class="badge badge-lang">' + escapeHtml(topicLang) + '</span>' +
-                '<span class="sep">&middot;</span>' +
-                '<span>' + trustBadge(item.trust_score || 0) + '</span>' +
-                '<span class="sep">&middot;</span>' +
-                '<span>' + timeAgo(item.updated_at || item.created_at) + '</span>' +
-              '</div>' +
+          '<div class="flex items-center gap-sm mb-sm">' +
+            '<a href="' + topicLink + '" class="search-result-title">' + escapeHtml(topicTitle) + '</a>' +
+            '<div class="search-result-badges">' +
+              trustBadge(item.trust_score || 0) +
+              '<span class="badge badge-lang">' + escapeHtml(topicLang) + '</span>' +
             '</div>' +
           '</div>' +
-          '<p class="text-sm text-muted">' + escapeHtml(truncate(item.content_preview || item.content || '', 250)) + '</p>' +
+          '<p class="text-sm text-secondary search-snippet">' + escapeHtml(truncate(item.content_preview || item.content || '', 200)) + '</p>' +
+          '<div class="meta-row mt-sm">' +
+            '<span class="text-sm text-muted">' + timeAgo(item.updated_at || item.created_at) + '</span>' +
+          '</div>' +
           (user ? '<button class="btn btn-xs btn-outline mt-sm subscribe-similar-btn" data-query="' + escapeHtml(q).replace(/"/g, '&quot;') + '">Subscribe to similar</button>' : '') +
         '</div>';
       }).join('');
@@ -140,14 +138,15 @@ var currentQuery = '';
               : '';
             return '<a href="./topic.html?id=' + topic.id + '" class="card trust-border ' + tc + ' mb-md search-result">' +
               '<div class="flex items-center gap-sm mb-sm">' +
-                typeBadge + catBadge +
                 '<span class="search-result-title">' + escapeHtml(topic.title) + '</span>' +
+                '<div class="search-result-badges">' +
+                  trustBadge(topic.trust_score || 0) +
+                  typeBadge + catBadge +
+                '</div>' +
               '</div>' +
-              (topic.summary ? '<p class="text-sm text-muted s-f7959892">' + escapeHtml(topic.summary.substring(0, 150)) + '</p>' : '') +
-              '<div class="meta-row">' +
+              (topic.summary ? '<p class="text-sm text-secondary search-snippet">' + escapeHtml(topic.summary.substring(0, 200)) + '</p>' : '') +
+              '<div class="meta-row mt-sm">' +
                 '<span class="badge badge-lang">' + (topic.lang || 'en').toUpperCase() + '</span>' +
-                '<span class="sep">&middot;</span>' +
-                trustBadge(topic.trust_score || 0) +
                 '<span class="sep">&middot;</span>' +
                 '<span class="text-sm text-muted">' + (topic.chunk_count || 0) + countLabel + '</span>' +
                 '<span class="sep">&middot;</span>' +
@@ -313,7 +312,7 @@ var currentQuery = '';
         if (res.status === 201) {
           feedback.style.display = 'block';
           feedback.textContent = 'Topic requested! Contributors will see it.';
-          feedback.style.color = 'var(--success, #22c55e)';
+          feedback.style.color = 'var(--success, #4a6e5a)';
           document.getElementById('request-topic-title').value = '';
         } else {
           var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to submit request.';
