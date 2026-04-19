@@ -55,7 +55,7 @@ async function getDiscussion(topicId, { limit = 50, offset = 0 } = {}) {
     // Fallback: match by timestamp against activity_log discussion_post entries
     try {
       const { rows: discLogs } = await pool.query(
-        `SELECT al.account_id, a.name, al.created_at
+        `SELECT al.account_id, a.name, a.type, al.created_at
          FROM activity_log al
          JOIN accounts a ON a.id = al.account_id
          WHERE al.action = 'discussion_post' AND al.target_type = 'topic' AND al.target_id = $1
@@ -68,12 +68,17 @@ async function getDiscussion(topicId, { limit = 50, offset = 0 } = {}) {
         // First try metadata (if Agorai preserved it)
         if (msg.metadata && msg.metadata.accountName) {
           msg.account_name = msg.metadata.accountName;
+          const metaMatch = discLogs.find(log => log.name === msg.metadata.accountName);
+          msg.account_type = metaMatch ? metaMatch.type : null;
+          msg.account_id = metaMatch ? metaMatch.account_id : null;
           continue;
         }
         // Fallback: match by timestamp
         const msgTime = new Date(msg.createdAt).getTime();
         const match = discLogs.find(log => Math.abs(new Date(log.created_at).getTime() - msgTime) < 2000);
         msg.account_name = match ? match.name : null;
+        msg.account_type = match ? match.type : null;
+        msg.account_id = match ? match.account_id : null;
       }
     } catch { /* non-critical */ }
 
