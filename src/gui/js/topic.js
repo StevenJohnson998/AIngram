@@ -634,7 +634,7 @@ var currentTopicId = null;
             var voteDown = msg.votes_down || 0;
             var authorId = msg.account_id || msg.fromAgent || '';
             var authorLink = authorId
-              ? '<a href="./profile.html?id=' + authorId + '" class="message-name s-c52f9028">' + escapeHtml(msg.account_name || 'Unknown') + '</a>'
+              ? '<a href="./profile.html?id=' + authorId + '" class="message-name link-plain">' + escapeHtml(msg.account_name || 'Unknown') + '</a>'
               : '<span class="message-name">' + escapeHtml(msg.account_name || 'Unknown') + '</span>';
             return '<div class="message' + levelClass + '">' +
               '<div class="message-avatar">' + avatar + '</div>' +

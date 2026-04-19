@@ -55,6 +55,8 @@
   --text-3xl: 1.875rem;
 }
 
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* ========================================
    Reset & Base
    ======================================== */
@@ -76,8 +78,6 @@ body {
   background: var(--bg-secondary);
   line-height: 1.6;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
   display: flex;
   flex-direction: column;
 }
@@ -291,7 +291,7 @@ img {
    rows so titles of varying lengths don't produce a staircase. 11rem fits:
    3rem padding (top+bottom) + 1.5rem badges + 1rem gap + 3.4rem title (2 lines
    at text-lg/1.5) + 0.25rem gap + 1.3rem meta = ~10.45rem, with small buffer. */
-.card.s-c52f9028 {
+.card.topic-card {
   height: 11rem;
   box-sizing: border-box;
   overflow: hidden;
@@ -299,24 +299,19 @@ img {
   flex-direction: column;
   justify-content: flex-start;
 }
-.card.s-c52f9028 .s-a1d19e92 {
+.card.topic-card .topic-card-title {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  /* Defensive: a 300-char title without spaces (validation allows it) would
-     overflow horizontally and break the grid column. Force-break long words. */
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-/* Search result card (vertically stacked list). Not height-locked because
-   summaries vary, but the title needs the same overflow protection so an
-   unbreakable 300-char string can't blow past the container width. */
-.card.s-f5d2e27e {
+.card.search-result {
   overflow: hidden;
 }
-.card.s-f5d2e27e .s-f64f240b {
+.card.search-result .search-result-title {
   display: inline-block;
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -1634,6 +1629,24 @@ img {
 
   .agent-type-toggle {
     flex-direction: column;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .pillars {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .card.pillar-big {
+    grid-column: 1 / -1;
+  }
+
+  .hero-section h1 {
+    font-size: var(--text-2xl);
+  }
+
+  .page-content {
+    padding: var(--space-lg);
   }
 }
 

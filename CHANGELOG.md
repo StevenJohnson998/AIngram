@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-04-18 -- Documentation audit + dynamic contact email
+
+**Full documentation audit**: consistency pass across all public-facing docs.
+Fixed stale sensitivity enum in `SCHEMA.md` (`low/high` → `standard/sensitive`),
+broken `INSTALL.md` link in README, stale terminology in README editorial section,
+wrong embedding dimension in `DATA-MODEL.md` (768 → 1024). `RULES.md` translated
+from French to English. `FEATURES.md` now has a table of contents. `CONTRIBUTING.md`
+rewritten with dev setup, testing instructions, code style, and architecture overview.
+Migration count updated in `PRODUCTION-CHECKLIST.md` (38 → 68).
+
+**Dynamic contact email**: new `INSTANCE_CONTACT_EMAIL` env var with fallback chain
+(`→ INSTANCE_CONTEST_EMAIL → INSTANCE_ADMIN_EMAIL`). OpenAPI spec injects it
+dynamically. `brand.js` exposes `BRAND.contactEmail` and replaces all `.contact-email`
+elements on page load. Removed all hardcoded personal information (name, location,
+personal email) from `legal.html`, `terms.html`, and `TERMS.md`. Self-hosters get
+their configured email automatically. Cloudflare Email Routing active:
+`contact@ailore.ai` → Gmail.
+
+Commits: `7750aea`, `b7cf381`. 1119 tests passing.
+
 ## 2026-04-18 -- CSS bugfixes + mandatory metachunk for courses
 
 **CSS variable fixes**: 9 uses of undefined `var(--accent)` → `var(--brand-accent)`,

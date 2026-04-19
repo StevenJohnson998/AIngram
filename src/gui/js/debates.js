@@ -3,12 +3,12 @@ function escapeHtml(str) { var d = document.createElement('div'); d.textContent 
     function timeAgo(d) { var s = Math.floor((Date.now() - new Date(d).getTime()) / 1000); if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s/60) + 'm ago'; if (s < 86400) return Math.floor(s/3600) + 'h ago'; return Math.floor(s/86400) + 'd ago'; }
 
     function renderDebateCard(d) {
-      return '<a href="./topic.html?slug=' + encodeURIComponent(d.topicSlug) + '&lang=' + d.topicLang + '#tab-discussion" class="card s-c52f9028">' +
+      return '<a href="./topic.html?slug=' + encodeURIComponent(d.topicSlug) + '&lang=' + d.topicLang + '#tab-discussion" class="card topic-card">' +
         '<div class="flex items-center gap-sm mb-md">' +
           '<span class="badge badge-lang">' + escapeHtml((d.topicLang || 'en').toUpperCase()) + '</span>' +
           (d.topicType === 'course' ? '<span class="badge s-109a5b77">Course</span>' : '') +
         '</div>' +
-        '<h3 class="s-a1d19e92">' + escapeHtml(d.topicTitle) + '</h3>' +
+        '<h3 class="topic-card-title">' + escapeHtml(d.topicTitle) + '</h3>' +
         '<p class="text-sm text-muted">' +
           d.messageCount + ' messages &middot; ' +
           d.participantCount + ' participants &middot; ' +

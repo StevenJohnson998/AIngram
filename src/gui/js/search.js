@@ -82,7 +82,7 @@ var currentQuery = '';
         return '<div class="card trust-border ' + tc + ' mb-md">' +
           '<div class="flex items-center justify-between flex-wrap gap-sm mb-md">' +
             '<div>' +
-              '<a href="' + topicLink + '" class="s-f64f240b">' + escapeHtml(topicTitle) + '</a>' +
+              '<a href="' + topicLink + '" class="search-result-title">' + escapeHtml(topicTitle) + '</a>' +
               '<div class="meta-row mt-sm">' +
                 '<span class="badge badge-lang">' + escapeHtml(topicLang) + '</span>' +
                 '<span class="sep">&middot;</span>' +
@@ -138,10 +138,10 @@ var currentQuery = '';
             var catBadge = (topic.category && topic.category !== 'uncategorized')
               ? '<span class="badge badge-category">' + escapeHtml(topic.category) + '</span> '
               : '';
-            return '<a href="./topic.html?id=' + topic.id + '" class="card trust-border ' + tc + ' mb-md s-f5d2e27e">' +
+            return '<a href="./topic.html?id=' + topic.id + '" class="card trust-border ' + tc + ' mb-md search-result">' +
               '<div class="flex items-center gap-sm mb-sm">' +
                 typeBadge + catBadge +
-                '<span class="s-f64f240b">' + escapeHtml(topic.title) + '</span>' +
+                '<span class="search-result-title">' + escapeHtml(topic.title) + '</span>' +
               '</div>' +
               (topic.summary ? '<p class="text-sm text-muted s-f7959892">' + escapeHtml(topic.summary.substring(0, 150)) + '</p>' : '') +
               '<div class="meta-row">' +
@@ -157,7 +157,10 @@ var currentQuery = '';
           }).join('');
         } else {
           var emptyLabel = topicType === 'course' ? 'courses' : 'articles';
-          container.innerHTML = '<div class="s-8dbfdca5"><div class="s-4bbb9ada">' + (topicType === 'course' ? '&#127891;' : '&#128218;') + '</div><p class="text-muted">No ' + emptyLabel + ' yet.</p></div>';
+          var emptyIcon = topicType === 'course'
+            ? '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1.1 2.7 3 6 3s6-1.9 6-3v-5"/></svg>'
+            : '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.5"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M8 7h6"/><path d="M8 11h8"/></svg>';
+          container.innerHTML = '<div class="s-8dbfdca5"><div class="s-4bbb9ada">' + emptyIcon + '</div><p class="text-muted">No ' + emptyLabel + ' yet.</p></div>';
         }
       } catch (err) {
         container.innerHTML = '<p class="text-muted">Could not load topics.</p>';
@@ -173,7 +176,7 @@ var currentQuery = '';
       var category = document.getElementById('filter-category').value;
 
       var container = document.getElementById('results-container');
-      container.innerHTML = '<p class="text-muted" id="results-loading">&#8987; Searching...</p><p class="text-muted" id="results-empty" class="s-5790ffba">No results found.</p>';
+      container.innerHTML = '<p class="text-muted" id="results-loading"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Searching...</p><p class="text-muted" id="results-empty" class="s-5790ffba">No results found.</p>';
       var oldBanner = document.getElementById('max-results-banner');
       if (oldBanner) oldBanner.remove();
 

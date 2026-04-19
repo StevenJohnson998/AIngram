@@ -161,7 +161,7 @@
 .s-8ed36b6e { margin: 0 0 var(--space-xs); }
 .s-92e35e8b { text-decoration: none; color: inherit; padding: var(--space-sm) var(--space-md); }
 .s-9cfc365b { color: var(--text-secondary); }
-.s-a1d19e92 { font-size: var(--text-lg); margin-bottom: var(--space-xs); }
+.s-a1d19e92, .topic-card-title { font-size: var(--text-lg); margin-bottom: var(--space-xs); }
 .s-a8289633 { margin-bottom: var(--space-xs); font-size: var(--text-sm); }
 .s-acba7947 { width: ' + (policingScore * 100) + '%; }
 .s-b021f23b { font-size: 0.65rem; background: var(--bg-secondary); margin-left: var(--space-xs); }
@@ -170,7 +170,7 @@
 .s-b84fb6be { background: var(--brand-accent); color: #fff; font-size: var(--text-xs); }
 .s-be1d6f45 { display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap; }
 .s-c15f7cfa { margin-top: var(--space-xs); }
-.s-c52f9028 { text-decoration: none; color: inherit; }
+.s-c52f9028, .topic-card, .link-plain { text-decoration: none; color: inherit; }
 .s-c89db52a { display: flex; gap: var(--space-xs); margin-top: var(--space-xs); align-items: center; }
 .s-cb9e2009 { font-size: 0.6rem; opacity: 0.7; }
 .s-d5a012c0 { background: #ef4444; color: #fff; }
@@ -184,8 +184,8 @@
 .s-ed3b345e { vertical-align: middle; font-size: var(--text-sm); }
 .s-f02b1e9e { display: inline-block; margin-right: var(--space-sm); margin-bottom: var(--space-xs); padding: 2px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: var(--text-xs); color: var(--text-secondary); text-decoration: none; }
 .s-f120801a { display: flex; justify-content: space-between; align-items: center; }
-.s-f5d2e27e { text-decoration: none; color: inherit; display: block; }
-.s-f64f240b { font-size: var(--text-lg); font-weight: 600; }
+.s-f5d2e27e, .search-result { text-decoration: none; color: inherit; display: block; }
+.s-f64f240b, .search-result-title { font-size: var(--text-lg); font-weight: 600; }
 .s-f7959892 { margin-bottom: var(--space-xs); }
 .s-f984426e { float: right; margin-left: var(--space-sm); }
 

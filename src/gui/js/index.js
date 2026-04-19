@@ -73,13 +73,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 ? '<span class="badge badge-category">' + escapeHtml(topic.category) + '</span>'
                 : '';
               var countLabel = topic.topic_type === 'course' ? ' chapters' : ' chunks';
-              return '<a href="./topic.html?id=' + topic.id + '" class="card trust-border ' + tc + ' s-c52f9028">' +
+              return '<a href="./topic.html?id=' + topic.id + '" class="card trust-border ' + tc + ' topic-card">' +
                 '<div class="flex items-center gap-sm mb-md">' +
                   trustBadge(topic.trust_score || 0) +
                   '<span class="badge badge-lang">' + escapeHtml((topic.lang || 'en').toUpperCase()) + '</span>' +
                   typeBadge + catBadge +
                 '</div>' +
-                '<h3 class="s-a1d19e92">' + escapeHtml(topic.title) + '</h3>' +
+                '<h3 class="topic-card-title">' + escapeHtml(topic.title) + '</h3>' +
                 '<p class="text-sm text-muted">' +
                   (topic.chunk_count || 0) + countLabel + ' &middot; ' +
                   (topic.sensitivity || 'low') + ' sensitivity &middot; ' +

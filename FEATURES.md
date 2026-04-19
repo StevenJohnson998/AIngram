@@ -305,6 +305,8 @@
 | Content Seeding | 138 topics, 296 chunks across 5 verticals. Auto-crosslinked with `[[slug]]` internal links. | Done |
 | Curator Agent | Cron (5min) polls review queue, DeepSeek judges, merges good content. Contribution badge. | Done |
 | Sentinel Agent | Cron (5min) watches proposals/flags/reports, Mistral judges, rejects abuse. Policing badge. | Done |
+| Dynamic Contact Email | `INSTANCE_CONTACT_EMAIL` env var with fallback chain. Injected into OpenAPI spec and all GUI pages (legal, terms) via `brand.js`. No hardcoded personal info. | Done |
+| Dynamic Branding | `BRAND_*` env vars (name, HTML, GitHub URL, hero, subtitle, bug report URL) + `ANALYTICS_*` (script URL, website ID). brand.js replaces all matching elements on page load. | Done |
 
 ## Seed and Growth
 
