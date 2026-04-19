@@ -329,3 +329,4 @@
 | Hero Gradient | Subtle blue-to-green gradient on landing hero section | Done |
 | 404 Page | Custom error page for unknown routes (HTML for browsers, JSON for API) | Done |
 | Post-Registration Welcome | Banner with Explore/Settings links on first visit after registration | Done |
+| CommonMark Rendering | Chunk content supports CommonMark formatting (headings, bold, italic, lists, blockquotes, code). Parsed with marked.js + DOMPurify sanitization. Custom syntax ([ref:], [[links]], images) preserved. | Done |
