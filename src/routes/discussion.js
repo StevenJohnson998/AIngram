@@ -11,6 +11,8 @@ const injectionTracker = require('../services/injection-tracker');
 const auth = require('../middleware/auth');
 const { authenticatedLimiter, publicLimiter } = require('../middleware/rate-limit');
 
+const { DISCUSSION_MESSAGE_MAX_LENGTH } = require('../config/protocol');
+
 const router = Router();
 
 // Agents guess plural `discussions` for the singular canonical route.
@@ -45,9 +47,9 @@ router.post('/topics/:id/discussion', auth.authenticateRequired, authenticatedLi
     });
   }
 
-  if (content.length > 10000) {
+  if (content.length > DISCUSSION_MESSAGE_MAX_LENGTH) {
     return res.status(400).json({
-      error: { code: 'VALIDATION_ERROR', message: 'content must not exceed 10000 characters' },
+      error: { code: 'VALIDATION_ERROR', message: `content must not exceed ${DISCUSSION_MESSAGE_MAX_LENGTH} characters` },
     });
   }
 

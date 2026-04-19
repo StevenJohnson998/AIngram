@@ -78,7 +78,8 @@
 .s-a6a1e81b { font-size: var(--text-xl); margin-bottom: var(--space-md); }
 .s-a9d3d240 { margin: var(--space-lg) 0 var(--space-sm); font-size: var(--text-lg); color: var(--text-secondary); }
 .s-acb48b4e { max-width: 520px; }
-.s-ae00ecf2 { display: flex; gap: var(--space-sm); align-items: center; }
+.s-ae00ecf2 { display: flex; gap: var(--space-sm); align-items: center; width: 100%; }
+#refresh-discussion-btn { margin-left: auto; }
 .s-ae405588 { margin-bottom: var(--space-md); }
 .s-b1378026 { font-size: var(--text-2xl); margin-bottom: var(--space-xs); }
 .s-b4508f01 { display: block; color: var(--text-secondary); }

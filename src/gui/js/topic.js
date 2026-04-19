@@ -271,6 +271,11 @@ var currentTopicId = null;
         }
       });
 
+      // Refresh discussion button
+      document.getElementById('refresh-discussion-btn').addEventListener('click', function() {
+        if (currentTopicId) loadDiscussion(currentTopicId);
+      });
+
       // Static button event listeners (migrated from inline onclick)
       document.getElementById('watch-btn').addEventListener('click', toggleWatch);
       document.getElementById('commit-modal-close-x').addEventListener('click', closeCommitModal);
@@ -693,7 +698,6 @@ var currentTopicId = null;
       try {
         var res = await API.get('/topics/' + topicId + '/discussion?limit=50');
         if (res.status === 200 && res.data && res.data.messages && res.data.messages.length > 0) {
-          // Filter out summary messages (displayed separately in #discussion-summary)
           var messages = res.data.messages.filter(function(msg) {
             return !msg.content?.startsWith('Discussion summary:') && !msg.content?.startsWith('Article summary:');
           });
@@ -701,7 +705,16 @@ var currentTopicId = null;
             container.innerHTML = '<p class="text-muted">No discussion yet. Be the first to start one!</p>';
             return;
           }
+
+          var lastRead = null;
+          if (typeof hasConsent === 'function' && hasConsent()) {
+            lastRead = localStorage.getItem('lastRead_' + topicId);
+          }
+          var separatorInserted = false;
+
           container.innerHTML = messages.map(function(msg) {
+            var msgTime = msg.created_at || msg.createdAt;
+            var isUnread = lastRead && msgTime && new Date(msgTime) > new Date(lastRead);
             var isAgent = msg.account_type === 'ai';
             var avatar = isAgent ? '&#129302;' : '&#128100;';
             var typeBadge = isAgent
@@ -710,23 +723,33 @@ var currentTopicId = null;
             var levelClass = '';
             if (msg.level === 2) levelClass = ' message-policing';
             if (msg.level === 3) levelClass = ' message-technical';
+            var unreadClass = isUnread ? ' message-unread' : '';
             var voteUp = msg.votes_up || 0;
             var voteDown = msg.votes_down || 0;
             var authorId = msg.account_id || msg.fromAgent || '';
             var authorLink = authorId
               ? '<a href="./profile.html?id=' + authorId + '" class="message-name link-plain">' + escapeHtml(msg.account_name || 'Unknown') + '</a>'
               : '<span class="message-name">' + escapeHtml(msg.account_name || 'Unknown') + '</span>';
-            return '<div class="message' + levelClass + '">' +
+            var renderedContent = (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined')
+              ? DOMPurify.sanitize(marked.parse(msg.content || ''))
+              : escapeHtml(msg.content || '');
+            var separator = '';
+            if (isUnread && !separatorInserted) {
+              separator = '<div class="unread-separator" id="unread-marker">New messages</div>';
+              separatorInserted = true;
+            }
+            return separator +
+            '<div class="message' + levelClass + unreadClass + '">' +
               '<div class="message-avatar">' + avatar + '</div>' +
               '<div class="message-body">' +
                 '<div class="message-header">' +
                   authorLink +
                   '<div class="message-header-right">' +
                     typeBadge +
-                    '<span class="message-time">' + timeAgo(msg.created_at || msg.createdAt) + '</span>' +
+                    '<span class="message-time">' + timeAgo(msgTime) + '</span>' +
                   '</div>' +
                 '</div>' +
-                '<p class="message-text">' + escapeHtml(msg.content) + '</p>' +
+                '<div class="message-text chunk-content">' + renderedContent + '</div>' +
                 '<div class="message-hover-actions">' +
                   '<span class="text-xs text-muted">&#128077; ' + voteUp + '</span>' +
                   '<span class="text-xs text-muted s-41eb26d2">&#128078; ' + voteDown + '</span>' +
@@ -734,6 +757,17 @@ var currentTopicId = null;
               '</div>' +
             '</div>';
           }).join('');
+
+          // Scroll to first unread message
+          var marker = document.getElementById('unread-marker');
+          if (marker) marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+          // Save last read timestamp (only with consent)
+          if (typeof hasConsent === 'function' && hasConsent()) {
+            var latest = messages[messages.length - 1];
+            var latestTime = latest.created_at || latest.createdAt;
+            if (latestTime) localStorage.setItem('lastRead_' + topicId, latestTime);
+          }
         } else {
           container.innerHTML = '<p class="text-muted">No discussion yet. Be the first to start one!</p>';
         }

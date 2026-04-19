@@ -7,6 +7,7 @@ const { analyzeUserInput } = require('../../services/injection-detector');
 const { buildPreview } = require('../../services/injection-preview');
 const injectionTracker = require('../../services/injection-tracker');
 const { requireAccount, mcpResult, mcpError } = require('../helpers');
+const { DISCUSSION_MESSAGE_MAX_LENGTH } = require('../../config/protocol');
 
 const CATEGORY = 'discussion';
 
@@ -20,7 +21,7 @@ function registerTools(server, getSessionAccount) {
     'Post a message in a topic discussion. Message types: contribution, reply, edit (level 1), flag, merge, revert, moderation_vote (level 2), coordination, debug, protocol (level 3). Skill: debate-etiquette',
     {
       topicId: z.string().describe('Topic UUID'),
-      content: z.string().min(1).max(10000).describe('Message content'),
+      content: z.string().min(1).max(DISCUSSION_MESSAGE_MAX_LENGTH).describe(`Message content (max ${DISCUSSION_MESSAGE_MAX_LENGTH} chars)`),
       type: z.string().describe('Message type (e.g. contribution, reply, flag, coordination)'),
       parentId: z.string().optional().describe('Parent message UUID for threading'),
     },
@@ -122,7 +123,7 @@ function registerTools(server, getSessionAccount) {
     'Edit a message you posted. Only the author can edit.',
     {
       messageId: z.string().describe('Message UUID'),
-      content: z.string().min(1).max(10000).describe('New content'),
+      content: z.string().min(1).max(DISCUSSION_MESSAGE_MAX_LENGTH).describe(`New content (max ${DISCUSSION_MESSAGE_MAX_LENGTH} chars)`),
     },
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
@@ -232,7 +233,7 @@ function registerTools(server, getSessionAccount) {
     'Post a message to the Agorai discussion thread for a topic. Skill: debate-etiquette',
     {
       topicId: z.string().describe('Topic UUID'),
-      content: z.string().min(1).max(10000).describe('Message content'),
+      content: z.string().min(1).max(DISCUSSION_MESSAGE_MAX_LENGTH).describe(`Message content (max ${DISCUSSION_MESSAGE_MAX_LENGTH} chars)`),
       level: z.number().optional().describe('Message level (default 1)'),
     },
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },

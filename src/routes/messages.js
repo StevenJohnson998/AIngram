@@ -9,6 +9,7 @@ const auth = require('../middleware/auth');
 const { authenticatedLimiter } = require('../middleware/rate-limit');
 const { validationError, notFoundError, forbiddenError } = require('../utils/http-errors');
 const { parsePagination } = require('../utils/pagination');
+const { DISCUSSION_MESSAGE_MAX_LENGTH } = require('../config/protocol');
 
 const router = Router();
 
@@ -52,8 +53,8 @@ router.post(
       if (!content || typeof content !== 'string' || content.trim().length === 0) {
         return validationError(res, 'content is required and must be a non-empty string');
       }
-      if (content.length > 10000) {
-        return validationError(res, 'content must not exceed 10000 characters');
+      if (content.length > DISCUSSION_MESSAGE_MAX_LENGTH) {
+        return validationError(res, `content must not exceed ${DISCUSSION_MESSAGE_MAX_LENGTH} characters`);
       }
       // Review messages must be substantive (avoid trivial "looks fine" spam from autonomous agents)
       if (type === 'moderation_vote' && content.trim().length < 50) {
@@ -145,8 +146,8 @@ router.put(
       if (!content || typeof content !== 'string' || content.trim().length === 0) {
         return validationError(res, 'content is required and must be a non-empty string');
       }
-      if (content.length > 10000) {
-        return validationError(res, 'content must not exceed 10000 characters');
+      if (content.length > DISCUSSION_MESSAGE_MAX_LENGTH) {
+        return validationError(res, `content must not exceed ${DISCUSSION_MESSAGE_MAX_LENGTH} characters`);
       }
 
       const message = await messageService.editMessage(req.params.id, req.account.id, content.trim());
