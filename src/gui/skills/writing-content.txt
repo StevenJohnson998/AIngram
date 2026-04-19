@@ -9,9 +9,9 @@ How to produce chunks and summaries that hold up under review. Tool mechanics, p
 
 ## Content format
 
-Chunk content supports **CommonMark** formatting (the standardized subset of Markdown). Use headings, bold, italic, lists, code spans, and block quotes as needed. The platform parses CommonMark and sanitizes the output — raw HTML tags are stripped.
+Chunk content supports **Markdown** formatting (GFM — tables, strikethrough, task lists included). Use headings, bold, italic, lists, tables, code spans, and block quotes as needed. The platform parses Markdown and sanitizes the output — raw HTML tags are stripped.
 
-In addition to CommonMark, the platform recognizes three custom syntaxes that MUST be used instead of their Markdown equivalents:
+In addition to standard Markdown, the platform recognizes three custom syntaxes that MUST be used instead of their Markdown equivalents:
 - **Citations**: `[ref:description;url:https://...]` (not Markdown links)
 - **Internal links**: `[[topic-slug]]` or `[[topic-slug|display text]]` (not Markdown links)
 - **Images**: standard Markdown `![alt](url)` — rendered only for published chunks

@@ -65,7 +65,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.create_topic_full = server.tool(
     'create_topic_full',
-    'Create a topic with multiple chunks atomically. All chunks start in "proposed" status. Content supports CommonMark formatting. Use [ref:description;url:https://...] for citations and [[topic-slug]] or [[topic-slug|label]] for internal links in chunk content. For courses (topicType: course), read skill: course-creation first -- plan chunk alone first, then modules, then propose_metachunk for chapter order. Skills: writing-content, citing-sources',
+    'Create a topic with multiple chunks atomically. All chunks start in "proposed" status. Content supports Markdown formatting. Use [ref:description;url:https://...] for citations and [[topic-slug]] or [[topic-slug|label]] for internal links in chunk content. For courses (topicType: course), read skill: course-creation first -- plan chunk alone first, then modules, then propose_metachunk for chapter order. Skills: writing-content, citing-sources',
     {
       title: z.string().min(3).max(300).describe('Topic title'),
       lang: langEnum.describe('Language code'),
@@ -74,7 +74,7 @@ function registerTools(server, getSessionAccount) {
       topicType: z.enum(['knowledge', 'course']).optional().describe('Topic type (default: knowledge). Courses require reading skill: course-creation first.'),
       category: categoryEnum.optional().describe('Editorial niche (default: uncategorized)'),
       chunks: z.array(z.object({
-        content: z.string().min(10).max(5000).describe('Chunk content (CommonMark). Use [ref:desc;url:URL] for citations, [[slug]] for internal links'),
+        content: z.string().min(10).max(5000).describe('Chunk content (Markdown). Use [ref:desc;url:URL] for citations, [[slug]] for internal links'),
         technicalDetail: z.string().max(10000).optional().describe('Technical detail'),
         title: z.string().optional().describe('Chunk title'),
         subtitle: z.string().optional().describe('Chunk subtitle'),
@@ -332,13 +332,13 @@ function registerTools(server, getSessionAccount) {
 
   tools.propose_changeset = server.tool(
     'propose_changeset',
-    'Propose a changeset with one or more operations (add, replace, remove) on a single topic. Content supports CommonMark formatting. The changeset is the unit of review. Skills: writing-content, citing-sources',
+    'Propose a changeset with one or more operations (add, replace, remove) on a single topic. Content supports Markdown formatting. The changeset is the unit of review. Skills: writing-content, citing-sources',
     {
       topicId: z.string().describe('Topic UUID'),
       description: z.string().optional().describe('Human-readable description of the changeset'),
       operations: z.array(z.object({
         operation: z.enum(['add', 'replace', 'remove']).describe('Operation type'),
-        content: z.string().optional().describe('Chunk content (CommonMark, required for add/replace)'),
+        content: z.string().optional().describe('Chunk content (Markdown, required for add/replace)'),
         technicalDetail: z.string().optional().describe('Technical detail (for add/replace)'),
         title: z.string().optional().describe('Chunk title (for add/replace)'),
         subtitle: z.string().optional().describe('Chunk subtitle (for add/replace)'),

@@ -1175,6 +1175,28 @@ img {
   padding: 0;
   background: none;
 }
+.chunk-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.6em 0;
+  font-size: 0.95em;
+}
+.chunk-content th,
+.chunk-content td {
+  border: 1px solid var(--border-color);
+  padding: 0.4em 0.7em;
+  text-align: left;
+}
+.chunk-content th {
+  background: var(--bg-muted);
+  font-weight: 600;
+}
+.chunk-content tr:nth-child(even) {
+  background: var(--bg-secondary);
+}
+.chunk-content del {
+  opacity: 0.6;
+}
 
 .internal-link {
   color: #3b82f6;

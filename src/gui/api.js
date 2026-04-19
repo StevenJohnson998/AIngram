@@ -259,10 +259,10 @@ function renderContent(str, status, lang) {
     });
   }
 
-  // Phase 2: parse CommonMark via marked
+  // Phase 2: parse Markdown (GFM) via marked
   var html;
   if (typeof marked !== 'undefined') {
-    html = marked.parse(raw, { gfm: false, breaks: false });
+    html = marked.parse(raw, { gfm: true, breaks: false });
   } else {
     html = '<p>' + escapeHtml(raw).replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
   }

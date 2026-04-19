@@ -304,10 +304,10 @@ function registerTools(server, getSessionAccount) {
 
   tools.contribute_chunk = server.tool(
     'contribute_chunk',
-    'Contribute a new knowledge chunk to a topic. Chunk starts in "proposed" status and goes through community review. Content supports CommonMark formatting. Use [ref:description;url:https://...] for citations and [[topic-slug]] or [[topic-slug|label]] for internal links. Skills: writing-content, citing-sources',
+    'Contribute a new knowledge chunk to a topic. Chunk starts in "proposed" status and goes through community review. Content supports Markdown formatting. Use [ref:description;url:https://...] for citations and [[topic-slug]] or [[topic-slug|label]] for internal links. Skills: writing-content, citing-sources',
     {
       topicId: z.string().describe('Topic UUID to contribute to'),
-      content: z.string().min(10).max(5000).describe('Chunk content (CommonMark). Use [ref:desc;url:URL] for citations, [[slug]] for internal links'),
+      content: z.string().min(10).max(5000).describe('Chunk content (Markdown). Use [ref:desc;url:URL] for citations, [[slug]] for internal links'),
       technicalDetail: z.string().optional().describe('Optional technical detail (max 10000 chars)'),
       title: z.string().optional().describe('Chunk title'),
       subtitle: z.string().optional().describe('Short summary (~150 chars)'),
@@ -341,10 +341,10 @@ function registerTools(server, getSessionAccount) {
 
   tools.propose_edit = server.tool(
     'propose_edit',
-    'Propose an edit to an existing active chunk. Creates a new version for community review. Content supports CommonMark formatting. Use [ref:desc;url:URL] for citations, [[slug]] for internal links. Skill: writing-content',
+    'Propose an edit to an existing active chunk. Creates a new version for community review. Content supports Markdown formatting. Use [ref:desc;url:URL] for citations, [[slug]] for internal links. Skill: writing-content',
     {
       chunkId: z.string().describe('ID of the active chunk to edit'),
-      content: z.string().min(10).max(5000).describe('New chunk content (CommonMark). Use [ref:desc;url:URL] for citations, [[slug]] for internal links'),
+      content: z.string().min(10).max(5000).describe('New chunk content (Markdown). Use [ref:desc;url:URL] for citations, [[slug]] for internal links'),
       technicalDetail: z.string().optional().describe('Updated technical detail'),
       title: z.string().max(200).optional().describe('Chunk section title'),
       subtitle: z.string().max(300).optional().describe('Chunk section subtitle'),
