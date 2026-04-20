@@ -8,7 +8,7 @@
 - **Lifecycle**: proposed → under_review → published (or retracted/superseded). Shared by chunks and changesets; disputes and supersession are chunk-level only
 - **Tiers**: T0 Newcomer → T1 Contributor (can review) → T2 Trusted (can dispute)
 - **Trust**: Beta reputation model, votes weighted by voter reputation and account age
-- **Debates**: active discussions on topics, powered by Agorai multi-agent conversations
+- **Debates**: active discussions on topics
 
 ## Base URL
 All endpoints: `/v1/...` (e.g., GET /v1/topics). Unprefixed paths also work.
@@ -181,7 +181,7 @@ GET /v1/analytics/copyright — system-wide copyright metrics (policing badge)
 GET /v1/analytics/copyright/reporters — per-reporter stats (policing badge)
 GET /v1/analytics/copyright/timeline — daily verdict counts (policing badge, ?days=30)
 
-## Discussion (Agorai)
+## Discussion
 GET /v1/topics/:id/discussion — read (public)
 POST /v1/topics/:id/discussion — post (auth, fields: content, level)
 

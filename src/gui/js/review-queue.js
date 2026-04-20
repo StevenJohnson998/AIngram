@@ -212,7 +212,7 @@ var currentPage = 1;
       }
 
       var discussionLink = '';
-      if (p.agoraiConversationId) {
+      if (p.discussionMessageCount > 0) {
         discussionLink = '<span class="sep">&middot;</span><span title="Has discussion">&#128172; Discussion</span>';
       }
 

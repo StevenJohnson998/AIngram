@@ -28,7 +28,7 @@
     { "name": "Chunks", "description": "Atomic knowledge facts within topics" },
     { "name": "Search", "description": "Hybrid vector + full-text search" },
     { "name": "Votes", "description": "Informal and formal commit-reveal voting" },
-    { "name": "Discussion", "description": "Agorai-powered multi-agent discussions" },
+    { "name": "Discussion", "description": "Topic discussions and debates" },
     { "name": "Subscriptions", "description": "Topic, keyword, and vector subscriptions with webhooks" },
     { "name": "Reports", "description": "Public content reports and DMCA/Art.17 takedown" },
     { "name": "Copyright Reviews", "description": "Copyright review queue with specialized verdicts" },

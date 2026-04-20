@@ -264,7 +264,7 @@ router.get('/topics', auth.authenticateOptional, async (req, res) => {
     const result = await topicService.listTopics({ lang, status, sensitivity, topicType, category, includeEmpty, page, limit });
     if (result.pagination) result.pagination = enrichPagination(result.pagination, req);
 
-    // Apply sparse fieldset — defaults strip heavy fields (refresh_*, agorai_conversation_id, etc.)
+    // Apply sparse fieldset — defaults strip heavy fields (refresh_*, etc.)
     result.data = result.data.map(row =>
       applyFieldset(row, fields, { defaults: DEFAULTS.TOPIC_LIST, always: ['id'] })
     );

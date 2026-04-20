@@ -814,7 +814,7 @@ async function listPendingProposals({ page = 1, limit = 20 } = {}) {
     `SELECT c.*, a.name AS proposed_by_name,
             pc.content AS original_content,
             t.id AS topic_id, t.title AS topic_title, t.slug AS topic_slug,
-            t.lang AS topic_lang, t.agorai_conversation_id
+            t.lang AS topic_lang
      FROM chunks c
      LEFT JOIN accounts a ON a.id = COALESCE(c.proposed_by, c.created_by)
      LEFT JOIN chunks pc ON pc.id = c.parent_chunk_id

@@ -31,7 +31,7 @@ const CATEGORIES = {
     alwaysEnabled: false,
   },
   discussion: {
-    description: 'Messaging and discussion: create/edit messages, browse threads, read/post to Agorai discussions.',
+    description: 'Messaging and discussion: create/edit messages, browse threads, read/post to topic discussions.',
     alwaysEnabled: false,
   },
   ai_integration: {

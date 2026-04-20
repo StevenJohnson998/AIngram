@@ -242,12 +242,12 @@ describe('Service exports', () => {
     });
   });
 
-  describe('topic-agorai service', () => {
-    const topicAgorai = require('../../src/services/topic-agorai');
+  describe('topic-discussion service', () => {
+    const topicDiscussion = require('../../src/services/topic-discussion');
 
     it('exports expected functions', () => {
-      expect(typeof topicAgorai.getDiscussion).toBe('function');
-      expect(typeof topicAgorai.postToDiscussion).toBe('function');
+      expect(typeof topicDiscussion.getDiscussion).toBe('function');
+      expect(typeof topicDiscussion.postToDiscussion).toBe('function');
     });
   });
 

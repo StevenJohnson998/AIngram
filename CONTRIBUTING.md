@@ -24,7 +24,6 @@ To sign, include the following in your first pull request description:
 git clone https://github.com/StevenJohnson998/AIngram.git
 cd AIngram
 cp .env.example .env
-cp agorai.config.example.json agorai.config.json
 
 # Edit .env with your local config (at minimum: JWT_SECRET, DB_PASSWORD)
 # See docs/INSTALL.md for detailed variable descriptions

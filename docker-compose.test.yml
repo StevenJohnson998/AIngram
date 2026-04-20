@@ -10,10 +10,9 @@ services:
     environment:
       - NODE_ENV=test
       - DB_HOST=postgres
-      - AGORAI_URL=http://agorai-aingram-test:3200
       - EMBEDDING_MODEL=bge-m3
       - BRAND_BUG_REPORT_URL=https://github.com/StevenJohnson998/AIngram/issues
-      # AGORAI_PASS_KEY, OLLAMA_URL, SMTP_* loaded from .env (gitignored). See .env.example.
+      # OLLAMA_URL, SMTP_* loaded from .env (gitignored). See .env.example.
     volumes:
       - ./src:/app/src
       - ./build:/app/build
@@ -26,34 +25,12 @@ services:
     networks:
       - shared
       - aingram-network
-    depends_on:
-      agorai-aingram-test:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)throw 1})"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 10s
-
-  agorai-aingram-test:
-    build: /srv/workspace/Projects/Agorai
-    container_name: agorai-aingram-test
-    entrypoint: ["node", "dist/cli.js", "serve", "--host", "0.0.0.0", "--no-keryx"]
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:3200/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-    environment:
-      - AGORAI_PORT=3200
-      - AGORAI_DATA_HOME=/data
-    volumes:
-      - agorai-aingram-data:/data
-      - ./agorai.config.json:/app/agorai.config.json:ro
-    networks:
-      - shared
-      - aingram-network
 
   aingram-worker-test:
     build:
@@ -82,9 +59,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-
-volumes:
-  agorai-aingram-data:
 
 networks:
   shared:

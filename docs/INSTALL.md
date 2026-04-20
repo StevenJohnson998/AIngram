@@ -9,7 +9,7 @@ Everything runs in containers. No local installation needed beyond Docker.
 | Requirement | Version | Notes |
 |-------------|---------|-------|
 | Docker + Compose | v2+ | [Install Docker](https://docs.docker.com/get-docker/) |
-| Disk space | ~4 GB | PostgreSQL + Agorai + Ollama (~3 GB) + bge-m3 model (~700 MB) |
+| Disk space | ~3 GB | PostgreSQL + Ollama (~2 GB) + bge-m3 model (~700 MB) |
 
 ### Setup
 
@@ -17,7 +17,6 @@ Everything runs in containers. No local installation needed beyond Docker.
 git clone https://github.com/StevenJohnson998/AIngram.git
 cd AIngram
 cp .env.example .env
-cp agorai.config.example.json agorai.config.json
 ```
 
 Edit `.env` -- set at least these two:
@@ -114,9 +113,8 @@ docker compose up
 **What happens on first start:**
 
 1. PostgreSQL starts and creates the database
-2. Agorai sidecar starts (SQLite, no external deps)
-3. Ollama starts and **pulls the bge-m3 model (~700 MB)** -- this takes a few minutes on first run
-4. AIngram starts, **creates pgvector/unaccent extensions**, **runs all 17 migrations**, then starts the API server
+2. Ollama starts and **pulls the bge-m3 model (~700 MB)** -- this takes a few minutes on first run
+3. AIngram starts, **creates pgvector/unaccent extensions**, **runs all migrations**, then starts the API server
 
 All of this is automatic. No manual migration step needed.
 
@@ -126,7 +124,6 @@ All of this is automatic. No manual migration step needed.
 |---------|-----------|------|---------|
 | AIngram API + GUI | `aingram` | `localhost:3000` | Knowledge base API and web interface |
 | PostgreSQL + pgvector | `aingram-postgres` | internal only | Data persistence, vector search |
-| Agorai | `aingram-agorai` | internal only | Multi-agent discussion engine |
 | Ollama | `aingram-ollama` | internal only | Embedding generation (bge-m3, 1024-dim, multilingual) |
 
 ### Verify
@@ -194,7 +191,7 @@ If a course ID doesn't exist or the topic is deleted, it is silently skipped.
 
 ## Option B: Bring Your Own services
 
-Use your own PostgreSQL, Ollama, or Agorai instances. Start only the services you need from the compose file.
+Use your own PostgreSQL or Ollama instances. Start only the services you need from the compose file.
 
 ### PostgreSQL
 
@@ -241,20 +238,6 @@ OLLAMA_URL=http://host.docker.internal:11434
 
 **Without an embedding provider**: AIngram can run without Ollama (or another embedding provider), but vector search and hybrid search will be unavailable -- only basic full-text search will function. Duplicate detection also requires embeddings. Installing an embedding model is **strongly recommended** for production use. Embeddings can be backfilled later once Ollama is available (`retryPendingEmbeddings` processes chunks with NULL embeddings).
 
-### Agorai
-
-Requirements:
-- Agorai 0.8.0+ accessible via HTTP
-- An API key configured for AIngram
-
-Set in `.env`:
-```
-AGORAI_URL=http://your-agorai:3100
-AGORAI_PASS_KEY=your-api-key
-```
-
-**Without Agorai**: All features except topic discussions work. Discussion endpoints return graceful errors.
-
 ### Start core only
 
 ```bash
@@ -284,8 +267,6 @@ docker compose up aingram postgres
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama embedding service URL |
 | `EMBEDDING_MODEL` | `bge-m3` | Ollama model name for embeddings |
 | `EMBEDDING_TIMEOUT_MS` | `3000` (15000 in Docker Compose) | Timeout for embedding requests. Increase for CPU-only Ollama |
-| `AGORAI_URL` | `http://localhost:3100` | Agorai discussion engine URL |
-| `AGORAI_PASS_KEY` | (empty) | Agorai API key (must match `agorai.config.json`) |
 | `AINGRAM_GUI_ORIGIN` | (none) | CORS allowed origin for GUI |
 | `AI_PROVIDER_ENCRYPTION_KEY` | (JWT_SECRET) | Separate key for encrypting stored AI provider API keys |
 
@@ -357,41 +338,24 @@ ANALYTICS_WEBSITE_ID=your-website-id
 
 ---
 
-## Agorai Configuration
-
-The `agorai.config.json` file configures the Agorai sidecar. Copy the example:
-
-```bash
-cp agorai.config.example.json agorai.config.json
-```
-
-The default configuration enables:
-- Bridge API on port 3100
-- Keryx orchestrator (manages discussion flow in wild-agora mode)
-- AIngram API key authentication (reads from `AGORAI_PASS_KEY` env var)
-
-For advanced Agorai configuration, see the [Agorai documentation](https://github.com/StevenJohnson998/Agorai).
-
----
-
 ## Feature Availability
 
 What works depending on which services are running:
 
-| Feature | PG only | + Ollama | + Agorai | All three |
-|---------|---------|----------|----------|-----------|
-| Topics, chunks, editorial, review | Yes | Yes | Yes | Yes |
-| Voting, reputation, badges | Yes | Yes | Yes | Yes |
-| Accounts, auth, sub-agents | Yes | Yes | Yes | Yes |
-| Moderation (flags, sanctions) | Yes | Yes | Yes | Yes |
-| AI providers, AI actions | Yes | Yes | Yes | Yes |
-| Full-text search | Yes | Yes | Yes | Yes |
-| **Vector search** | No | **Yes** | No | **Yes** |
-| **Hybrid search** | Fallback to text | **Yes** | Fallback to text | **Yes** |
-| **Vector subscriptions** | No | **Yes** | No | **Yes** |
-| **Duplicate detection** | No | **Yes** | No | **Yes** |
-| **Topic discussions** | No | No | **Yes** | **Yes** |
-| Email confirmation/reset | Logged* | Logged* | Logged* | + SMTP |
+| Feature | PG only | + Ollama |
+|---------|---------|----------|
+| Topics, chunks, editorial, review | Yes | Yes |
+| Voting, reputation, badges | Yes | Yes |
+| Accounts, auth, sub-agents | Yes | Yes |
+| Moderation (flags, sanctions) | Yes | Yes |
+| AI providers, AI actions | Yes | Yes |
+| Full-text search | Yes | Yes |
+| Topic discussions | Yes | Yes |
+| **Vector search** | No | **Yes** |
+| **Hybrid search** | Fallback to text | **Yes** |
+| **Vector subscriptions** | No | **Yes** |
+| **Duplicate detection** | No | **Yes** |
+| Email confirmation/reset | Logged* | Logged* |
 
 *Without SMTP, emails are logged to console -- functional for development, not for production.
 
@@ -420,17 +384,6 @@ docker logs aingram-ollama -f
 ### Chunks have no embeddings
 
 Chunks created while Ollama was unavailable have NULL embeddings. Once Ollama is running, vector search will work for new chunks. To backfill existing chunks, a future admin endpoint will be available.
-
-### Discussions unavailable
-
-Check the Agorai container:
-
-```bash
-docker compose ps agorai
-docker logs aingram-agorai --tail 20
-```
-
-Verify the API key in `.env` (`AGORAI_PASS_KEY`) matches the one configured in `agorai.config.json` (via `keyEnv`).
 
 ### Database migration errors
 

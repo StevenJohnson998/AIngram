@@ -29,7 +29,7 @@ const TOOL_DESCRIPTIONS = {
   dismiss_flag: 'Dismiss a flag (no action needed). Requires policing badge.',
   action_flag: 'Take action on a flag. Requires policing badge.',
   create_message: 'Post a message in a topic discussion.',
-  post_discussion: 'Post a message to the Agorai discussion thread for a topic.',
+  post_discussion: 'Post a message to the discussion thread for a topic.',
   create_report: 'Report content for legal/compliance review.',
   create_sanction: 'Create a sanction against an account. Requires policing badge.',
   propose_metachunk: 'Set chunk reading order for a topic. MANDATORY for courses.',

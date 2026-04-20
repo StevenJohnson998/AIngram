@@ -1,10 +1,9 @@
 /**
- * Debates routes — aggregate active Agorai discussions enriched with AIngram topic data.
- * Debates are not a new data model — they are a presentation view on existing discussions.
+ * Debates routes — aggregate topics with recent discussion activity.
+ * Debates are a presentation view on topics that have native discussion messages.
  */
 
 const { Router } = require('express');
-const agoraiClient = require('../services/agorai-client');
 const { getPool } = require('../config/database');
 const auth = require('../middleware/auth');
 const { publicLimiter } = require('../middleware/rate-limit');
@@ -20,48 +19,39 @@ router.get('/debates', publicLimiter, auth.authenticateOptional, async (req, res
     const days = Math.min(parseInt(req.query.days, 10) || 7, 30);
     const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
 
-    // 1. Fetch active conversations from Agorai
-    const activeConvs = await agoraiClient.getActiveConversations({ days, limit });
-    if (!activeConvs || activeConvs.length === 0) {
-      return res.json({ data: [], featured: null });
-    }
-
-    // 2. Get all agorai_conversation_ids from our topics to build a lookup
     const pool = getPool();
-    const convIds = activeConvs.map(c => c.id);
-    const { rows: topics } = await pool.query(
-      `SELECT id, title, slug, lang, sensitivity, topic_type, agorai_conversation_id
-       FROM topics
-       WHERE agorai_conversation_id = ANY($1)`,
-      [convIds]
+    const { rows: debates } = await pool.query(
+      `SELECT t.id AS topic_id, t.title AS topic_title, t.slug AS topic_slug,
+              t.lang AS topic_lang, t.topic_type, t.sensitivity,
+              COUNT(m.id)::int AS message_count,
+              COUNT(DISTINCT m.account_id)::int AS participant_count,
+              MAX(m.created_at) AS last_message_at
+       FROM messages m
+       JOIN topics t ON t.id = m.topic_id
+       WHERE m.created_at > NOW() - make_interval(days => $1)
+         AND m.type IN ('contribution', 'reply')
+         AND m.status = 'active'
+       GROUP BY t.id
+       HAVING COUNT(m.id) > 0
+       ORDER BY MAX(m.created_at) DESC
+       LIMIT $2`,
+      [days, limit]
     );
 
-    const topicByConvId = {};
-    for (const t of topics) {
-      topicByConvId[t.agorai_conversation_id] = t;
-    }
+    // Map to camelCase for frontend compatibility
+    const data = debates.map(row => ({
+      topicId: row.topic_id,
+      topicTitle: row.topic_title,
+      topicSlug: row.topic_slug,
+      topicLang: row.topic_lang,
+      topicType: row.topic_type,
+      sensitivity: row.sensitivity,
+      messageCount: row.message_count,
+      participantCount: row.participant_count,
+      lastMessageAt: row.last_message_at,
+    }));
 
-    // 3. Enrich conversations with topic data
-    const debates = activeConvs
-      .map(conv => {
-        const topic = topicByConvId[conv.id];
-        if (!topic) return null; // Conversation not linked to an AIngram topic
-        return {
-          conversationId: conv.id,
-          topicId: topic.id,
-          topicTitle: topic.title,
-          topicSlug: topic.slug,
-          topicLang: topic.lang,
-          topicType: topic.topic_type,
-          sensitivity: topic.sensitivity,
-          messageCount: conv.messageCount,
-          participantCount: conv.participantCount,
-          lastMessageAt: conv.lastMessageAt,
-        };
-      })
-      .filter(Boolean);
-
-    return res.json({ data: debates });
+    return res.json({ data });
   } catch (err) {
     console.error('Error fetching debates:', err);
     return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch debates' } });

@@ -6,7 +6,6 @@
 # Typical infra prereqs (adapt to yours):
 #   - A shared external network with postgres + reverse proxy (e.g. Caddy)
 #   - A host-reachable Ollama instance (set OLLAMA_URL in .env.prod)
-#   - An Agorai sidecar config at agorai.config.prod.json (gitignored)
 
 services:
   aingram-api:
@@ -20,15 +19,11 @@ services:
     environment:
       - NODE_ENV=production
       - DB_HOST=postgres
-      - AGORAI_URL=http://agorai-aingram:3200
       - EMBEDDING_MODEL=bge-m3
-      # AGORAI_PASS_KEY, OLLAMA_URL, SMTP_*, INSTANCE_ADMIN_EMAIL loaded from .env.prod
+      # OLLAMA_URL, SMTP_*, INSTANCE_ADMIN_EMAIL loaded from .env.prod
     networks:
       - shared
       - aingram-prod-network
-    depends_on:
-      agorai-aingram:
-        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)throw 1})"]
@@ -36,27 +31,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
-
-  agorai-aingram:
-    image: ghcr.io/stevenjohnson998/agorai:0.8.0
-    container_name: agorai-aingram
-    entrypoint: ["node", "dist/cli.js", "serve", "--host", "0.0.0.0", "--no-keryx"]
-    environment:
-      - AGORAI_PORT=3200
-      - AGORAI_DATA_HOME=/data
-    volumes:
-      - agorai-aingram-prod-data:/data
-      - ./agorai.config.prod.json:/app/agorai.config.json:ro
-    networks:
-      - shared
-      - aingram-prod-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:3200/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
 
   aingram-worker:
     build:
@@ -83,9 +57,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-
-volumes:
-  agorai-aingram-prod-data:
 
 networks:
   shared:

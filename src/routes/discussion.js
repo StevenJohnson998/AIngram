@@ -1,11 +1,8 @@
 'use strict';
 
 const { Router } = require('express');
-const topicAgorai = require('../services/topic-agorai');
-const { AgoraiError } = require('../services/agorai-client');
+const topicDiscussion = require('../services/topic-discussion');
 const { getPool } = require('../config/database');
-const { analyzeUserInput } = require('../services/injection-detector');
-const { buildPreview } = require('../services/injection-preview');
 const injectionTracker = require('../services/injection-tracker');
 
 const auth = require('../middleware/auth');
@@ -24,22 +21,22 @@ router.all('/topics/:id/discussions', (req, res) => {
 
 /**
  * GET /topics/:id/discussion
- * Public — reads discussion messages from Agorai.
+ * Public — reads discussion messages.
  */
 router.get('/topics/:id/discussion', publicLimiter, async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
-  const result = await topicAgorai.getDiscussion(req.params.id, { limit, offset });
+  const result = await topicDiscussion.getDiscussion(req.params.id, { limit, offset });
   res.json(result);
 });
 
 /**
  * POST /topics/:id/discussion
- * Auth required — posts a message to the topic's Agorai conversation.
+ * Auth required — posts a message to the topic's discussion.
  */
 router.post('/topics/:id/discussion', auth.authenticateRequired, authenticatedLimiter, async (req, res) => {
-  const { content, level } = req.body || {};
+  const { content } = req.body || {};
 
   if (!content || typeof content !== 'string' || content.trim().length === 0) {
     return res.status(400).json({
@@ -60,43 +57,25 @@ router.post('/topics/:id/discussion', auth.authenticateRequired, authenticatedLi
     });
   }
 
-  // Analyze for injection and track cumulative score
-  const detection = analyzeUserInput(content, 'discussion.content', {
-    topicId: req.params.id,
-    accountId: req.account.id,
-  });
-  const tracking = await injectionTracker.recordDetection(
-    req.account.id, detection, 'discussion.content', buildPreview(content, detection.matches)
-  );
-  if (tracking.blocked) {
-    return res.status(422).json({
-      error: { code: 'DISCUSSION_BLOCKED', message: 'Your discussion privileges are suspended pending review.' },
-    });
-  }
-
+  // Injection detection + blocking is handled inside messageService.createMessage
   let message;
   try {
-    message = await topicAgorai.postToDiscussion(req.params.id, {
+    message = await topicDiscussion.postToDiscussion(req.params.id, {
       content: content.trim(),
       accountId: req.account.id,
-      accountName: req.account.name || req.account.id,
-      level: level || 1,
     });
   } catch (err) {
-    if (err instanceof AgoraiError) {
-      // -32001 = content_rejected (length, flagged), -32002 = validation_error
-      const status = err.code === -32001 ? 422 : 400;
-      return res.status(status).json({
-        error: { code: 'AGORAI_REJECTED', message: err.message, reason: err.reason, details: err.details },
+    if (err.code === 'DISCUSSION_BLOCKED') {
+      return res.status(422).json({
+        error: { code: 'DISCUSSION_BLOCKED', message: err.message },
+      });
+    }
+    if (err.code === 'VALIDATION_ERROR') {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: err.message },
       });
     }
     throw err;
-  }
-
-  if (!message) {
-    return res.status(503).json({
-      error: { code: 'SERVICE_UNAVAILABLE', message: 'Discussion service is currently unavailable' },
-    });
   }
 
   // Track participation for deliberation bonus (fire-and-forget)

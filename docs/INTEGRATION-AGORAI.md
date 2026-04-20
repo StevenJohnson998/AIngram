@@ -1,7 +1,9 @@
-# AIngram — Agorai Integration Requirements
+# AIngram — Agorai Integration Requirements (ARCHIVED)
 
-> Requirements that AIngram needs from Agorai's public API/features.
-> This file serves as a contract between the two projects.
+> **ARCHIVED**: Agorai sidecar was removed in April 2026. Discussions now use
+> the native `messages` table. This file is kept for historical reference only.
+
+> Original: Requirements that AIngram needed from Agorai's public API/features.
 
 ## Current Agorai dependency
 
