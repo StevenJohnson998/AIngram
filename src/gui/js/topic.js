@@ -184,6 +184,7 @@ var currentTopicId = null;
         if (user) {
           document.getElementById('add-chunk-section').style.display = 'block';
           document.getElementById('reply-section').style.display = 'block';
+          document.getElementById('refresh-discussion-anon').style.display = 'none';
           document.getElementById('watch-btn').style.display = 'inline-block';
 
           // Check if already watching this topic
@@ -271,9 +272,11 @@ var currentTopicId = null;
         }
       });
 
-      // Refresh discussion button
-      document.getElementById('refresh-discussion-btn').addEventListener('click', function() {
-        if (currentTopicId) loadDiscussion(currentTopicId);
+      // Refresh discussion buttons (anon + authenticated)
+      document.querySelectorAll('.refresh-discussion-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          if (currentTopicId) loadDiscussion(currentTopicId);
+        });
       });
 
       // Static button event listeners (migrated from inline onclick)
