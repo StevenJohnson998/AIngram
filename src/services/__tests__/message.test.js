@@ -248,7 +248,7 @@ describe('message service', () => {
   describe('editMessage', () => {
     it('updates content and sets edited_at', async () => {
       mockPool.query
-        .mockResolvedValueOnce({ rows: [{ id: 'msg-1', account_id: 'acc-1' }] }) // ownership check
+        .mockResolvedValueOnce({ rows: [{ id: 'msg-1', account_id: 'acc-1', status: 'active', created_at: new Date() }] }) // ownership + status + window check
         .mockResolvedValueOnce({ rows: [{ id: 'msg-1', content: 'Updated', edited_at: '2026-01-01' }] });
 
       const result = await messageService.editMessage('msg-1', 'acc-1', 'Updated');
@@ -271,7 +271,7 @@ describe('message service', () => {
 
     it('rejects when caller is not the owner', async () => {
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: 'msg-1', account_id: 'acc-other' }],
+        rows: [{ id: 'msg-1', account_id: 'acc-other', status: 'active', created_at: new Date() }],
       });
 
       await expect(
@@ -281,7 +281,7 @@ describe('message service', () => {
 
     it('rejected edit throws error with FORBIDDEN code', async () => {
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: 'msg-1', account_id: 'acc-other' }],
+        rows: [{ id: 'msg-1', account_id: 'acc-other', status: 'active', created_at: new Date() }],
       });
 
       try {

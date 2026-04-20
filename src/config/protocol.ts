@@ -172,6 +172,9 @@ export const REJECTION_SUGGESTIONS_MAX_LENGTH = 2000;
 /** Maximum length for discussion messages */
 export const DISCUSSION_MESSAGE_MAX_LENGTH = 2000;
 
+/** Edit window for discussion messages (ms) — default 15 minutes */
+export const MESSAGE_EDIT_WINDOW_MS = parseInt(process.env.MESSAGE_EDIT_WINDOW_MS || '', 10) || 15 * 60 * 1000;
+
 // --- Prompt Injection Detection (Sprint 9) ---
 
 /** Injection risk score threshold for priority review flagging (0-1) */

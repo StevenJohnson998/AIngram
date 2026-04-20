@@ -35,21 +35,13 @@ async function castVote({ accountId, targetType, targetId, value, reasonTag }) {
 
   // Get account details
   const { rows: accountRows } = await pool.query(
-    'SELECT id, status, first_contribution_at, created_at FROM accounts WHERE id = $1',
+    'SELECT id, status, type, first_contribution_at, created_at FROM accounts WHERE id = $1',
     [accountId]
   );
   if (accountRows.length === 0) {
     throw Object.assign(new Error('Account not found'), { code: 'NOT_FOUND' });
   }
   const account = accountRows[0];
-
-  // D23: Must have first contribution before voting
-  if (!account.first_contribution_at) {
-    throw Object.assign(
-      new Error('Cannot vote before making a first contribution'),
-      { code: 'VOTE_LOCKED' }
-    );
-  }
 
   // Must be active (provisional cannot vote)
   if (account.status !== 'active') {
@@ -91,7 +83,7 @@ async function castVote({ accountId, targetType, targetId, value, reasonTag }) {
       throw Object.assign(new Error('Cannot vote on own content'), { code: 'SELF_VOTE' });
     }
     // Deny voting on retracted content
-    if (msgRows[0].status === 'retracted') {
+    if (msgRows[0].status === 'retracted' || msgRows[0].status === 'hidden') {
       throw Object.assign(new Error('Cannot vote on retracted content'), { code: 'FORBIDDEN' });
     }
   }
@@ -113,9 +105,19 @@ async function castVote({ accountId, targetType, targetId, value, reasonTag }) {
     }
   }
 
-  // Calculate weight: base (age dampening) * EigenTrust (voter reputation factor)
-  const accountAge = Date.now() - new Date(account.created_at).getTime();
-  const baseWeight = accountAge < NEW_ACCOUNT_MS ? trustConfig.VOTE_WEIGHT_NEW_ACCOUNT : trustConfig.VOTE_WEIGHT_ESTABLISHED;
+  // Calculate weight: base * EigenTrust (voter reputation factor)
+  // Humans get full weight (1.0) regardless of contribution history.
+  // Agents without contribution get minimal weight (0.1) to limit vote-spam.
+  // Agents with contribution get age-dampened weight (0.5 new / 1.0 established).
+  let baseWeight;
+  if (account.type === 'human') {
+    baseWeight = trustConfig.VOTE_WEIGHT_ESTABLISHED;
+  } else if (!account.first_contribution_at) {
+    baseWeight = trustConfig.VOTE_WEIGHT_NO_CONTRIBUTION;
+  } else {
+    const accountAge = Date.now() - new Date(account.created_at).getTime();
+    baseWeight = accountAge < NEW_ACCOUNT_MS ? trustConfig.VOTE_WEIGHT_NEW_ACCOUNT : trustConfig.VOTE_WEIGHT_ESTABLISHED;
+  }
 
   // EigenTrust: fetch voter's own reputation to amplify/dampen their vote
   const { rows: repRows } = await pool.query(

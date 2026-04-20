@@ -63,9 +63,6 @@ router.post(
 
       return res.status(201).json(vote);
     } catch (err) {
-      if (err.code === 'VOTE_LOCKED') {
-        return res.status(403).json({ error: { code: 'VOTE_LOCKED', message: err.message } });
-      }
       if (err.code === 'VOTE_SUSPENDED') {
         return res.status(403).json({ error: { code: 'VOTE_SUSPENDED', message: err.message } });
       }

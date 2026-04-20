@@ -506,8 +506,8 @@ var currentTopicId = null;
             '<div class="chunk-content">' + unorderedBadge + disputedBadge + refreshFlagDot + renderContent(chunk.content, chunk.status) + '</div>' +
             '<div class="chunk-actions-row">' +
               '<div class="chunk-hover-actions">' +
-                '<button class="chunk-action-btn chunk-vote-up" title="Upvote" data-id="' + chunk.id + '">&#128077;</button>' +
-                '<button class="chunk-action-btn chunk-vote-down" title="Downvote" data-id="' + chunk.id + '">&#128078;</button>' +
+                '<button class="chunk-action-btn chunk-vote-up' + (chunk.my_vote === 'up' ? ' voted-active' : '') + '" title="Upvote" data-id="' + chunk.id + '">&#128077; ' + (chunk.votes_up || 0) + '</button>' +
+                '<button class="chunk-action-btn chunk-vote-down' + (chunk.my_vote === 'down' ? ' voted-active' : '') + '" title="Downvote" data-id="' + chunk.id + '">&#128078; ' + (chunk.votes_down || 0) + '</button>' +
                 '<button class="chunk-action-btn chunk-report-btn" title="Report" data-id="' + chunk.id + '" data-type="chunk">&#9888;</button>' +
                 '<span class="chunk-action-btn chunk-trust-label ' + trustClass(chunk.trust_score || 0) + '-text s-e08afbbb" data-tip="Trust score: ' + (chunk.trust_score || 0).toFixed(2) + '">' + (chunk.trust_score >= 0.7 ? 'High' : chunk.trust_score >= 0.4 ? 'Medium' : 'Low') + ' Trust</span>' +
                 '<a class="chunk-action-btn" href="./profile.html?id=' + (chunk.proposed_by || chunk.created_by) + '" class="s-8655f746">' + escapeHtml(chunk.proposed_by_name || 'Unknown') + ' &middot; ' + timeAgo(chunk.created_at) + '</a>' +
@@ -659,47 +659,30 @@ var currentTopicId = null;
     });
 
     async function voteChunk(chunkId, value) {
-      // Find the buttons for this chunk
-      var chunkEl = document.querySelector('.chunk-item[data-chunk-id="' + chunkId + '"]');
-      var upBtn = chunkEl ? chunkEl.querySelector('.chunk-vote-up') : null;
-      var downBtn = chunkEl ? chunkEl.querySelector('.chunk-vote-down') : null;
-
-      try {
-        var res = await API.post('/votes', {
-          target_type: 'chunk',
-          target_id: chunkId,
-          value: value,
-        });
-        if (res.status === 201) {
-          // Visual feedback: highlight the voted button, reset the other
-          if (upBtn && downBtn) {
-            upBtn.classList.toggle('voted-up', value === 'up');
-            downBtn.classList.toggle('voted-down', value === 'down');
-            upBtn.classList.remove('voted-down');
-            downBtn.classList.remove('voted-up');
-          }
-          // Reload topic to reflect updated trust
-          var topicRes = await API.get('/topics/' + currentTopicId);
-          if (topicRes.status === 200) renderChunks(topicRes.data.chunks || []);
-        } else if (res.status === 409) {
-          // Already voted — show brief feedback
-          if (upBtn && value === 'up') upBtn.classList.add('voted-up');
-          if (downBtn && value === 'down') downBtn.classList.add('voted-down');
-        } else if (res.data && res.data.error) {
-          showAlert(document.getElementById('chunks-container'), 'warning', res.data.error.message);
-        }
-      } catch (err) {
-        showAlert(document.getElementById('chunks-container'), 'warning', 'Vote failed. Are you logged in?');
+      var res = await API.post('/votes', {
+        target_type: 'chunk',
+        target_id: chunkId,
+        value: value,
+      });
+      if (res.error) {
+        alert(res.error.message || 'Vote failed');
+        return;
       }
+      // Reload topic to reflect updated trust and vote counts
+      var topicRes = await API.get('/topics/' + currentTopicId);
+      if (topicRes.status === 200) renderChunks(topicRes.data.chunks || []);
     }
 
     async function loadDiscussion(topicId) {
       var container = document.getElementById('discussion-container');
       try {
+        var user = null;
+        try { user = await getCurrentUser(); } catch(e) {}
+
         var res = await API.get('/topics/' + topicId + '/discussion?limit=50');
         if (res.status === 200 && res.data && res.data.messages && res.data.messages.length > 0) {
           var messages = res.data.messages.filter(function(msg) {
-            return !msg.content?.startsWith('Discussion summary:') && !msg.content?.startsWith('Article summary:');
+            return msg.status !== 'active' || (!msg.content?.startsWith('Discussion summary:') && !msg.content?.startsWith('Article summary:'));
           });
           if (messages.length === 0) {
             container.innerHTML = '<p class="text-muted">No discussion yet. Be the first to start one!</p>';
@@ -724,39 +707,159 @@ var currentTopicId = null;
             if (msg.level === 2) levelClass = ' message-policing';
             if (msg.level === 3) levelClass = ' message-technical';
             var unreadClass = isUnread ? ' message-unread' : '';
-            var voteUp = msg.votes_up || 0;
-            var voteDown = msg.votes_down || 0;
             var authorId = msg.account_id || msg.fromAgent || '';
             var authorLink = authorId
               ? '<a href="./profile.html?id=' + authorId + '" class="message-name link-plain">' + escapeHtml(msg.account_name || 'Unknown') + '</a>'
               : '<span class="message-name">' + escapeHtml(msg.account_name || 'Unknown') + '</span>';
-            var renderedContent = (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined')
-              ? DOMPurify.sanitize(marked.parse(msg.content || ''))
-              : escapeHtml(msg.content || '');
             var separator = '';
             if (isUnread && !separatorInserted) {
               separator = '<div class="unread-separator" id="unread-marker">New messages</div>';
               separatorInserted = true;
             }
+
+            // Retracted/hidden messages — show redacted label, no actions
+            if (msg.status === 'retracted' || msg.status === 'hidden') {
+              var label = msg.redacted_label || 'message removed';
+              return separator +
+              '<div class="message message-retracted' + unreadClass + '" data-msg-id="' + msg.id + '">' +
+                '<div class="message-avatar">' + avatar + '</div>' +
+                '<div class="message-body">' +
+                  '<div class="message-header">' +
+                    authorLink +
+                    '<div class="message-header-right">' +
+                      typeBadge +
+                      '<span class="message-time">' + timeAgo(msgTime) + '</span>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="message-text text-muted"><em>' + escapeHtml(label) + '</em></div>' +
+                '</div>' +
+              '</div>';
+            }
+
+            var renderedContent = (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined')
+              ? DOMPurify.sanitize(marked.parse(msg.content || ''))
+              : escapeHtml(msg.content || '');
+            var voteUp = msg.votes_up || 0;
+            var voteDown = msg.votes_down || 0;
+            var myVote = msg.my_vote || null;
+            var upClass = myVote === 'up' ? ' voted-active' : '';
+            var downClass = myVote === 'down' ? ' voted-active' : '';
+
+            // Action buttons
+            var voteButtons = '';
+            if (user) {
+              voteButtons =
+                '<button class="btn-msg-action msg-vote-up' + upClass + '" data-msg-id="' + msg.id + '" title="Upvote">&#128077; ' + voteUp + '</button>' +
+                '<button class="btn-msg-action msg-vote-down' + downClass + '" data-msg-id="' + msg.id + '" title="Downvote">&#128078; ' + voteDown + '</button>';
+            } else {
+              voteButtons =
+                '<span class="text-xs text-muted">&#128077; ' + voteUp + '</span>' +
+                '<span class="text-xs text-muted">&#128078; ' + voteDown + '</span>';
+            }
+
+            var editBtn = '';
+            if (msg.editable) {
+              var elapsed = Date.now() - new Date(msgTime).getTime();
+              var remainMin = Math.max(0, Math.ceil((15 * 60 * 1000 - elapsed) / 60000));
+              editBtn = '<button class="btn-msg-action msg-edit" data-msg-id="' + msg.id + '" title="Edit (' + remainMin + ' min left)">&#9998;</button>';
+            }
+
+            var deleteBtn = '';
+            var isAuthor = user && msg.account_id === user.id;
+            var isMod = user && (user.tier >= 2 || user.badgePolicing);
+            if (isAuthor || isMod) {
+              deleteBtn = '<button class="btn-msg-action msg-delete" data-msg-id="' + msg.id + '" title="Delete">&#128465;</button>';
+            }
+
+            var reportBtn = '';
+            if (user && !isAuthor) {
+              reportBtn = '<button class="btn-msg-action msg-report" data-msg-id="' + msg.id + '" title="Report">&#9888;</button>';
+            }
+
+            var editedTag = msg.edited_at ? ' <span class="text-xs text-muted">(edited)</span>' : '';
+
             return separator +
-            '<div class="message' + levelClass + unreadClass + '">' +
+            '<div class="message' + levelClass + unreadClass + '" data-msg-id="' + msg.id + '">' +
               '<div class="message-avatar">' + avatar + '</div>' +
               '<div class="message-body">' +
                 '<div class="message-header">' +
                   authorLink +
                   '<div class="message-header-right">' +
                     typeBadge +
-                    '<span class="message-time">' + timeAgo(msgTime) + '</span>' +
+                    '<span class="message-time">' + timeAgo(msgTime) + editedTag + '</span>' +
                   '</div>' +
                 '</div>' +
                 '<div class="message-text chunk-content">' + renderedContent + '</div>' +
                 '<div class="message-hover-actions">' +
-                  '<span class="text-xs text-muted">&#128077; ' + voteUp + '</span>' +
-                  '<span class="text-xs text-muted s-41eb26d2">&#128078; ' + voteDown + '</span>' +
+                  voteButtons + editBtn + deleteBtn + reportBtn +
                 '</div>' +
               '</div>' +
             '</div>';
           }).join('');
+
+          // --- Event delegation for vote, edit, delete ---
+          container.querySelectorAll('.msg-vote-up, .msg-vote-down').forEach(function(btn) {
+            btn.addEventListener('click', async function() {
+              var msgId = this.dataset.msgId;
+              var value = this.classList.contains('msg-vote-up') ? 'up' : 'down';
+              var res = await API.post('/votes', { target_type: 'message', target_id: msgId, value: value });
+              if (res.error) {
+                alert(res.error.message || 'Vote failed');
+                return;
+              }
+              loadDiscussion(topicId);
+            });
+          });
+
+          container.querySelectorAll('.msg-edit').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              var msgId = this.dataset.msgId;
+              var msgEl = container.querySelector('.message[data-msg-id="' + msgId + '"]');
+              var textEl = msgEl ? msgEl.querySelector('.message-text') : null;
+              if (!textEl) return;
+              var origMsg = messages.find(function(m) { return m.id === msgId; });
+              var origContent = origMsg ? origMsg.content : '';
+              var origHtml = textEl.innerHTML;
+              textEl.innerHTML =
+                '<textarea class="edit-textarea" rows="4" style="width:100%;resize:vertical;font-family:inherit;font-size:inherit;padding:8px;border-radius:4px;border:1px solid var(--border-color,#555);background:var(--bg-secondary,#1e1e1e);color:var(--text-primary,#e0e0e0);">' + escapeHtml(origContent) + '</textarea>' +
+                '<div style="margin-top:4px;display:flex;gap:8px;">' +
+                  '<button class="btn btn-sm edit-save">Save</button>' +
+                  '<button class="btn btn-sm btn-outline edit-cancel">Cancel</button>' +
+                '</div>';
+              textEl.querySelector('.edit-cancel').addEventListener('click', function() {
+                textEl.innerHTML = origHtml;
+              });
+              textEl.querySelector('.edit-save').addEventListener('click', async function() {
+                var newContent = textEl.querySelector('.edit-textarea').value.trim();
+                if (!newContent) return;
+                var res = await API.put('/messages/' + msgId, { content: newContent });
+                if (res.error) {
+                  alert(res.error.message || 'Edit failed');
+                  return;
+                }
+                loadDiscussion(topicId);
+              });
+            });
+          });
+
+          container.querySelectorAll('.msg-delete').forEach(function(btn) {
+            btn.addEventListener('click', async function() {
+              if (!confirm('Are you sure you want to delete this message?')) return;
+              var msgId = this.dataset.msgId;
+              var res = await API.del('/topics/' + topicId + '/discussion/' + msgId);
+              if (res.error) {
+                alert(res.error.message || 'Delete failed');
+                return;
+              }
+              loadDiscussion(topicId);
+            });
+          });
+
+          container.querySelectorAll('.msg-report').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              openReportModal(this.dataset.msgId, 'message');
+            });
+          });
 
           // Scroll to first unread message
           var marker = document.getElementById('unread-marker');

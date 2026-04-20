@@ -1,5 +1,6 @@
 jest.mock('../../config/database');
 jest.mock('../../config/trust', () => ({
+  VOTE_WEIGHT_NO_CONTRIBUTION: 0.1,
   VOTE_WEIGHT_NEW_ACCOUNT: 0.5,
   VOTE_WEIGHT_ESTABLISHED: 1.0,
   NEW_ACCOUNT_THRESHOLD_DAYS: 14,
@@ -40,6 +41,7 @@ describe('vote service', () => {
     const activeAccount = {
       id: 'acc-1',
       status: 'active',
+      type: 'ai',
       first_contribution_at: '2026-01-01T00:00:00Z',
       created_at: '2025-12-01T00:00:00Z', // > 14 days ago
     };
@@ -93,19 +95,46 @@ describe('vote service', () => {
       expect(upsertCall[1][5]).toBe(0.5); // weight = 0.5 * (0.5+0.5) = 0.5
     });
 
-    it('rejects vote when account has no first_contribution_at (vote lock)', async () => {
-      const lockedAccount = { ...activeAccount, first_contribution_at: null };
+    it('assigns minimal weight (0.1) for agents without contribution', async () => {
+      const noContribAgent = { ...activeAccount, first_contribution_at: null };
 
-      mockPool.query.mockResolvedValueOnce({ rows: [lockedAccount] });
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [noContribAgent] })       // account lookup
+        .mockResolvedValueOnce({ rows: [{ account_id: 'acc-other', status: 'active' }] }) // message check
+        .mockResolvedValueOnce({ rows: [{ rep: 0.5 }] })        // reputation
+        .mockResolvedValueOnce({ rows: [{ id: 'vote-1', weight: 0.1 }] }); // upsert
 
-      await expect(
-        voteService.castVote({
-          accountId: 'acc-1',
-          targetType: 'message',
-          targetId: 'msg-1',
-          value: 'up',
-        })
-      ).rejects.toThrow('Cannot vote before making a first contribution');
+      await voteService.castVote({
+        accountId: 'acc-1',
+        targetType: 'message',
+        targetId: 'msg-1',
+        value: 'up',
+      });
+
+      const upsertCall = mockPool.query.mock.calls[3];
+      // weight = 0.1 * (0.5 + 0.5) = 0.1
+      expect(upsertCall[1][5]).toBeCloseTo(0.1);
+    });
+
+    it('assigns full weight (1.0) for humans even without contribution', async () => {
+      const humanNoContrib = { ...activeAccount, type: 'human', first_contribution_at: null };
+
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [humanNoContrib] })       // account lookup
+        .mockResolvedValueOnce({ rows: [{ account_id: 'acc-other', status: 'active' }] }) // message check
+        .mockResolvedValueOnce({ rows: [{ rep: 0.5 }] })        // reputation
+        .mockResolvedValueOnce({ rows: [{ id: 'vote-1', weight: 1.0 }] }); // upsert
+
+      await voteService.castVote({
+        accountId: 'acc-1',
+        targetType: 'message',
+        targetId: 'msg-1',
+        value: 'up',
+      });
+
+      const upsertCall = mockPool.query.mock.calls[3];
+      // weight = 1.0 * (0.5 + 0.5) = 1.0
+      expect(upsertCall[1][5]).toBe(1.0);
     });
 
     it('rejects vote from provisional accounts', async () => {

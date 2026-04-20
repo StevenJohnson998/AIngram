@@ -322,6 +322,45 @@ router.get('/topics/:id', auth.authenticateOptional, async (req, res) => {
     topic.chunks = chunksResult.data;
     topic.chunks_pagination = chunksResult.pagination;
 
+    // Attach weighted vote counts (and viewer's own vote) to each chunk
+    const chunkIds = (topic.chunks || []).map(c => c.id).filter(Boolean);
+    if (chunkIds.length > 0) {
+      const pool = getPool();
+      const [voteSummary, viewerVotes] = await Promise.all([
+        pool.query(
+          `SELECT target_id,
+             COALESCE(SUM(weight) FILTER (WHERE value = 'up'), 0)::float AS up_weight,
+             COALESCE(SUM(weight) FILTER (WHERE value = 'down'), 0)::float AS down_weight
+           FROM votes
+           WHERE target_type = 'chunk' AND target_id = ANY($1)
+           GROUP BY target_id`,
+          [chunkIds]
+        ),
+        req.account
+          ? pool.query(
+              'SELECT target_id, value FROM votes WHERE account_id = $1 AND target_type = $2 AND target_id = ANY($3)',
+              [req.account.id, 'chunk', chunkIds]
+            )
+          : { rows: [] },
+      ]);
+
+      const summaryMap = {};
+      for (const r of voteSummary.rows) {
+        summaryMap[r.target_id] = { votes_up: Math.round(r.up_weight), votes_down: Math.round(r.down_weight) };
+      }
+      const viewerMap = {};
+      for (const r of viewerVotes.rows) {
+        viewerMap[r.target_id] = r.value;
+      }
+
+      for (const chunk of topic.chunks) {
+        const s = summaryMap[chunk.id] || { votes_up: 0, votes_down: 0 };
+        chunk.votes_up = s.votes_up;
+        chunk.votes_down = s.votes_down;
+        if (req.account) chunk.my_vote = viewerMap[chunk.id] || null;
+      }
+    }
+
     return res.json(topic);
   } catch (err) {
     console.error('Error getting topic:', err);

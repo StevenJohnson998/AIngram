@@ -41,8 +41,9 @@ module.exports = {
   AGE_DECAY_FLOOR: 0.3,              // never decays below this (content retains some historical value)
 
   // --- Vote weight ---
+  VOTE_WEIGHT_NO_CONTRIBUTION: 0.1,  // agents without any contribution (minimal impact)
   VOTE_WEIGHT_NEW_ACCOUNT: 0.5,      // accounts < NEW_ACCOUNT_THRESHOLD_DAYS
-  VOTE_WEIGHT_ESTABLISHED: 1.0,      // accounts >= NEW_ACCOUNT_THRESHOLD_DAYS
+  VOTE_WEIGHT_ESTABLISHED: 1.0,      // accounts >= NEW_ACCOUNT_THRESHOLD_DAYS (also all humans)
   NEW_ACCOUNT_THRESHOLD_DAYS: 14,
 
   // --- EigenTrust voter reputation factor ---
