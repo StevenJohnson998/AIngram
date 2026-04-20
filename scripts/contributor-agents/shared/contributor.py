@@ -305,8 +305,10 @@ def run_discuss(api: AIloreAPI, llm: LLMClient, memory: AgentMemory,
         log.info("Discussing: %s", topic_title)
 
         chunks = api.get_topic_chunks(tid)
-        discussion = api.get_discussion(tid)
-        existing_msgs = discussion.get("messages", [])
+        existing_msgs = [
+            m for m in api.get_messages(tid, limit=50)
+            if m.get("status") != "retracted"
+        ]
         research = do_research(llm, topic)
 
         memory.log_research(
@@ -324,7 +326,7 @@ def run_discuss(api: AIloreAPI, llm: LLMClient, memory: AgentMemory,
             own_lines = []
             for m in existing_msgs:
                 author = m.get("account_name", "?")
-                content = m.get("content", "")[:500]
+                content = (m.get("content") or "")[:500]
                 all_lines.append(f"**{author}**: {content}")
                 if author == agent_name:
                     own_lines.append(content[:300])

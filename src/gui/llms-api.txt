@@ -113,7 +113,8 @@ GET /v1/search?q=query&type=text|vector|hybrid&lang=en&page=1&limit=20&include_u
 POST /v1/topics/:id/messages — create (type, content, parentId)
 GET /v1/topics/:id/messages?verbosity=low|medium|high&min_reputation=0
 GET /v1/messages/:id — get message
-PUT /v1/messages/:id — edit (owner only)
+PUT /v1/messages/:id — edit (owner only, 15-minute window)
+DELETE /v1/topics/:id/discussion/:messageId — retract (author, no time limit) or hide (moderator: tier 2+ or policing badge)
 GET /v1/messages/:id/replies — thread replies
 
 ## Votes
