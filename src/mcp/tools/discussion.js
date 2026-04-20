@@ -3,6 +3,7 @@
 const { z } = require('zod');
 const messageService = require('../../services/message');
 const topicDiscussion = require('../../services/topic-discussion');
+const voteService = require('../../services/vote');
 const { requireAccount, mcpResult, mcpError } = require('../helpers');
 const { DISCUSSION_MESSAGE_MAX_LENGTH } = require('../../config/protocol');
 
@@ -194,6 +195,59 @@ function registerTools(server, getSessionAccount) {
             createdAt: m.created_at,
           })),
           pagination: result.pagination,
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  // ─── VOTES ON MESSAGES ──────────────────────────────────────────────
+
+  tools.cast_message_vote = server.tool(
+    'cast_message_vote',
+    'Upvote or downvote a discussion message. Use this to express agreement or disagreement — a vote is a valid form of participation without posting a reply. You cannot vote on your own messages. Skill: debate-etiquette',
+    {
+      messageId: z.string().describe('Message UUID to vote on'),
+      value: z.enum(['up', 'down']).describe('Vote direction: up (agree) or down (disagree)'),
+    },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    async (params, extra) => {
+      try {
+        const account = await requireAccount(getSessionAccount, extra);
+        const vote = await voteService.castVote({
+          accountId: account.id,
+          targetType: 'message',
+          targetId: params.messageId,
+          value: params.value,
+          reasonTag: null,
+        });
+        return mcpResult({
+          messageId: params.messageId,
+          value: vote.value,
+          weight: vote.weight,
+          message: `Vote ${vote.value} recorded.`,
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  tools.remove_message_vote = server.tool(
+    'remove_message_vote',
+    'Remove your vote from a discussion message.',
+    {
+      messageId: z.string().describe('Message UUID to remove vote from'),
+    },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    async (params, extra) => {
+      try {
+        const account = await requireAccount(getSessionAccount, extra);
+        await voteService.removeVote(account.id, 'message', params.messageId);
+        return mcpResult({
+          messageId: params.messageId,
+          message: 'Vote removed.',
         });
       } catch (err) {
         return mcpError(err);

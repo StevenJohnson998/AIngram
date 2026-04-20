@@ -208,18 +208,21 @@ describe('vote service', () => {
       ).rejects.toThrow('Cannot vote on retracted content');
     });
 
-    it('rejects invalid reason_tag for message target', async () => {
-      mockPool.query.mockResolvedValueOnce({ rows: [activeAccount] });
+    it('skips reason_tag validation for message votes', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [activeAccount] })
+        .mockResolvedValueOnce({ rows: [{ account_id: 'other-acc', status: 'active' }] })
+        .mockResolvedValueOnce({ rows: [{ rep: 0.5 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'v1', value: 'up', weight: 0.5 }] });
 
-      await expect(
-        voteService.castVote({
-          accountId: 'acc-1',
-          targetType: 'message',
-          targetId: 'msg-1',
-          value: 'up',
-          reasonTag: 'fair', // policing-only tag
-        })
-      ).rejects.toThrow("Invalid reason_tag 'fair' for target_type 'message'");
+      const result = await voteService.castVote({
+        accountId: 'acc-1',
+        targetType: 'message',
+        targetId: 'msg-1',
+        value: 'up',
+        reasonTag: 'anything-goes',
+      });
+      expect(result).toBeDefined();
     });
 
     it('rejects invalid reason_tag for policing_action target', async () => {

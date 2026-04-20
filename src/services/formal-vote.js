@@ -140,12 +140,7 @@ async function commitVote({ accountId, changesetId, commitHash }) {
   if (account.status !== 'active') {
     throw Object.assign(new Error('Only active accounts can vote'), { code: 'FORBIDDEN' });
   }
-  if (!account.first_contribution_at) {
-    throw Object.assign(
-      new Error('Cannot vote before making a first contribution'),
-      { code: 'VOTE_LOCKED' }
-    );
-  }
+  // No hard lock — vote weight already handles spam prevention for new accounts
 
   // Check vote suspension
   if (await isVoteSuspended(accountId)) {

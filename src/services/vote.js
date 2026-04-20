@@ -59,9 +59,9 @@ async function castVote({ accountId, targetType, targetId, value, reasonTag }) {
     );
   }
 
-  // Validate reason_tag matches target_type
-  if (reasonTag) {
-    const allowedTags = (targetType === 'message' || targetType === 'chunk') ? CONTENT_REASON_TAGS : POLICING_REASON_TAGS;
+  // Validate reason_tag matches target_type (skip validation for messages — simple up/down suffices)
+  if (reasonTag && targetType !== 'message') {
+    const allowedTags = (targetType === 'chunk' || targetType === 'changeset') ? CONTENT_REASON_TAGS : POLICING_REASON_TAGS;
     if (!allowedTags.includes(reasonTag)) {
       throw Object.assign(
         new Error(`Invalid reason_tag '${reasonTag}' for target_type '${targetType}'`),

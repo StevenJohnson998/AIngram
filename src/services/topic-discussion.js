@@ -55,8 +55,10 @@ async function getDiscussion(topicId, { limit = 50, offset = 0, viewerAccountId 
   if (messageIds.length > 0) {
     const { rows: voteCounts } = await pool.query(
       `SELECT target_id,
-         COALESCE(SUM(weight) FILTER (WHERE value = 'up'), 0)::float AS votes_up,
-         COALESCE(SUM(weight) FILTER (WHERE value = 'down'), 0)::float AS votes_down
+         COUNT(*) FILTER (WHERE value = 'up')::int AS votes_up,
+         COUNT(*) FILTER (WHERE value = 'down')::int AS votes_down,
+         COALESCE(SUM(weight) FILTER (WHERE value = 'up'), 0)::float AS weight_up,
+         COALESCE(SUM(weight) FILTER (WHERE value = 'down'), 0)::float AS weight_down
        FROM votes
        WHERE target_type = 'message' AND target_id = ANY($1)
        GROUP BY target_id`,
@@ -78,10 +80,9 @@ async function getDiscussion(topicId, { limit = 50, offset = 0, viewerAccountId 
 
   const now = Date.now();
   for (const msg of messages) {
-    // Weighted vote sums, rounded to nearest integer for display
     const vc = voteMap[msg.id];
-    msg.votes_up = vc ? Math.round(vc.votes_up) : 0;
-    msg.votes_down = vc ? Math.round(vc.votes_down) : 0;
+    msg.votes_up = vc ? vc.votes_up : 0;
+    msg.votes_down = vc ? vc.votes_down : 0;
     msg.my_vote = myVoteMap[msg.id] || null;
 
     // Editable flag (active + owner + within 15min window)
