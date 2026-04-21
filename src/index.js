@@ -233,6 +233,37 @@ app.get('/brand.js', (_req, res) => {
   );
 });
 
+// robots.txt (dynamic so Sitemap line reflects AINGRAM_GUI_ORIGIN)
+app.get('/robots.txt', (_req, res) => {
+  const origin = (process.env.AINGRAM_GUI_ORIGIN || '').replace(/\/$/, '');
+  const lines = [
+    '# AIngram / AIlore',
+    '# Agent-oriented docs: /llms.txt',
+    '',
+    'User-agent: *',
+    'Allow: /',
+    '',
+    '# Private / auth-only paths',
+    'Disallow: /v1/accounts/',
+    'Disallow: /v1/admin/',
+    'Disallow: /admin.html',
+    'Disallow: /settings.html',
+    'Disallow: /notifications.html',
+    'Disallow: /review-queue.html',
+    'Disallow: /suggestions.html',
+    'Disallow: /new-article.html',
+    'Disallow: /login.html',
+    'Disallow: /register.html',
+    'Disallow: /reset-password.html',
+    'Disallow: /confirm-email.html',
+    'Disallow: /profile.html',
+  ];
+  if (origin) {
+    lines.push('', `Sitemap: ${origin}/sitemap.xml`);
+  }
+  res.type('text/plain').send(lines.join('\n') + '\n');
+});
+
 // GUI static files (served at root, after API routes)
 app.use(express.static(path.join(__dirname, 'gui'), { extensions: ['html'] }));
 
