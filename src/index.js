@@ -233,6 +233,90 @@ app.get('/brand.js', (_req, res) => {
   );
 });
 
+// sitemap.xml (dynamic; cached in-memory for 1h to avoid DB hits on every crawl)
+const { getPool } = require('./config/database');
+const SITEMAP_CACHE_MS = 60 * 60 * 1000;
+let sitemapCache = { at: 0, xml: null };
+
+function escapeXml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+app.get('/sitemap.xml', async (_req, res) => {
+  const origin = (process.env.AINGRAM_GUI_ORIGIN || '').replace(/\/$/, '');
+  if (!origin) {
+    return res.status(503).type('text/plain')
+      .send('sitemap disabled: AINGRAM_GUI_ORIGIN is not configured for this deployment');
+  }
+
+  const now = Date.now();
+  if (sitemapCache.xml && (now - sitemapCache.at) < SITEMAP_CACHE_MS) {
+    res.set('Cache-Control', 'public, max-age=3600');
+    return res.type('application/xml').send(sitemapCache.xml);
+  }
+
+  try {
+    const pool = getPool();
+    const { rows } = await pool.query(
+      `SELECT t.id, t.updated_at, t.topic_type
+       FROM topics t
+       WHERE EXISTS (
+         SELECT 1 FROM chunk_topics ct JOIN chunks c ON c.id = ct.chunk_id
+         WHERE ct.topic_id = t.id AND c.status = 'published' AND c.hidden = false
+       )
+       ORDER BY t.updated_at DESC NULLS LAST
+       LIMIT 50000`
+    );
+
+    const urls = [
+      { loc: origin + '/', priority: '1.0', changefreq: 'daily' },
+      { loc: origin + '/search.html', priority: '0.8', changefreq: 'daily' },
+      { loc: origin + '/debates.html', priority: '0.8', changefreq: 'daily' },
+      { loc: origin + '/hot-topics.html', priority: '0.7', changefreq: 'daily' },
+      { loc: origin + '/search.html?topicType=course', priority: '0.9', changefreq: 'weekly' },
+      { loc: origin + '/about.html', priority: '0.5', changefreq: 'monthly' },
+      { loc: origin + '/help.html', priority: '0.5', changefreq: 'monthly' },
+    ];
+
+    for (const r of rows) {
+      const entry = {
+        loc: `${origin}/topic.html?id=${r.id}`,
+        changefreq: 'weekly',
+        priority: r.topic_type === 'course' ? '0.9' : '0.7',
+      };
+      if (r.updated_at) {
+        entry.lastmod = new Date(r.updated_at).toISOString().slice(0, 10);
+      }
+      urls.push(entry);
+    }
+
+    const parts = ['<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'];
+    for (const u of urls) {
+      parts.push('  <url>');
+      parts.push('    <loc>' + escapeXml(u.loc) + '</loc>');
+      if (u.lastmod) parts.push('    <lastmod>' + u.lastmod + '</lastmod>');
+      if (u.changefreq) parts.push('    <changefreq>' + u.changefreq + '</changefreq>');
+      if (u.priority) parts.push('    <priority>' + u.priority + '</priority>');
+      parts.push('  </url>');
+    }
+    parts.push('</urlset>', '');
+    const xml = parts.join('\n');
+
+    sitemapCache = { at: now, xml };
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.type('application/xml').send(xml);
+  } catch (err) {
+    console.error('sitemap.xml error:', err);
+    res.status(500).type('text/plain').send('Sitemap generation failed');
+  }
+});
+
 // robots.txt (dynamic so Sitemap line reflects AINGRAM_GUI_ORIGIN)
 app.get('/robots.txt', (_req, res) => {
   const origin = (process.env.AINGRAM_GUI_ORIGIN || '').replace(/\/$/, '');
