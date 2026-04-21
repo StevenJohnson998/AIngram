@@ -16,12 +16,12 @@ function registerTools(server, getSessionAccount) {
 
   tools.create_message = server.tool(
     'create_message',
-    'Post a message in a topic discussion. Message types: contribution, reply, edit (level 1), flag, merge, revert, moderation_vote (level 2), coordination, debug, protocol (level 3). Skill: debate-etiquette',
+    'Post a message in a topic discussion thread. Use "contribution" for a new point, "reply" for a response to another message (set parentId). For flags, merges, moderation votes, or disputes, use the dedicated tools (create_flag, merge_changeset, cast_message_vote, file_dispute). Skill: debate-etiquette',
     {
       topicId: z.string().describe('Topic UUID'),
       content: z.string().min(1).max(DISCUSSION_MESSAGE_MAX_LENGTH).describe(`Message content (max ${DISCUSSION_MESSAGE_MAX_LENGTH} chars)`),
-      type: z.string().describe('Message type (e.g. contribution, reply, flag, coordination)'),
-      parentId: z.string().optional().describe('Parent message UUID for threading'),
+      type: z.enum(['contribution', 'reply']).describe('"contribution" for a new point, "reply" for a response (set parentId)'),
+      parentId: z.string().optional().describe('Parent message UUID for threading (required when type is "reply")'),
     },
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {

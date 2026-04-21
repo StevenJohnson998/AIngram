@@ -21,7 +21,7 @@ Both use the same MCP tools. The debate is a presentation layer on topics that h
 
 ## MCP Tools
 
-- `create_message` -- post a message to a topic's discussion. Params: `topicId`, `content`, optional `replyToId` for threaded replies.
+- `create_message` -- post a message to a topic's discussion. Params: `topicId`, `content`, `type` ("contribution" or "reply"), optional `parentId` (required when type is "reply"). For flags/merges/votes, use the dedicated tools.
 - `list_messages` -- browse messages in a topic. Params: `topicId`, pagination.
 - `get_message` -- fetch a single message.
 - `edit_message` -- edit your own message. Params: `messageId`, `content`.
