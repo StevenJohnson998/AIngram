@@ -233,6 +233,138 @@ app.get('/brand.js', (_req, res) => {
   );
 });
 
+// SSR enhancement for topic pages: inject <title>, meta description, OpenGraph tags,
+// and schema.org JSON-LD so LLM crawlers / social previews see real content without
+// executing JavaScript. Falls through to static topic.html if the topic isn't found
+// or the request has no valid id/slug.
+const topicService = require('./services/topic');
+const topicSsrCache = new Map(); // key -> { at, html }
+const TOPIC_SSR_CACHE_MS = 60 * 1000;
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Strip custom citation/link markup to produce a clean plain-text description.
+function plainTextSummary(s, maxLen = 300) {
+  if (!s) return '';
+  return String(s)
+    .replace(/\[ref:[^\];]*;url:[^\]]*\]/g, '')   // [ref:desc;url:URL]
+    .replace(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g, '$1') // [[slug]]
+    .replace(/[*_`#>]/g, '')                      // basic markdown
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLen);
+}
+
+function buildTopicJsonLd(topic, canonicalUrl) {
+  const isCourse = topic.topic_type === 'course';
+  const description = plainTextSummary(topic.summary);
+  const base = {
+    '@context': 'https://schema.org',
+    '@type': isCourse ? 'Course' : 'Article',
+    headline: topic.title,
+    name: topic.title,
+    inLanguage: topic.lang || 'en',
+    url: canonicalUrl,
+    mainEntityOfPage: canonicalUrl,
+    datePublished: topic.created_at ? new Date(topic.created_at).toISOString() : undefined,
+    dateModified: topic.updated_at ? new Date(topic.updated_at).toISOString() : undefined,
+    author: { '@type': 'Organization', name: process.env.BRAND_NAME || 'AIngram' },
+    publisher: { '@type': 'Organization', name: process.env.BRAND_NAME || 'AIngram' },
+  };
+  if (description) base.description = description;
+  if (isCourse) {
+    base.provider = { '@type': 'Organization', name: process.env.BRAND_NAME || 'AIngram' };
+  }
+  return JSON.stringify(base, (_k, v) => v === undefined ? undefined : v);
+}
+
+app.get('/topic.html', async (req, res, next) => {
+  const id = typeof req.query.id === 'string' ? req.query.id : null;
+  const slug = typeof req.query.slug === 'string' ? req.query.slug : null;
+  const lang = typeof req.query.lang === 'string' ? req.query.lang : 'en';
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const SLUG_RE = /^[a-z0-9-]{1,100}$/i;
+  const LANG_RE = /^[a-z]{2,3}$/i;
+
+  const validId = id && UUID_RE.test(id);
+  const validSlug = slug && SLUG_RE.test(slug) && LANG_RE.test(lang);
+  if (!validId && !validSlug) {
+    return next();
+  }
+
+  const origin = (process.env.AINGRAM_GUI_ORIGIN || '').replace(/\/$/, '');
+  const cacheKey = validId ? `id:${id}` : `slug:${slug}:${lang}`;
+  const now = Date.now();
+  const cached = topicSsrCache.get(cacheKey);
+  if (cached && (now - cached.at) < TOPIC_SSR_CACHE_MS) {
+    res.set('Cache-Control', 'public, max-age=60');
+    return res.type('text/html').send(cached.html);
+  }
+
+  try {
+    let topic;
+    if (validId) {
+      topic = await topicService.getTopicById(id);
+    } else {
+      topic = await topicService.getTopicBySlug(slug, lang);
+    }
+    if (!topic) return next();
+
+    const htmlPath = path.join(__dirname, 'gui', 'topic.html');
+    const fs = require('fs');
+    const tmpl = fs.readFileSync(htmlPath, 'utf8');
+
+    const canonicalUrl = origin
+      ? `${origin}/topic.html?id=${topic.id}`
+      : `/topic.html?id=${topic.id}`;
+    const titleText = `${topic.title}${topic.topic_type === 'course' ? ' · Course' : ''} · ${process.env.BRAND_NAME || 'AIngram'}`;
+    const descText = plainTextSummary(topic.summary) || `Read "${topic.title}" on ${process.env.BRAND_NAME || 'AIngram'}.`;
+    const ogType = topic.topic_type === 'course' ? 'article' : 'article';
+    const jsonLd = buildTopicJsonLd(topic, canonicalUrl);
+
+    const headInjection = [
+      `<title>${escapeHtml(titleText)}</title>`,
+      `<meta name="description" content="${escapeHtml(descText)}">`,
+      `<link rel="canonical" href="${escapeHtml(canonicalUrl)}">`,
+      `<meta property="og:type" content="${escapeHtml(ogType)}">`,
+      `<meta property="og:title" content="${escapeHtml(topic.title)}">`,
+      `<meta property="og:description" content="${escapeHtml(descText)}">`,
+      `<meta property="og:url" content="${escapeHtml(canonicalUrl)}">`,
+      `<meta property="og:site_name" content="${escapeHtml(process.env.BRAND_NAME || 'AIngram')}">`,
+      `<meta property="og:locale" content="${escapeHtml(topic.lang || 'en')}">`,
+      `<meta name="twitter:card" content="summary">`,
+      `<meta name="twitter:title" content="${escapeHtml(topic.title)}">`,
+      `<meta name="twitter:description" content="${escapeHtml(descText)}">`,
+      // JSON-LD last (largest payload)
+      `<script type="application/ld+json">${jsonLd.replace(/<\/script/gi, '<\\/script')}</script>`,
+    ].join('\n  ');
+
+    // Replace the static <title>...</title> and inject everything else before </head>.
+    const withTitle = tmpl.replace(/<title>[\s\S]*?<\/title>/i, '');
+    const rendered = withTitle.replace('</head>', '  ' + headInjection + '\n</head>');
+
+    topicSsrCache.set(cacheKey, { at: now, html: rendered });
+    // Cap cache size so memory doesn't grow unbounded
+    if (topicSsrCache.size > 500) {
+      const oldestKey = topicSsrCache.keys().next().value;
+      topicSsrCache.delete(oldestKey);
+    }
+
+    res.set('Cache-Control', 'public, max-age=60');
+    res.type('text/html').send(rendered);
+  } catch (err) {
+    console.error('SSR topic.html error:', err);
+    return next();
+  }
+});
+
 // sitemap.xml (dynamic; cached in-memory for 1h to avoid DB hits on every crawl)
 const { getPool } = require('./config/database');
 const SITEMAP_CACHE_MS = 60 * 60 * 1000;
