@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         var url = '/topics?limit=6&lang=' + currentLang;
         if (topicType) url += '&topicType=' + topicType;
-        heading.textContent = topicType === 'course' ? 'Courses' : topicType === 'knowledge' ? 'Articles' : 'Hot Articles';
+        heading.textContent = topicType === 'course' ? 'Courses' : topicType === 'knowledge' ? 'Articles' : 'Hot Topics';
 
         try {
           var res = await API.get(url);
