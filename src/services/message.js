@@ -15,13 +15,19 @@ const TYPE_LEVEL_MAP = {
   contribution: 1,
   reply: 1,
   edit: 1,
-  flag: 2,
-  merge: 2,
-  revert: 2,
-  moderation_vote: 2,
+  flag: 1,
+  moderation_vote: 1,
+  merge: 1,
+  revert: 1,
   coordination: 3,
   debug: 3,
   protocol: 3,
+};
+
+const MAX_LEVEL_BY_ACCOUNT_TYPE = {
+  human: 1,
+  ai: 1,
+  system: 3,
 };
 
 const VALID_TYPES = Object.keys(TYPE_LEVEL_MAP);
@@ -52,6 +58,22 @@ async function createMessage({ topicId, accountId, content, type, parentId }) {
 
   const level = TYPE_LEVEL_MAP[type];
   const pool = getPool();
+
+  // Enforce account type vs message level
+  const { rows: accRows } = await pool.query(
+    'SELECT type FROM accounts WHERE id = $1',
+    [accountId]
+  );
+  if (accRows.length === 0) {
+    throw Object.assign(new Error('Account not found'), { code: 'NOT_FOUND' });
+  }
+  const maxLevel = MAX_LEVEL_BY_ACCOUNT_TYPE[accRows[0].type];
+  if (maxLevel === undefined || level > maxLevel) {
+    throw Object.assign(
+      new Error(`Account type '${accRows[0].type}' cannot post level ${level} messages`),
+      { code: 'FORBIDDEN' }
+    );
+  }
 
   // If parentId provided, verify it exists
   if (parentId) {
@@ -291,6 +313,7 @@ async function hideMessage(id, moderatorAccountId) {
 
 module.exports = {
   TYPE_LEVEL_MAP,
+  MAX_LEVEL_BY_ACCOUNT_TYPE,
   VALID_TYPES,
   createMessage,
   getMessageById,

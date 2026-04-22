@@ -27,11 +27,11 @@ describe('message service', () => {
       expect(messageService.TYPE_LEVEL_MAP.edit).toBe(1);
     });
 
-    it('maps level 2 types correctly', () => {
-      expect(messageService.TYPE_LEVEL_MAP.flag).toBe(2);
-      expect(messageService.TYPE_LEVEL_MAP.merge).toBe(2);
-      expect(messageService.TYPE_LEVEL_MAP.revert).toBe(2);
-      expect(messageService.TYPE_LEVEL_MAP.moderation_vote).toBe(2);
+    it('maps ex-level-2 types to level 1', () => {
+      expect(messageService.TYPE_LEVEL_MAP.flag).toBe(1);
+      expect(messageService.TYPE_LEVEL_MAP.merge).toBe(1);
+      expect(messageService.TYPE_LEVEL_MAP.revert).toBe(1);
+      expect(messageService.TYPE_LEVEL_MAP.moderation_vote).toBe(1);
     });
 
     it('maps level 3 types correctly', () => {
@@ -52,7 +52,9 @@ describe('message service', () => {
         type: 'contribution',
         parent_id: null,
       };
-      mockPool.query.mockResolvedValue({ rows: [msg] });
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ type: 'human' }] }) // account lookup
+        .mockResolvedValueOnce({ rows: [msg] }); // insert
 
       const result = await messageService.createMessage({
         topicId: 'topic-1',
@@ -68,9 +70,11 @@ describe('message service', () => {
       );
     });
 
-    it('creates a flag message with level 2', async () => {
-      const msg = { id: 'msg-2', level: 2, type: 'flag' };
-      mockPool.query.mockResolvedValue({ rows: [msg] });
+    it('creates a flag message with level 1', async () => {
+      const msg = { id: 'msg-2', level: 1, type: 'flag' };
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ type: 'human' }] }) // account lookup
+        .mockResolvedValueOnce({ rows: [msg] }); // insert
 
       const result = await messageService.createMessage({
         topicId: 'topic-1',
@@ -79,16 +83,14 @@ describe('message service', () => {
         type: 'flag',
       });
 
-      expect(result.level).toBe(2);
-      expect(mockPool.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO messages'),
-        expect.arrayContaining([2, 'flag'])
-      );
+      expect(result.level).toBe(1);
     });
 
-    it('creates a coordination message with level 3', async () => {
+    it('creates a coordination message with level 3 for system account', async () => {
       const msg = { id: 'msg-3', level: 3, type: 'coordination' };
-      mockPool.query.mockResolvedValue({ rows: [msg] });
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ type: 'system' }] }) // account lookup
+        .mockResolvedValueOnce({ rows: [msg] }); // insert
 
       const result = await messageService.createMessage({
         topicId: 'topic-1',
@@ -100,9 +102,39 @@ describe('message service', () => {
       expect(result.level).toBe(3);
     });
 
+    it('rejects level 3 message from human account', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [{ type: 'human' }] });
+
+      await expect(
+        messageService.createMessage({
+          topicId: 'topic-1',
+          accountId: 'acc-1',
+          content: 'Sync',
+          type: 'coordination',
+        })
+      ).rejects.toThrow("Account type 'human' cannot post level 3 messages");
+    });
+
+    it('rejects level 3 message from ai account', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [{ type: 'ai' }] });
+
+      await expect(
+        messageService.createMessage({
+          topicId: 'topic-1',
+          accountId: 'acc-1',
+          content: 'Sync',
+          type: 'coordination',
+        })
+      ).rejects.toThrow("Account type 'ai' cannot post level 3 messages");
+    });
+
     it('creates each type with the correct level', async () => {
       for (const [type, level] of Object.entries(messageService.TYPE_LEVEL_MAP)) {
-        mockPool.query.mockResolvedValue({ rows: [{ id: `msg-${type}`, level, type }] });
+        mockPool.query.mockReset();
+        const accountType = level >= 3 ? 'system' : 'human';
+        mockPool.query
+          .mockResolvedValueOnce({ rows: [{ type: accountType }] }) // account lookup
+          .mockResolvedValueOnce({ rows: [{ id: `msg-${type}`, level, type }] }); // insert
 
         const result = await messageService.createMessage({
           topicId: 'topic-1',
@@ -127,8 +159,9 @@ describe('message service', () => {
     });
 
     it('verifies parent exists when parentId provided', async () => {
-      // Parent lookup returns empty
-      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ type: 'human' }] }) // account lookup
+        .mockResolvedValueOnce({ rows: [] }); // parent lookup returns empty
 
       await expect(
         messageService.createMessage({
@@ -146,6 +179,7 @@ describe('message service', () => {
       const msg = { id: 'msg-reply', parent_id: 'parent-1', type: 'reply', level: 1 };
 
       mockPool.query
+        .mockResolvedValueOnce({ rows: [{ type: 'human' }] }) // account lookup
         .mockResolvedValueOnce({ rows: [parent] }) // parent lookup
         .mockResolvedValueOnce({ rows: [msg] }); // insert
 
@@ -158,6 +192,19 @@ describe('message service', () => {
       });
 
       expect(result.parent_id).toBe('parent-1');
+    });
+
+    it('rejects when account not found', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+      await expect(
+        messageService.createMessage({
+          topicId: 'topic-1',
+          accountId: 'nonexistent',
+          content: 'Hello',
+          type: 'contribution',
+        })
+      ).rejects.toThrow('Account not found');
     });
   });
 
