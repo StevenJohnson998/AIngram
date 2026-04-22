@@ -203,7 +203,7 @@ test.describe('Progressive Disclosure via SDK', () => {
 
       // After: 27 + 9 = 36 tools
       const after = await client.listTools();
-      expect(after.tools.length).toBe(36);
+      expect(after.tools.length).toBe(32); // 23 core+meta + 9 governance
       expect(after.tools.map(t => t.name)).toContain('remove_vote');
       expect(after.tools.map(t => t.name)).toContain('file_dispute');
     } finally {
@@ -220,15 +220,15 @@ test.describe('Progressive Disclosure via SDK', () => {
         arguments: { category: 'knowledge_curation', enabled: true },
       });
       const mid = await client.listTools();
-      expect(mid.tools.length).toBe(27 + 14); // core+meta + knowledge_curation
+      expect(mid.tools.length).toBe(23 + 18); // core+meta + knowledge_curation
 
       await client.callTool({
         name: 'enable_tools',
         arguments: { category: 'knowledge_curation', enabled: false },
       });
       const after = await client.listTools();
-      expect(after.tools.length).toBe(27);
-      expect(after.tools.map(t => t.name)).not.toContain('create_topic');
+      expect(after.tools.length).toBe(23);
+      expect(after.tools.map(t => t.name)).not.toContain('create_topic_full');
     } finally {
       await close();
     }
@@ -241,7 +241,7 @@ test.describe('Progressive Disclosure via SDK', () => {
       await client.callTool({ name: 'enable_tools', arguments: { category: 'subscriptions', enabled: true } });
 
       const tools = await client.listTools();
-      expect(tools.tools.length).toBe(27 + 15 + 5); // core+meta + account (15) + subscriptions (5)
+      expect(tools.tools.length).toBe(23 + 14 + 6); // core+meta + account (14) + subscriptions (6)
       expect(tools.tools.map(t => t.name)).toContain('register_account');
       expect(tools.tools.map(t => t.name)).toContain('poll_notifications');
     } finally {
@@ -249,7 +249,7 @@ test.describe('Progressive Disclosure via SDK', () => {
     }
   });
 
-  test('enable all categories shows all 111 tools', async () => {
+  test('enable all categories shows all 96 tools', async () => {
     const { client, close } = await createMcpClient(agent.apiKey);
     try {
       const caps = await client.callTool({ name: 'list_capabilities', arguments: {} });
@@ -268,15 +268,15 @@ test.describe('Progressive Disclosure via SDK', () => {
       // Use a raw tools/list call via callTool as fallback to verify count.
       try {
         const allTools = await client.listTools();
-        // 25 core + 2 meta + 84 other categories = 111 registered
-        expect(allTools.tools.length).toBe(111);
+        // 21 core + 2 meta + 73 other categories = 96 registered
+        expect(allTools.tools.length).toBe(96);
       } catch (listErr) {
         // If listTools fails due to SDK schema parsing, verify via list_capabilities
         const recheck = await client.callTool({ name: 'list_capabilities', arguments: {} });
         const data = JSON.parse(recheck.content[0].text);
         const allEnabled = data.categories.every(c => c.enabled);
         expect(allEnabled).toBe(true);
-        expect(data.totalTools).toBe(109); // 109 in categories (meta not counted)
+        expect(data.totalTools).toBe(94); // 94 in categories (meta not counted)
       }
     } finally {
       await close();
@@ -345,13 +345,13 @@ test.describe('Category Smoke Tests via SDK', () => {
     }
   });
 
-  test('governance: get_vote_summary works', async () => {
+  test('governance: get_votes summary works', async () => {
     const { client, close } = await createMcpClient(agent.apiKey);
     try {
       await client.callTool({ name: 'enable_tools', arguments: { category: 'governance', enabled: true } });
       const result = await client.callTool({
-        name: 'get_vote_summary',
-        arguments: { targetType: 'chunk', targetId: testChunkId },
+        name: 'get_votes',
+        arguments: { targetType: 'chunk', targetId: testChunkId, summary: true },
       });
       expect(result.isError).toBeFalsy();
       const data = JSON.parse(result.content[0].text);
@@ -375,12 +375,12 @@ test.describe('Category Smoke Tests via SDK', () => {
     }
   });
 
-  test('discussion: list_messages works', async () => {
+  test('discussion: get_messages works', async () => {
     const { client, close } = await createMcpClient(agent.apiKey);
     try {
       await client.callTool({ name: 'enable_tools', arguments: { category: 'discussion', enabled: true } });
       const result = await client.callTool({
-        name: 'list_messages',
+        name: 'get_messages',
         arguments: { topicId: testTopic.id },
       });
       expect(result.isError).toBeFalsy();

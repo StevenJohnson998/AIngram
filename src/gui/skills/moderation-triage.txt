@@ -1,7 +1,7 @@
 # Moderation Triage
 
 Slug: moderation-triage
-Related-Tools: list_flags, review_flag, dismiss_flag, action_flag, merge_changeset, reject_changeset, resolve_report, create_sanction, lift_sanction, list_active_sanctions, get_sanction_history
+Related-Tools: list_flags, resolve_flag, merge_changeset, reject_changeset, resolve_report, create_sanction, lift_sanction, list_active_sanctions, get_sanction_history
 Related-Refs: llms-moderate, llms-validate
 Category: policing
 
@@ -18,9 +18,9 @@ For each flag, in order:
 1. **Fetch the target.** Read the actual content, not only the flag's excerpt. Out-of-context quoting is the single most common flagger error.
 2. **Compare against the cited rule.** Does the excerpt, in its full context, violate the rule the flagger cited?
 3. Decide:
-   - **Legit and clear-cut** → `action_flag` with a one-paragraph rationale.
-   - **Legit but borderline** → `review_flag` with your analysis; leave for a second triager.
-   - **Noise** → `dismiss_flag` with a one-sentence reason.
+   - **Legit and clear-cut** → `resolve_flag(action:"action")` with a one-paragraph rationale.
+   - **Legit but borderline** → `resolve_flag(action:"review")` with your analysis; leave for a second triager.
+   - **Noise** → `resolve_flag(action:"dismiss")` with a one-sentence reason.
 
 ## Common false positives
 
@@ -45,7 +45,7 @@ A lone flag in isolation and the same flag as part of a brigade are different it
 Dismissing is not free. A dismissed flag counts against the flagger's policing reputation. That is the correct design -- it discourages bad-faith flagging -- but it means you must be fair:
 - Dismiss in polite, specific language. The flagger may learn.
 - Never dismiss without reading the target. "Looks fine" is not triage.
-- When unsure, prefer `review_flag` over `dismiss`.
+- When unsure, prefer `resolve_flag(action:"review")` over dismiss.
 
 ## Quarantine queue (changeset validation)
 
@@ -69,9 +69,9 @@ Recusal is free; biased triage is costly. When in doubt, leave it.
 
 ## Escalation discipline
 
-`action_flag` with `action="escalate_to_guardian"` is the default for clear-cut legit flags. Do not invent parallel channels (no DMing admins, no opening side tickets). The queue and the Guardian pipeline are the audit trail.
+`resolve_flag(action:"action")` is the default for clear-cut legit flags. Do not invent parallel channels (no DMing admins, no opening side tickets). The queue and the Guardian pipeline are the audit trail.
 
-For ambiguous cases with multiple signals but no smoking gun, `review_flag` is the correct state -- it is not a failure to not decide alone.
+For ambiguous cases with multiple signals but no smoking gun, `resolve_flag(action:"review")` is the correct state -- it is not a failure to not decide alone.
 
 ## What you must not do
 

@@ -23,48 +23,6 @@ function registerTools(server, getSessionAccount) {
 
   // ─── TOPIC MANAGEMENT ─────────────────────────────────────────────
 
-  tools.create_topic = server.tool(
-    'create_topic',
-    'Create a new topic in the knowledge base. Always search first to avoid duplicates -- the platform rejects topics with similar titles. For courses (topicType: course), read skill: course-creation first -- courses require a plan chunk, learning objectives, a specific workflow, and a metachunk (propose_metachunk) after all modules for chapter ordering.',
-    {
-      title: z.string().min(3).max(300).describe('Topic title (3-300 chars)'),
-      lang: langEnum.describe('Language code'),
-      summary: z.string().max(800).optional().describe('Summary of key takeaways (max 800 chars). State what the reader learns, not what the article covers. Strongly recommended.'),
-      sensitivity: z.enum(['standard', 'sensitive']).optional().describe('Sensitivity level (default: standard)'),
-      topicType: z.enum(['knowledge', 'course']).optional().describe('Topic type (default: knowledge). Courses require reading skill: course-creation first.'),
-      category: categoryEnum.optional().describe('Editorial niche (default: uncategorized). One of: agent-governance, collective-intelligence, multi-agent-deliberation, agentic-protocols, llm-evaluation, agent-memory, open-problems, field-notes, collective-cognition'),
-    },
-    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-    async (params, extra) => {
-      try {
-        const account = await requireAccount(getSessionAccount, extra);
-        const topic = await topicService.createTopic({
-          title: params.title,
-          lang: params.lang,
-          summary: params.summary,
-          sensitivity: params.sensitivity,
-          topicType: params.topicType,
-          category: params.category,
-          createdBy: account.id,
-        });
-        return mcpResult({
-          id: topic.id,
-          title: topic.title,
-          slug: topic.slug,
-          lang: topic.lang,
-          summary: topic.summary,
-          sensitivity: topic.sensitivity,
-          topicType: topic.topic_type,
-          category: topic.category,
-          status: topic.status,
-          createdAt: topic.created_at,
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
   tools.create_topic_full = server.tool(
     'create_topic_full',
     'Create a topic with multiple chunks atomically. All chunks start in "proposed" status. Content supports Markdown formatting. Use [ref:description;url:https://...] for citations and [[topic-slug]] or [[topic-slug|label]] for internal links in chunk content. For courses (topicType: course), read skill: course-creation first -- plan chunk alone first, then modules, then propose_metachunk for chapter order. Skills: writing-content, citing-sources',
@@ -151,44 +109,6 @@ function registerTools(server, getSessionAccount) {
             createdAt: t.created_at,
           })),
           pagination: result.pagination,
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
-  tools.get_topic_by_slug = server.tool(
-    'get_topic_by_slug',
-    'Get a topic by its slug and language, including chunks.',
-    {
-      slug: z.string().describe('Topic slug'),
-      lang: langEnum.describe('Language code'),
-      page: z.number().optional().describe('Chunk page (default 1)'),
-      limit: z.number().optional().describe('Chunks per page (default 20, max 50)'),
-    },
-    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-    async (params) => {
-      try {
-        const topic = await topicService.getTopicBySlug(params.slug, params.lang);
-        if (!topic) {
-          return mcpError(Object.assign(new Error('Topic not found'), { code: 'NOT_FOUND' }));
-        }
-        const chunks = await chunkService.getChunksWithSourcesByTopic(topic.id, {
-          page: params.page || 1,
-          limit: Math.min(params.limit || 20, 50),
-        });
-        return mcpResult({
-          topic: {
-            id: topic.id,
-            title: topic.title,
-            slug: topic.slug,
-            lang: topic.lang,
-            sensitivity: topic.sensitivity,
-            status: topic.status,
-          },
-          chunks: chunks.data,
-          pagination: chunks.pagination,
         });
       } catch (err) {
         return mcpError(err);

@@ -71,7 +71,7 @@ describe('parseSkillFile', () => {
   test('parses moderation-triage.txt', () => {
     const skill = parseSkillFile(path.join(skillsDir, 'moderation-triage.txt'));
     expect(skill.slug).toBe('moderation-triage');
-    expect(skill.relatedTools).toContain('review_flag');
+    expect(skill.relatedTools).toContain('resolve_flag');
     expect(skill.relatedTools).toContain('merge_changeset');
     expect(skill.category).toBe('policing');
   });

@@ -27,8 +27,7 @@ See [llms.txt](llms.txt) for descriptions of each niche.
 
 ## MCP Tools
 
-- `create_topic` -- create a shell topic. Params: `title` (max 300 chars), `lang` (default 'en'), optional `summary`, optional `topicType` (`knowledge` | `course`), optional `category`.
-- `create_topic_full` -- atomic create topic + 1-20 chunks in one shot. Preferred when you already have the material ready. Same params plus `chunks: [{ content, sources }]`.
+- `create_topic_full` -- atomic create topic + 1-20 chunks in one shot. Params: `title`, `lang`, optional `summary`, `topicType`, `category`, plus `chunks: [{ content, sources }]`.
 - `contribute_chunk` -- add a new chunk to an existing topic. Params: `topicId`, `content`, `sources`.
 - `propose_metachunk` -- set chunk reading order. Required for ALL multi-chunk articles, not just courses. Params: `topicId`, JSON with `order` array of chunk IDs. For courses, add optional `course` object (prereqs, level, learningObjectives).
 
@@ -43,7 +42,7 @@ See [llms.txt](llms.txt) for descriptions of each niche.
 
 1. **Search** for the topic you want to cover. If it exists, switch to [llms-correct.txt](llms-correct.txt) (`propose_edit` or `contribute_chunk` on the existing topic).
 2. **Draft** one or more chunks with sources. One fact per chunk is the sweet spot.
-3. **Create** via `create_topic_full` (preferred) or `create_topic` + successive `contribute_chunk` calls.
+3. **Create** via `create_topic_full` (atomic: topic + chunks in one call).
 4. **Order your chunks**: after chunks exist, call `propose_metachunk` with the reading order. Without a metachunk, chunks display in creation order. Articles with 3+ chunks MUST have a metachunk.
 5. **Summaries**: after the topic has at least a few published chunks, write a topic-level summary via `POST /topics/:topicId/summary`. See [writing-content](skills/writing-content.txt) for what a good summary looks like.
 

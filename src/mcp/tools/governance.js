@@ -72,84 +72,49 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  tools.get_vote_summary = server.tool(
-    'get_vote_summary',
-    'Get vote summary (up/down counts and weights) for a target.',
+  tools.get_votes = server.tool(
+    'get_votes',
+    'Get vote data. Provide targetType+targetId for votes on a target (add summary:true for aggregated counts), or accountId for vote history.',
     {
-      targetType: z.enum(VALID_TARGET_TYPES).describe('Target type'),
-      targetId: z.string().describe('Target UUID'),
-    },
-    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-    async (params) => {
-      try {
-        const summary = await voteService.getVoteSummary(params.targetType, params.targetId);
-        return mcpResult(summary);
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
-  tools.list_votes = server.tool(
-    'list_votes',
-    'List individual votes on a target.',
-    {
-      targetType: z.enum(VALID_TARGET_TYPES).describe('Target type'),
-      targetId: z.string().describe('Target UUID'),
+      targetType: z.enum(VALID_TARGET_TYPES).optional().describe('Target type (with targetId)'),
+      targetId: z.string().optional().describe('Target UUID (with targetType)'),
+      accountId: z.string().optional().describe('Account UUID — returns vote history'),
+      summary: z.boolean().optional().describe('If true, return aggregated counts instead of individual votes (requires targetType+targetId)'),
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
-        const result = await voteService.getVotesByTarget(params.targetType, params.targetId, {
-          page: params.page || 1,
-          limit: Math.min(params.limit || 20, 100),
-        });
-        return mcpResult({
-          votes: result.data.map(v => ({
-            id: v.id,
-            accountId: v.account_id,
-            value: v.value,
-            reasonTag: v.reason_tag,
-            weight: v.weight,
-            createdAt: v.created_at,
-          })),
-          pagination: result.pagination,
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
+        const pg = { page: params.page || 1, limit: Math.min(params.limit || 20, 100) };
 
-  tools.get_vote_history = server.tool(
-    'get_vote_history',
-    'Get vote history for an account.',
-    {
-      accountId: z.string().describe('Account UUID'),
-      page: z.number().optional().describe('Page (default 1)'),
-      limit: z.number().optional().describe('Per page (default 20, max 100)'),
-    },
-    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-    async (params) => {
-      try {
-        const result = await voteService.getVotesByAccount(params.accountId, {
-          page: params.page || 1,
-          limit: Math.min(params.limit || 20, 100),
-        });
-        return mcpResult({
-          votes: result.data.map(v => ({
-            id: v.id,
-            targetType: v.target_type,
-            targetId: v.target_id,
-            value: v.value,
-            reasonTag: v.reason_tag,
-            weight: v.weight,
-            createdAt: v.created_at,
-          })),
-          pagination: result.pagination,
-        });
+        if (params.targetType && params.targetId) {
+          if (params.summary) {
+            const s = await voteService.getVoteSummary(params.targetType, params.targetId);
+            return mcpResult(s);
+          }
+          const result = await voteService.getVotesByTarget(params.targetType, params.targetId, pg);
+          return mcpResult({
+            votes: result.data.map(v => ({
+              id: v.id, accountId: v.account_id, value: v.value,
+              reasonTag: v.reason_tag, weight: v.weight, createdAt: v.created_at,
+            })),
+            pagination: result.pagination,
+          });
+        }
+
+        if (params.accountId) {
+          const result = await voteService.getVotesByAccount(params.accountId, pg);
+          return mcpResult({
+            votes: result.data.map(v => ({
+              id: v.id, targetType: v.target_type, targetId: v.target_id, value: v.value,
+              reasonTag: v.reason_tag, weight: v.weight, createdAt: v.created_at,
+            })),
+            pagination: result.pagination,
+          });
+        }
+
+        return mcpError(Object.assign(new Error('Provide targetType+targetId or accountId'), { code: 'VALIDATION_ERROR' }));
       } catch (err) {
         return mcpError(err);
       }

@@ -601,17 +601,21 @@ function registerTools(server, getSessionAccount) {
 
   tools.cast_vote = server.tool(
     'cast_vote',
-    'Cast an informal vote (up/down) on a chunk, changeset, message, or policing action. Preconditions: account must be active, must have first_contribution_at set (VOTE_LOCKED otherwise), and cannot vote on own content (SELF_VOTE).',
+    'Cast an informal vote (up/down) on a chunk, changeset, message, or policing action. Use "retract" to remove a previous vote. Preconditions: account must be active, must have first_contribution_at set (VOTE_LOCKED otherwise), and cannot vote on own content (SELF_VOTE).',
     {
       targetType: z.enum(['message', 'policing_action', 'chunk', 'changeset']).describe('Target type'),
       targetId: z.string().describe('Target UUID'),
-      value: z.enum(['up', 'down']).describe('Vote value: up or down'),
+      value: z.enum(['up', 'down', 'retract']).describe('Vote value: up, down, or retract (remove previous vote)'),
       reasonTag: z.string().optional().describe('Reason tag (e.g. accurate, inaccurate, well_sourced, fair, unfair)'),
     },
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = await requireAccount(getSessionAccount, extra);
+        if (params.value === 'retract') {
+          await voteService.removeVote(account.id, params.targetType, params.targetId);
+          return mcpResult({ targetType: params.targetType, targetId: params.targetId, message: 'Vote retracted.' });
+        }
         const vote = await voteService.castVote({
           accountId: account.id,
           targetType: params.targetType,

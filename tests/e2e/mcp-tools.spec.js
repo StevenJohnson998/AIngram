@@ -823,8 +823,8 @@ test.describe('MCP User Journey', () => {
     expect(vote.isError).toBe(false);
 
     // Vote summary
-    const voteSummary = await mcpCallTool(request, session, 'get_vote_summary', {
-      targetType: 'chunk', targetId: testChunkId,
+    const voteSummary = await mcpCallTool(request, session, 'get_votes', {
+      targetType: 'chunk', targetId: testChunkId, summary: true,
     }, apiKey);
     expect(voteSummary.isError).toBe(false);
     expect(voteSummary.data.upCount).toBeGreaterThanOrEqual(1);

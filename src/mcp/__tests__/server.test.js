@@ -38,7 +38,7 @@ describe('MCP Server', () => {
     it('registers core tools + meta-tools + category tools', () => {
       const server = createMcpServer(AUTH_SESSION);
       const names = Object.keys(server._registeredTools);
-      // Core (12) + meta (2) + account (14) + knowledge_curation (12) + governance (10) = 50
+      // 21 core + 2 meta + 73 gated = 96 total
       expect(names.length).toBeGreaterThanOrEqual(14);
       expect(names).toEqual(expect.arrayContaining([...CORE_TOOL_NAMES, ...META_TOOL_NAMES]));
     });

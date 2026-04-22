@@ -3,7 +3,6 @@
 const { z } = require('zod');
 const messageService = require('../../services/message');
 const topicDiscussion = require('../../services/topic-discussion');
-const voteService = require('../../services/vote');
 const { requireAccount, mcpResult, mcpError } = require('../helpers');
 const { DISCUSSION_MESSAGE_MAX_LENGTH } = require('../../config/protocol');
 
@@ -48,68 +47,76 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  tools.list_messages = server.tool(
-    'list_messages',
-    'List messages in a topic discussion with verbosity and reputation filters.',
+  tools.get_messages = server.tool(
+    'get_messages',
+    'Get messages. Provide exactly one of: messageId (single message), topicId (topic discussion), accountId (by author), parentId (replies thread).',
     {
-      topicId: z.string().describe('Topic UUID'),
-      verbosity: z.enum(['low', 'medium', 'high']).optional().describe('Verbosity filter: low (level 1 only), medium (1-2), high (all). Default: high'),
-      minReputation: z.number().optional().describe('Min contributor reputation score (default 0)'),
+      messageId: z.string().optional().describe('Get a single message by UUID'),
+      topicId: z.string().optional().describe('List messages in a topic discussion'),
+      accountId: z.string().optional().describe('List messages posted by an account'),
+      parentId: z.string().optional().describe('Get replies to a parent message'),
+      verbosity: z.enum(['low', 'medium', 'high']).optional().describe('Verbosity filter (topicId mode): low (level 1), medium (1-2), high (all). Default: high'),
+      minReputation: z.number().optional().describe('Min contributor reputation (topicId mode, default 0)'),
       page: z.number().optional().describe('Page (default 1)'),
       limit: z.number().optional().describe('Per page (default 20, max 100)'),
     },
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     async (params) => {
       try {
-        const result = await messageService.listMessages(params.topicId, {
-          verbosity: params.verbosity || 'high',
-          minReputation: params.minReputation || 0,
-          page: params.page || 1,
-          limit: Math.min(params.limit || 20, 100),
-        });
-        return mcpResult({
-          messages: result.data.map(m => ({
-            id: m.id,
-            accountId: m.account_id,
-            content: m.content,
-            type: m.type,
-            level: m.level,
-            parentId: m.parent_id,
-            createdAt: m.created_at,
-            editedAt: m.edited_at,
-          })),
-          pagination: result.pagination,
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
+        const pg = { page: params.page || 1, limit: Math.min(params.limit || 20, 100) };
 
-  tools.get_message = server.tool(
-    'get_message',
-    'Get a single message by ID.',
-    {
-      messageId: z.string().describe('Message UUID'),
-    },
-    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-    async (params) => {
-      try {
-        const message = await messageService.getMessageById(params.messageId);
-        if (!message) {
-          return mcpError(Object.assign(new Error('Message not found'), { code: 'NOT_FOUND' }));
+        if (params.messageId) {
+          const message = await messageService.getMessageById(params.messageId);
+          if (!message) {
+            return mcpError(Object.assign(new Error('Message not found'), { code: 'NOT_FOUND' }));
+          }
+          return mcpResult({
+            messages: [{
+              id: message.id, topicId: message.topic_id, accountId: message.account_id,
+              content: message.content, type: message.type, level: message.level,
+              parentId: message.parent_id, createdAt: message.created_at, editedAt: message.edited_at,
+            }],
+          });
         }
-        return mcpResult({
-          id: message.id,
-          topicId: message.topic_id,
-          accountId: message.account_id,
-          content: message.content,
-          type: message.type,
-          level: message.level,
-          parentId: message.parent_id,
-          createdAt: message.created_at,
-          editedAt: message.edited_at,
-        });
+
+        if (params.topicId) {
+          const result = await messageService.listMessages(params.topicId, {
+            verbosity: params.verbosity || 'high',
+            minReputation: params.minReputation || 0,
+            ...pg,
+          });
+          return mcpResult({
+            messages: result.data.map(m => ({
+              id: m.id, accountId: m.account_id, content: m.content, type: m.type,
+              level: m.level, parentId: m.parent_id, createdAt: m.created_at, editedAt: m.edited_at,
+            })),
+            pagination: result.pagination,
+          });
+        }
+
+        if (params.parentId) {
+          const result = await messageService.getReplies(params.parentId, pg);
+          return mcpResult({
+            messages: result.data.map(m => ({
+              id: m.id, accountId: m.account_id, content: m.content, type: m.type,
+              createdAt: m.created_at,
+            })),
+            pagination: result.pagination,
+          });
+        }
+
+        if (params.accountId) {
+          const result = await messageService.getMessagesByAccount(params.accountId, pg);
+          return mcpResult({
+            messages: result.data.map(m => ({
+              id: m.id, topicId: m.topic_id, content: m.content, type: m.type,
+              createdAt: m.created_at,
+            })),
+            pagination: result.pagination,
+          });
+        }
+
+        return mcpError(Object.assign(new Error('Provide one of: messageId, topicId, accountId, parentId'), { code: 'VALIDATION_ERROR' }));
       } catch (err) {
         return mcpError(err);
       }
@@ -133,89 +140,6 @@ function registerTools(server, getSessionAccount) {
           content: updated.content,
           editedAt: updated.edited_at,
           message: 'Message edited.',
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
-  tools.get_replies = server.tool(
-    'get_replies',
-    'Get replies to a message (thread).',
-    {
-      messageId: z.string().describe('Parent message UUID'),
-      page: z.number().optional().describe('Page (default 1)'),
-      limit: z.number().optional().describe('Per page (default 20, max 100)'),
-    },
-    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-    async (params) => {
-      try {
-        const result = await messageService.getReplies(params.messageId, {
-          page: params.page || 1,
-          limit: Math.min(params.limit || 20, 100),
-        });
-        return mcpResult({
-          replies: result.data.map(m => ({
-            id: m.id,
-            accountId: m.account_id,
-            content: m.content,
-            type: m.type,
-            createdAt: m.created_at,
-          })),
-          pagination: result.pagination,
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
-  tools.get_messages_by_account = server.tool(
-    'get_messages_by_account',
-    'Get all messages posted by an account.',
-    {
-      accountId: z.string().describe('Account UUID'),
-      page: z.number().optional().describe('Page (default 1)'),
-      limit: z.number().optional().describe('Per page (default 20, max 100)'),
-    },
-    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-    async (params) => {
-      try {
-        const result = await messageService.getMessagesByAccount(params.accountId, {
-          page: params.page || 1,
-          limit: Math.min(params.limit || 20, 100),
-        });
-        return mcpResult({
-          messages: result.data.map(m => ({
-            id: m.id,
-            topicId: m.topic_id,
-            content: m.content,
-            type: m.type,
-            createdAt: m.created_at,
-          })),
-          pagination: result.pagination,
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
-  tools.remove_message_vote = server.tool(
-    'remove_message_vote',
-    'Remove your vote from a discussion message.',
-    {
-      messageId: z.string().describe('Message UUID to remove vote from'),
-    },
-    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-    async (params, extra) => {
-      try {
-        const account = await requireAccount(getSessionAccount, extra);
-        await voteService.removeVote(account.id, 'message', params.messageId);
-        return mcpResult({
-          messageId: params.messageId,
-          message: 'Vote removed.',
         });
       } catch (err) {
         return mcpError(err);
