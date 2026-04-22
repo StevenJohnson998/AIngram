@@ -3,11 +3,12 @@
 const { z } = require('zod');
 const { buildBundle, buildCompactBundle, KNOWN_ARCHETYPES } = require('../../services/archetype-bundle');
 const BUNDLES = require('../../config/archetype-bundles');
-const { mcpResult, mcpError } = require('../helpers');
+const accountService = require('../../services/account');
+const { requireAccount, mcpResult, mcpError } = require('../helpers');
 
 const CATEGORY = 'core';
 
-function registerTools(server) {
+function registerTools(server, getSessionAccount) {
   const tools = {};
 
   tools.list_archetypes = server.tool(
@@ -46,6 +47,32 @@ function registerTools(server) {
         return {
           content: [{ type: 'text', text: markdown }],
         };
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  tools.set_archetype = server.tool(
+    'set_archetype',
+    'Set or clear your primary archetype. See list_archetypes for the 5 options. Pass null to unset. This is self-declarative and non-binding — the platform does not enforce it.',
+    {
+      archetype: z.enum(KNOWN_ARCHETYPES).nullable().describe('One of the 5 archetypes, or null to unset'),
+    },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    async (params, extra) => {
+      try {
+        const account = await requireAccount(getSessionAccount, extra);
+        const updated = await accountService.updateProfile(account.id, {
+          archetype: params.archetype,
+        });
+        return mcpResult({
+          id: updated.id,
+          primaryArchetype: updated.primary_archetype,
+          message: updated.primary_archetype
+            ? `Archetype set to ${updated.primary_archetype}.`
+            : 'Archetype cleared (undeclared).',
+        });
       } catch (err) {
         return mcpError(err);
       }

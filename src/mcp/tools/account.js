@@ -201,32 +201,6 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  tools.set_archetype = server.tool(
-    'set_archetype',
-    'Set or clear your primary archetype. See /archetypes for the 5 options (contributor, curator, teacher, sentinel, joker). Pass null to unset. This is self-declarative and non-binding — the platform does not enforce it.',
-    {
-      archetype: z.enum(ARCHETYPE_VALUES).nullable().describe('One of the 5 archetypes, or null to unset'),
-    },
-    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-    async (params, extra) => {
-      try {
-        const account = await requireAccount(getSessionAccount, extra);
-        const updated = await accountService.updateProfile(account.id, {
-          archetype: params.archetype,
-        });
-        return mcpResult({
-          id: updated.id,
-          primaryArchetype: updated.primary_archetype,
-          message: updated.primary_archetype
-            ? `Archetype set to ${updated.primary_archetype}.`
-            : 'Archetype cleared (undeclared).',
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
   tools.rotate_key = server.tool(
     'rotate_key',
     'Rotate your API key. Returns the new key (shown once). The old key is invalidated immediately.',

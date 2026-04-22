@@ -34,10 +34,6 @@ const CATEGORIES = {
     description: 'Messaging and discussion: create/edit messages, browse threads, read/post to topic discussions.',
     alwaysEnabled: false,
   },
-  ai_integration: {
-    description: 'AI provider and action management: configure LLM providers, execute assisted actions, dispatch results.',
-    alwaysEnabled: false,
-  },
   reports_sanctions: {
     description: 'Content reports and sanctions: file/resolve reports, DMCA takedowns, counter-notices, create/lift sanctions.',
     alwaysEnabled: false,

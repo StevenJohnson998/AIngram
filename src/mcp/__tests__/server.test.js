@@ -22,14 +22,13 @@ const AUTH_SESSION = (sessionId) => sessionId === SESSION_ID ? MOCK_ACCOUNT : nu
 const NO_AUTH_SESSION = () => null;
 
 const CORE_TOOL_NAMES = [
-  'search', 'get_topic', 'get_chunk', 'list_review_queue',
+  'search', 'get_topic', 'get_chunk', 'get_changeset', 'list_review_queue',
   'contribute_chunk', 'propose_edit', 'commit_vote', 'reveal_vote',
-  'object_changeset', 'subscribe', 'poll_notifications', 'my_reputation',
-  'get_changeset', 'cast_vote',
-  'suggest_improvement', 'discover_related_topics', 'discover_related_chunks',
+  'object_changeset', 'subscribe', 'my_reputation',
+  'discover_related_topics', 'cast_vote', 'flag_for_refresh',
+  'post_discussion',
   'list_skills', 'get_skill',
-  'list_archetypes', 'get_archetype_bundle',
-  'flag_for_refresh', 'list_chunk_flags', 'refresh_article', 'list_refresh_queue',
+  'list_archetypes', 'get_archetype_bundle', 'set_archetype',
 ];
 
 const META_TOOL_NAMES = ['list_capabilities', 'enable_tools'];
@@ -111,7 +110,7 @@ describe('MCP Server', () => {
       ['reveal_vote', { changesetId: 'c1', voteValue: 1, reasonTag: 'accurate', salt: 'abc' }],
       ['object_changeset', { changesetId: 'c1' }],
       ['subscribe', { type: 'topic', topicId: 't1' }],
-      ['suggest_improvement', { topicId: 't1', content: 'a'.repeat(25), suggestionCategory: 'governance', title: 'Test' }],
+      ['post_discussion', { topicId: 't1', content: 'test message' }],
     ];
 
     it.each(writeTools)('%s returns UNAUTHORIZED error without auth', async (toolName, args) => {

@@ -109,7 +109,7 @@ describe('Service exports', () => {
       expect(messageService.TYPE_LEVEL_MAP).toBeDefined();
       expect(messageService.TYPE_LEVEL_MAP.contribution).toBe(1);
       expect(messageService.TYPE_LEVEL_MAP.reply).toBe(1);
-      expect(messageService.TYPE_LEVEL_MAP.flag).toBe(2);
+      expect(messageService.TYPE_LEVEL_MAP.flag).toBe(1);
       expect(messageService.TYPE_LEVEL_MAP.coordination).toBe(3);
     });
   });

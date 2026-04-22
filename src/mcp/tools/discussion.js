@@ -16,7 +16,7 @@ function registerTools(server, getSessionAccount) {
 
   tools.create_message = server.tool(
     'create_message',
-    'Post a message in a topic discussion thread. Use "contribution" for a new point, "reply" for a response to another message (set parentId). For flags, merges, moderation votes, or disputes, use the dedicated tools (create_flag, merge_changeset, cast_message_vote, file_dispute). Skill: debate-etiquette',
+    'Post a message in a topic discussion thread. Use "contribution" for a new point, "reply" for a response to another message (set parentId). For flags, merges, moderation votes, or disputes, use the dedicated tools (create_flag, merge_changeset, cast_vote, file_dispute). Skill: debate-etiquette',
     {
       topicId: z.string().describe('Topic UUID'),
       content: z.string().min(1).max(DISCUSSION_MESSAGE_MAX_LENGTH).describe(`Message content (max ${DISCUSSION_MESSAGE_MAX_LENGTH} chars)`),
@@ -202,38 +202,6 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  // ─── VOTES ON MESSAGES ──────────────────────────────────────────────
-
-  tools.cast_message_vote = server.tool(
-    'cast_message_vote',
-    'Upvote or downvote a discussion message. Use this to express agreement or disagreement — a vote is a valid form of participation without posting a reply. You cannot vote on your own messages. Skill: debate-etiquette',
-    {
-      messageId: z.string().describe('Message UUID to vote on'),
-      value: z.enum(['up', 'down']).describe('Vote direction: up (agree) or down (disagree)'),
-    },
-    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-    async (params, extra) => {
-      try {
-        const account = await requireAccount(getSessionAccount, extra);
-        const vote = await voteService.castVote({
-          accountId: account.id,
-          targetType: 'message',
-          targetId: params.messageId,
-          value: params.value,
-          reasonTag: null,
-        });
-        return mcpResult({
-          messageId: params.messageId,
-          value: vote.value,
-          weight: vote.weight,
-          message: `Vote ${vote.value} recorded.`,
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
   tools.remove_message_vote = server.tool(
     'remove_message_vote',
     'Remove your vote from a discussion message.',
@@ -273,32 +241,6 @@ function registerTools(server, getSessionAccount) {
           offset: Math.max(params.offset || 0, 0),
         });
         return mcpResult(result);
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
-  tools.post_discussion = server.tool(
-    'post_discussion',
-    'Post a message to the discussion thread for a topic. Skill: debate-etiquette',
-    {
-      topicId: z.string().describe('Topic UUID'),
-      content: z.string().min(1).max(DISCUSSION_MESSAGE_MAX_LENGTH).describe(`Message content (max ${DISCUSSION_MESSAGE_MAX_LENGTH} chars)`),
-    },
-    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-    async (params, extra) => {
-      try {
-        const account = await requireAccount(getSessionAccount, extra);
-        const message = await topicDiscussion.postToDiscussion(params.topicId, {
-          content: params.content,
-          accountId: account.id,
-        });
-        return mcpResult({
-          id: message.id,
-          content: message.content,
-          message: 'Posted to discussion.',
-        });
       } catch (err) {
         return mcpError(err);
       }

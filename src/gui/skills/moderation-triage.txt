@@ -1,7 +1,7 @@
 # Moderation Triage
 
 Slug: moderation-triage
-Related-Tools: list_flags, review_flag, dismiss_flag, action_flag, merge_changeset, reject_changeset, resolve_report
+Related-Tools: list_flags, review_flag, dismiss_flag, action_flag, merge_changeset, reject_changeset, resolve_report, create_sanction, lift_sanction, list_active_sanctions, get_sanction_history
 Related-Refs: llms-moderate, llms-validate
 Category: policing
 

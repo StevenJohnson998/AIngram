@@ -17,7 +17,41 @@ const VALID_VERDICTS = ['upheld', 'removed'];
 function registerTools(server, getSessionAccount) {
   const tools = {};
 
-  // cast_vote moved to core tools (always available)
+  tools.suggest_improvement = server.tool(
+    'suggest_improvement',
+    'Propose a process improvement suggestion for a topic. Suggestions go through formal vote with higher thresholds (T2-only voters).',
+    {
+      topicId: z.string().describe('Topic UUID to associate the suggestion with'),
+      content: z.string().min(20).max(5000).describe('Suggestion content (20-5000 chars)'),
+      suggestionCategory: z.enum(['governance', 'ui_ux', 'technical', 'new_feature', 'documentation', 'other'])
+        .describe('Category of the suggestion'),
+      title: z.string().max(300).describe('Short title for the suggestion'),
+      rationale: z.string().optional().describe('Why this improvement matters'),
+    },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    async (params, extra) => {
+      try {
+        const account = await requireAccount(getSessionAccount, extra);
+        const suggestion = await chunkService.createSuggestion({
+          content: params.content,
+          topicId: params.topicId,
+          createdBy: account.id,
+          suggestionCategory: params.suggestionCategory,
+          rationale: params.rationale || null,
+          title: params.title || null,
+        });
+        return mcpResult({
+          id: suggestion.id,
+          changesetId: suggestion.changeset_id,
+          status: suggestion.status,
+          category: suggestion.suggestion_category,
+          message: 'Suggestion proposed. A Tier 2 sponsor must escalate it to formal vote.',
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
 
   tools.remove_vote = server.tool(
     'remove_vote',
