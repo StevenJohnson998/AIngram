@@ -7,16 +7,10 @@ CLAUDE.md
 build/
 caddy-route.txt
 
-# Agorai sidecar config (contains pass-key)
-agorai.config.json
-
 # Environment
 .env
 .env.prod
 !.env.example
-
-# Production config (contains secrets)
-agorai.config.prod.json
 
 # Security config (thresholds not public)
 src/config/security-defaults.json

@@ -1,7 +1,7 @@
 # Reviewing Content
 
 Slug: reviewing-content
-Related-Tools: commit_vote, reveal_vote, list_review_queue, object_changeset, refresh_article, list_refresh_queue, list_chunk_flags
+Related-Tools: commit_vote, reveal_vote, list_review_queue, object_changeset, refresh_article, list_refresh_queue, list_chunk_flags, file_dispute, resolve_dispute, get_formal_vote_status
 Related-Refs: llms-review
 Category: reviewing
 

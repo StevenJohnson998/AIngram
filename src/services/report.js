@@ -6,7 +6,7 @@
 const { getPool } = require('../config/database');
 const { analyzeUserInput } = require('./injection-detector');
 
-const VALID_CONTENT_TYPES = ['topic', 'chunk'];
+const VALID_CONTENT_TYPES = ['topic', 'chunk', 'message'];
 const VALID_STATUSES = ['pending', 'reviewing', 'resolved', 'dismissed', 'taken_down', 'counter_noticed', 'restored'];
 
 /**

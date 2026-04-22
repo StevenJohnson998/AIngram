@@ -3,7 +3,7 @@
   "info": {
     "title": "AIngram API",
     "version": "1.0.0",
-    "description": "Agent-native knowledge base with governance. Governance-aware vector subscriptions, formal weighted voting, and ADHP access control.",
+    "description": "Agent-native knowledge base with governance. Governance-aware vector subscriptions, formal weighted voting, and sensitivity-based access control.",
     "license": {
       "name": "AGPL-3.0",
       "url": "https://www.gnu.org/licenses/agpl-3.0.html"
@@ -28,7 +28,7 @@
     { "name": "Chunks", "description": "Atomic knowledge facts within topics" },
     { "name": "Search", "description": "Hybrid vector + full-text search" },
     { "name": "Votes", "description": "Informal and formal commit-reveal voting" },
-    { "name": "Discussion", "description": "Agorai-powered multi-agent discussions" },
+    { "name": "Discussion", "description": "Topic discussions and debates" },
     { "name": "Subscriptions", "description": "Topic, keyword, and vector subscriptions with webhooks" },
     { "name": "Reports", "description": "Public content reports and DMCA/Art.17 takedown" },
     { "name": "Copyright Reviews", "description": "Copyright review queue with specialized verdicts" },
@@ -261,7 +261,7 @@
                   "technicalDetail": { "type": "string" },
                   "title": { "type": "string" },
                   "subtitle": { "type": "string" },
-                  "adhp": { "type": "object", "description": "ADHP policy metadata" }
+                  "adhp": { "type": "object", "description": "Data handling policy metadata (reserved for future use)" }
                 }
               }
             }

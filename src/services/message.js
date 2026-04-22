@@ -6,6 +6,7 @@ const { getPool } = require('../config/database');
 const { analyzeUserInput } = require('./injection-detector');
 const { buildPreview } = require('./injection-preview');
 const injectionTracker = require('./injection-tracker');
+const { MESSAGE_EDIT_WINDOW_MS } = require('../config/protocol');
 
 /**
  * Server-enforced mapping: message type -> level.
@@ -14,13 +15,19 @@ const TYPE_LEVEL_MAP = {
   contribution: 1,
   reply: 1,
   edit: 1,
-  flag: 2,
-  merge: 2,
-  revert: 2,
-  moderation_vote: 2,
+  flag: 1,
+  moderation_vote: 1,
+  merge: 1,
+  revert: 1,
   coordination: 3,
   debug: 3,
   protocol: 3,
+};
+
+const MAX_LEVEL_BY_ACCOUNT_TYPE = {
+  human: 1,
+  ai: 1,
+  system: 3,
 };
 
 const VALID_TYPES = Object.keys(TYPE_LEVEL_MAP);
@@ -51,6 +58,22 @@ async function createMessage({ topicId, accountId, content, type, parentId }) {
 
   const level = TYPE_LEVEL_MAP[type];
   const pool = getPool();
+
+  // Enforce account type vs message level
+  const { rows: accRows } = await pool.query(
+    'SELECT type FROM accounts WHERE id = $1',
+    [accountId]
+  );
+  if (accRows.length === 0) {
+    throw Object.assign(new Error('Account not found'), { code: 'NOT_FOUND' });
+  }
+  const maxLevel = MAX_LEVEL_BY_ACCOUNT_TYPE[accRows[0].type];
+  if (maxLevel === undefined || level > maxLevel) {
+    throw Object.assign(
+      new Error(`Account type '${accRows[0].type}' cannot post level ${level} messages`),
+      { code: 'FORBIDDEN' }
+    );
+  }
 
   // If parentId provided, verify it exists
   if (parentId) {
@@ -154,9 +177,9 @@ async function editMessage(id, accountId, content) {
   // S4: defensive injection telemetry on message edit
   if (content) analyzeUserInput(content, 'message.content.update', { messageId: id, accountId });
 
-  // Check ownership
+  // Check ownership, status, and edit window
   const { rows: existing } = await pool.query(
-    'SELECT id, account_id FROM messages WHERE id = $1',
+    'SELECT id, account_id, status, created_at FROM messages WHERE id = $1',
     [id]
   );
 
@@ -166,6 +189,15 @@ async function editMessage(id, accountId, content) {
 
   if (existing[0].account_id !== accountId) {
     throw Object.assign(new Error('Only the message author can edit'), { code: 'FORBIDDEN' });
+  }
+
+  if (existing[0].status !== 'active') {
+    throw Object.assign(new Error('Cannot edit a retracted or hidden message'), { code: 'FORBIDDEN' });
+  }
+
+  const editWindowMin = Math.round(MESSAGE_EDIT_WINDOW_MS / 60000);
+  if (Date.now() - new Date(existing[0].created_at).getTime() > MESSAGE_EDIT_WINDOW_MS) {
+    throw Object.assign(new Error(`Edit window expired (${editWindowMin} minutes after posting)`), { code: 'FORBIDDEN' });
   }
 
   const { rows } = await pool.query(
@@ -224,13 +256,71 @@ async function getMessagesByAccount(accountId, { page = 1, limit = 20 } = {}) {
   };
 }
 
+/**
+ * Retract a message (author soft-delete). Sets status to 'retracted'.
+ */
+async function retractMessage(id, accountId) {
+  const pool = getPool();
+  const { rows: existing } = await pool.query(
+    'SELECT id, account_id, status FROM messages WHERE id = $1',
+    [id]
+  );
+
+  if (existing.length === 0) {
+    throw Object.assign(new Error('Message not found'), { code: 'NOT_FOUND' });
+  }
+  if (existing[0].status !== 'active') {
+    throw Object.assign(new Error('Message already retracted or hidden'), { code: 'VALIDATION_ERROR' });
+  }
+  if (existing[0].account_id !== accountId) {
+    throw Object.assign(new Error('Only the message author can retract'), { code: 'FORBIDDEN' });
+  }
+
+  const { rows } = await pool.query(
+    `UPDATE messages SET status = 'retracted', retracted_at = now(), retracted_by = $1
+     WHERE id = $2 RETURNING *`,
+    [accountId, id]
+  );
+  return rows[0];
+}
+
+/**
+ * Hide a message (moderator action). Sets status to 'hidden'.
+ * Returns the message with the moderator's name for transparency.
+ */
+async function hideMessage(id, moderatorAccountId) {
+  const pool = getPool();
+  const { rows: existing } = await pool.query(
+    'SELECT id, status FROM messages WHERE id = $1',
+    [id]
+  );
+
+  if (existing.length === 0) {
+    throw Object.assign(new Error('Message not found'), { code: 'NOT_FOUND' });
+  }
+  if (existing[0].status !== 'active') {
+    throw Object.assign(new Error('Message already retracted or hidden'), { code: 'VALIDATION_ERROR' });
+  }
+
+  const { rows } = await pool.query(
+    `UPDATE messages m SET status = 'hidden', retracted_at = now(), retracted_by = $1
+     WHERE m.id = $2
+     RETURNING m.*, (SELECT name FROM accounts WHERE id = $1) AS hidden_by_name`,
+    [moderatorAccountId, id]
+  );
+  return rows[0];
+}
+
 module.exports = {
   TYPE_LEVEL_MAP,
+  MAX_LEVEL_BY_ACCOUNT_TYPE,
   VALID_TYPES,
   createMessage,
   getMessageById,
   listMessages,
   editMessage,
+  retractMessage,
+  hideMessage,
   getReplies,
   getMessagesByAccount,
 };

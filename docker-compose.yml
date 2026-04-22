@@ -1,12 +1,12 @@
 # AIngram — Standalone Docker Compose
-# Full stack: PostgreSQL + Agorai + Ollama + AIngram
+# Full stack: PostgreSQL + Ollama + AIngram
 #
-# Quick start (all included):
-#   cp .env.example .env && cp agorai.config.example.json agorai.config.json
+# Quick start:
+#   cp .env.example .env
 #   docker compose up
 #
-# Bring your own Ollama/Agorai:
-#   Edit .env → set OLLAMA_URL / AGORAI_URL to your instances
+# Bring your own Ollama:
+#   Edit .env → set OLLAMA_URL to your instance
 #   docker compose up aingram postgres
 
 services:
@@ -19,7 +19,6 @@ services:
       - .env
     environment:
       - DB_HOST=postgres
-      - AGORAI_URL=http://agorai:3100
       - OLLAMA_URL=http://ollama:11434
       - EMBEDDING_TIMEOUT_MS=15000
     ports:
@@ -28,8 +27,6 @@ services:
       - aingram
     depends_on:
       postgres:
-        condition: service_healthy
-      agorai:
         condition: service_healthy
       ollama:
         condition: service_started
@@ -57,29 +54,6 @@ services:
       timeout: 3s
       retries: 5
 
-  # --- Discussion Engine ---
-
-  agorai:
-    image: ghcr.io/stevenjohnson998/agorai:0.8.0
-    container_name: aingram-agorai
-    entrypoint: ["node", "dist/cli.js", "serve", "--host", "0.0.0.0"]
-    environment:
-      - AGORAI_PORT=3100
-      - AGORAI_DATA_HOME=/app/data
-      - AGORAI_BRIDGE_SALT=${AGORAI_BRIDGE_SALT:-default-dev-salt-change-in-production}
-      - AGORAI_PASS_KEY=${AGORAI_PASS_KEY:-changeme}
-    volumes:
-      - agorai-data:/app/data
-      - ./agorai.config.json:/app/agorai.config.json:ro
-    networks:
-      - aingram
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:3100/health"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-
   # --- Embedding Engine ---
 
   ollama:
@@ -94,7 +68,6 @@ services:
 
 volumes:
   pgdata:
-  agorai-data:
   ollama-data:
 
 networks:

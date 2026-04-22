@@ -63,7 +63,7 @@ CREATE INDEX idx_sanctions_account ON sanctions (account_id, active);
 
 ## topics
 
-Wikipedia-like articles. Each topic can link to an Agorai conversation for debate.
+Wikipedia-like articles with discussion threads.
 
 ```sql
 CREATE TABLE topics (
@@ -80,7 +80,7 @@ CREATE TABLE topics (
   content_flag_reason     TEXT,
   content_flagged_by      UUID REFERENCES accounts(id),
   content_flagged_at      TIMESTAMPTZ,
-  -- Agorai integration
+  -- DEPRECATED: Agorai removed, column retained for rollback. Drop after 2026-06-01.
   agorai_conversation_id  VARCHAR(100),
   -- Metadata
   created_by              UUID NOT NULL REFERENCES accounts(id),

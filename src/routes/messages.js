@@ -14,8 +14,8 @@ const { DISCUSSION_MESSAGE_MAX_LENGTH } = require('../config/protocol');
 const router = Router();
 
 const VALID_VERBOSITIES = ['low', 'medium', 'high'];
-const LEVEL_1_TYPES = ['contribution', 'reply', 'edit'];
-const LEVEL_2_TYPES = ['flag', 'merge', 'revert', 'moderation_vote'];
+const LEVEL_1_TYPES = ['contribution', 'reply', 'edit', 'flag', 'moderation_vote', 'merge', 'revert'];
+const LEVEL_2_TYPES = []; // reserved for future use
 const LEVEL_3_TYPES = ['coordination', 'debug', 'protocol'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

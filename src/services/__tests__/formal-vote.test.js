@@ -146,16 +146,19 @@ describe('formal-vote service', () => {
       })).rejects.toMatchObject({ code: 'FORBIDDEN' });
     });
 
-    it('rejects accounts without first contribution', async () => {
+    it('allows accounts without first contribution (weight check applies)', async () => {
+      isVoteSuspended.mockResolvedValueOnce(false);
       mockPool.query
         .mockResolvedValueOnce({ rows: [changesetInCommit] })
-        .mockResolvedValueOnce({ rows: [{ ...activeAccount, first_contribution_at: null }] });
+        .mockResolvedValueOnce({ rows: [{ ...activeAccount, first_contribution_at: null, created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), reputation_contribution: 0.5 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'vote-1', changeset_id: 'cs-1', account_id: 'voter-1', commit_hash: 'abc', weight: 0.5 }] }); // upsert
 
-      await expect(formalVoteService.commitVote({
+      const result = await formalVoteService.commitVote({
         accountId: 'voter-1',
         changesetId: 'cs-1',
         commitHash: 'abc',
-      })).rejects.toMatchObject({ code: 'VOTE_LOCKED' });
+      });
+      expect(result).toBeDefined();
     });
 
     it('rejects vote-suspended accounts', async () => {

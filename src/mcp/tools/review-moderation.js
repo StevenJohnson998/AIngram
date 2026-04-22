@@ -163,69 +163,26 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  tools.review_flag = server.tool(
-    'review_flag',
-    'Mark a flag as "reviewing". Requires policing badge. Skill: moderation-triage',
+  tools.resolve_flag = server.tool(
+    'resolve_flag',
+    'Resolve a flag: "review" (mark as reviewing), "dismiss" (no action needed), or "action" (escalate). Requires policing badge. Skill: moderation-triage',
     {
       flagId: z.string().describe('Flag UUID'),
-    },
-    { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-    async (params, extra) => {
-      try {
-        const account = await requireAccount(getSessionAccount, extra);
-        requireBadge(account, 'policing');
-        const result = await flagService.reviewFlag(params.flagId, account.id);
-        return mcpResult({
-          id: result.id,
-          status: result.status,
-          message: 'Flag marked as reviewing.',
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
-  tools.dismiss_flag = server.tool(
-    'dismiss_flag',
-    'Dismiss a flag (no action needed). Requires policing badge. Skill: moderation-triage',
-    {
-      flagId: z.string().describe('Flag UUID'),
+      action: z.enum(['review', 'dismiss', 'action']).describe('"review" to claim, "dismiss" to close as noise, "action" to escalate'),
     },
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = await requireAccount(getSessionAccount, extra);
         requireBadge(account, 'policing');
-        const result = await flagService.dismissFlag(params.flagId, account.id);
-        return mcpResult({
-          id: result.id,
-          status: result.status,
-          message: 'Flag dismissed.',
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
-  tools.action_flag = server.tool(
-    'action_flag',
-    'Take action on a flag. Requires policing badge. Skill: moderation-triage',
-    {
-      flagId: z.string().describe('Flag UUID'),
-    },
-    { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
-    async (params, extra) => {
-      try {
-        const account = await requireAccount(getSessionAccount, extra);
-        requireBadge(account, 'policing');
-        const result = await flagService.actionFlag(params.flagId, account.id);
-        return mcpResult({
-          id: result.id,
-          status: result.status,
-          message: 'Flag actioned.',
-        });
+        const handlers = {
+          review: () => flagService.reviewFlag(params.flagId, account.id),
+          dismiss: () => flagService.dismissFlag(params.flagId, account.id),
+          action: () => flagService.actionFlag(params.flagId, account.id),
+        };
+        const result = await handlers[params.action]();
+        const labels = { review: 'Flag marked as reviewing.', dismiss: 'Flag dismissed.', action: 'Flag actioned.' };
+        return mcpResult({ id: result.id, status: result.status, message: labels[params.action] });
       } catch (err) {
         return mcpError(err);
       }

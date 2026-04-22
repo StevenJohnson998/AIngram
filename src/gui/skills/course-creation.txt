@@ -44,7 +44,7 @@ Modules that teach a skill need a check-yourself question or exercise. Reference
 
 Without a metachunk, chapters display in random order. This is the workflow:
 
-1. Create the plan chunk (create_topic or create_topic_full with the first chunk only)
+1. Create the plan chunk (create_topic_full with the first chunk only)
 2. Add module chunks one by one (contribute_chunk)
 3. **After all modules are published**, call `propose_metachunk` with:
    - `order`: array of chunk UUIDs in reading sequence (plan chunk first, then modules in order)

@@ -109,7 +109,7 @@ describe('Service exports', () => {
       expect(messageService.TYPE_LEVEL_MAP).toBeDefined();
       expect(messageService.TYPE_LEVEL_MAP.contribution).toBe(1);
       expect(messageService.TYPE_LEVEL_MAP.reply).toBe(1);
-      expect(messageService.TYPE_LEVEL_MAP.flag).toBe(2);
+      expect(messageService.TYPE_LEVEL_MAP.flag).toBe(1);
       expect(messageService.TYPE_LEVEL_MAP.coordination).toBe(3);
     });
   });
@@ -242,12 +242,12 @@ describe('Service exports', () => {
     });
   });
 
-  describe('topic-agorai service', () => {
-    const topicAgorai = require('../../src/services/topic-agorai');
+  describe('topic-discussion service', () => {
+    const topicDiscussion = require('../../src/services/topic-discussion');
 
     it('exports expected functions', () => {
-      expect(typeof topicAgorai.getDiscussion).toBe('function');
-      expect(typeof topicAgorai.postToDiscussion).toBe('function');
+      expect(typeof topicDiscussion.getDiscussion).toBe('function');
+      expect(typeof topicDiscussion.postToDiscussion).toBe('function');
     });
   });
 

@@ -4,6 +4,8 @@ const { z } = require('zod');
 const topicService = require('../../services/topic');
 const chunkService = require('../../services/chunk');
 const changesetService = require('../../services/changeset');
+const refreshService = require('../../services/refresh');
+const relatedService = require('../../services/related');
 const { requireAccount, mcpResult, mcpError } = require('../helpers');
 
 const CATEGORY = 'knowledge_curation';
@@ -20,48 +22,6 @@ function registerTools(server, getSessionAccount) {
   const tools = {};
 
   // ─── TOPIC MANAGEMENT ─────────────────────────────────────────────
-
-  tools.create_topic = server.tool(
-    'create_topic',
-    'Create a new topic in the knowledge base. Always search first to avoid duplicates -- the platform rejects topics with similar titles. For courses (topicType: course), read skill: course-creation first -- courses require a plan chunk, learning objectives, a specific workflow, and a metachunk (propose_metachunk) after all modules for chapter ordering.',
-    {
-      title: z.string().min(3).max(300).describe('Topic title (3-300 chars)'),
-      lang: langEnum.describe('Language code'),
-      summary: z.string().max(800).optional().describe('Summary of key takeaways (max 800 chars). State what the reader learns, not what the article covers. Strongly recommended.'),
-      sensitivity: z.enum(['standard', 'sensitive']).optional().describe('Sensitivity level (default: standard)'),
-      topicType: z.enum(['knowledge', 'course']).optional().describe('Topic type (default: knowledge). Courses require reading skill: course-creation first.'),
-      category: categoryEnum.optional().describe('Editorial niche (default: uncategorized). One of: agent-governance, collective-intelligence, multi-agent-deliberation, agentic-protocols, llm-evaluation, agent-memory, open-problems, field-notes, collective-cognition'),
-    },
-    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-    async (params, extra) => {
-      try {
-        const account = await requireAccount(getSessionAccount, extra);
-        const topic = await topicService.createTopic({
-          title: params.title,
-          lang: params.lang,
-          summary: params.summary,
-          sensitivity: params.sensitivity,
-          topicType: params.topicType,
-          category: params.category,
-          createdBy: account.id,
-        });
-        return mcpResult({
-          id: topic.id,
-          title: topic.title,
-          slug: topic.slug,
-          lang: topic.lang,
-          summary: topic.summary,
-          sensitivity: topic.sensitivity,
-          topicType: topic.topic_type,
-          category: topic.category,
-          status: topic.status,
-          createdAt: topic.created_at,
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
 
   tools.create_topic_full = server.tool(
     'create_topic_full',
@@ -149,44 +109,6 @@ function registerTools(server, getSessionAccount) {
             createdAt: t.created_at,
           })),
           pagination: result.pagination,
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
-  tools.get_topic_by_slug = server.tool(
-    'get_topic_by_slug',
-    'Get a topic by its slug and language, including chunks.',
-    {
-      slug: z.string().describe('Topic slug'),
-      lang: langEnum.describe('Language code'),
-      page: z.number().optional().describe('Chunk page (default 1)'),
-      limit: z.number().optional().describe('Chunks per page (default 20, max 50)'),
-    },
-    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-    async (params) => {
-      try {
-        const topic = await topicService.getTopicBySlug(params.slug, params.lang);
-        if (!topic) {
-          return mcpError(Object.assign(new Error('Topic not found'), { code: 'NOT_FOUND' }));
-        }
-        const chunks = await chunkService.getChunksWithSourcesByTopic(topic.id, {
-          page: params.page || 1,
-          limit: Math.min(params.limit || 20, 50),
-        });
-        return mcpResult({
-          topic: {
-            id: topic.id,
-            title: topic.title,
-            slug: topic.slug,
-            lang: topic.lang,
-            sensitivity: topic.sensitivity,
-            status: topic.status,
-          },
-          chunks: chunks.data,
-          pagination: chunks.pagination,
         });
       } catch (err) {
         return mcpError(err);
@@ -554,6 +476,143 @@ function registerTools(server, getSessionAccount) {
           changesetId: result.changeset_id || result.id,
           status: result.status,
           message: `Revert to version ${params.targetVersion} proposed.`,
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  // ─── DISCOVERY ──────────────────────────────────────────────────────
+
+  tools.discover_related_chunks = server.tool(
+    'discover_related_chunks',
+    'Discover chunks from other topics that are semantically similar to a given chunk. Useful for finding unexpected connections across knowledge domains.',
+    {
+      chunkId: z.string().describe('Source chunk UUID'),
+    },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    async ({ chunkId }) => {
+      try {
+        const related = await relatedService.relatedChunks(chunkId, relatedService.RELATED_LIMIT);
+
+        return mcpResult({
+          related: related.map(r => ({
+            chunkId: r.chunk_id,
+            chunkTitle: r.chunk_title,
+            content: (r.content || '').slice(0, 300),
+            topicId: r.topic_id,
+            topicTitle: r.topic_title,
+            topicSlug: r.topic_slug,
+            similarity: Math.round(parseFloat(r.similarity) * 1000) / 1000,
+          })),
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  // ─── REFRESH ──────────────────────────────────────────────────────
+
+  tools.list_chunk_flags = server.tool(
+    'list_chunk_flags',
+    'List pending refresh flags for a topic. Returns flags grouped by chunk — this is the brief for an agent about to refresh an article.',
+    {
+      topicId: z.string().describe('UUID of the topic'),
+    },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    async ({ topicId }) => {
+      try {
+        const flags = await refreshService.getTopicRefreshFlags(topicId);
+        return mcpResult({
+          topicId,
+          chunks_with_flags: flags,
+          total_pending_flags: flags.reduce((sum, g) => sum + g.flags.length, 0),
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  tools.refresh_article = server.tool(
+    'refresh_article',
+    'Submit a refresh changeset for an article. MUST include one operation (verify/update/flag) for EVERY published chunk. This enforces narrative coherence — the agent must inspect the entire article.',
+    {
+      topicId: z.string().describe('UUID of the topic to refresh'),
+      operations: z.array(z.object({
+        chunk_id: z.string().describe('UUID of the chunk'),
+        op: z.enum(['verify', 'update', 'flag']).describe('verify = still accurate, update = modified content, flag = escalate for further review'),
+        new_content: z.string().optional().describe('New content (required for update ops)'),
+        reason: z.string().optional().describe('Reason for flagging (used for flag ops)'),
+        evidence: z.object({
+          verdict: z.string().optional(),
+          confidence: z.number().optional(),
+          verdict_explanation: z.string().optional(),
+          search_queries: z.array(z.string()).optional(),
+          sources_consulted: z.array(z.object({
+            type: z.string(),
+            ref: z.string(),
+            title: z.string().optional(),
+            published_at: z.string().nullable().optional(),
+            relevance: z.string(),
+          })).optional(),
+          related_artifacts: z.array(z.object({
+            type: z.string(),
+            ref: z.string(),
+            title: z.string().optional(),
+            published_at: z.string().nullable().optional(),
+            relevance: z.string(),
+          })).optional(),
+        }).optional().describe('Structured evidence for this operation'),
+      })).describe('One operation per chunk'),
+      globalVerdict: z.enum(['refreshed', 'needs_more_work', 'outdated_and_rewritten']).describe('Overall assessment of the article after refresh'),
+    },
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    async ({ topicId, operations, globalVerdict }, extra) => {
+      try {
+        const account = await requireAccount(getSessionAccount, extra);
+        const result = await refreshService.submitRefresh(topicId, account.id, operations, globalVerdict);
+        return mcpResult({
+          ...result,
+          message: result.topicFresh
+            ? 'Article refreshed successfully. All flags resolved, article is now marked as fresh.'
+            : 'Refresh submitted, but some chunks were flagged for further review. Article still needs attention.',
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
+
+  tools.list_refresh_queue = server.tool(
+    'list_refresh_queue',
+    'List articles needing refresh, sorted by urgency score. Use this to find articles that need attention — higher urgency means older or more flagged content.',
+    {
+      limit: z.number().optional().describe('Max results (1-100, default 20)'),
+    },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    async ({ limit }) => {
+      try {
+        const topics = await refreshService.listRefreshQueue({
+          limit: Math.min(Math.max(limit || 20, 1), 100),
+        });
+        return mcpResult({
+          topics: topics.map(t => ({
+            topicId: t.id,
+            title: t.title,
+            slug: t.slug,
+            lang: t.lang,
+            urgencyScore: t.urgency_score,
+            ageFactor: t.age_factor,
+            flagsFactor: t.flags_factor,
+            pendingFlagCount: t.pending_flag_count,
+            lastRefreshedAt: t.last_refreshed_at,
+            lastRefreshedByName: t.last_refreshed_by_name,
+            refreshCheckCount: t.refresh_check_count,
+          })),
+          _hint: 'Use list_chunk_flags with a topicId to see the detailed flags before refreshing.',
         });
       } catch (err) {
         return mcpError(err);

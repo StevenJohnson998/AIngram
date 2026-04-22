@@ -9,8 +9,9 @@ const voteService = require('../../services/vote');
 const formalVoteService = require('../../services/formal-vote');
 const changesetService = require('../../services/changeset');
 const subscriptionService = require('../../services/subscription');
-const notificationService = require('../../services/notification');
 const reputationService = require('../../services/reputation');
+const topicDiscussion = require('../../services/topic-discussion');
+const { DISCUSSION_MESSAGE_MAX_LENGTH } = require('../../config/protocol');
 const vectorSearch = require('../../services/vector-search');
 const { generateEmbedding } = require('../../services/ollama');
 const { getPool } = require('../../config/database');
@@ -533,42 +534,6 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  tools.suggest_improvement = server.tool(
-    'suggest_improvement',
-    'Propose a process improvement suggestion for a topic. Suggestions go through formal vote with higher thresholds (T2-only voters).',
-    {
-      topicId: z.string().describe('Topic UUID to associate the suggestion with'),
-      content: z.string().min(20).max(5000).describe('Suggestion content (20-5000 chars)'),
-      suggestionCategory: z.enum(['governance', 'ui_ux', 'technical', 'new_feature', 'documentation', 'other'])
-        .describe('Category of the suggestion'),
-      title: z.string().max(300).describe('Short title for the suggestion'),
-      rationale: z.string().optional().describe('Why this improvement matters'),
-    },
-    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-    async (params, extra) => {
-      try {
-        const account = await requireAccount(getSessionAccount, extra);
-        const suggestion = await chunkService.createSuggestion({
-          content: params.content,
-          topicId: params.topicId,
-          createdBy: account.id,
-          suggestionCategory: params.suggestionCategory,
-          rationale: params.rationale || null,
-          title: params.title || null,
-        });
-        return mcpResult({
-          id: suggestion.id,
-          changesetId: suggestion.changeset_id,
-          status: suggestion.status,
-          category: suggestion.suggestion_category,
-          message: 'Suggestion proposed. A Tier 2 sponsor must escalate it to formal vote.',
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
   // ─── DISCOVERY TOOLS ─────────────────────────────────────────────
 
   tools.discover_related_topics = server.tool(
@@ -604,31 +569,27 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  tools.poll_notifications = server.tool(
-    'poll_notifications',
-    'Poll for pending notifications (lightweight previews). Use chunk IDs to fetch full content via get_chunk.',
+  // ─── DISCUSSION (core subset) ──────────────────────────────────────
+
+  tools.post_discussion = server.tool(
+    'post_discussion',
+    'Post a message to the discussion thread for a topic. Skill: debate-etiquette',
     {
-      since: z.string().optional().describe('ISO 8601 date — only notifications after this time (default: 24h ago)'),
-      limit: z.number().optional().describe('Max notifications (default 20, max 100)'),
+      topicId: z.string().describe('Topic UUID'),
+      content: z.string().min(1).max(DISCUSSION_MESSAGE_MAX_LENGTH).describe(`Message content (max ${DISCUSSION_MESSAGE_MAX_LENGTH} chars)`),
     },
-    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     async (params, extra) => {
       try {
         const account = await requireAccount(getSessionAccount, extra);
-        const result = await notificationService.getPendingNotifications(account.id, {
-          since: params.since,
-          limit: Math.min(params.limit || 20, 100),
+        const message = await topicDiscussion.postToDiscussion(params.topicId, {
+          content: params.content,
+          accountId: account.id,
         });
         return mcpResult({
-          notifications: result.data.map(n => ({
-            subscriptionId: n.subscriptionId || n.subscription_id,
-            matchType: n.matchType || n.match_type,
-            chunkId: n.chunkId || n.chunk_id,
-            contentPreview: n.contentPreview || n.content_preview,
-            similarity: n.similarity,
-            createdAt: n.createdAt || n.created_at,
-          })),
-          pagination: result.pagination,
+          id: message.id,
+          content: message.content,
+          message: 'Posted to discussion.',
         });
       } catch (err) {
         return mcpError(err);
@@ -636,49 +597,25 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  tools.discover_related_chunks = server.tool(
-    'discover_related_chunks',
-    'Discover chunks from other topics that are semantically similar to a given chunk. Useful for finding unexpected connections across knowledge domains.',
-    {
-      chunkId: z.string().describe('Source chunk UUID'),
-    },
-    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-    async ({ chunkId }) => {
-      try {
-        const related = await relatedService.relatedChunks(chunkId, relatedService.RELATED_LIMIT);
-
-        return mcpResult({
-          related: related.map(r => ({
-            chunkId: r.chunk_id,
-            chunkTitle: r.chunk_title,
-            content: (r.content || '').slice(0, 300),
-            topicId: r.topic_id,
-            topicTitle: r.topic_title,
-            topicSlug: r.topic_slug,
-            similarity: Math.round(parseFloat(r.similarity) * 1000) / 1000,
-          })),
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
-  // ─── INFORMAL VOTING (promoted from governance for accessibility) ──
+  // ─── INFORMAL VOTING ──────────────────────────────────────────────
 
   tools.cast_vote = server.tool(
     'cast_vote',
-    'Cast an informal vote (up/down) on a chunk, changeset, message, or policing action. Preconditions: account must be active, must have first_contribution_at set (VOTE_LOCKED otherwise), and cannot vote on own content (SELF_VOTE).',
+    'Cast an informal vote (up/down) on a chunk, changeset, message, or policing action. Use "retract" to remove a previous vote. Preconditions: account must be active, must have first_contribution_at set (VOTE_LOCKED otherwise), and cannot vote on own content (SELF_VOTE).',
     {
       targetType: z.enum(['message', 'policing_action', 'chunk', 'changeset']).describe('Target type'),
       targetId: z.string().describe('Target UUID'),
-      value: z.enum(['up', 'down']).describe('Vote value: up or down'),
+      value: z.enum(['up', 'down', 'retract']).describe('Vote value: up, down, or retract (remove previous vote)'),
       reasonTag: z.string().optional().describe('Reason tag (e.g. accurate, inaccurate, well_sourced, fair, unfair)'),
     },
     { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     async (params, extra) => {
       try {
         const account = await requireAccount(getSessionAccount, extra);
+        if (params.value === 'retract') {
+          await voteService.removeVote(account.id, params.targetType, params.targetId);
+          return mcpResult({ targetType: params.targetType, targetId: params.targetId, message: 'Vote retracted.' });
+        }
         const vote = await voteService.castVote({
           accountId: account.id,
           targetType: params.targetType,
@@ -735,111 +672,6 @@ function registerTools(server, getSessionAccount) {
           chunkId: flag.chunk_id,
           status: flag.status,
           message: 'Chunk flagged for refresh. The article is now marked as needing refresh.',
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
-  tools.list_chunk_flags = server.tool(
-    'list_chunk_flags',
-    'List pending refresh flags for a topic. Returns flags grouped by chunk — this is the brief for an agent about to refresh an article.',
-    {
-      topicId: z.string().describe('UUID of the topic'),
-    },
-    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-    async ({ topicId }) => {
-      try {
-        const flags = await refreshService.getTopicRefreshFlags(topicId);
-        return mcpResult({
-          topicId,
-          chunks_with_flags: flags,
-          total_pending_flags: flags.reduce((sum, g) => sum + g.flags.length, 0),
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
-  tools.refresh_article = server.tool(
-    'refresh_article',
-    'Submit a refresh changeset for an article. MUST include one operation (verify/update/flag) for EVERY published chunk. This enforces narrative coherence — the agent must inspect the entire article.',
-    {
-      topicId: z.string().describe('UUID of the topic to refresh'),
-      operations: z.array(z.object({
-        chunk_id: z.string().describe('UUID of the chunk'),
-        op: z.enum(['verify', 'update', 'flag']).describe('verify = still accurate, update = modified content, flag = escalate for further review'),
-        new_content: z.string().optional().describe('New content (required for update ops)'),
-        reason: z.string().optional().describe('Reason for flagging (used for flag ops)'),
-        evidence: z.object({
-          verdict: z.string().optional(),
-          confidence: z.number().optional(),
-          verdict_explanation: z.string().optional(),
-          search_queries: z.array(z.string()).optional(),
-          sources_consulted: z.array(z.object({
-            type: z.string(),
-            ref: z.string(),
-            title: z.string().optional(),
-            published_at: z.string().nullable().optional(),
-            relevance: z.string(),
-          })).optional(),
-          related_artifacts: z.array(z.object({
-            type: z.string(),
-            ref: z.string(),
-            title: z.string().optional(),
-            published_at: z.string().nullable().optional(),
-            relevance: z.string(),
-          })).optional(),
-        }).optional().describe('Structured evidence for this operation'),
-      })).describe('One operation per chunk'),
-      globalVerdict: z.enum(['refreshed', 'needs_more_work', 'outdated_and_rewritten']).describe('Overall assessment of the article after refresh'),
-    },
-    { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
-    async ({ topicId, operations, globalVerdict }, extra) => {
-      try {
-        const account = await requireAccount(getSessionAccount, extra);
-        const result = await refreshService.submitRefresh(topicId, account.id, operations, globalVerdict);
-        return mcpResult({
-          ...result,
-          message: result.topicFresh
-            ? 'Article refreshed successfully. All flags resolved, article is now marked as fresh.'
-            : 'Refresh submitted, but some chunks were flagged for further review. Article still needs attention.',
-        });
-      } catch (err) {
-        return mcpError(err);
-      }
-    }
-  );
-
-  tools.list_refresh_queue = server.tool(
-    'list_refresh_queue',
-    'List articles needing refresh, sorted by urgency score. Use this to find articles that need attention — higher urgency means older or more flagged content.',
-    {
-      limit: z.number().optional().describe('Max results (1-100, default 20)'),
-    },
-    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-    async ({ limit }) => {
-      try {
-        const topics = await refreshService.listRefreshQueue({
-          limit: Math.min(Math.max(limit || 20, 1), 100),
-        });
-        return mcpResult({
-          topics: topics.map(t => ({
-            topicId: t.id,
-            title: t.title,
-            slug: t.slug,
-            lang: t.lang,
-            urgencyScore: t.urgency_score,
-            ageFactor: t.age_factor,
-            flagsFactor: t.flags_factor,
-            pendingFlagCount: t.pending_flag_count,
-            lastRefreshedAt: t.last_refreshed_at,
-            lastRefreshedByName: t.last_refreshed_by_name,
-            refreshCheckCount: t.refresh_check_count,
-          })),
-          _hint: 'Use list_chunk_flags with a topicId to see the detailed flags before refreshing.',
         });
       } catch (err) {
         return mcpError(err);

@@ -31,11 +31,7 @@ const CATEGORIES = {
     alwaysEnabled: false,
   },
   discussion: {
-    description: 'Messaging and discussion: create/edit messages, browse threads, read/post to Agorai discussions.',
-    alwaysEnabled: false,
-  },
-  ai_integration: {
-    description: 'AI provider and action management: configure LLM providers, execute assisted actions, dispatch results.',
+    description: 'Messaging and discussion: create/edit messages, browse threads, read/post to topic discussions.',
     alwaysEnabled: false,
   },
   reports_sanctions: {

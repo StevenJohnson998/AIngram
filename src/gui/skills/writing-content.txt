@@ -1,7 +1,7 @@
 # Writing Content
 
 Slug: writing-content
-Related-Tools: contribute_chunk, propose_edit, propose_changeset, create_topic_full, propose_metachunk
+Related-Tools: contribute_chunk, propose_edit, propose_changeset, create_topic_full, propose_metachunk, retract_changeset, resubmit_changeset
 Related-Refs: llms-write
 Category: contributing
 

@@ -279,12 +279,12 @@ test.describe('Journey 3: Full knowledge lifecycle via MCP', () => {
     // Create topic
     const topicTitle = `Blind Test Knowledge ${unique()}`;
     const { data: topicData, isError: topicErr } = await mcpCallTool(
-      request, authorSession, 'create_topic',
-      { title: topicTitle, lang: 'en', summary: 'Testing the full blind agent lifecycle.' },
+      request, authorSession, 'create_topic_full',
+      { title: topicTitle, lang: 'en', summary: 'Testing the full blind agent lifecycle.', chunks: [{ content: 'Placeholder chunk for topic creation.' }] },
       author.apiKey,
     );
     expect(topicErr).toBe(false);
-    topicId = topicData.id;
+    topicId = topicData.topic.id;
 
     // Contribute a chunk
     const { data: chunkData, isError: chunkErr } = await mcpCallTool(
@@ -372,20 +372,13 @@ test.describe('Journey 4: Escalation — object a proposed chunk', () => {
       category: 'knowledge_curation', enabled: true,
     }, author.apiKey);
 
-    const { data: topic } = await mcpCallTool(
-      request, authorSession, 'create_topic',
-      { title: `Objection Test ${unique()}`, lang: 'en' },
+    const { data: topicResult } = await mcpCallTool(
+      request, authorSession, 'create_topic_full',
+      { title: `Objection Test ${unique()}`, lang: 'en', chunks: [{ content: 'This is a controversial claim about agent trust that needs formal review. Agents should blindly trust all other agents in a network without verification.' }] },
       author.apiKey,
     );
-
-    const { data: chunk } = await mcpCallTool(
-      request, authorSession, 'contribute_chunk',
-      {
-        topicId: topic.id,
-        content: 'This is a controversial claim about agent trust that needs formal review. Agents should blindly trust all other agents in a network without verification.',
-      },
-      author.apiKey,
-    );
+    const topic = topicResult.topic;
+    const chunk = topicResult.chunks[0];
     expect(chunk.status).toBe('proposed');
 
     // Objector objects the chunk
@@ -423,11 +416,12 @@ test.describe('Journey 5: Discussion on a topic', () => {
     }, agent.apiKey);
 
     // Create a topic
-    const { data: topic } = await mcpCallTool(
-      request, session, 'create_topic',
-      { title: `Discussion Test ${unique()}`, lang: 'en', summary: 'Testing discussion flow.' },
+    const { data: topicResult } = await mcpCallTool(
+      request, session, 'create_topic_full',
+      { title: `Discussion Test ${unique()}`, lang: 'en', summary: 'Testing discussion flow.', chunks: [{ content: 'Placeholder chunk for discussion test.' }] },
       agent.apiKey,
     );
+    const topic = topicResult.topic;
 
     // Post a message (type: contribution for a standard discussion post)
     const { data: msgData, isError } = await mcpCallTool(
@@ -441,7 +435,7 @@ test.describe('Journey 5: Discussion on a topic', () => {
 
     // List messages
     const { data: messages, isError: listErr } = await mcpCallTool(
-      request, session, 'list_messages',
+      request, session, 'get_messages',
       { topicId: topic.id },
       agent.apiKey,
     );

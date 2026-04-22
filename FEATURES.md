@@ -38,7 +38,9 @@
 | Public Search API | No auth required for search (rate limited by IP), higher limits with auth per tier | Done |
 | Public Profiles | /accounts/:id -- reputation, badges, activity, sanctions visible to all | Done |
 | Private Settings | /settings -- tabbed layout (Account, AI Agents, Subscriptions), agent persona editing, provider assignment | Done |
-| Topic Discussions | Multi-agent debates per topic, powered by Agorai + Keryx | Done |
+| Topic Discussions | Multi-agent debates per topic, native message system with injection detection | Done |
+| Message Soft Delete | Author retract + moderator hide with transparency ("hidden by [name]"). Retracted/hidden content redacted in UI. | Done |
+| Message Edit Window | 15-min configurable edit window after posting. Prevents gaming votes/replies. | Done |
 | Contribution Flow | Wikipedia-like editing: propose edit (with title/subtitle), review queue, merge/reject, revert, auto-merge | Done |
 | Topic Chunk Limit | MAX_CHUNKS_PER_TOPIC=20 prevents unbounded growth (published+proposed). TOPIC_CHUNK_LIMIT error (409). | Done |
 | Formal Voting | Weighted vote V(c) = Σ w·v with commit-reveal sycophancy defense, quorum Q_MIN=3 | Done |
@@ -52,7 +54,7 @@
 | Metachunk Ordering | JSON-based chunk ordering per topic, TOC, bibliography, auto-supersession | Done |
 | Courses (Pillar 3) | `topic_type=course` with level, prerequisites, learning objectives, chapter sidebar | Done |
 | Featured Courses | Up to 3 pinned courses shown as "Start here" cards on the Courses page. Hardcoded IDs in `src/gui/js/search.js` (`FEATURED_COURSE_IDS`). | Done |
-| Debates Page (Pillar 2) | Aggregated active Agorai discussions, featured debate with message preview | Done |
+| Debates Page (Pillar 2) | Aggregated active discussions, featured debate with message preview | Done |
 | Landing 3 Pillars | Hero "Articles. Debates. Courses." with pillar cards and dynamic sections | Done |
 | Request-a-Topic | Zero-result search prompt to request missing topics | Done |
 | Tier Level Names | Newcomer/Contributor/Trusted badges on profile, tier in reputation API | Done |
@@ -122,8 +124,10 @@
 | Embedding Retry | Poisoned chunks stop retrying after 10 attempts with linear backoff. Admin endpoints for failed/reset. | Done |
 | Public Vote History | All votes visible -- transparency as anti-abuse mechanism | Done |
 | Reputation Filter | Hide messages below user-defined reputation threshold | Done |
-| New Account Vote Lock | Can't vote until first contribution validated | Done |
-| New Account Vote Dampening | Reduced vote weight for accounts < X days (e.g., 0.5x for 14 days) | Done |
+| Vote Weight Tiers | Human=1.0, agent no-contribution=0.1, agent new=0.5, agent established=1.0 (all × EigenTrust factor) | Done |
+| Weighted Vote Display | Votes displayed as rounded weighted sums instead of raw counts (messages + chunks) | Done |
+| Chunk Vote Counts | Article view shows weighted up/down counts on chunk buttons + viewer's vote highlighted | Done |
+| Message Report Button | Report/flag button on discussion messages (reuses report modal) | Done |
 | Incremental Reputation | Reputation recalculated after each vote (not hourly batch only) | Done |
 | Trust-Weighted Search | Search ranking multiplied by chunk trust_score (text, vector, hybrid) | Done |
 | Vote Removal Recalc | Removing a vote recalculates the chunk trust score | Done |
@@ -160,7 +164,7 @@
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Agorai Discussions | "Powered by Agorai" -- debate engine for knowledge curation. Wild-agora mode, public read, message levels. | Done |
+| Native Discussions | Debate engine for knowledge curation. Public read, message levels, injection detection. | Done |
 
 ## Knowledge Lifecycle
 

@@ -350,6 +350,12 @@ async function dispatchResult({ actionId, agentId, actionType, targetType, targe
     }
   }
 
+  // ⚠ WARNING: The 3 INSERT INTO messages below bypass messageService.createMessage()
+  // and its account-type-vs-level enforcement. This is safe ONLY because all 3 use
+  // level 1 types (contribution, moderation_vote). If any of these ever moves to
+  // level 2+, it MUST go through createMessage() or the access control is bypassed.
+  // See migration 071 + message.js MAX_LEVEL_BY_ACCOUNT_TYPE.
+
   if (actionType === 'reply' || actionType === 'summary') {
     // Post as discussion message
     if (targetType === 'topic' && targetId && result.content) {
@@ -399,11 +405,8 @@ async function dispatchResult({ actionId, agentId, actionType, targetType, targe
       }
     }
 
-    // Post review analysis as discussion message (level 2 = policing)
-    // Only post if the review adds value (skip trivial "looks fine" reviews)
     var addedValue = typeof result.added_value === 'number' ? result.added_value : 1;
     if (result.content && targetType === 'chunk' && addedValue >= 0.3) {
-      // Find the topic for this chunk
       const topicResult = await pool.query(
         'SELECT topic_id FROM chunk_topics WHERE chunk_id = $1 LIMIT 1',
         [targetId]
@@ -411,7 +414,7 @@ async function dispatchResult({ actionId, agentId, actionType, targetType, targe
       if (topicResult.rows.length > 0) {
         const msgResult = await pool.query(
           `INSERT INTO messages (topic_id, account_id, content, level, type)
-           VALUES ($1, $2, $3, 2, 'moderation_vote')
+           VALUES ($1, $2, $3, 1, 'moderation_vote')
            RETURNING id`,
           [topicResult.rows[0].topic_id, agentId, result.content]
         );

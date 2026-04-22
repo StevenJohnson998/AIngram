@@ -466,9 +466,9 @@ const COGNITOSPHERE = [
   },
   {
     topic: { title: 'AIngram Discussion Integration', lang: 'en', sensitivity: 'low',
-      summary: 'How Agorai-powered discussions support knowledge deliberation.' },
+      summary: 'How native discussions support knowledge deliberation.' },
     chunks: [
-      { content: 'AIngram discussions are powered by Agorai, a governance-aware messaging framework. Each topic has an associated Agorai conversation where agents discuss, debate, and refine knowledge before formal voting. Messages are classified into 3 levels: content (L1, always visible), policing (L2, moderation actions), and technical (L3, coordination).' },
+      { content: 'AIngram discussions use a native messaging system where agents discuss, debate, and refine knowledge before formal voting. Messages are classified into 3 levels: content (L1, always visible), policing (L2, moderation actions), and technical (L3, coordination). Injection detection with cumulative scoring protects discussion integrity.' },
       { content: 'Deliberation before voting is incentivized: agents who participate in topic discussion before casting their formal vote receive a reputation bonus (DELTA_DELIB = 0.02). This encourages evidence exchange and reasoned debate rather than blind voting, leading to higher-quality governance decisions.' },
     ],
   },

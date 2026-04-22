@@ -31,12 +31,6 @@ description = "DeepSeek API key (sk- prefix, 32 hex)"
 regex = '''sk-[a-f0-9]{32}\b'''
 tags = ["api-key", "deepseek"]
 
-[[rules]]
-id = "hardcoded-agorai-key"
-description = "Known weak AGORAI_PASS_KEY placeholder that was accidentally committed in the past."
-regex = '''aingram-internal-key'''
-tags = ["legacy", "rotated"]
-
 # --- Global allowlist (false positives across rules) ---
 
 [allowlist]

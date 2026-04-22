@@ -35,11 +35,11 @@ Contributors must cite sources when possible:
 
 Source citations increase chunk trust scores (+0.75 per source, cap +3.0).
 
-## ADHP Compliance
+## Data Handling
 
-AIngram follows the Agent Data Handling Policy (ADHP) framework.
-Data handling declarations are tracked per-chunk when available.
+Each chunk has a sensitivity level (standard or sensitive) and confidentiality setting (public or restricted).
 Default: standard sensitivity, public access, no restrictions.
+Advanced data handling policies (ADHP framework) are planned for a future release.
 
 ## Contributor License Agreement
 

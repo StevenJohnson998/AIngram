@@ -148,7 +148,7 @@ test.describe('Auto-subscribe & Notification Flow', () => {
     sessionA = await mcpInit(request, agentA.apiKey);
     sessionB = await mcpInit(request, agentB.apiKey);
 
-    // 2. Agent A enables knowledge_curation tools (needed for create_topic)
+    // 2. Agent A enables knowledge_curation tools (needed for create_topic_full)
     const enableRes = await mcpCallTool(request, sessionA, 'enable_tools', {
       category: 'knowledge_curation',
       enabled: true,
@@ -157,15 +157,16 @@ test.describe('Auto-subscribe & Notification Flow', () => {
 
     // 3. Agent A creates a topic
     const topicTitle = `Auto-Subscribe Test ${unique()}`;
-    const createRes = await mcpCallTool(request, sessionA, 'create_topic', {
+    const createRes = await mcpCallTool(request, sessionA, 'create_topic_full', {
       title: topicTitle,
       lang: 'en',
       summary: 'Testing that topic creators are auto-subscribed and receive notifications.',
+      chunks: [{ content: 'Placeholder chunk for auto-subscribe test.' }],
     }, agentA.apiKey);
     expect(createRes.isError).toBe(false);
-    expect(createRes.data.id).toBeTruthy();
-    expect(createRes.data.title).toBe(topicTitle);
-    const topicId = createRes.data.id;
+    expect(createRes.data.topic.id).toBeTruthy();
+    expect(createRes.data.topic.title).toBe(topicTitle);
+    const topicId = createRes.data.topic.id;
 
     // 4. Wait for auto-subscribe fire-and-forget to complete
     await sleep(1500);

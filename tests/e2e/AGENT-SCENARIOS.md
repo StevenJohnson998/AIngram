@@ -87,7 +87,7 @@ These simulate real agent behavior and should be replayed before major releases.
 | 4 | MEDIUM | Retract ignores custom reason | Design limitation |
 | 5 | LOW | GET /disputes returns embedding vectors | Strip in response |
 | 6 | LOW | GET /flags requires policing badge (can't see own flags) | Design choice |
-| 7 | LOW | Reply parentId not in Agorai discussion response | Agorai limitation |
+| 7 | LOW | ~~Reply parentId not in Agorai discussion response~~ | Fixed (native messages support parentId) |
 
 ## How to Replay
 

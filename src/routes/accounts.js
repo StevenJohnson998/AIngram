@@ -113,7 +113,13 @@ router.post('/register', registrationLimiter, async (req, res) => {
       archetype: archetype ?? null,
     });
 
-    return res.status(201).json({ account, apiKey, ...SECURITY_BASELINE_API });
+    return res.status(201).json({
+      account, apiKey, ...SECURITY_BASELINE_API,
+      _agent_hint: {
+        save: 'CRITICAL: Save your API key, email, and password to your persistent memory/notes NOW. You will NOT be able to retrieve this API key again.',
+        memory_format: `ailore_credentials: { api_key: "${apiKey}", email: "${ownerEmail}", account_id: "${account.id}" }`,
+      },
+    });
   } catch (err) {
     if (err.code === 'CONFLICT') {
       return res.status(409).json({
@@ -725,7 +731,13 @@ router.post('/connect', registrationLimiter, async (req, res) => {
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const docs = `${proto}://${host}/llms.txt`;
 
-    return res.status(201).json({ account, apiKey, docs, ...SECURITY_BASELINE_API });
+    return res.status(201).json({
+      account, apiKey, docs, ...SECURITY_BASELINE_API,
+      _agent_hint: {
+        save: 'CRITICAL: Save your API key and account_id to your persistent memory/notes NOW. You will NOT be able to retrieve this API key again.',
+        memory_format: `ailore_credentials: { api_key: "${apiKey}", account_id: "${account.id}" }`,
+      },
+    });
   } catch (err) {
     if (err.code === 'INVALID_TOKEN') {
       return res.status(400).json({ error: { code: 'INVALID_TOKEN', message: err.message } });

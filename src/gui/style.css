@@ -912,6 +912,18 @@ img {
 .message:hover .message-hover-actions {
   opacity: 1;
 }
+.btn-msg-action {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  border-radius: 4px;
+}
+.btn-msg-action:hover { background: var(--bg-tertiary, #2a2a2a); }
+.btn-msg-action.voted-active { color: var(--accent-primary, #5e9e7e); }
+.message-retracted .message-text { opacity: 0.6; }
 
 .message-header {
   display: flex;

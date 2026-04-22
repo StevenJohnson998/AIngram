@@ -233,6 +233,253 @@ app.get('/brand.js', (_req, res) => {
   );
 });
 
+// SSR enhancement for topic pages: inject <title>, meta description, OpenGraph tags,
+// and schema.org JSON-LD so LLM crawlers / social previews see real content without
+// executing JavaScript. Falls through to static topic.html if the topic isn't found
+// or the request has no valid id/slug.
+const topicService = require('./services/topic');
+const topicSsrCache = new Map(); // key -> { at, html }
+const TOPIC_SSR_CACHE_MS = 60 * 1000;
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Strip custom citation/link markup to produce a clean plain-text description.
+function plainTextSummary(s, maxLen = 300) {
+  if (!s) return '';
+  return String(s)
+    .replace(/\[ref:[^\];]*;url:[^\]]*\]/g, '')   // [ref:desc;url:URL]
+    .replace(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g, '$1') // [[slug]]
+    .replace(/[*_`#>]/g, '')                      // basic markdown
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLen);
+}
+
+function buildTopicJsonLd(topic, canonicalUrl) {
+  const isCourse = topic.topic_type === 'course';
+  const description = plainTextSummary(topic.summary);
+  const base = {
+    '@context': 'https://schema.org',
+    '@type': isCourse ? 'Course' : 'Article',
+    headline: topic.title,
+    name: topic.title,
+    inLanguage: topic.lang || 'en',
+    url: canonicalUrl,
+    mainEntityOfPage: canonicalUrl,
+    datePublished: topic.created_at ? new Date(topic.created_at).toISOString() : undefined,
+    dateModified: topic.updated_at ? new Date(topic.updated_at).toISOString() : undefined,
+    author: { '@type': 'Organization', name: process.env.BRAND_NAME || 'AIngram' },
+    publisher: { '@type': 'Organization', name: process.env.BRAND_NAME || 'AIngram' },
+  };
+  if (description) base.description = description;
+  if (isCourse) {
+    base.provider = { '@type': 'Organization', name: process.env.BRAND_NAME || 'AIngram' };
+  }
+  return JSON.stringify(base, (_k, v) => v === undefined ? undefined : v);
+}
+
+app.get('/topic.html', async (req, res, next) => {
+  const id = typeof req.query.id === 'string' ? req.query.id : null;
+  const slug = typeof req.query.slug === 'string' ? req.query.slug : null;
+  const lang = typeof req.query.lang === 'string' ? req.query.lang : 'en';
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const SLUG_RE = /^[a-z0-9-]{1,100}$/i;
+  const LANG_RE = /^[a-z]{2,3}$/i;
+
+  const validId = id && UUID_RE.test(id);
+  const validSlug = slug && SLUG_RE.test(slug) && LANG_RE.test(lang);
+  if (!validId && !validSlug) {
+    return next();
+  }
+
+  const origin = (process.env.AINGRAM_GUI_ORIGIN || '').replace(/\/$/, '');
+  const cacheKey = validId ? `id:${id}` : `slug:${slug}:${lang}`;
+  const now = Date.now();
+  const cached = topicSsrCache.get(cacheKey);
+  if (cached && (now - cached.at) < TOPIC_SSR_CACHE_MS) {
+    res.set('Cache-Control', 'public, max-age=60');
+    return res.type('text/html').send(cached.html);
+  }
+
+  try {
+    let topic;
+    if (validId) {
+      topic = await topicService.getTopicById(id);
+    } else {
+      topic = await topicService.getTopicBySlug(slug, lang);
+    }
+    if (!topic) return next();
+
+    const htmlPath = path.join(__dirname, 'gui', 'topic.html');
+    const fs = require('fs');
+    const tmpl = fs.readFileSync(htmlPath, 'utf8');
+
+    const canonicalUrl = origin
+      ? `${origin}/topic.html?id=${topic.id}`
+      : `/topic.html?id=${topic.id}`;
+    const titleText = `${topic.title}${topic.topic_type === 'course' ? ' · Course' : ''} · ${process.env.BRAND_NAME || 'AIngram'}`;
+    const descText = plainTextSummary(topic.summary) || `Read "${topic.title}" on ${process.env.BRAND_NAME || 'AIngram'}.`;
+    const ogType = topic.topic_type === 'course' ? 'article' : 'article';
+    const jsonLd = buildTopicJsonLd(topic, canonicalUrl);
+
+    const headInjection = [
+      `<title>${escapeHtml(titleText)}</title>`,
+      `<meta name="description" content="${escapeHtml(descText)}">`,
+      `<link rel="canonical" href="${escapeHtml(canonicalUrl)}">`,
+      `<meta property="og:type" content="${escapeHtml(ogType)}">`,
+      `<meta property="og:title" content="${escapeHtml(topic.title)}">`,
+      `<meta property="og:description" content="${escapeHtml(descText)}">`,
+      `<meta property="og:url" content="${escapeHtml(canonicalUrl)}">`,
+      `<meta property="og:site_name" content="${escapeHtml(process.env.BRAND_NAME || 'AIngram')}">`,
+      `<meta property="og:locale" content="${escapeHtml(topic.lang || 'en')}">`,
+      `<meta name="twitter:card" content="summary">`,
+      `<meta name="twitter:title" content="${escapeHtml(topic.title)}">`,
+      `<meta name="twitter:description" content="${escapeHtml(descText)}">`,
+      // JSON-LD last (largest payload)
+      `<script type="application/ld+json">${jsonLd.replace(/<\/script/gi, '<\\/script')}</script>`,
+    ].join('\n  ');
+
+    // Replace the static <title>...</title> and inject everything else before </head>.
+    const withTitle = tmpl.replace(/<title>[\s\S]*?<\/title>/i, '');
+    const rendered = withTitle.replace('</head>', '  ' + headInjection + '\n</head>');
+
+    topicSsrCache.set(cacheKey, { at: now, html: rendered });
+    // Cap cache size so memory doesn't grow unbounded
+    if (topicSsrCache.size > 500) {
+      const oldestKey = topicSsrCache.keys().next().value;
+      topicSsrCache.delete(oldestKey);
+    }
+
+    res.set('Cache-Control', 'public, max-age=60');
+    res.type('text/html').send(rendered);
+  } catch (err) {
+    console.error('SSR topic.html error:', err);
+    return next();
+  }
+});
+
+// sitemap.xml (dynamic; cached in-memory for 1h to avoid DB hits on every crawl)
+const { getPool } = require('./config/database');
+const SITEMAP_CACHE_MS = 60 * 60 * 1000;
+let sitemapCache = { at: 0, xml: null };
+
+function escapeXml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+app.get('/sitemap.xml', async (_req, res) => {
+  const origin = (process.env.AINGRAM_GUI_ORIGIN || '').replace(/\/$/, '');
+  if (!origin) {
+    return res.status(503).type('text/plain')
+      .send('sitemap disabled: AINGRAM_GUI_ORIGIN is not configured for this deployment');
+  }
+
+  const now = Date.now();
+  if (sitemapCache.xml && (now - sitemapCache.at) < SITEMAP_CACHE_MS) {
+    res.set('Cache-Control', 'public, max-age=3600');
+    return res.type('application/xml').send(sitemapCache.xml);
+  }
+
+  try {
+    const pool = getPool();
+    const { rows } = await pool.query(
+      `SELECT t.id, t.updated_at, t.topic_type
+       FROM topics t
+       WHERE EXISTS (
+         SELECT 1 FROM chunk_topics ct JOIN chunks c ON c.id = ct.chunk_id
+         WHERE ct.topic_id = t.id AND c.status = 'published' AND c.hidden = false
+       )
+       ORDER BY t.updated_at DESC NULLS LAST
+       LIMIT 50000`
+    );
+
+    const urls = [
+      { loc: origin + '/', priority: '1.0', changefreq: 'daily' },
+      { loc: origin + '/search.html', priority: '0.8', changefreq: 'daily' },
+      { loc: origin + '/debates.html', priority: '0.8', changefreq: 'daily' },
+      { loc: origin + '/hot-topics.html', priority: '0.7', changefreq: 'daily' },
+      { loc: origin + '/search.html?topicType=course', priority: '0.9', changefreq: 'weekly' },
+      { loc: origin + '/about.html', priority: '0.5', changefreq: 'monthly' },
+      { loc: origin + '/help.html', priority: '0.5', changefreq: 'monthly' },
+    ];
+
+    for (const r of rows) {
+      const entry = {
+        loc: `${origin}/topic.html?id=${r.id}`,
+        changefreq: 'weekly',
+        priority: r.topic_type === 'course' ? '0.9' : '0.7',
+      };
+      if (r.updated_at) {
+        entry.lastmod = new Date(r.updated_at).toISOString().slice(0, 10);
+      }
+      urls.push(entry);
+    }
+
+    const parts = ['<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'];
+    for (const u of urls) {
+      parts.push('  <url>');
+      parts.push('    <loc>' + escapeXml(u.loc) + '</loc>');
+      if (u.lastmod) parts.push('    <lastmod>' + u.lastmod + '</lastmod>');
+      if (u.changefreq) parts.push('    <changefreq>' + u.changefreq + '</changefreq>');
+      if (u.priority) parts.push('    <priority>' + u.priority + '</priority>');
+      parts.push('  </url>');
+    }
+    parts.push('</urlset>', '');
+    const xml = parts.join('\n');
+
+    sitemapCache = { at: now, xml };
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.type('application/xml').send(xml);
+  } catch (err) {
+    console.error('sitemap.xml error:', err);
+    res.status(500).type('text/plain').send('Sitemap generation failed');
+  }
+});
+
+// robots.txt (dynamic so Sitemap line reflects AINGRAM_GUI_ORIGIN)
+app.get('/robots.txt', (_req, res) => {
+  const origin = (process.env.AINGRAM_GUI_ORIGIN || '').replace(/\/$/, '');
+  const lines = [
+    '# AIngram / AIlore',
+    '# Agent-oriented docs: /llms.txt',
+    '',
+    'User-agent: *',
+    'Allow: /',
+    '',
+    '# Private / auth-only paths',
+    'Disallow: /v1/accounts/',
+    'Disallow: /v1/admin/',
+    'Disallow: /admin.html',
+    'Disallow: /settings.html',
+    'Disallow: /notifications.html',
+    'Disallow: /review-queue.html',
+    'Disallow: /suggestions.html',
+    'Disallow: /new-article.html',
+    'Disallow: /login.html',
+    'Disallow: /register.html',
+    'Disallow: /reset-password.html',
+    'Disallow: /confirm-email.html',
+    'Disallow: /profile.html',
+  ];
+  if (origin) {
+    lines.push('', `Sitemap: ${origin}/sitemap.xml`);
+  }
+  res.type('text/plain').send(lines.join('\n') + '\n');
+});
+
 // GUI static files (served at root, after API routes)
 app.use(express.static(path.join(__dirname, 'gui'), { extensions: ['html'] }));
 

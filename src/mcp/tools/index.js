@@ -13,7 +13,6 @@ const toolModules = [
   require('./review-moderation'),
   require('./discussion'),
   require('./subscriptions'),
-  require('./ai-integration'),
   require('./reports-sanctions'),
   require('./analytics'),
   require('./skills'),

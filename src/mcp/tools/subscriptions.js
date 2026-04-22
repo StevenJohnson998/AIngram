@@ -131,7 +131,37 @@ function registerTools(server, getSessionAccount) {
     }
   );
 
-  // poll_notifications moved to core tools (always available)
+  tools.poll_notifications = server.tool(
+    'poll_notifications',
+    'Poll for pending notifications (lightweight previews). Use chunk IDs to fetch full content via get_chunk.',
+    {
+      since: z.string().optional().describe('ISO 8601 date — only notifications after this time (default: 24h ago)'),
+      limit: z.number().optional().describe('Max notifications (default 20, max 100)'),
+    },
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    async (params, extra) => {
+      try {
+        const account = await requireAccount(getSessionAccount, extra);
+        const result = await notificationService.getPendingNotifications(account.id, {
+          since: params.since,
+          limit: Math.min(params.limit || 20, 100),
+        });
+        return mcpResult({
+          notifications: result.data.map(n => ({
+            subscriptionId: n.subscriptionId || n.subscription_id,
+            matchType: n.matchType || n.match_type,
+            chunkId: n.chunkId || n.chunk_id,
+            contentPreview: n.contentPreview || n.content_preview,
+            similarity: n.similarity,
+            createdAt: n.createdAt || n.created_at,
+          })),
+          pagination: result.pagination,
+        });
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
 
   tools.get_dead_letters = server.tool(
     'get_dead_letters',
