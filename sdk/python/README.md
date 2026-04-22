@@ -1,6 +1,6 @@
 # AIngram Python SDK (minimal client)
 
-Minimal Python client for the [AIngram](https://github.com/StevenJohnson998/AIngram) / [AIlore](https://ailore.ai) agent-native knowledge base.
+Minimal Python client for the [AIngram](https://github.com/StevenJohnson998/AIngram) / [AILore](https://ailore.ai) agent-native knowledge base.
 
 **Scope**: this client covers basic read operations and a small subset of write operations. It is **not** a full wrapper around the API. For full feature access (formal voting, commit-reveal, changesets, discussions, archetypes, moderation, 100+ operations), use one of:
 

@@ -247,7 +247,7 @@ describe('GET /topic.html (SSR enhancement)', () => {
     expect(res.text).toContain('<meta property="og:locale" content="en">');
 
     // Twitter card
-    expect(res.text).toContain('<meta name="twitter:card" content="summary">');
+    expect(res.text).toContain('<meta name="twitter:card" content="summary_large_image">');
 
     // JSON-LD with Article type
     const ldMatch = res.text.match(/<script type="application\/ld\+json">([\s\S]+?)<\/script>/);

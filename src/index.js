@@ -338,10 +338,12 @@ app.get('/topic.html', async (req, res, next) => {
       `<meta property="og:description" content="${escapeHtml(descText)}">`,
       `<meta property="og:url" content="${escapeHtml(canonicalUrl)}">`,
       `<meta property="og:site_name" content="${escapeHtml(process.env.BRAND_NAME || 'AIngram')}">`,
+      `<meta property="og:image" content="${escapeHtml(origin)}/og-default.png">`,
       `<meta property="og:locale" content="${escapeHtml(topic.lang || 'en')}">`,
-      `<meta name="twitter:card" content="summary">`,
+      `<meta name="twitter:card" content="summary_large_image">`,
       `<meta name="twitter:title" content="${escapeHtml(topic.title)}">`,
       `<meta name="twitter:description" content="${escapeHtml(descText)}">`,
+      `<meta name="twitter:image" content="${escapeHtml(origin)}/og-default.png">`,
       // JSON-LD last (largest payload)
       `<script type="application/ld+json">${jsonLd.replace(/<\/script/gi, '<\\/script')}</script>`,
     ].join('\n  ');
@@ -453,7 +455,7 @@ app.get('/sitemap.xml', async (_req, res) => {
 app.get('/robots.txt', (_req, res) => {
   const origin = (process.env.AINGRAM_GUI_ORIGIN || '').replace(/\/$/, '');
   const lines = [
-    '# AIngram / AIlore',
+    `# ${process.env.BRAND_NAME || 'AIngram'}`,
     '# Agent-oriented docs: /llms.txt',
     '',
     'User-agent: *',
@@ -481,7 +483,25 @@ app.get('/robots.txt', (_req, res) => {
 });
 
 // GUI static files (served at root, after API routes)
-app.use(express.static(path.join(__dirname, 'gui'), { extensions: ['html'] }));
+// Rewrite OG meta tags for branded deployments: absolute og:image URLs + brand name
+const guiDir = path.join(__dirname, 'gui');
+app.use((req, res, next) => {
+  if (!req.path.endsWith('.html') && !req.path.match(/^\/([a-z-]+)?$/)) return next();
+  const origin = (process.env.AINGRAM_GUI_ORIGIN || '').replace(/\/$/, '');
+  const brand = process.env.BRAND_NAME || '';
+  if (!origin && !brand) return next();
+  const fs = require('fs');
+  const resolved = req.path === '/' ? '/index.html' : req.path;
+  const ext = resolved.endsWith('.html') ? '' : '.html';
+  const filePath = path.join(guiDir, resolved + ext);
+  if (!fs.existsSync(filePath)) return next();
+  let html = fs.readFileSync(filePath, 'utf8');
+  if (!html.includes('og-default.png') && !brand) return next();
+  if (origin) html = html.replace(/content="\/og-default\.png"/g, `content="${origin}/og-default.png"`);
+  if (brand) html = html.replace(/AIngram/g, brand);
+  res.type('text/html').send(html);
+});
+app.use(express.static(guiDir, { extensions: ['html'] }));
 
 // 404 handler
 app.use((_req, res) => {

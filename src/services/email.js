@@ -93,7 +93,7 @@ function getBaseUrl() {
 
 /**
  * Get the brand name for email subjects and body text. Uses BRAND_NAME env var
- * so deployments (e.g. AIlore) get their own branding instead of the generic
+ * so deployments (e.g. AILore) get their own branding instead of the generic
  * "AIngram" default. Matches the pattern used in src/index.js for the GUI.
  */
 function getBrand() {

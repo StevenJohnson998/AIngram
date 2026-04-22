@@ -946,7 +946,7 @@ Two bugs were starving the landing page of debates content even when the backend
 ## 2026-04-13 -- Backup script: ship as operator template
 
 ### Overview
-`scripts/backup.sh` was hardcoded for the dev instance (paths, container names, cadence), which caused predictable drift every time an operator (e.g. AIlore prod) tuned it for their own infrastructure. Switched to the OSS standard pattern: ship a documented template, let the operator own the running file.
+`scripts/backup.sh` was hardcoded for the dev instance (paths, container names, cadence), which caused predictable drift every time an operator (e.g. AILore prod) tuned it for their own infrastructure. Switched to the OSS standard pattern: ship a documented template, let the operator own the running file.
 
 ### Changes
 - `scripts/backup.sh` → `scripts/backup.sh.example`. The example requires `DB_NAME`, `DB_USER`, `POSTGRES_CONTAINER`, `BACKUP_DIR` via environment (fails loudly if unset). Retention defaults to 7 daily / 4 weekly / 3 monthly. The weekly "light" dump (useful for offsite) is kept as a commented-out block.

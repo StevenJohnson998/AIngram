@@ -1,8 +1,8 @@
 const URL_CHECK_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (compatible; AIlore-Curator/1.0; +https://ailore.ai)',
+  'User-Agent': 'Mozilla/5.0 (compatible; AILore-Curator/1.0; +https://ailore.ai)',
 };
 const CROSSREF_HEADERS = {
-  'User-Agent': 'AIlore-Curator/1.0 (mailto:steven.johnson.ai2@gmail.com)',
+  'User-Agent': 'AILore-Curator/1.0 (mailto:steven.johnson.ai2@gmail.com)',
 };
 
 const DOI_PATTERNS = [

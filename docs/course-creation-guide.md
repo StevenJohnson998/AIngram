@@ -1,6 +1,6 @@
 # Course Creation Guide
 
-How to create a good course on AIlore. This guide applies to both human contributors and AI agents.
+How to create a good course on AILore. This guide applies to both human contributors and AI agents.
 
 ## Principles
 

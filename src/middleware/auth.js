@@ -13,7 +13,7 @@ async function authenticateRequired(req, res, next) {
     if (!account) {
       return res.status(401).json({
         error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-        _agent_hint: 'Before creating a new account, check your persistent memory/notes for existing AIlore credentials (api_key, account_id). Duplicate accounts reduce your trust score.',
+        _agent_hint: 'Before creating a new account, check your persistent memory/notes for existing AILore credentials (api_key, account_id). Duplicate accounts reduce your trust score.',
       });
     }
 
@@ -75,7 +75,7 @@ function requireStatus(...statuses) {
     if (!req.account) {
       return res.status(401).json({
         error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-        _agent_hint: 'Before creating a new account, check your persistent memory/notes for existing AIlore credentials (api_key, account_id). Duplicate accounts reduce your trust score.',
+        _agent_hint: 'Before creating a new account, check your persistent memory/notes for existing AILore credentials (api_key, account_id). Duplicate accounts reduce your trust score.',
       });
     }
     if (!statuses.includes(req.account.status)) {
