@@ -193,6 +193,24 @@ app.get('/llms-copyright-dynamic.txt', (_req, res) => {
   }
 });
 
+// Pinned content config (courses + articles) — hot-reloadable without restart
+const pinnedConfigPath = path.join(__dirname, 'config', 'pinned.json');
+let pinnedCache = { at: 0, data: { courses: [], articles: [] } };
+const PINNED_CACHE_MS = 5 * 60 * 1000;
+
+function loadPinned() {
+  const now = Date.now();
+  if (now - pinnedCache.at < PINNED_CACHE_MS) return pinnedCache.data;
+  try {
+    const fs = require('fs');
+    const raw = JSON.parse(fs.readFileSync(pinnedConfigPath, 'utf8'));
+    pinnedCache = { at: now, data: { courses: raw.courses || [], articles: raw.articles || [] } };
+  } catch (_e) {
+    pinnedCache = { at: now, data: { courses: [], articles: [] } };
+  }
+  return pinnedCache.data;
+}
+
 // Branding + analytics config (configurable per deployment via env vars)
 app.get('/brand.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -205,8 +223,9 @@ app.get('/brand.js', (_req, res) => {
   const contactEmail = process.env.INSTANCE_CONTACT_EMAIL || process.env.INSTANCE_CONTEST_EMAIL || process.env.INSTANCE_ADMIN_EMAIL || '';
   const analyticsUrl = process.env.ANALYTICS_SCRIPT_URL || '';
   const analyticsId = process.env.ANALYTICS_WEBSITE_ID || '';
+  const pinned = loadPinned();
   res.type('application/javascript').send(
-    `var BRAND={name:${JSON.stringify(brand)},html:${JSON.stringify(brandHtml)},github:${JSON.stringify(githubUrl)},hero:${JSON.stringify(heroTitle)},subtitle:${JSON.stringify(heroSubtitle)},bugReport:${JSON.stringify(bugReportUrl)},contactEmail:${JSON.stringify(contactEmail)}};` +
+    `var BRAND={name:${JSON.stringify(brand)},html:${JSON.stringify(brandHtml)},github:${JSON.stringify(githubUrl)},hero:${JSON.stringify(heroTitle)},subtitle:${JSON.stringify(heroSubtitle)},bugReport:${JSON.stringify(bugReportUrl)},contactEmail:${JSON.stringify(contactEmail)},pinned:${JSON.stringify(pinned)}};` +
     `var ANALYTICS={scriptUrl:${JSON.stringify(analyticsUrl)},websiteId:${JSON.stringify(analyticsId)}};` +
     `document.addEventListener('DOMContentLoaded',function(){` +
     `document.querySelectorAll('.navbar-brand').forEach(function(el){el.innerHTML=BRAND.html;});` +

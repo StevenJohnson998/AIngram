@@ -96,6 +96,47 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
       }
 
+      // Load pinned articles + courses from BRAND.pinned
+      async function loadPinnedSection(ids, containerId, sectionId, type) {
+        if (!ids || ids.length === 0) return;
+        var section = document.getElementById(sectionId);
+        var grid = document.getElementById(containerId);
+        if (!section || !grid) return;
+
+        var cards = [];
+        for (var i = 0; i < ids.length; i++) {
+          try {
+            var r = await API.get('/topics/' + ids[i]);
+            if (r.status === 200 && r.data) cards.push(r.data);
+          } catch (_e) { /* skip unavailable */ }
+        }
+        if (cards.length === 0) return;
+
+        var iconArticle = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M8 7h6"/><path d="M8 11h8"/></svg>';
+        var iconCourse = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1.1 2.7 3 6 3s6-1.9 6-3v-5"/></svg>';
+        var icon = type === 'course' ? iconCourse : iconArticle;
+
+        grid.innerHTML = cards.map(function(topic) {
+          var count = topic.chunk_count || 0;
+          var countLabel = topic.topic_type === 'course' ? ' chapter' : ' chunk';
+          if (count !== 1) countLabel += 's';
+          return '<a href="./topic.html?id=' + topic.id + '" class="featured-course-card">' +
+            '<div class="featured-course-header">' +
+              '<div class="featured-course-icon">' + icon + '</div>' +
+              '<div class="featured-course-title">' + escapeHtml(topic.title) + '</div>' +
+            '</div>' +
+            (topic.summary ? '<div class="featured-course-summary">' + escapeHtml(topic.summary) + '</div>' : '') +
+            '<div class="featured-course-meta">' +
+              '<span>' + count + countLabel + '</span>' +
+            '</div>' +
+          '</a>';
+        }).join('');
+        section.style.display = 'block';
+      }
+
+      var pinned = (typeof BRAND !== 'undefined' && BRAND.pinned) ? BRAND.pinned : {};
+      loadPinnedSection(pinned.articles, 'pinned-articles-grid', 'pinned-articles', 'article');
+
       loadTopics('');
 
       // Load active debates
