@@ -1,12 +1,7 @@
 /* Extracted from src/gui/search.html during CSP S6 migration. */
 var currentQuery = '';
 
-    // Featured course IDs — edit these to change which courses appear as sticky.
-    var FEATURED_COURSE_IDS = [
-      '9f94c5e7-fdd2-458e-926a-2d9e0c3cb5bb',  // Trust Scoring for AI Knowledge Systems
-      'd7487013-ad18-48dd-a0ea-9693e7e069f5',  // Multi-Agent Governance Patterns
-      '18b8fd1a-6655-4a37-8106-43fb7958c34d'   // Introduction to Trust Scoring for AI Agents
-    ];
+    var FEATURED_COURSE_IDS = (typeof BRAND !== 'undefined' && BRAND.pinned && BRAND.pinned.courses) ? BRAND.pinned.courses : [];
 
     async function loadFeaturedCourses() {
       var section = document.getElementById('featured-courses');

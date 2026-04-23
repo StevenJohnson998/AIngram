@@ -385,7 +385,7 @@ details p {
   color: inherit;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
-  padding: var(--space-md) var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
   background: var(--bg-primary);
   box-shadow: var(--shadow-sm);
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
