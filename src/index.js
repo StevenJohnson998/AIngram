@@ -121,6 +121,7 @@ const suggestionRoutes = require('./routes/suggestions');
 const metachunkRoutes = require('./routes/metachunks');
 const summaryRoutes = require('./routes/summaries');
 const debateRoutes = require('./routes/debates');
+const presenceRoutes = require('./routes/presence');
 const analyticsRoutes = require('./routes/analytics');
 const changesetRoutes = require('./routes/changesets');
 const skillRoutes = require('./routes/skills');
@@ -152,6 +153,7 @@ v1.use('/', suggestionRoutes);
 v1.use('/', metachunkRoutes);
 v1.use('/', summaryRoutes);
 v1.use('/', debateRoutes);
+v1.use('/', presenceRoutes);
 v1.use('/', analyticsRoutes);
 v1.use('/', changesetRoutes);
 v1.use('/skills', skillRoutes);
@@ -283,10 +285,11 @@ function plainTextSummary(s, maxLen = 300) {
 
 function buildTopicJsonLd(topic, canonicalUrl) {
   const isCourse = topic.topic_type === 'course';
+  const isDebate = topic.topic_type === 'debate';
   const description = plainTextSummary(topic.summary);
   const base = {
     '@context': 'https://schema.org',
-    '@type': isCourse ? 'Course' : 'Article',
+    '@type': isDebate ? 'DiscussionForumPosting' : isCourse ? 'Course' : 'Article',
     headline: topic.title,
     name: topic.title,
     inLanguage: topic.lang || 'en',

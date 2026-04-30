@@ -166,6 +166,12 @@ var currentTopicId = null;
           discEl.style.display = 'block';
         }
 
+        // Debate mode: discussion-first layout, polling, typing indicator
+        if (topic.topic_type === 'debate') {
+          initDebateMode(topic);
+          return;
+        }
+
         // Course mode: show course header + chapter sidebar instead of TOC
         if (topic.topic_type === 'course' && metaContent && metaContent.course) {
           renderCourseHeader(metaContent.course, chunks.filter(function(c) { return c._ordered; }).length);
@@ -868,10 +874,13 @@ var currentTopicId = null;
           var marker = document.getElementById('unread-marker');
           if (marker) marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
+          // Track latest message time for debate delta polling
+          var latest = messages[messages.length - 1];
+          var latestTime = latest.created_at || latest.createdAt;
+          if (latestTime) _lastMessageTimestamp = latestTime;
+
           // Save last read timestamp (only with consent)
           if (typeof hasConsent === 'function' && hasConsent()) {
-            var latest = messages[messages.length - 1];
-            var latestTime = latest.created_at || latest.createdAt;
             if (latestTime) localStorage.setItem('lastRead_' + topicId, latestTime);
           }
         } else {
@@ -1847,3 +1856,262 @@ var currentTopicId = null;
 
       // Refresh article modal removed: refresh is now triggered via AI agent action
     });
+
+    // ========================================
+    // Live Debate Mode
+    // ========================================
+
+    var _debatePollingInterval = null;
+    var _presencePollingInterval = null;
+    var _presenceSignalInterval = null;
+    var _lastMessageTimestamp = null;
+
+    async function initDebateMode(topic) {
+      var now = new Date();
+      var startsAt = new Date(topic.starts_at);
+      var endsAt = new Date(topic.ends_at);
+      var isLive = topic.status === 'active' && now >= startsAt && now <= endsAt;
+      var isUpcoming = topic.status === 'active' && now < startsAt;
+      var isEnded = topic.status === 'locked' || now > endsAt;
+
+      // Hide article-specific elements
+      var hideIds = ['tab-article', 'tab-proposals', 'tab-history', 'course-header',
+                     'sidebar-toc', 'toc-section', 'add-chunk-section', 'persona-bar',
+                     'pending-review-banner', 'review-section', 'refresh-status',
+                     'bibliography-section', 'related-topics'];
+      hideIds.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+
+      // Hide tabs bar entirely — debate is single-view
+      var tabsBar = document.querySelector('.tabs[data-group="topic"]');
+      if (tabsBar) tabsBar.style.display = 'none';
+
+      // Show discussion tab as the main content
+      var discTab = document.getElementById('tab-discussion');
+      if (discTab) {
+        discTab.classList.add('active');
+        discTab.style.display = 'block';
+      }
+
+      // Update breadcrumb
+      var breadcrumbArticles = document.querySelector('#topic-breadcrumb a[href="./search.html"]');
+      if (breadcrumbArticles) {
+        breadcrumbArticles.href = './debates.html';
+        breadcrumbArticles.textContent = 'Live Debates';
+      }
+
+      // Add debate badge to meta
+      var metaEl = document.getElementById('topic-meta');
+      if (metaEl) {
+        var statusBadge = isLive ? '<span class="badge badge-live">LIVE</span>'
+          : isUpcoming ? '<span class="badge badge-upcoming">UPCOMING</span>'
+          : '<span class="badge">ENDED</span>';
+        metaEl.innerHTML = statusBadge + ' <span class="sep">&middot;</span> ' + metaEl.innerHTML;
+      }
+
+      // Insert status banner before discussion
+      var discContainer = document.getElementById('discussion-container');
+      var banner = document.createElement('div');
+      banner.className = 'debate-status-banner';
+      if (isLive) {
+        banner.className += ' status-live';
+        banner.innerHTML = '<span class="pulse-dot"></span> Live now &mdash; ends ' + formatDebateTime(endsAt);
+      } else if (isUpcoming) {
+        banner.className += ' status-upcoming';
+        banner.innerHTML = 'Starts ' + formatDebateTime(startsAt);
+      } else {
+        banner.className += ' status-ended';
+        banner.innerHTML = 'This debate has ended &mdash; ' + formatDebateTime(startsAt) + ' to ' + formatDebateTime(endsAt);
+      }
+      discContainer.parentNode.insertBefore(banner, discContainer);
+
+      // Insert typing indicator (before discussion container)
+      var typingEl = document.createElement('div');
+      typingEl.className = 'typing-indicator';
+      typingEl.id = 'typing-indicator';
+      discContainer.parentNode.insertBefore(typingEl, discContainer);
+
+      // Show debate summary for ended debates (level 3 coordination message)
+      if (isEnded) {
+        await loadDebateSummary(topic.id, discContainer);
+      }
+
+      // Load discussion
+      await loadDiscussion(topic.id);
+
+      // Handle reply form visibility
+      var user = null;
+      try { user = await getCurrentUser(); } catch(e) {}
+
+      if (user && isLive) {
+        document.getElementById('reply-section').style.display = 'block';
+        document.getElementById('refresh-discussion-anon').style.display = 'none';
+        setupPresenceSignaling(topic.id);
+      } else if (!isLive) {
+        document.getElementById('reply-section').style.display = 'none';
+        document.getElementById('refresh-discussion-anon').style.display = 'none';
+      }
+
+      // Start polling during live window
+      if (isLive) {
+        startDebatePolling(topic.id);
+      }
+
+      // Auto-stop polling when debate ends (check every 30s)
+      if (isLive) {
+        var endCheck = setInterval(function() {
+          if (new Date() > endsAt) {
+            stopDebatePolling();
+            clearInterval(endCheck);
+            banner.className = 'debate-status-banner status-ended';
+            banner.innerHTML = 'This debate has ended.';
+            document.getElementById('reply-section').style.display = 'none';
+            typingEl.textContent = '';
+          }
+        }, 30000);
+      }
+    }
+
+    function formatDebateTime(d) {
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) +
+        ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    }
+
+    async function loadDebateSummary(topicId, container) {
+      try {
+        var res = await API.get('/topics/' + topicId + '/discussion?limit=100');
+        if (res.status === 200 && res.data && res.data.messages) {
+          var summaryMsg = res.data.messages.find(function(m) {
+            return m.level === 3 && m.type === 'coordination';
+          });
+          if (summaryMsg && summaryMsg.content) {
+            var block = document.createElement('div');
+            block.className = 'debate-summary-block';
+            block.innerHTML = '<h3>Debate Summary</h3>' +
+              '<div class="chunk-content">' + (typeof DOMPurify !== 'undefined'
+                ? DOMPurify.sanitize(typeof marked !== 'undefined' ? marked.parse(summaryMsg.content) : escapeHtml(summaryMsg.content))
+                : escapeHtml(summaryMsg.content)) + '</div>';
+            container.parentNode.insertBefore(block, container);
+          }
+        }
+      } catch(e) {}
+    }
+
+    function startDebatePolling(topicId) {
+      // Discussion polling every 10s
+      _debatePollingInterval = setInterval(async function() {
+        try {
+          var url = '/topics/' + topicId + '/discussion?limit=50';
+          if (_lastMessageTimestamp) {
+            url += '&since=' + encodeURIComponent(_lastMessageTimestamp);
+          }
+          var res = await API.get(url);
+          if (res.status === 200 && res.data && res.data.messages && res.data.messages.length > 0) {
+            var messages = res.data.messages.filter(function(msg) {
+              return msg.level === 1 && msg.status === 'active';
+            });
+            if (messages.length > 0) {
+              if (_lastMessageTimestamp) {
+                appendMessages(messages);
+              } else {
+                // First load handled by loadDiscussion, just update timestamp
+              }
+              var last = messages[messages.length - 1];
+              _lastMessageTimestamp = last.created_at || last.createdAt;
+            }
+          }
+        } catch(e) {}
+      }, 10000);
+
+      // Presence polling every 5s
+      _presencePollingInterval = setInterval(async function() {
+        try {
+          var res = await API.get('/topics/' + topicId + '/presence');
+          var presenceData = res.data || res;
+          var typing = (presenceData.typing || []);
+          var el = document.getElementById('typing-indicator');
+          if (!el) return;
+          if (typing.length === 0) {
+            el.textContent = '';
+          } else if (typing.length === 1) {
+            el.textContent = typing[0].displayName + ' is typing...';
+          } else if (typing.length === 2) {
+            el.textContent = typing[0].displayName + ' and ' + typing[1].displayName + ' are typing...';
+          } else {
+            el.textContent = typing[0].displayName + ' and ' + (typing.length - 1) + ' others are typing...';
+          }
+        } catch(e) {}
+      }, 5000);
+
+      // Set initial timestamp from existing messages
+      var existing = document.querySelectorAll('#discussion-container .message');
+      if (existing.length > 0) {
+        var lastEl = existing[existing.length - 1];
+        var timeEl = lastEl.querySelector('.message-time');
+        // We'll just use the loadDiscussion data — set timestamp after first poll succeeds
+      }
+    }
+
+    function appendMessages(messages) {
+      var container = document.getElementById('discussion-container');
+      messages.forEach(function(msg) {
+        // Skip if already in DOM
+        if (container.querySelector('.message[data-msg-id="' + msg.id + '"]')) return;
+
+        var isAgent = msg.account_type === 'ai';
+        var avatar = isAgent ? '&#129302;' : '&#128100;';
+        var typeBadge = isAgent
+          ? '<span class="badge badge-agent">AI Agent</span>'
+          : '<span class="badge badge-human">Human</span>';
+        var msgTime = msg.created_at || msg.createdAt;
+        var authorId = msg.account_id || '';
+        var authorLink = authorId
+          ? '<a href="./profile.html?id=' + authorId + '" class="message-name link-plain">' + escapeHtml(msg.account_name || 'Unknown') + '</a>'
+          : '<span class="message-name">' + escapeHtml(msg.account_name || 'Unknown') + '</span>';
+
+        var renderedContent = (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined')
+          ? DOMPurify.sanitize(marked.parse(msg.content || ''))
+          : escapeHtml(msg.content || '');
+
+        var div = document.createElement('div');
+        div.className = 'message message-unread';
+        div.dataset.msgId = msg.id;
+        div.innerHTML =
+          '<div class="message-avatar">' + avatar + '</div>' +
+          '<div class="message-body">' +
+            '<div class="message-header">' +
+              authorLink +
+              '<div class="message-header-right">' +
+                typeBadge +
+                '<span class="message-time">' + timeAgo(msgTime) + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="message-text chunk-content">' + renderedContent + '</div>' +
+          '</div>';
+
+        container.appendChild(div);
+      });
+
+      // Auto-scroll to bottom
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function setupPresenceSignaling(topicId) {
+      var textarea = document.getElementById('reply-content');
+      if (!textarea) return;
+      var lastSignal = 0;
+      textarea.addEventListener('input', function() {
+        var now = Date.now();
+        if (now - lastSignal < 3000) return;
+        lastSignal = now;
+        API.post('/topics/' + topicId + '/presence', {}).catch(function() {});
+      });
+    }
+
+    function stopDebatePolling() {
+      if (_debatePollingInterval) { clearInterval(_debatePollingInterval); _debatePollingInterval = null; }
+      if (_presencePollingInterval) { clearInterval(_presencePollingInterval); _presencePollingInterval = null; }
+      if (_presenceSignalInterval) { clearInterval(_presenceSignalInterval); _presenceSignalInterval = null; }
+    }

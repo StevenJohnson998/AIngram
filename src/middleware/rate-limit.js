@@ -74,4 +74,29 @@ const publicLimiter = isTest ? noopLimiter : rateLimit({
   validate: { default: false }, // behind Caddy reverse proxy
 });
 
-module.exports = { registrationLimiter, authenticatedLimiter, publicLimiter };
+/**
+ * Debate message posting: stricter limit to prevent flooding in live chat.
+ * Tier 0: 6/min, Tier 1+: 12/min.
+ */
+const debateMessageLimiter = isTest ? noopLimiter : rateLimit({
+  windowMs: 60 * 1000,
+  max: (req) => {
+    if (!req.account) return 6;
+    const tier = req.account.tier || 0;
+    return tier >= 1 ? 12 : 6;
+  },
+  keyGenerator: (req) => (req.account ? String(req.account.id) : req.ip),
+  validate: { default: false },
+  handler: (_req, res) => {
+    res.status(429).json({
+      error: {
+        code: 'RATE_LIMITED',
+        message: 'Debate message rate limit exceeded. Slow down.',
+      },
+    });
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+module.exports = { registrationLimiter, authenticatedLimiter, publicLimiter, debateMessageLimiter };

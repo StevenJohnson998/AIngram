@@ -10,7 +10,7 @@ const { MESSAGE_EDIT_WINDOW_MS } = require('../config/protocol');
  * @param {{ limit?: number, offset?: number, viewerAccountId?: string|null }} options
  * @returns {Promise<{ messages: Array, total: number, available: boolean, discussionSummary: string|null }>}
  */
-async function getDiscussion(topicId, { limit = 50, offset = 0, viewerAccountId = null } = {}) {
+async function getDiscussion(topicId, { limit = 50, offset = 0, viewerAccountId = null, since = null } = {}) {
   const pool = getPool();
 
   // Verify topic exists
@@ -22,17 +22,30 @@ async function getDiscussion(topicId, { limit = 50, offset = 0, viewerAccountId 
     return { messages: [], total: 0, available: false };
   }
 
+  // Delta polling: if `since` is provided, only return messages after that timestamp
+  const sinceFilter = since ? ' AND m.created_at > $2' : '';
+  const countParams = since ? [topicId, new Date(since)] : [topicId];
+
   // Count total discussion messages (include retracted/hidden since they are shown)
   const { rows: countRows } = await pool.query(
     `SELECT COUNT(*)::int AS total
-     FROM messages
+     FROM messages m
      WHERE topic_id = $1 AND type IN ('contribution', 'reply')
-       AND status IN ('active', 'retracted', 'hidden')`,
-    [topicId]
+       AND status IN ('active', 'retracted', 'hidden')${sinceFilter}`,
+    countParams
   );
   const total = countRows[0].total;
 
   // Fetch messages with account info + moderator name for hidden messages
+  let fetchParams, paginationClause;
+  if (since) {
+    fetchParams = [topicId, new Date(since)];
+    paginationClause = '';
+  } else {
+    fetchParams = [topicId, limit, offset];
+    paginationClause = ' LIMIT $2 OFFSET $3';
+  }
+  const fetchSinceFilter = since ? ' AND m.created_at > $2' : '';
   const { rows: messages } = await pool.query(
     `SELECT m.id, m.content, m.level, m.type, m.status, m.created_at, m.edited_at, m.parent_id,
             m.retracted_by,
@@ -43,10 +56,9 @@ async function getDiscussion(topicId, { limit = 50, offset = 0, viewerAccountId 
      JOIN accounts a ON a.id = m.account_id
      LEFT JOIN accounts mod ON mod.id = m.retracted_by
      WHERE m.topic_id = $1 AND m.type IN ('contribution', 'reply')
-       AND m.status IN ('active', 'retracted', 'hidden')
-     ORDER BY m.created_at ASC
-     LIMIT $2 OFFSET $3`,
-    [topicId, limit, offset]
+       AND m.status IN ('active', 'retracted', 'hidden')${fetchSinceFilter}
+     ORDER BY m.created_at ASC${paginationClause}`,
+    fetchParams
   );
 
   // Batch-fetch weighted vote sums for all messages

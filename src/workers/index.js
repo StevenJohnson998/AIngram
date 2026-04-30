@@ -40,6 +40,7 @@ const { refreshViews } = require('../services/copyright-analytics');
 const { generateCopyrightDirective } = require('../services/dynamic-directives');
 const { retryPendingEmbeddings } = require('../services/embedding');
 const { processPendingReviews, processInjectionFlags } = require('../services/quarantine-validator');
+const { checkDebateClosures } = require('./debate-summary');
 const securityConfig = require('../services/security-config');
 
 // Load security config from DB (same init as main API process)
@@ -87,6 +88,11 @@ const QUARANTINE_VALIDATOR_POLL_MS = parseInt(process.env.QUARANTINE_VALIDATOR_P
 const quarantineValidatorInterval = setInterval(processPendingReviews, QUARANTINE_VALIDATOR_POLL_MS);
 console.log(`Worker: quarantine validator job started (interval: ${QUARANTINE_VALIDATOR_POLL_MS}ms)`);
 
+// Live debate closure: auto-lock + generate summary every 60 seconds
+const DEBATE_CLOSURE_CHECK_MS = parseInt(process.env.T_DEBATE_CLOSURE_CHECK_MS || '60000', 10);
+const debateClosureInterval = setInterval(checkDebateClosures, DEBATE_CLOSURE_CHECK_MS);
+console.log(`Worker: debate closure job started (interval: ${DEBATE_CLOSURE_CHECK_MS}ms)`);
+
 // Injection flag review: process account-level injection_auto flags every 60 seconds
 const INJECTION_FLAG_POLL_MS = parseInt(process.env.INJECTION_FLAG_POLL_MS || '60000', 10);
 const injectionFlagInterval = setInterval(processInjectionFlags, INJECTION_FLAG_POLL_MS);
@@ -121,6 +127,7 @@ async function shutdown() {
   clearInterval(embeddingRetryInterval);
   clearInterval(quarantineValidatorInterval);
   clearInterval(injectionFlagInterval);
+  clearInterval(debateClosureInterval);
   server.close();
   await closePool();
   process.exit(0);

@@ -213,6 +213,20 @@ export const T_DIRECTIVES_REGEN_MS = parseInt(process.env.T_DIRECTIVES_REGEN_MS 
 /** Embedding retry interval (ms) — default 30min */
 export const T_EMBEDDING_RETRY_MS = parseInt(process.env.T_EMBEDDING_RETRY_MS || '', 10) || 30 * 60 * 1000;
 
+// --- Live Debate ---
+
+/** Debate closure check interval (ms) — default 60s */
+export const T_DEBATE_CLOSURE_CHECK_MS = parseInt(process.env.T_DEBATE_CLOSURE_CHECK_MS || '', 10) || 60 * 1000;
+
+/** Debate message rate limit — tier 0 (new accounts) */
+export const DEBATE_MSG_RATE_TIER0 = parseInt(process.env.DEBATE_MSG_RATE_TIER0 || '', 10) || 6;
+
+/** Debate message rate limit — tier 1+ (contributors) */
+export const DEBATE_MSG_RATE_TIER1 = parseInt(process.env.DEBATE_MSG_RATE_TIER1 || '', 10) || 12;
+
+/** Presence typing indicator expiry (ms) — default 10s */
+export const PRESENCE_EXPIRY_MS = parseInt(process.env.PRESENCE_EXPIRY_MS || '', 10) || 10 * 1000;
+
 // --- Article Refresh Mechanism ---
 
 /** Reputation delta for confirming a chunk is still fresh (verify + evidence) */

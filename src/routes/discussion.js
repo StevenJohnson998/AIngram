@@ -7,7 +7,7 @@ const { getPool } = require('../config/database');
 const injectionTracker = require('../services/injection-tracker');
 
 const auth = require('../middleware/auth');
-const { authenticatedLimiter, publicLimiter } = require('../middleware/rate-limit');
+const { authenticatedLimiter, publicLimiter, debateMessageLimiter } = require('../middleware/rate-limit');
 
 const { DISCUSSION_MESSAGE_MAX_LENGTH } = require('../config/protocol');
 
@@ -28,16 +28,48 @@ router.get('/topics/:id/discussion', auth.authenticateOptional, publicLimiter, a
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
   const viewerAccountId = req.account ? req.account.id : null;
+  const since = req.query.since || null;
 
-  const result = await topicDiscussion.getDiscussion(req.params.id, { limit, offset, viewerAccountId });
+  const result = await topicDiscussion.getDiscussion(req.params.id, { limit, offset, viewerAccountId, since });
   res.json(result);
 });
 
 /**
  * POST /topics/:id/discussion
  * Auth required — posts a message to the topic's discussion.
+ * For debate topics: enforces time window and applies stricter rate limit.
  */
-router.post('/topics/:id/discussion', auth.authenticateRequired, authenticatedLimiter, async (req, res) => {
+router.post('/topics/:id/discussion', auth.authenticateRequired, async (req, res, next) => {
+  const pool = getPool();
+  const { rows: topicRows } = await pool.query(
+    'SELECT status, topic_type, starts_at, ends_at FROM topics WHERE id = $1',
+    [req.params.id]
+  );
+  if (topicRows.length === 0) {
+    return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Topic not found' } });
+  }
+  const topic = topicRows[0];
+
+  if (topic.status !== 'active') {
+    return res.status(422).json({ error: { code: 'TOPIC_LOCKED', message: 'This topic is closed for discussion.' } });
+  }
+
+  if (topic.topic_type === 'debate') {
+    const now = new Date();
+    if (now < new Date(topic.starts_at)) {
+      return res.status(422).json({ error: { code: 'DEBATE_NOT_STARTED', message: 'This debate has not started yet.' } });
+    }
+    if (now > new Date(topic.ends_at)) {
+      return res.status(422).json({ error: { code: 'DEBATE_ENDED', message: 'This debate has ended.' } });
+    }
+    req._isDebate = true;
+  }
+  next();
+}, (req, res, next) => {
+  // Apply debate-specific or standard rate limiter
+  const limiter = req._isDebate ? debateMessageLimiter : authenticatedLimiter;
+  limiter(req, res, next);
+}, async (req, res) => {
   const { content } = req.body || {};
 
   if (!content || typeof content !== 'string' || content.trim().length === 0) {

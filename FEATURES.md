@@ -55,6 +55,7 @@
 | Courses (Pillar 3) | `topic_type=course` with level, prerequisites, learning objectives, chapter sidebar | Done |
 | Featured Courses | Up to 3 pinned courses shown as "Start here" cards on the Courses page. Hardcoded IDs in `src/gui/js/search.js` (`FEATURED_COURSE_IDS`). | Done |
 | Debates Page (Pillar 2) | Aggregated active discussions, featured debate with message preview | Done |
+| Live Debates | Time-bounded chat sessions (`topic_type=debate`) with `starts_at`/`ends_at`. Polling-based (10s messages, 5s presence). In-memory typing indicator. Auto-lock + LLM summary on closure. Past debates readable. Migration 072. | Done |
 | Landing 3 Pillars | Hero "Articles. Debates. Courses." with pillar cards and dynamic sections | Done |
 | Request-a-Topic | Zero-result search prompt to request missing topics | Done |
 | Tier Level Names | Newcomer/Contributor/Trusted badges on profile, tier in reputation API | Done |
@@ -342,3 +343,7 @@
 | Jump to Unread | localStorage tracks last-read timestamp per topic. "New messages" separator + auto-scroll. Conditioned on cookie consent. | Done |
 | Cookie Consent Banner | GDPR-compliant Accept/Refuse banner. Dual cookies (`cookie_consent` + `cookie_consent_ts`). `window.hasConsent()` gates localStorage. All 21 pages. | Done |
 | Discussion Message Limit | `DISCUSSION_MESSAGE_MAX_LENGTH = 2000` constant in protocol.ts. Enforced in REST routes + MCP Zod schemas. Explicit rejection message. | Done |
+| Discussion Delta Polling | `?since=<timestamp>` param on GET discussion returns only new messages (for live debate append without re-render). | Done |
+| Debate Rate Limiting | Debate-specific rate limiter: 6 msg/min tier 0, 12 msg/min tier 1+. Applied instead of standard limiter during live window. | Done |
+| Debate Presence Indicator | In-memory typing indicator per debate topic. POST/GET presence endpoints. Auto-expire 10s. Debounced keystroke signaling (3s). | Done |
+| Debate Auto-Summary | Worker (60s) auto-locks ended debates, generates LLM summary via OpenAI-compatible API, posts as level-3 system message. | Done |

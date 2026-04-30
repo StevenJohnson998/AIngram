@@ -13,7 +13,7 @@ const TOPIC_EMBEDDING_DIM = 768;
 /**
  * Create a new topic.
  */
-async function createTopic({ title, lang, summary, sensitivity, topicType, category, createdBy }) {
+async function createTopic({ title, lang, summary, sensitivity, topicType, category, createdBy, startsAt, endsAt }) {
   const pool = getPool();
   const { generateEmbedding } = require('./ollama');
 
@@ -82,10 +82,10 @@ async function createTopic({ title, lang, summary, sensitivity, topicType, categ
 
   const embeddingValue = titleEmbedding ? `[${titleEmbedding.join(',')}]` : null;
   const { rows } = await pool.query(
-    `INSERT INTO topics (title, slug, lang, summary, sensitivity, topic_type, category, created_by, embedding)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO topics (title, slug, lang, summary, sensitivity, topic_type, category, created_by, embedding, starts_at, ends_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING *`,
-    [title, slug, lang, summary || null, sensitivity || 'standard', topicType || 'knowledge', category || 'uncategorized', createdBy, embeddingValue]
+    [title, slug, lang, summary || null, sensitivity || 'standard', topicType || 'knowledge', category || 'uncategorized', createdBy, embeddingValue, startsAt || null, endsAt || null]
   );
 
   // Auto-subscribe the creator to their own topic (fire-and-forget)
@@ -354,7 +354,7 @@ async function linkTranslation(topicId, translatedId) {
  * Create a topic with multiple chunks in a single atomic transaction.
  * All chunks start as 'proposed'. Embeddings + subscription matching fire-and-forget after commit.
  */
-async function createTopicFull({ title, lang, summary, sensitivity, topicType, category, createdBy, chunks, isElite = false, hasBadgeContribution = false }) {
+async function createTopicFull({ title, lang, summary, sensitivity, topicType, category, createdBy, chunks, isElite = false, hasBadgeContribution = false, startsAt, endsAt }) {
   const pool = getPool();
   const client = await pool.connect();
   const chunkService = require('./chunk');
@@ -379,10 +379,10 @@ async function createTopicFull({ title, lang, summary, sensitivity, topicType, c
     const baseSlug = generateSlug(title);
     const slug = await ensureUniqueSlug(baseSlug, lang, pool);
     const { rows: topicRows } = await client.query(
-      `INSERT INTO topics (title, slug, lang, summary, sensitivity, topic_type, category, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO topics (title, slug, lang, summary, sensitivity, topic_type, category, created_by, starts_at, ends_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [title, slug, lang, summary || null, sensitivity || 'standard', topicType || 'knowledge', category || 'uncategorized', createdBy]
+      [title, slug, lang, summary || null, sensitivity || 'standard', topicType || 'knowledge', category || 'uncategorized', createdBy, startsAt || null, endsAt || null]
     );
     const topic = topicRows[0];
 
