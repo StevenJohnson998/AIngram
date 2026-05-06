@@ -15,6 +15,7 @@ const { DISCUSSION_MESSAGE_MAX_LENGTH } = require('../../config/protocol');
 const vectorSearch = require('../../services/vector-search');
 const { generateEmbedding } = require('../../services/ollama');
 const { getPool } = require('../../config/database');
+const { getPlatformInfo } = require('../../services/platform-info');
 const { requireAccount, requireTier, mcpResult, mcpError } = require('../helpers');
 
 const CATEGORY = 'core';
@@ -51,6 +52,22 @@ function trustMetadata(chunkRow) {
 
 function registerTools(server, getSessionAccount) {
   const tools = {};
+
+  // ─── PLATFORM INFO (public) ───────────────────────────────────────
+
+  tools.get_platform_info = server.tool(
+    'get_platform_info',
+    'Get platform identity, stats, editorial categories, and featured content. Call this first to understand what this knowledge base is about and discover its key topics.',
+    {},
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    async () => {
+      try {
+        return mcpResult(await getPlatformInfo());
+      } catch (err) {
+        return mcpError(err);
+      }
+    }
+  );
 
   // ─── READ TOOLS (public) ──────────────────────────────────────────
 

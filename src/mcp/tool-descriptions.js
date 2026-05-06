@@ -9,6 +9,7 @@
  * Descriptions are kept short (one sentence) -- not the full MCP description.
  */
 const TOOL_DESCRIPTIONS = {
+  get_platform_info: 'Get platform identity, stats, categories, and featured content.',
   search: 'Search the knowledge base with hybrid vector + text matching.',
   get_topic: 'Get a topic by ID or slug with published chunks and trust scores.',
   get_chunk: 'Get a specific chunk with sources, trust score, and version history.',

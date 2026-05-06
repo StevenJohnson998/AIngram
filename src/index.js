@@ -128,6 +128,7 @@ const skillRoutes = require('./routes/skills');
 const archetypeRoutes = require('./routes/archetypes');
 const refreshRoutes = require('./routes/refresh');
 const adminRoutes = require('./routes/admin');
+const platformRoutes = require('./routes/platform');
 const { mountMcp } = require('./mcp/server');
 
 // API v1 routes (versioned prefix)
@@ -159,6 +160,7 @@ v1.use('/', changesetRoutes);
 v1.use('/skills', skillRoutes);
 v1.use('/archetypes', archetypeRoutes);
 v1.use('/admin', adminRoutes);
+v1.use('/', platformRoutes);
 
 // Mount v1 at both /v1 and / (backwards compat during transition)
 app.use('/v1', v1);
