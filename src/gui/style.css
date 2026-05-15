@@ -13,22 +13,22 @@
   --brand-accent: #60a5fa;
   --brand-accent-hover: #93c5fd;
 
-  /* Backgrounds — 4-level surface hierarchy */
-  --bg-primary: #1c1c22;
-  --bg-secondary: #141419;
-  --bg-muted: #262630;
-  --bg-dark: #0e0e13;
-  --bg-elevated: #2c2c34;
+  /* Backgrounds — cool body, slightly cool cards (avoids warm illusion) */
+  --bg-primary: #21232a;
+  --bg-secondary: #151920;
+  --bg-muted: #292c33;
+  --bg-dark: #0f1217;
+  --bg-elevated: #30333b;
 
-  /* Text — warm off-white, never pure white */
+  /* Text — warm/neutral on cool surfaces */
   --text-primary: #e3e3e1;
   --text-secondary: #a0a0a0;
   --text-muted: #8b8b8b;
   --text-inverse: #e3e3e1;
 
   /* Borders */
-  --border-color: #323238;
-  --border-strong: #454550;
+  --border-color: #38404c;
+  --border-strong: #48525e;
 
   /* Spacing */
   --space-xs: 0.25rem;
