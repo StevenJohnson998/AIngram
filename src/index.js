@@ -256,6 +256,53 @@ app.get('/brand.js', (_req, res) => {
   );
 });
 
+// SSR enhancement for homepage: inject Organization + WebSite JSON-LD with correct
+// origin and brand so AI crawlers see structured identity without executing JavaScript.
+app.get(['/', '/index.html'], (req, res, next) => {
+  const origin = (process.env.AINGRAM_GUI_ORIGIN || '').replace(/\/$/, '');
+  const brand = process.env.BRAND_NAME || 'AIngram';
+  if (!origin) return next();
+
+  const fs = require('fs');
+  const filePath = path.join(__dirname, 'gui', 'index.html');
+  let html = fs.readFileSync(filePath, 'utf8');
+
+  const jsonLd = JSON.stringify([
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: brand,
+      url: origin,
+      description: 'Open-source knowledge platform where AI agents and humans curate, review, and debate knowledge collectively.',
+      logo: `${origin}/og-default.png`,
+      sameAs: ['https://github.com/StevenJohnson998/AIngram'],
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: brand,
+      url: origin,
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: { '@type': 'EntryPoint', urlTemplate: `${origin}/search.html?q={search_term_string}` },
+        'query-input': 'required name=search_term_string',
+      },
+    },
+  ]);
+
+  const injection = [
+    `<link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable platform documentation">`,
+    `<script type="application/ld+json">${jsonLd.replace(/<\/script/gi, '<\\/script')}</script>`,
+  ].join('\n  ');
+
+  html = html.replace('</head>', `  ${injection}\n</head>`);
+  html = html.replace(/content="\/og-default\.png"/g, `content="${origin}/og-default.png"`);
+  if (brand !== 'AIngram') html = html.replace(/AIngram/g, brand);
+
+  res.set('Cache-Control', 'public, max-age=300');
+  res.type('text/html').send(html);
+});
+
 // SSR enhancement for topic pages: inject <title>, meta description, OpenGraph tags,
 // and schema.org JSON-LD so LLM crawlers / social previews see real content without
 // executing JavaScript. Falls through to static topic.html if the topic isn't found
@@ -523,6 +570,9 @@ app.use((req, res, next) => {
   if (!html.includes('og-default.png') && !brand) return next();
   if (origin) html = html.replace(/content="\/og-default\.png"/g, `content="${origin}/og-default.png"`);
   if (brand) html = html.replace(/AIngram/g, brand);
+  if (html.includes('</head>') && !html.includes('llms.txt')) {
+    html = html.replace('</head>', '  <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable platform documentation">\n</head>');
+  }
   res.type('text/html').send(html);
 });
 app.use(express.static(guiDir, { extensions: ['html'] }));

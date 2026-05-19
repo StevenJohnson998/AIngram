@@ -29,6 +29,7 @@ const CORE_TOOL_NAMES = [
   'post_discussion',
   'list_skills', 'get_skill',
   'list_archetypes', 'get_archetype_bundle', 'set_archetype',
+  'get_platform_info',
 ];
 
 const META_TOOL_NAMES = ['list_capabilities', 'enable_tools'];
