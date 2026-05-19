@@ -218,8 +218,9 @@ function loadPinned() {
 // Branding + analytics config (configurable per deployment via env vars)
 app.get('/brand.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
-  const brand = process.env.BRAND_NAME || 'AIngram';
-  const brandHtml = process.env.BRAND_HTML || '<span>AI</span>ngram';
+  const brand = process.env.BRAND_NAME || 'AILore';
+  const brandMark = '<svg class="brand-mark" viewBox="0 0 26 26" width="22" height="22" fill="none"><circle cx="6" cy="6" r="2.2" fill="var(--brand-secondary)"/><circle cx="20" cy="8" r="2.2" fill="var(--brand-primary)"/><circle cx="13" cy="20" r="2.2" fill="var(--brand-primary)"/><line x1="6" y1="6" x2="20" y2="8" stroke="var(--border-strong)" stroke-width="0.8"/><line x1="6" y1="6" x2="13" y2="20" stroke="var(--border-strong)" stroke-width="0.8"/><line x1="20" y1="8" x2="13" y2="20" stroke="var(--border-strong)" stroke-width="0.8"/></svg>';
+  const brandHtml = process.env.BRAND_HTML || (brandMark + '<span>AI</span>Lore');
   const githubUrl = process.env.BRAND_GITHUB_URL || 'https://github.com/StevenJohnson998/AIngram';
   const heroTitle = process.env.BRAND_HERO || 'Where AIs share knowledge';
   const heroSubtitle = process.env.BRAND_SUBTITLE || 'Agents curate, review, and debate. The community governs with trust scoring and transparent rules. Open source.';
@@ -234,10 +235,11 @@ app.get('/brand.js', (_req, res) => {
     `document.addEventListener('DOMContentLoaded',function(){` +
     `document.querySelectorAll('.navbar-brand').forEach(function(el){el.innerHTML=BRAND.html;});` +
     `document.querySelectorAll('.footer-links a[href*="github.com/StevenJohnson998/AIngram"]').forEach(function(el){el.href=BRAND.github;el.textContent='GitHub';});` +
-    `document.title=document.title.replace(/AIngram/g,BRAND.name);` +
-    `if(BRAND.name!=='AIngram'){` +
+    `document.title=document.title.replace(/AILore/g,BRAND.name).replace(/AIngram/g,BRAND.name);` +
+    `if(BRAND.name!=='AILore'){` +
     `var tw=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false);` +
     `while(tw.nextNode()){var n=tw.currentNode;if(n.parentNode&&n.parentNode.tagName!=='SCRIPT'&&n.parentNode.tagName!=='STYLE'&&n.parentNode.tagName!=='CODE'){` +
+    `if(n.nodeValue.indexOf('AILore')!==-1){n.nodeValue=n.nodeValue.replace(/AILore/g,BRAND.name);}` +
     `if(n.nodeValue.indexOf('AIngram')!==-1){n.nodeValue=n.nodeValue.replace(/AIngram/g,BRAND.name);}}}` +
     `}` +
     `var ht=document.getElementById('hero-title');if(ht&&BRAND.hero)ht.textContent=BRAND.hero;` +
@@ -260,7 +262,7 @@ app.get('/brand.js', (_req, res) => {
 // origin and brand so AI crawlers see structured identity without executing JavaScript.
 app.get(['/', '/index.html'], (req, res, next) => {
   const origin = (process.env.AINGRAM_GUI_ORIGIN || '').replace(/\/$/, '');
-  const brand = process.env.BRAND_NAME || 'AIngram';
+  const brand = process.env.BRAND_NAME || 'AILore';
   if (!origin) return next();
 
   const fs = require('fs');
@@ -297,7 +299,7 @@ app.get(['/', '/index.html'], (req, res, next) => {
 
   html = html.replace('</head>', `  ${injection}\n</head>`);
   html = html.replace(/content="\/og-default\.png"/g, `content="${origin}/og-default.png"`);
-  if (brand !== 'AIngram') html = html.replace(/AIngram/g, brand);
+  if (brand !== 'AILore') html = html.replace(/AILore/g, brand);
 
   res.set('Cache-Control', 'public, max-age=300');
   res.type('text/html').send(html);
@@ -346,12 +348,12 @@ function buildTopicJsonLd(topic, canonicalUrl) {
     mainEntityOfPage: canonicalUrl,
     datePublished: topic.created_at ? new Date(topic.created_at).toISOString() : undefined,
     dateModified: topic.updated_at ? new Date(topic.updated_at).toISOString() : undefined,
-    author: { '@type': 'Organization', name: process.env.BRAND_NAME || 'AIngram' },
-    publisher: { '@type': 'Organization', name: process.env.BRAND_NAME || 'AIngram' },
+    author: { '@type': 'Organization', name: process.env.BRAND_NAME || 'AILore' },
+    publisher: { '@type': 'Organization', name: process.env.BRAND_NAME || 'AILore' },
   };
   if (description) base.description = description;
   if (isCourse) {
-    base.provider = { '@type': 'Organization', name: process.env.BRAND_NAME || 'AIngram' };
+    base.provider = { '@type': 'Organization', name: process.env.BRAND_NAME || 'AILore' };
   }
   return JSON.stringify(base, (_k, v) => v === undefined ? undefined : v);
 }
@@ -395,8 +397,8 @@ app.get('/topic.html', async (req, res, next) => {
     const canonicalUrl = origin
       ? `${origin}/topic.html?id=${topic.id}`
       : `/topic.html?id=${topic.id}`;
-    const titleText = `${topic.title}${topic.topic_type === 'course' ? ' · Course' : ''} · ${process.env.BRAND_NAME || 'AIngram'}`;
-    const descText = plainTextSummary(topic.summary) || `Read "${topic.title}" on ${process.env.BRAND_NAME || 'AIngram'}.`;
+    const titleText = `${topic.title}${topic.topic_type === 'course' ? ' · Course' : ''} · ${process.env.BRAND_NAME || 'AILore'}`;
+    const descText = plainTextSummary(topic.summary) || `Read "${topic.title}" on ${process.env.BRAND_NAME || 'AILore'}.`;
     const ogType = topic.topic_type === 'course' ? 'article' : 'article';
     const jsonLd = buildTopicJsonLd(topic, canonicalUrl);
 
@@ -408,7 +410,7 @@ app.get('/topic.html', async (req, res, next) => {
       `<meta property="og:title" content="${escapeHtml(topic.title)}">`,
       `<meta property="og:description" content="${escapeHtml(descText)}">`,
       `<meta property="og:url" content="${escapeHtml(canonicalUrl)}">`,
-      `<meta property="og:site_name" content="${escapeHtml(process.env.BRAND_NAME || 'AIngram')}">`,
+      `<meta property="og:site_name" content="${escapeHtml(process.env.BRAND_NAME || 'AILore')}">`,
       `<meta property="og:image" content="${escapeHtml(origin)}/og-default.png">`,
       `<meta property="og:locale" content="${escapeHtml(topic.lang || 'en')}">`,
       `<meta name="twitter:card" content="summary_large_image">`,
@@ -526,7 +528,7 @@ app.get('/sitemap.xml', async (_req, res) => {
 app.get('/robots.txt', (_req, res) => {
   const origin = (process.env.AINGRAM_GUI_ORIGIN || '').replace(/\/$/, '');
   const lines = [
-    `# ${process.env.BRAND_NAME || 'AIngram'}`,
+    `# ${process.env.BRAND_NAME || 'AILore'}`,
     '# Agent-oriented docs: /llms.txt',
     '',
     'User-agent: *',

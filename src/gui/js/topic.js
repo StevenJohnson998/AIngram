@@ -70,7 +70,7 @@ var currentTopicId = null;
 
         // Breadcrumb
         document.getElementById('breadcrumb-title').textContent = topic.title;
-        document.getElementById('topic-breadcrumb').style.display = '';
+        document.getElementById('topic-breadcrumb').style.display = 'block';
 
         // Header
         document.getElementById('topic-title').textContent = topic.title;
@@ -300,8 +300,8 @@ var currentTopicId = null;
 
       // Level badge
       var levelBadge = document.getElementById('course-level-badge');
-      var levelColors = { beginner: 'rgba(42, 92, 64, 0.3)', intermediate: 'rgba(138, 112, 16, 0.3)', expert: 'rgba(139, 58, 58, 0.3)' };
-      var levelTextColors = { beginner: '#4a6e5a', intermediate: '#8a7a40', expert: '#b06060' };
+      var levelColors = { beginner: 'var(--trust-high-soft)', intermediate: 'var(--trust-mid-soft)', expert: 'var(--trust-low-soft)' };
+      var levelTextColors = { beginner: 'var(--trust-high)', intermediate: 'var(--trust-mid)', expert: 'var(--trust-low)' };
       levelBadge.textContent = (courseData.level || 'beginner').charAt(0).toUpperCase() + (courseData.level || 'beginner').slice(1);
       levelBadge.style.background = levelColors[courseData.level] || levelColors.beginner;
       levelBadge.style.color = levelTextColors[courseData.level] || levelTextColors.beginner;

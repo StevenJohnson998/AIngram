@@ -196,22 +196,22 @@ describe('GET /topic.html (SSR enhancement)', () => {
   it('falls through to static HTML when no id or slug', async () => {
     const res = await request(app).get('/topic.html');
     expect(res.status).toBe(200);
-    // Static title is "AIngram - Article"
-    expect(res.text).toContain('<title>AIngram - Article</title>');
+    // Static title is "AILore - Article"
+    expect(res.text).toContain('<title>AILore - Article</title>');
     expect(res.text).not.toContain('application/ld+json');
     expect(mockGetTopicById).not.toHaveBeenCalled();
   });
 
   it('falls through to static when id is not a valid UUID', async () => {
     const res = await request(app).get('/topic.html?id=not-a-uuid');
-    expect(res.text).toContain('<title>AIngram - Article</title>');
+    expect(res.text).toContain('<title>AILore - Article</title>');
     expect(mockGetTopicById).not.toHaveBeenCalled();
   });
 
   it('falls through to static when the topic is not found', async () => {
     mockGetTopicById.mockResolvedValueOnce(null);
     const res = await request(app).get('/topic.html?id=11111111-1111-1111-1111-111111111111');
-    expect(res.text).toContain('<title>AIngram - Article</title>');
+    expect(res.text).toContain('<title>AILore - Article</title>');
     expect(mockGetTopicById).toHaveBeenCalledTimes(1);
   });
 
@@ -231,8 +231,8 @@ describe('GET /topic.html (SSR enhancement)', () => {
     expect(res.status).toBe(200);
 
     // Dynamic title replaces the static one
-    expect(res.text).toContain('<title>Memory Patterns for AI Agents · AIngram</title>');
-    expect(res.text).not.toContain('<title>AIngram - Article</title>');
+    expect(res.text).toContain('<title>Memory Patterns for AI Agents · AILore</title>');
+    expect(res.text).not.toContain('<title>AILore - Article</title>');
 
     // Meta description from summary
     expect(res.text).toMatch(/<meta name="description" content="A guide to scratchpad/);
@@ -259,7 +259,7 @@ describe('GET /topic.html (SSR enhancement)', () => {
     expect(ld.inLanguage).toBe('en');
     expect(ld.datePublished).toBe('2026-04-10T00:00:00.000Z');
     expect(ld.dateModified).toBe('2026-04-20T00:00:00.000Z');
-    expect(ld.author).toEqual({ '@type': 'Organization', name: 'AIngram' });
+    expect(ld.author).toEqual({ '@type': 'Organization', name: 'AILore' });
   });
 
   it('emits JSON-LD @type=Course when topic_type is course', async () => {
@@ -275,12 +275,12 @@ describe('GET /topic.html (SSR enhancement)', () => {
     });
 
     const res = await request(app).get('/topic.html?id=22222222-2222-2222-2222-222222222222');
-    expect(res.text).toContain('<title>AI Agents Demystified · Course · AIngram</title>');
+    expect(res.text).toContain('<title>AI Agents Demystified · Course · AILore</title>');
 
     const ldMatch = res.text.match(/<script type="application\/ld\+json">([\s\S]+?)<\/script>/);
     const ld = JSON.parse(ldMatch[1]);
     expect(ld['@type']).toBe('Course');
-    expect(ld.provider).toEqual({ '@type': 'Organization', name: 'AIngram' });
+    expect(ld.provider).toEqual({ '@type': 'Organization', name: 'AILore' });
   });
 
   it('supports ?slug=&lang= lookups', async () => {
@@ -296,7 +296,7 @@ describe('GET /topic.html (SSR enhancement)', () => {
     });
 
     const res = await request(app).get('/topic.html?slug=vector-search-primer&lang=en');
-    expect(res.text).toContain('<title>Vector Search Primer · AIngram</title>');
+    expect(res.text).toContain('<title>Vector Search Primer · AILore</title>');
     expect(mockGetTopicBySlug).toHaveBeenCalledWith('vector-search-primer', 'en');
   });
 

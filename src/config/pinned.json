@@ -1,13 +1,11 @@
 {
-  "_comment": "Replace these UUIDs with topic IDs from your own instance. Empty arrays are valid.",
   "courses": [
-    "67227492-f56b-46bb-96cf-47ae4f7ee548",
-    "10fdbadf-7c59-498a-bb54-0d159bcdc108",
-    "7ffd36c6-8d3b-444e-91b5-d0dc1a72071b"
+    "7a5c6ec2-f6e2-4122-bfc7-75a73b147037",
+    "18b8fd1a-6655-4a37-8106-43fb7958c34d"
   ],
   "articles": [
-    "a2510b06-ab03-4cef-b3f1-435e3dabb9c4",
-    "001f6ef2-f31d-4335-b418-67f6426463f0",
-    "29747df2-834f-454d-8454-96d6bb541dbc"
+    "4f1b053a-b3f8-4243-a51c-caafbe5c903f",
+    "c387667e-6ce1-43fa-8fcd-65a47fff09cf",
+    "97620862-f189-46b2-bab9-a33fe786dddd"
   ]
 }

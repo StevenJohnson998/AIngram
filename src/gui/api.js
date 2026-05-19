@@ -139,9 +139,9 @@ async function updateNavbar() {
     }
   } else {
     actions.innerHTML = [
-      '<a href="./register.html" class="btn btn-primary btn-sm s-4ae331d7">Sign up</a>',
-      '<a href="./login.html" class="s-4ae331d7">Login</a>',
-    ].join(' ');
+      '<a href="./help.html" class="btn btn-agent btn-sm">Connect agent</a>',
+      '<a href="./login.html" class="btn btn-primary btn-sm">Sign in</a>',
+    ].join('');
   }
 
   // Highlight active nav link
@@ -317,10 +317,17 @@ function trustClass(score) {
  * Utility: trust badge HTML
  */
 function trustBadge(score) {
-  const cls = trustClass(score);
-  const label = score >= 0.7 ? 'High' : score >= 0.4 ? 'Medium' : 'Low';
-  const val = typeof score === 'number' ? score.toFixed(2) : score;
-  return '<span class="badge badge-' + cls + '" title="Trust score: ' + val + '">' + label + '</span>';
+  var tier = score >= 0.7 ? 'high' : score >= 0.4 ? 'mid' : 'low';
+  var filled = Math.round(score * 5);
+  var pct = Math.round(score * 100);
+  var segs = '';
+  for (var i = 0; i < 5; i++) {
+    segs += '<span class="seg' + (i < filled ? ' on' : '') + '"></span>';
+  }
+  return '<span class="trust-meter" title="Trust ' + pct + '%">' +
+    '<span class="trust-meter-segs ' + tier + '">' + segs + '</span>' +
+    '<span class="trust-meter-val ' + tier + '">' + pct + '%</span>' +
+  '</span>';
 }
 
 /**
@@ -372,12 +379,8 @@ function setupAdminHealthBanner() {
           banner.style.display = 'none';
           return;
         }
-        var color = health.status === 'critical'
-          ? { bg: '#fee2e2', fg: '#991b1b', border: '#dc2626' }
-          : { bg: '#fef3c7', fg: '#92400e', border: '#d97706' };
-        banner.style.background = color.bg;
-        banner.style.color = color.fg;
-        banner.style.borderColor = color.border;
+        banner.className = health.status === 'critical'
+          ? 'alert alert-danger' : 'alert alert-warning';
         var msgs = (health.issues || []).map(function(i) { return i.message; }).join(' | ');
         banner.textContent = '⚠ Instance health: ' + msgs;
         banner.style.display = 'block';
@@ -389,6 +392,63 @@ function setupAdminHealthBanner() {
     poll();
     setInterval(poll, 60000);
   });
+}
+
+/**
+ * Utility: hash string to integer (for avatar hue classes)
+ */
+function hashCode(str) {
+  var h = 0;
+  for (var i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+/**
+ * Render a topic card (shared across homepage, search, etc.)
+ */
+function renderTopicCard(topic) {
+  var rawState = topic.status || 'published';
+  var stateMap = { active: 'published', locked: 'superseded' };
+  var state = stateMap[rawState] || rawState;
+  var pill = '<span class="pill pill--' + state + '">' + state + '</span>';
+  var catBadge = (topic.category && topic.category !== 'uncategorized')
+    ? '<span class="chip">/' + escapeHtml(topic.category) + '</span>' : '';
+  var langBadge = '<span class="chip chip--lang">' + escapeHtml((topic.lang || 'en').toUpperCase()) + '</span>';
+  var countLabel = topic.topic_type === 'course' ? ' chapters' : ' chunks';
+
+  var authorHtml = '';
+  if (topic.author_name) {
+    var isAgent = topic.author_type === 'ai' || topic.author_type === 'agent';
+    var initials = topic.author_name.substring(0, 2).toUpperCase();
+    var hueClass = isAgent ? ' avatar-hue-' + (hashCode(topic.author_name) % 12) : '';
+    var displayName = topic.author_name.length > 16 ? topic.author_name.substring(0, 15) + '…' : topic.author_name;
+    var typeBadge = isAgent
+      ? '<span class="badge-type badge-agent">AI</span>'
+      : '<span class="badge-type badge-human">H</span>';
+    authorHtml = '<span class="topic-card-author">' +
+      '<span class="avatar avatar--sm ' + (isAgent ? 'agent' + hueClass : 'human') + '">' + escapeHtml(initials) + '</span>' +
+      typeBadge +
+      '<span class="author-name">' + escapeHtml(displayName) + '</span>' +
+    '</span>';
+  }
+
+  return '<a href="./topic.html?id=' + topic.id + '" class="card topic-card">' +
+    '<div class="topic-card-meta">' +
+      pill + catBadge +
+    '</div>' +
+    '<h3 class="topic-card-title">' + escapeHtml(topic.title) + '</h3>' +
+    '<p class="topic-card-lead text-sm text-muted">' +
+      (topic.chunk_count || 0) + countLabel + ' &middot; ' +
+      timeAgo(topic.updated_at || topic.created_at) +
+    '</p>' +
+    '<div class="topic-card-footer">' +
+      authorHtml +
+      '<span class="topic-card-right">' +
+        trustBadge(topic.trust_score || 0) +
+        langBadge +
+      '</span>' +
+    '</div>' +
+  '</a>';
 }
 
 /**

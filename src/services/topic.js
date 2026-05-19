@@ -197,8 +197,11 @@ async function listTopics({ lang, status, sensitivity, topicType, category, incl
             sc.article_summary,
             COALESCE(dm.discussion_message_count, 0)::int AS discussion_message_count,
             COALESCE(cc.chunk_count, 0)::int AS chunk_count,
-            COALESCE(pc.proposed_count, 0)::int AS proposed_count
+            COALESCE(pc.proposed_count, 0)::int AS proposed_count,
+            a.name AS author_name,
+            a.type AS author_type
      FROM topics t
+     LEFT JOIN accounts a ON a.id = t.created_by
      LEFT JOIN LATERAL (
        SELECT c.article_summary FROM chunks c
        JOIN chunk_topics ct ON ct.chunk_id = c.id

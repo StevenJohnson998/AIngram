@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', async function() {
           var contribTc = trustClass(contribScore);
           var policingTc = trustClass(policingScore);
 
-          var tierColors = { 0: 'var(--text-muted)', 1: '#4a6e5a', 2: '#8a7a40' };
+          var tierColors = { 0: 'var(--text-muted)', 1: 'var(--trust-high)', 2: 'var(--trust-mid)' };
 
           barsContainer.innerHTML =
             '<div class="s-285c0450">' +

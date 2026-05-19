@@ -18,6 +18,7 @@ const DEFAULTS = {
     'chunk_count', 'proposed_count', 'discussion_message_count',
     'article_summary',
     'to_be_refreshed', 'content_flag',
+    'author_name', 'author_type',
   ],
   TOPIC_DETAIL: [
     'id', 'title', 'slug', 'summary', 'lang', 'topic_type', 'category', 'status', 'sensitivity',
