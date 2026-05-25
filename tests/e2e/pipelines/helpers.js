@@ -7,7 +7,7 @@
 const crypto = require('crypto');
 const { execSync } = require('child_process');
 
-const BASE = process.env.BASE_URL || 'http://172.18.0.19:3000';
+const BASE = process.env.BASE_URL || 'http://172.18.0.13:3000';
 const API_CONTAINER = process.env.API_CONTAINER || 'aingram-api-test';
 const DB_CONTAINER = process.env.DB_CONTAINER || 'postgres';
 const DB_NAME = 'aingram_test';

@@ -7,6 +7,11 @@ jest.mock('../../config/trust', () => ({
   MOMENTUM_CAP: 5.0,
   MOMENTUM_DAILY_CAP: 5,
   MOMENTUM_WEEKLY_CAP: 10,
+  PENALTY_FLAG: 1.0,
+  PENALTY_SUSPENSION: 3.0,
+  PENALTY_BAN: 20.0,
+  PENALTY_FLAG_DECAY_DAYS: 180,
+  PENALTY_SUSPENSION_DECAY_DAYS: 365,
   BADGE_MIN_AGE_DAYS: 30,
   BADGE_ELITE_MIN_AGE_DAYS: 90,
   BADGE_MIN_POSITIVE_RATIO: 0.85,
@@ -45,7 +50,7 @@ describe('reputation service', () => {
     // With priors [1, 1] and 0 momentum: rep = (1 + up) / (2 + up + down)
     // Momentum = min(5.0, eff_chunks * 0.15 + eff_sourced * 0.10)
 
-    function setupRepMocks({ contribUp = 0, contribDown = 0, policingUp = 0, policingDown = 0, effChunks = 0, effSourced = 0 } = {}) {
+    function setupRepMocks({ contribUp = 0, contribDown = 0, policingUp = 0, policingDown = 0, effChunks = 0, effSourced = 0, totalPenalty = 0 } = {}) {
       mockPool.query.mockImplementation((sql) => {
         if (typeof sql === 'string' && sql.includes('level = 1')) {
           return Promise.resolve({ rows: [{ up_weight: contribUp, down_weight: contribDown }] });
@@ -55,6 +60,9 @@ describe('reputation service', () => {
         }
         if (typeof sql === 'string' && sql.includes('level = 2')) {
           return Promise.resolve({ rows: [{ up_weight: policingUp, down_weight: policingDown }] });
+        }
+        if (typeof sql === 'string' && sql.includes('total_penalty')) {
+          return Promise.resolve({ rows: [{ total_penalty: totalPenalty }] });
         }
         if (typeof sql === 'string' && sql.includes('UPDATE accounts SET reputation_contribution')) {
           return Promise.resolve({ rowCount: 1 });
@@ -148,6 +156,51 @@ describe('reputation service', () => {
       // policing: (1+1)/(1+1+1+1) = 2/4 = 0.5
       expect(updateCall[1][1]).toBeCloseTo(0.5, 5);
       expect(updateCall[1][2]).toBe('acc-1');
+    });
+
+    it('validated flag reduces reputation via β penalty', async () => {
+      // 1 fresh flag = penalty 1.0
+      setupRepMocks({ effChunks: 30, totalPenalty: 1.0 });
+      const result = await reputationService.recalculateReputation('acc-1');
+      // momentum = 4.5, α = 5.5, β = 1 + 0 + 1.0 = 2.0 → rep = 5.5/7.5 ≈ 0.733
+      expect(result.reputationContribution).toBeCloseTo(5.5 / 7.5, 4);
+    });
+
+    it('vote suspension severely reduces reputation', async () => {
+      // 1 fresh suspension = penalty 3.0
+      setupRepMocks({ effChunks: 30, totalPenalty: 3.0 });
+      const result = await reputationService.recalculateReputation('acc-1');
+      // α = 5.5, β = 1 + 3.0 = 4.0 → rep = 5.5/9.5 ≈ 0.579
+      expect(result.reputationContribution).toBeCloseTo(5.5 / 9.5, 4);
+    });
+
+    it('ban destroys reputation', async () => {
+      setupRepMocks({ effChunks: 30, totalPenalty: 20.0 });
+      const result = await reputationService.recalculateReputation('acc-1');
+      // α = 5.5, β = 1 + 20.0 = 21.0 → rep = 5.5/26.5 ≈ 0.208
+      expect(result.reputationContribution).toBeCloseTo(5.5 / 26.5, 4);
+    });
+
+    it('decayed flag has partial penalty', async () => {
+      // Flag at 90 days: penalty = 1.0 * max(0, 1 - 90/180) = 0.5
+      setupRepMocks({ effChunks: 30, totalPenalty: 0.5 });
+      const result = await reputationService.recalculateReputation('acc-1');
+      // α = 5.5, β = 1 + 0.5 = 1.5 → rep = 5.5/7.0 ≈ 0.786
+      expect(result.reputationContribution).toBeCloseTo(5.5 / 7.0, 4);
+    });
+
+    it('cumulative penalties stack', async () => {
+      // 2 flags + 1 suspension = 2*1.0 + 3.0 = 5.0
+      setupRepMocks({ effChunks: 30, totalPenalty: 5.0 });
+      const result = await reputationService.recalculateReputation('acc-1');
+      // α = 5.5, β = 1 + 5.0 = 6.0 → rep = 5.5/11.5 ≈ 0.478
+      expect(result.reputationContribution).toBeCloseTo(5.5 / 11.5, 4);
+    });
+
+    it('penalty does not affect policing reputation', async () => {
+      setupRepMocks({ totalPenalty: 10.0 });
+      const result = await reputationService.recalculateReputation('acc-1');
+      expect(result.reputationPolicing).toBe(0.5);
     });
   });
 
@@ -349,6 +402,10 @@ describe('reputation service', () => {
         // recalculateReputation: policing votes
         if (typeof sql === 'string' && sql.includes('down_weight') && sql.includes('level = 2')) {
           return Promise.resolve({ rows: [{ up_weight: 0, down_weight: 0 }] });
+        }
+        // recalculateReputation: sanction penalty
+        if (typeof sql === 'string' && sql.includes('total_penalty')) {
+          return Promise.resolve({ rows: [{ total_penalty: 0 }] });
         }
         if (typeof sql === 'string' && sql.includes('reputation_contribution = $1, reputation_policing')) {
           return Promise.resolve({ rowCount: 1 });

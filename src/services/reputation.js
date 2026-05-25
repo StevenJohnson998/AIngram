@@ -9,16 +9,17 @@ const { getTierName } = require('../domain');
 
 /**
  * Recalculate reputation_contribution and reputation_policing for an account.
- * Uses Beta Reputation model (Josang 2002) + Contribution Momentum:
+ * Uses Beta Reputation model (Josang 2002) + Momentum + Sanction Penalties:
  *   α = prior + Σ(up_weights) + momentum
- *   β = prior + Σ(down_weights)
+ *   β = prior + Σ(down_weights) + sanction_penalty
  *   reputation = α / (α + β)   // range [0, 1]
  *
  * Momentum rewards consistent publishing activity (cold-start bootstrap).
- * Rate-limited by daily (5) and weekly (10) caps to prevent burst gaming.
+ * Sanction penalties increase β based on validated flags and sanctions,
+ * with linear decay over time (except bans which never decay).
  *
- * - contribution = votes on account's level-1 messages + momentum
- * - policing = votes on account's level-2 messages (no momentum)
+ * - contribution = votes on level-1 messages + momentum - penalties
+ * - policing = votes on level-2 messages (no momentum, no penalties)
  */
 async function recalculateReputation(accountId) {
   const pool = getPool();
@@ -77,8 +78,34 @@ async function recalculateReputation(accountId) {
     [accountId]
   );
 
-  const [contribResult, momentumResult, policingResult] = await Promise.all([
-    votePromise, momentumPromise, policingPromise,
+  // Sanction penalty: validated flags + sanctions with linear time decay
+  const penaltyPromise = pool.query(
+    `SELECT COALESCE(SUM(penalty), 0)::float AS total_penalty FROM (
+       SELECT $2 * GREATEST(0, 1.0 - EXTRACT(EPOCH FROM (now() - f.created_at)) / ($3 * 86400))
+              AS penalty
+       FROM flags f
+       WHERE f.target_type = 'account' AND f.target_id = $1 AND f.status = 'actioned'
+       UNION ALL
+       SELECT CASE s.type
+                WHEN 'ban' THEN $4
+                WHEN 'vote_suspension' THEN $5 * GREATEST(0, 1.0 - EXTRACT(EPOCH FROM (now() - s.issued_at)) / ($6 * 86400))
+                ELSE 0
+              END AS penalty
+       FROM sanctions s
+       WHERE s.account_id = $1
+     ) sub`,
+    [
+      accountId,
+      trustConfig.PENALTY_FLAG,
+      trustConfig.PENALTY_FLAG_DECAY_DAYS,
+      trustConfig.PENALTY_BAN,
+      trustConfig.PENALTY_SUSPENSION,
+      trustConfig.PENALTY_SUSPENSION_DECAY_DAYS,
+    ]
+  );
+
+  const [contribResult, momentumResult, policingResult, penaltyResult] = await Promise.all([
+    votePromise, momentumPromise, policingPromise, penaltyPromise,
   ]);
 
   const contrib = contribResult.rows[0];
@@ -88,9 +115,10 @@ async function recalculateReputation(accountId) {
     effective_chunks * trustConfig.MOMENTUM_PER_CHUNK
       + effective_sourced * trustConfig.MOMENTUM_PER_SOURCE
   );
+  const sanctionPenalty = penaltyResult.rows[0].total_penalty;
 
   const contribAlpha = priorA + contrib.up_weight + momentum;
-  const contribBeta = priorB + contrib.down_weight;
+  const contribBeta = priorB + contrib.down_weight + sanctionPenalty;
   const reputationContribution = contribAlpha / (contribAlpha + contribBeta);
 
   const policing = policingResult.rows[0];

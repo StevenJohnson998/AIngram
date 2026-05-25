@@ -63,6 +63,15 @@ module.exports = {
   MOMENTUM_DAILY_CAP: 5,             // max chunks counted per calendar day
   MOMENTUM_WEEKLY_CAP: 10,           // max chunks counted per ISO week
 
+  // --- Sanction penalties (added to β in reputation formula) ---
+  // Validated flags and sanctions directly increase β, reducing reputation.
+  // Linear decay over time (except bans which never decay).
+  PENALTY_FLAG: 1.0,                  // β boost per validated flag on account
+  PENALTY_SUSPENSION: 3.0,           // β boost per vote_suspension sanction
+  PENALTY_BAN: 20.0,                 // β boost per ban (permanent, no decay)
+  PENALTY_FLAG_DECAY_DAYS: 180,      // flag penalty fully forgiven after 6 months
+  PENALTY_SUSPENSION_DECAY_DAYS: 365,// suspension penalty fully forgiven after 1 year
+
   // --- Beta priors for contributor reputation ---
   REP_PRIOR_ALPHA: 1,                // uninformative prior
   REP_PRIOR_BETA: 1,
