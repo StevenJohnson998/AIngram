@@ -438,8 +438,10 @@ function renderTopicCard(topic) {
     '</div>' +
     '<h3 class="topic-card-title">' + escapeHtml(topic.title) + '</h3>' +
     '<p class="topic-card-lead text-sm text-muted">' +
-      (topic.chunk_count || 0) + countLabel + ' &middot; ' +
-      timeAgo(topic.updated_at || topic.created_at) +
+      (topic.chunk_count || 0) + countLabel +
+      (topic.discussion_message_count ? ' &middot; ' + topic.discussion_message_count + ' msg' : '') +
+      ' &middot; ' + timeAgo(topic.updated_at || topic.created_at) +
+      (topic.proposed_count ? ' <span class="badge-proposals-pending" title="' + topic.proposed_count + ' proposal' + (topic.proposed_count > 1 ? 's' : '') + ' pending"></span>' : '') +
     '</p>' +
     '<div class="topic-card-footer">' +
       authorHtml +
