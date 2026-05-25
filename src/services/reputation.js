@@ -9,11 +9,16 @@ const { getTierName } = require('../domain');
 
 /**
  * Recalculate reputation_contribution and reputation_policing for an account.
- * Uses Beta Reputation model (Josang 2002):
- *   α = prior + Σ(up_weights), β = prior + Σ(down_weights)
+ * Uses Beta Reputation model (Josang 2002) + Contribution Momentum:
+ *   α = prior + Σ(up_weights) + momentum
+ *   β = prior + Σ(down_weights)
  *   reputation = α / (α + β)   // range [0, 1]
- * - contribution = votes on account's level-1 messages
- * - policing = votes on account's level-2 messages
+ *
+ * Momentum rewards consistent publishing activity (cold-start bootstrap).
+ * Rate-limited by daily (5) and weekly (10) caps to prevent burst gaming.
+ *
+ * - contribution = votes on account's level-1 messages + momentum
+ * - policing = votes on account's level-2 messages (no momentum)
  */
 async function recalculateReputation(accountId) {
   const pool = getPool();
@@ -21,7 +26,7 @@ async function recalculateReputation(accountId) {
   const priorB = trustConfig.REP_PRIOR_BETA;
 
   // Contribution reputation: votes on level-1 messages by this account
-  const { rows: contribRows } = await pool.query(
+  const votePromise = pool.query(
     `SELECT
        COALESCE(SUM(v.weight) FILTER (WHERE v.value = 'up'), 0)::float AS up_weight,
        COALESCE(SUM(v.weight) FILTER (WHERE v.value = 'down'), 0)::float AS down_weight
@@ -31,13 +36,38 @@ async function recalculateReputation(accountId) {
     [accountId]
   );
 
-  const contrib = contribRows[0];
-  const contribAlpha = priorA + contrib.up_weight;
-  const contribBeta = priorB + contrib.down_weight;
-  const reputationContribution = contribAlpha / (contribAlpha + contribBeta);
+  // Contribution momentum: published chunks with daily/weekly rate caps
+  const momentumPromise = pool.query(
+    `WITH daily AS (
+       SELECT
+         DATE(c.created_at) AS day,
+         DATE_TRUNC('week', c.created_at) AS week,
+         LEAST(COUNT(*)::int, $2) AS day_chunks,
+         LEAST(COUNT(*) FILTER (WHERE cs.source_count > 0)::int, $2) AS day_sourced
+       FROM chunks c
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::int AS source_count FROM chunk_sources WHERE chunk_id = c.id
+       ) cs ON true
+       WHERE c.created_by = $1 AND c.status = 'published'
+       GROUP BY DATE(c.created_at), DATE_TRUNC('week', c.created_at)
+     ),
+     weekly AS (
+       SELECT
+         week,
+         LEAST(SUM(day_chunks)::int, $3) AS week_chunks,
+         LEAST(SUM(day_sourced)::int, $3) AS week_sourced
+       FROM daily
+       GROUP BY week
+     )
+     SELECT
+       COALESCE(SUM(week_chunks), 0)::int AS effective_chunks,
+       COALESCE(SUM(week_sourced), 0)::int AS effective_sourced
+     FROM weekly`,
+    [accountId, trustConfig.MOMENTUM_DAILY_CAP, trustConfig.MOMENTUM_WEEKLY_CAP]
+  );
 
   // Policing reputation: votes on level-2 messages by this account
-  const { rows: policingRows } = await pool.query(
+  const policingPromise = pool.query(
     `SELECT
        COALESCE(SUM(v.weight) FILTER (WHERE v.value = 'up'), 0)::float AS up_weight,
        COALESCE(SUM(v.weight) FILTER (WHERE v.value = 'down'), 0)::float AS down_weight
@@ -47,7 +77,23 @@ async function recalculateReputation(accountId) {
     [accountId]
   );
 
-  const policing = policingRows[0];
+  const [contribResult, momentumResult, policingResult] = await Promise.all([
+    votePromise, momentumPromise, policingPromise,
+  ]);
+
+  const contrib = contribResult.rows[0];
+  const { effective_chunks, effective_sourced } = momentumResult.rows[0];
+  const momentum = Math.min(
+    trustConfig.MOMENTUM_CAP,
+    effective_chunks * trustConfig.MOMENTUM_PER_CHUNK
+      + effective_sourced * trustConfig.MOMENTUM_PER_SOURCE
+  );
+
+  const contribAlpha = priorA + contrib.up_weight + momentum;
+  const contribBeta = priorB + contrib.down_weight;
+  const reputationContribution = contribAlpha / (contribAlpha + contribBeta);
+
+  const policing = policingResult.rows[0];
   const policingAlpha = priorA + policing.up_weight;
   const policingBeta = priorB + policing.down_weight;
   const reputationPolicing = policingAlpha / (policingAlpha + policingBeta);

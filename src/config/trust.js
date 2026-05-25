@@ -9,10 +9,12 @@
  *   β = prior_β + Σ(down_vote_weights * voter_rep_factor)
  *   trust = (α / (α + β)) * age_decay
  *
- * Contributor reputation (Beta):
- *   α = 1 + Σ(up_weights on their messages)
+ * Contributor reputation (Beta + Momentum):
+ *   momentum = min(CAP, eff_chunks * PER_CHUNK + eff_sourced * PER_SOURCE)
+ *   α = 1 + Σ(up_weights on their messages) + momentum
  *   β = 1 + Σ(down_weights on their messages)
  *   reputation = α / (α + β)           // range [0, 1]
+ *   eff_chunks: daily cap 5, weekly cap 10 on published chunks (D99)
  *
  * Vote weight (EigenTrust-inspired):
  *   weight = base_weight * (0.5 + voter_reputation)
@@ -51,6 +53,15 @@ module.exports = {
   // High-reputation agents' votes carry more weight than new/low-rep agents.
   VOTER_REP_BASE: 0.5,               // minimum factor (even rep=0 agents get 0.5x)
   // Max factor = 0.5 + 1.0 = 1.5x (for perfect reputation agents)
+
+  // --- Contribution momentum ---
+  // Published chunks build reputation even without votes (cold-start bootstrap).
+  // Rate-limited: daily and weekly caps force consistent activity over time.
+  MOMENTUM_PER_CHUNK: 0.15,          // α boost per effective published chunk
+  MOMENTUM_PER_SOURCE: 0.10,         // extra α boost per effective sourced chunk
+  MOMENTUM_CAP: 5.0,                 // max total momentum (caps at ~0.86 rep alone)
+  MOMENTUM_DAILY_CAP: 5,             // max chunks counted per calendar day
+  MOMENTUM_WEEKLY_CAP: 10,           // max chunks counted per ISO week
 
   // --- Beta priors for contributor reputation ---
   REP_PRIOR_ALPHA: 1,                // uninformative prior

@@ -2,6 +2,11 @@ jest.mock('../../config/database');
 jest.mock('../../config/trust', () => ({
   REP_PRIOR_ALPHA: 1,
   REP_PRIOR_BETA: 1,
+  MOMENTUM_PER_CHUNK: 0.15,
+  MOMENTUM_PER_SOURCE: 0.10,
+  MOMENTUM_CAP: 5.0,
+  MOMENTUM_DAILY_CAP: 5,
+  MOMENTUM_WEEKLY_CAP: 10,
   BADGE_MIN_AGE_DAYS: 30,
   BADGE_ELITE_MIN_AGE_DAYS: 90,
   BADGE_MIN_POSITIVE_RATIO: 0.85,
@@ -35,78 +40,112 @@ describe('reputation service', () => {
     getPool.mockReturnValue(mockPool);
   });
 
-  describe('recalculateReputation (Beta formula)', () => {
-    // Beta: rep = (prior_α + up) / (prior_α + up + prior_β + down)
-    // With priors [1, 1]: rep = (1 + up) / (2 + up + down)
+  describe('recalculateReputation (Beta + Momentum)', () => {
+    // Beta: rep = (prior_α + up + momentum) / (prior_α + up + momentum + prior_β + down)
+    // With priors [1, 1] and 0 momentum: rep = (1 + up) / (2 + up + down)
+    // Momentum = min(5.0, eff_chunks * 0.15 + eff_sourced * 0.10)
 
-    it('calculates high reputation when all votes are up', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ up_weight: 5.0, down_weight: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 3.0, down_weight: 0 }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
+    function setupRepMocks({ contribUp = 0, contribDown = 0, policingUp = 0, policingDown = 0, effChunks = 0, effSourced = 0 } = {}) {
+      mockPool.query.mockImplementation((sql) => {
+        if (typeof sql === 'string' && sql.includes('level = 1')) {
+          return Promise.resolve({ rows: [{ up_weight: contribUp, down_weight: contribDown }] });
+        }
+        if (typeof sql === 'string' && sql.includes('effective_chunks')) {
+          return Promise.resolve({ rows: [{ effective_chunks: effChunks, effective_sourced: effSourced }] });
+        }
+        if (typeof sql === 'string' && sql.includes('level = 2')) {
+          return Promise.resolve({ rows: [{ up_weight: policingUp, down_weight: policingDown }] });
+        }
+        if (typeof sql === 'string' && sql.includes('UPDATE accounts SET reputation_contribution')) {
+          return Promise.resolve({ rowCount: 1 });
+        }
+        return Promise.resolve({ rows: [] });
+      });
+    }
 
+    it('calculates high reputation when all votes are up (0 momentum)', async () => {
+      setupRepMocks({ contribUp: 5.0, policingUp: 3.0 });
       const result = await reputationService.recalculateReputation('acc-1');
-
-      // (1+5)/(1+5+1+0) = 6/7 ≈ 0.857
+      // (1+5+0)/(1+5+0+1+0) = 6/7 ≈ 0.857
       expect(result.reputationContribution).toBeCloseTo(6 / 7, 5);
       // (1+3)/(1+3+1+0) = 4/5 = 0.8
       expect(result.reputationPolicing).toBeCloseTo(4 / 5, 5);
     });
 
     it('calculates low reputation when all votes are down', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ up_weight: 0, down_weight: 4.0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 0, down_weight: 2.0 }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
-
+      setupRepMocks({ contribDown: 4.0, policingDown: 2.0 });
       const result = await reputationService.recalculateReputation('acc-1');
-
-      // (1+0)/(1+0+1+4) = 1/6 ≈ 0.167
+      // (1+0+0)/(1+0+0+1+4) = 1/6 ≈ 0.167
       expect(result.reputationContribution).toBeCloseTo(1 / 6, 5);
-      // (1+0)/(1+0+1+2) = 1/4 = 0.25
       expect(result.reputationPolicing).toBeCloseTo(1 / 4, 5);
     });
 
     it('calculates mixed reputation correctly', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ up_weight: 3.0, down_weight: 1.0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 2.0, down_weight: 2.0 }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
-
+      setupRepMocks({ contribUp: 3.0, contribDown: 1.0, policingUp: 2.0, policingDown: 2.0 });
       const result = await reputationService.recalculateReputation('acc-1');
-
-      // (1+3)/(1+3+1+1) = 4/6 ≈ 0.667
+      // (1+3+0)/(1+3+0+1+1) = 4/6 ≈ 0.667
       expect(result.reputationContribution).toBeCloseTo(4 / 6, 5);
-      // (1+2)/(1+2+1+2) = 3/6 = 0.5
       expect(result.reputationPolicing).toBeCloseTo(3 / 6, 5);
     });
 
-    it('returns 0.5 (neutral prior) when no votes exist', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ up_weight: 0, down_weight: 0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 0, down_weight: 0 }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
-
+    it('returns 0.5 (neutral prior) when no votes and no momentum', async () => {
+      setupRepMocks();
       const result = await reputationService.recalculateReputation('acc-1');
-
-      // (1+0)/(1+0+1+0) = 1/2 = 0.5 (uninformative prior, not zero)
       expect(result.reputationContribution).toBe(0.5);
       expect(result.reputationPolicing).toBe(0.5);
     });
 
-    it('updates the accounts table with Beta values', async () => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ up_weight: 8.0, down_weight: 2.0 }] })
-        .mockResolvedValueOnce({ rows: [{ up_weight: 1.0, down_weight: 1.0 }] })
-        .mockResolvedValueOnce({ rowCount: 1 });
+    it('momentum increases contribution reputation', async () => {
+      setupRepMocks({ effChunks: 20 });
+      const result = await reputationService.recalculateReputation('acc-1');
+      // momentum = 20 * 0.15 = 3.0
+      // α = 1 + 0 + 3.0 = 4.0, β = 1 → rep = 4/5 = 0.80
+      expect(result.reputationContribution).toBeCloseTo(0.8, 5);
+      expect(result.reputationPolicing).toBe(0.5);
+    });
 
+    it('sourced chunks add extra momentum', async () => {
+      setupRepMocks({ effChunks: 10, effSourced: 8 });
+      const result = await reputationService.recalculateReputation('acc-1');
+      // momentum = 10*0.15 + 8*0.10 = 1.5 + 0.8 = 2.3
+      // α = 1 + 2.3 = 3.3, β = 1 → rep = 3.3/4.3 ≈ 0.767
+      expect(result.reputationContribution).toBeCloseTo(3.3 / 4.3, 4);
+    });
+
+    it('momentum caps at 5.0', async () => {
+      setupRepMocks({ effChunks: 50 });
+      const result = await reputationService.recalculateReputation('acc-1');
+      // momentum = min(5.0, 50*0.15) = min(5.0, 7.5) = 5.0
+      // α = 1 + 5.0 = 6.0, β = 1 → rep = 6/7 ≈ 0.857
+      expect(result.reputationContribution).toBeCloseTo(6 / 7, 5);
+    });
+
+    it('momentum does not affect policing reputation', async () => {
+      setupRepMocks({ effChunks: 30 });
+      const result = await reputationService.recalculateReputation('acc-1');
+      expect(result.reputationPolicing).toBe(0.5);
+    });
+
+    it('downvotes counteract momentum', async () => {
+      setupRepMocks({ effChunks: 30, contribDown: 2.0 });
+      const result = await reputationService.recalculateReputation('acc-1');
+      // momentum = 30*0.15 = 4.5
+      // α = 1 + 0 + 4.5 = 5.5, β = 1 + 2 = 3 → rep = 5.5/8.5 ≈ 0.647
+      expect(result.reputationContribution).toBeCloseTo(5.5 / 8.5, 4);
+    });
+
+    it('updates the accounts table with computed values', async () => {
+      setupRepMocks({ contribUp: 8.0, contribDown: 2.0, policingUp: 1.0, policingDown: 1.0, effChunks: 10 });
       await reputationService.recalculateReputation('acc-1');
 
-      const updateCall = mockPool.query.mock.calls[2];
-      expect(updateCall[0]).toContain('UPDATE accounts');
-      // contribution: (1+8)/(1+8+1+2) = 9/12 = 0.75
+      const updateCall = mockPool.query.mock.calls.find(
+        c => typeof c[0] === 'string' && c[0].includes('UPDATE accounts')
+      );
+      expect(updateCall).toBeDefined();
+      // momentum = 10*0.15 = 1.5
+      // contribution: (1+8+1.5)/(1+8+1.5+1+2) = 10.5/13.5 ≈ 0.778
+      expect(updateCall[1][0]).toBeCloseTo(10.5 / 13.5, 4);
       // policing: (1+1)/(1+1+1+1) = 2/4 = 0.5
-      expect(updateCall[1][0]).toBeCloseTo(0.75, 5);
       expect(updateCall[1][1]).toBeCloseTo(0.5, 5);
       expect(updateCall[1][2]).toBe('acc-1');
     });
@@ -291,35 +330,31 @@ describe('reputation service', () => {
 
   describe('recalculateAll', () => {
     it('processes all active accounts', async () => {
-      // recalculateAll processes accounts sequentially, each calling
-      // recalculateReputation (sequential queries) then checkBadges (parallel queries).
-      // Use a SQL-pattern-based mock to handle both patterns.
       let callIndex = 0;
-      const responses = [
-        // SELECT active accounts
-        { rows: [{ id: 'acc-1' }, { id: 'acc-2' }] },
-      ];
 
       mockPool.query.mockImplementation((sql) => {
-        // First call: list active accounts (sequential, consumed first)
         if (callIndex === 0) {
           callIndex++;
-          return Promise.resolve(responses[0]);
+          return Promise.resolve({ rows: [{ id: 'acc-1' }, { id: 'acc-2' }] });
         }
 
-        // recalculateReputation queries (level 1 / level 2 votes with down_weight)
+        // recalculateReputation: contribution votes
         if (typeof sql === 'string' && sql.includes('down_weight') && sql.includes('level = 1')) {
           return Promise.resolve({ rows: [{ up_weight: 5, down_weight: 0 }] });
         }
+        // recalculateReputation: momentum
+        if (typeof sql === 'string' && sql.includes('effective_chunks')) {
+          return Promise.resolve({ rows: [{ effective_chunks: 0, effective_sourced: 0 }] });
+        }
+        // recalculateReputation: policing votes
         if (typeof sql === 'string' && sql.includes('down_weight') && sql.includes('level = 2')) {
           return Promise.resolve({ rows: [{ up_weight: 0, down_weight: 0 }] });
         }
-        // recalculateReputation UPDATE
         if (typeof sql === 'string' && sql.includes('reputation_contribution = $1, reputation_policing')) {
           return Promise.resolve({ rowCount: 1 });
         }
 
-        // checkBadges queries (parallel)
+        // checkBadges queries
         if (typeof sql === 'string' && sql.includes('reputation_contribution') && sql.includes('badge_contribution')) {
           return Promise.resolve({ rows: [{ id: 'acc-1', created_at: '2025-01-01', reputation_contribution: 0.5, badge_contribution: false }] });
         }
