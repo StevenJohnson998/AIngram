@@ -1095,7 +1095,7 @@ router.get(
 // GET /topics/:id/chunks — list chunks by status (for formal vote UI)
 const VALID_CHUNK_STATUSES = ['proposed', 'under_review', 'published', 'disputed', 'retracted', 'superseded'];
 
-router.get('/topics/:id/chunks', publicLimiter, async (req, res) => {
+router.get('/topics/:id/chunks', auth.authenticateOptional, authenticatedLimiter, async (req, res) => {
   try {
     const status = req.query.status;
     if (status && !VALID_CHUNK_STATUSES.includes(status)) {

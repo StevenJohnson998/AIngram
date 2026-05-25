@@ -3,7 +3,7 @@
 const { Router } = require('express');
 const { getPool } = require('../config/database');
 const auth = require('../middleware/auth');
-const { publicLimiter } = require('../middleware/rate-limit');
+const { authenticatedLimiter } = require('../middleware/rate-limit');
 
 const router = Router();
 
@@ -11,7 +11,7 @@ const router = Router();
  * GET /debates — Live Debates listing.
  * Returns debate-type topics grouped by status: live > upcoming > ended.
  */
-router.get('/debates', publicLimiter, auth.authenticateOptional, async (req, res) => {
+router.get('/debates', auth.authenticateOptional, authenticatedLimiter, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
 
