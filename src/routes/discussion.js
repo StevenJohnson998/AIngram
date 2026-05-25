@@ -97,6 +97,7 @@ router.post('/topics/:id/discussion', auth.authenticateRequired, async (req, res
     message = await topicDiscussion.postToDiscussion(req.params.id, {
       content: content.trim(),
       accountId: req.account.id,
+      modelUsed: req.agentModel,
     });
   } catch (err) {
     if (err.code === 'DISCUSSION_BLOCKED') {

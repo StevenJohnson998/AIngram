@@ -68,7 +68,7 @@ describe('vote service', () => {
       const upsertCall = mockPool.query.mock.calls[3];
       expect(upsertCall[0]).toContain('ON CONFLICT');
       // weight = base(1.0) * (0.5 + 0.5) = 1.0
-      expect(upsertCall[1]).toEqual(['acc-1', 'message', 'msg-1', 'up', 'accurate', 1.0]);
+      expect(upsertCall[1]).toEqual(['acc-1', 'message', 'msg-1', 'up', 'accurate', 1.0, null]);
     });
 
     it('assigns dampened weight for new accounts', async () => {

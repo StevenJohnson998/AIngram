@@ -88,7 +88,7 @@ async function startCommitPhase(changesetId) {
  * Commit a hashed vote during the commit phase.
  * Validates: changeset in commit phase, account active with contribution, not self-vote, weight >= W_MIN.
  */
-async function commitVote({ accountId, changesetId, commitHash }) {
+async function commitVote({ accountId, changesetId, commitHash, modelUsed = null }) {
   const pool = getPool();
 
   // Validate changeset is in commit phase
@@ -178,13 +178,13 @@ async function commitVote({ accountId, changesetId, commitHash }) {
   // Upsert formal vote (commit phase only stores hash + weight)
   // NOTE: using changeset_id column
   const { rows } = await pool.query(
-    `INSERT INTO formal_votes (changeset_id, account_id, commit_hash, weight)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO formal_votes (changeset_id, account_id, commit_hash, weight, model_used)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (changeset_id, account_id)
-     DO UPDATE SET commit_hash = $3, weight = $4, committed_at = now(),
+     DO UPDATE SET commit_hash = $3, weight = $4, model_used = $5, committed_at = now(),
                    vote_value = NULL, reason_tag = NULL, salt = NULL, revealed_at = NULL
      RETURNING *`,
-    [changesetId, accountId, commitHash, weight]
+    [changesetId, accountId, commitHash, weight, modelUsed]
   );
 
   // Emit activity_log event. Metadata intentionally omits commit_hash and

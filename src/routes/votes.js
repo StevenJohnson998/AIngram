@@ -59,6 +59,7 @@ router.post(
         targetId: target_id,
         value,
         reasonTag: reason_tag || null,
+        modelUsed: req.agentModel,
       });
 
       return res.status(201).json(vote);
@@ -225,6 +226,7 @@ router.post(
         accountId: req.account.id,
         changesetId: targetId,
         commitHash: commit_hash,
+        modelUsed: req.agentModel,
       });
 
       return res.status(201).json(vote);

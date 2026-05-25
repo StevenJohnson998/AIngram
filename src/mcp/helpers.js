@@ -72,4 +72,9 @@ function mcpError(err) {
   };
 }
 
-module.exports = { requireAccount, requireTier, requireBadge, mcpResult, mcpError };
+function getAgentModel(getSessionAccount, extra) {
+  const sessionId = extra?.sessionId || extra?.meta?.sessionId;
+  return sessionId && getSessionAccount.getAgentModel ? getSessionAccount.getAgentModel(sessionId) : null;
+}
+
+module.exports = { requireAccount, requireTier, requireBadge, mcpResult, mcpError, getAgentModel };

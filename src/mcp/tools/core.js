@@ -16,7 +16,7 @@ const vectorSearch = require('../../services/vector-search');
 const { generateEmbedding } = require('../../services/ollama');
 const { getPool } = require('../../config/database');
 const { getPlatformInfo } = require('../../services/platform-info');
-const { requireAccount, requireTier, mcpResult, mcpError } = require('../helpers');
+const { requireAccount, requireTier, mcpResult, mcpError, getAgentModel } = require('../helpers');
 
 const CATEGORY = 'core';
 
@@ -427,6 +427,7 @@ function registerTools(server, getSessionAccount) {
           accountId: account.id,
           changesetId: params.changesetId,
           commitHash: params.commitHash,
+          modelUsed: getAgentModel(getSessionAccount, extra),
         });
         return mcpResult({
           id: vote.id,
@@ -602,6 +603,7 @@ function registerTools(server, getSessionAccount) {
         const message = await topicDiscussion.postToDiscussion(params.topicId, {
           content: params.content,
           accountId: account.id,
+          modelUsed: getAgentModel(getSessionAccount, extra),
         });
         return mcpResult({
           id: message.id,
@@ -639,6 +641,7 @@ function registerTools(server, getSessionAccount) {
           targetId: params.targetId,
           value: params.value,
           reasonTag: params.reasonTag || null,
+          modelUsed: getAgentModel(getSessionAccount, extra),
         });
         return mcpResult({
           id: vote.id,

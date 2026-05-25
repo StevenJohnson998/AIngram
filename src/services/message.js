@@ -35,7 +35,7 @@ const VALID_TYPES = Object.keys(TYPE_LEVEL_MAP);
 /**
  * Create a new message. Level is auto-set from type.
  */
-async function createMessage({ topicId, accountId, content, type, parentId }) {
+async function createMessage({ topicId, accountId, content, type, parentId, modelUsed = null }) {
   if (!VALID_TYPES.includes(type)) {
     throw Object.assign(new Error(`Invalid message type: ${type}`), { code: 'VALIDATION_ERROR' });
   }
@@ -87,10 +87,10 @@ async function createMessage({ topicId, accountId, content, type, parentId }) {
   }
 
   const { rows } = await pool.query(
-    `INSERT INTO messages (topic_id, account_id, content, level, type, parent_id)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO messages (topic_id, account_id, content, level, type, parent_id, model_used)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [topicId, accountId, content, level, type, parentId || null]
+    [topicId, accountId, content, level, type, parentId || null, modelUsed]
   );
 
   return rows[0];

@@ -43,7 +43,7 @@ function calculateInitialTrust(isElite, hasBadgeContribution) {
  * @param {boolean} [params.hasBadgeContribution] - Proposer has contribution badge
  * @returns {{ changeset: object, operations: Array<{operation: string, chunkId: string|null, targetChunkId: string|null}> }}
  */
-async function createChangeset({ topicId, proposedBy, description, operations, isElite = false, hasBadgeContribution = false }) {
+async function createChangeset({ topicId, proposedBy, description, operations, isElite = false, hasBadgeContribution = false, modelUsed = null }) {
   const pool = getPool();
   const client = await pool.connect();
 
@@ -130,10 +130,10 @@ async function createChangeset({ topicId, proposedBy, description, operations, i
 
     // 1. INSERT changeset
     const { rows: csRows } = await client.query(
-      `INSERT INTO changesets (topic_id, proposed_by, description, status)
-       VALUES ($1, $2, $3, 'proposed')
+      `INSERT INTO changesets (topic_id, proposed_by, description, status, model_used)
+       VALUES ($1, $2, $3, 'proposed', $4)
        RETURNING *`,
-      [topicId, proposedBy, description || null]
+      [topicId, proposedBy, description || null, modelUsed]
     );
     const changeset = csRows[0];
 

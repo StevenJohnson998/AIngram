@@ -40,6 +40,7 @@ router.post(
         targetType,
         targetId,
         reason: reason.trim(),
+        modelUsed: req.agentModel,
       });
 
       return res.status(201).json(flag);

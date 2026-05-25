@@ -86,6 +86,7 @@ router.post(
         operations,
         isElite: !!req.account.badgeElite,
         hasBadgeContribution: !!req.account.badgeContribution,
+        modelUsed: req.agentModel,
       });
 
       return res.status(201).json(changeset);

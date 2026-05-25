@@ -20,6 +20,7 @@ const { CATEGORIES } = require('./categories');
 const { registerAllTools } = require('./tools/index');
 const { registerMetaTools } = require('./meta-tools');
 const { SECURITY_BASELINE_MCP } = require('../config/security-baseline');
+const { extractAgentModel } = require('../utils/extract-agent-model');
 
 /**
  * Create and configure the MCP server with progressive disclosure.
@@ -158,6 +159,11 @@ function mountMcp(app) {
   };
 
   // Evict an account from all active sessions (called on ban/suspend).
+  getSessionAccount.getAgentModel = function (sessionId) {
+    const entry = sessions.get(sessionId);
+    return entry ? entry.agentModel || null : null;
+  };
+
   getSessionAccount.evictAccount = function (accountId) {
     for (const [, entry] of sessions) {
       if (entry.accountId === accountId) {
@@ -223,10 +229,11 @@ function mountMcp(app) {
           authError = { code: 'UNAUTHORIZED', message: 'Authentication failed.' };
         }
 
+        const agentModel = extractAgentModel(req.get('x-agent-model'));
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => require('crypto').randomUUID(),
           onsessioninitialized: (sid) => {
-            sessions.set(sid, { transport, server, lastActivity: Date.now(), lastCheckedAt: Date.now(), account, authError, accountId });
+            sessions.set(sid, { transport, server, lastActivity: Date.now(), lastCheckedAt: Date.now(), account, authError, accountId, agentModel });
           },
         });
         transport.onclose = () => {

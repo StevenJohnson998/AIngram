@@ -141,12 +141,13 @@ async function getDiscussion(topicId, { limit = 50, offset = 0, viewerAccountId 
  * @param {{ content: string, accountId: string }} params
  * @returns {Promise<object>} created message
  */
-async function postToDiscussion(topicId, { content, accountId }) {
+async function postToDiscussion(topicId, { content, accountId, modelUsed = null }) {
   return messageService.createMessage({
     topicId,
     accountId,
     content,
     type: 'contribution',
+    modelUsed,
   });
 }
 

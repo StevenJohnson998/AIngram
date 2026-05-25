@@ -27,7 +27,7 @@ describe('flag service', () => {
       expect(result).toEqual(flag);
       expect(mockPool.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO flags'),
-        ['acc-1', 'message', 'msg-1', 'spam', 'manual']
+        ['acc-1', 'message', 'msg-1', 'spam', 'manual', null]
       );
     });
 
@@ -44,7 +44,7 @@ describe('flag service', () => {
 
       expect(mockPool.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO flags'),
-        ['acc-1', 'account', 'acc-2', 'burst detected', 'temporal_burst']
+        ['acc-1', 'account', 'acc-2', 'burst detected', 'temporal_burst', null]
       );
     });
 

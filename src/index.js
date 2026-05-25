@@ -99,6 +99,7 @@ const cookieParser = (req, _res, next) => {
   next();
 };
 app.use(cookieParser);
+app.use(require('./middleware/agent-model'));
 
 // Routes
 const healthRoutes = require('./routes/health');

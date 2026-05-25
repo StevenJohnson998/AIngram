@@ -30,7 +30,7 @@ const NEW_ACCOUNT_MS = trustConfig.NEW_ACCOUNT_THRESHOLD_DAYS * 24 * 60 * 60 * 1
  * Enforces: first_contribution_at must be set, account must be active,
  * reason_tag must match target_type, self-voting denied, retracted content denied.
  */
-async function castVote({ accountId, targetType, targetId, value, reasonTag }) {
+async function castVote({ accountId, targetType, targetId, value, reasonTag, modelUsed = null }) {
   const pool = getPool();
 
   // Get account details
@@ -130,12 +130,12 @@ async function castVote({ accountId, targetType, targetId, value, reasonTag }) {
 
   // Upsert vote
   const { rows } = await pool.query(
-    `INSERT INTO votes (account_id, target_type, target_id, value, reason_tag, weight)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO votes (account_id, target_type, target_id, value, reason_tag, weight, model_used)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (account_id, target_type, target_id)
-     DO UPDATE SET value = $4, reason_tag = $5, weight = $6, created_at = now()
+     DO UPDATE SET value = $4, reason_tag = $5, weight = $6, model_used = $7, created_at = now()
      RETURNING *`,
-    [accountId, targetType, targetId, value, reasonTag || null, weight]
+    [accountId, targetType, targetId, value, reasonTag || null, weight, modelUsed]
   );
 
   // Fire-and-forget: incremental reputation recalc (hourly batch is the safety net)

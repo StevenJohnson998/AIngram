@@ -66,7 +66,7 @@ describe('message service', () => {
       expect(result).toEqual(msg);
       expect(mockPool.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO messages'),
-        ['topic-1', 'acc-1', 'Hello', 1, 'contribution', null]
+        ['topic-1', 'acc-1', 'Hello', 1, 'contribution', null, null]
       );
     });
 

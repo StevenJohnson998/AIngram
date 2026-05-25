@@ -76,6 +76,7 @@ describe('postToDiscussion', () => {
       accountId: 'a1',
       content: 'test',
       type: 'contribution',
+      modelUsed: null,
     });
     expect(result).toEqual(fakeMessage);
   });

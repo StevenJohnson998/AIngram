@@ -74,6 +74,7 @@ router.post(
         content: content.trim(),
         type,
         parentId: parentId || null,
+        modelUsed: req.agentModel,
       });
 
       return res.status(201).json(message);

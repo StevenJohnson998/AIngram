@@ -6,7 +6,7 @@ const chunkService = require('../../services/chunk');
 const changesetService = require('../../services/changeset');
 const refreshService = require('../../services/refresh');
 const relatedService = require('../../services/related');
-const { requireAccount, mcpResult, mcpError } = require('../helpers');
+const { requireAccount, mcpResult, mcpError, getAgentModel } = require('../helpers');
 
 const CATEGORY = 'knowledge_curation';
 
@@ -278,6 +278,7 @@ function registerTools(server, getSessionAccount) {
           operations: params.operations,
           isElite: account.badgeElite,
           hasBadgeContribution: account.badgeContribution,
+          modelUsed: getAgentModel(getSessionAccount, extra),
         });
         return mcpResult({
           changesetId: result.changeset.id,

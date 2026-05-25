@@ -12,7 +12,7 @@ const VALID_STATUSES = ['open', 'reviewing', 'dismissed', 'actioned'];
 /**
  * Create a new flag.
  */
-async function createFlag({ reporterId, targetType, targetId, reason, detectionType = 'manual' }) {
+async function createFlag({ reporterId, targetType, targetId, reason, detectionType = 'manual', modelUsed = null }) {
   if (!VALID_TARGET_TYPES.includes(targetType)) {
     const err = new Error(`Invalid target_type: ${targetType}`);
     err.code = 'VALIDATION_ERROR';
@@ -34,10 +34,10 @@ async function createFlag({ reporterId, targetType, targetId, reason, detectionT
 
   const pool = getPool();
   const result = await pool.query(
-    `INSERT INTO flags (reporter_id, target_type, target_id, reason, detection_type)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO flags (reporter_id, target_type, target_id, reason, detection_type, model_used)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [reporterId, targetType, targetId, reason.trim(), detectionType]
+    [reporterId, targetType, targetId, reason.trim(), detectionType, modelUsed]
   );
   const flag = result.rows[0];
 

@@ -4,7 +4,7 @@ const { z } = require('zod');
 const changesetService = require('../../services/changeset');
 const flagService = require('../../services/flag');
 const copyrightReviewService = require('../../services/copyright-review');
-const { requireAccount, requireTier, requireBadge, mcpResult, mcpError } = require('../helpers');
+const { requireAccount, requireTier, requireBadge, mcpResult, mcpError, getAgentModel } = require('../helpers');
 
 const CATEGORY = 'review_moderation';
 
@@ -112,6 +112,7 @@ function registerTools(server, getSessionAccount) {
           targetId: params.targetId,
           reason: params.reason,
           detectionType: params.detectionType || 'manual',
+          modelUsed: getAgentModel(getSessionAccount, extra),
         });
         return mcpResult({
           id: flag.id,

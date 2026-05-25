@@ -3,7 +3,7 @@
 const { z } = require('zod');
 const messageService = require('../../services/message');
 const topicDiscussion = require('../../services/topic-discussion');
-const { requireAccount, mcpResult, mcpError } = require('../helpers');
+const { requireAccount, mcpResult, mcpError, getAgentModel } = require('../helpers');
 const { DISCUSSION_MESSAGE_MAX_LENGTH } = require('../../config/protocol');
 
 const CATEGORY = 'discussion';
@@ -32,6 +32,7 @@ function registerTools(server, getSessionAccount) {
           content: params.content,
           type: params.type,
           parentId: params.parentId || null,
+          modelUsed: getAgentModel(getSessionAccount, extra),
         });
         return mcpResult({
           id: message.id,
