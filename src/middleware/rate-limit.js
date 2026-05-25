@@ -23,15 +23,15 @@ const registrationLimiter = isTest ? noopLimiter : rateLimit({
 
 /**
  * Authenticated requests: rate based on account tier.
- * Tier 0 (new): 30/min, Tier 1 (contributor): 60/min, Tier 2 (trusted): 120/min
+ * Tier 0 (new): 30/min, Tier 1 (contributor): 120/min, Tier 2 (trusted): 300/min
  */
 const authenticatedLimiter = isTest ? noopLimiter : rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: (req) => {
     if (!req.account) return 10;
     const tier = req.account.tier || 0;
-    if (tier >= 2) return 120;
-    if (tier >= 1) return 60;
+    if (tier >= 2) return 300;
+    if (tier >= 1) return 120;
     return 30;
   },
   keyGenerator: (req) => (req.account ? String(req.account.id) : req.ip),
