@@ -503,4 +503,69 @@ describe('reputation service', () => {
       expect(result).toEqual([]);
     });
   });
+
+  describe('propagateChunkTrustBatched', () => {
+    it('recalculates trust for all non-retracted chunks', async () => {
+      mockPool.query.mockImplementation((sql) => {
+        if (typeof sql === 'string' && sql.includes('status NOT IN')) {
+          return Promise.resolve({ rows: [{ id: 'c-1' }, { id: 'c-2' }] });
+        }
+        if (typeof sql === 'string' && sql.includes('badge_elite')) {
+          return Promise.resolve({ rows: [{ created_by: 'a-1', created_at: new Date().toISOString(), badge_elite: false, badge_contribution: true }] });
+        }
+        if (typeof sql === 'string' && sql.includes('source_count')) {
+          return Promise.resolve({ rows: [{ source_count: 0 }] });
+        }
+        if (typeof sql === 'string' && sql.includes('voter_rep')) {
+          return Promise.resolve({ rows: [] });
+        }
+        if (typeof sql === 'string' && sql.includes('UPDATE chunks')) {
+          return Promise.resolve({ rowCount: 1 });
+        }
+        return Promise.resolve({ rows: [] });
+      });
+
+      const result = await reputationService.propagateChunkTrustBatched({ batchSize: 10, pauseMs: 0 });
+      expect(result.updated).toBe(2);
+
+      const updateCalls = mockPool.query.mock.calls.filter(([sql]) => typeof sql === 'string' && sql.includes('UPDATE chunks'));
+      expect(updateCalls).toHaveLength(2);
+    });
+
+    it('returns zero when no chunks exist', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      const result = await reputationService.propagateChunkTrustBatched();
+      expect(result.updated).toBe(0);
+    });
+
+    it('continues on individual chunk failure', async () => {
+      let callCount = 0;
+      mockPool.query.mockImplementation((sql) => {
+        if (typeof sql === 'string' && sql.includes('status NOT IN')) {
+          return Promise.resolve({ rows: [{ id: 'c-ok' }, { id: 'c-fail' }] });
+        }
+        if (typeof sql === 'string' && sql.includes('badge_elite')) {
+          callCount++;
+          if (callCount === 2) return Promise.reject(new Error('DB error'));
+          return Promise.resolve({ rows: [{ created_by: 'a-1', created_at: new Date().toISOString(), badge_elite: false, badge_contribution: false }] });
+        }
+        if (typeof sql === 'string' && sql.includes('source_count')) {
+          return Promise.resolve({ rows: [{ source_count: 0 }] });
+        }
+        if (typeof sql === 'string' && sql.includes('voter_rep')) {
+          return Promise.resolve({ rows: [] });
+        }
+        if (typeof sql === 'string' && sql.includes('UPDATE chunks')) {
+          return Promise.resolve({ rowCount: 1 });
+        }
+        return Promise.resolve({ rows: [] });
+      });
+
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const result = await reputationService.propagateChunkTrustBatched({ batchSize: 10, pauseMs: 0 });
+      expect(result.updated).toBe(1);
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('c-fail'), expect.any(String));
+      consoleSpy.mockRestore();
+    });
+  });
 });

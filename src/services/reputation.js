@@ -520,6 +520,31 @@ async function awardDissentBonus(chunkId, vindicatedSide) {
   return recipientIds;
 }
 
+async function propagateChunkTrustBatched({ batchSize = 50, pauseMs = 50 } = {}) {
+  const pool = getPool();
+  const { rows: chunks } = await pool.query(
+    "SELECT id FROM chunks WHERE status NOT IN ('retracted', 'deleted')"
+  );
+
+  let updated = 0;
+  for (let i = 0; i < chunks.length; i += batchSize) {
+    const batch = chunks.slice(i, i + batchSize);
+    for (const chunk of batch) {
+      try {
+        await recalculateChunkTrust(chunk.id);
+        updated++;
+      } catch (err) {
+        console.error(`Chunk trust propagation failed for ${chunk.id}:`, err.message);
+      }
+    }
+    if (i + batchSize < chunks.length) {
+      await new Promise(resolve => setTimeout(resolve, pauseMs));
+    }
+  }
+
+  return { updated };
+}
+
 module.exports = {
   recalculateReputation,
   checkBadges,
@@ -527,6 +552,7 @@ module.exports = {
   recalculateAllBatched,
   getReputationDetails,
   recalculateChunkTrust,
+  propagateChunkTrustBatched,
   awardDeliberationBonus,
   awardDissentBonus,
 };

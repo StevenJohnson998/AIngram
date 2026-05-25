@@ -31,7 +31,7 @@ if (!process.env.QUARANTINE_VALIDATOR_API_KEY) {
 
 const { checkTimeouts } = require('./timeout-enforcer');
 const { runAllDetections } = require('../services/abuse-detection');
-const { recalculateAllBatched } = require('../services/reputation');
+const { recalculateAllBatched, propagateChunkTrustBatched } = require('../services/reputation');
 const { TIMEOUT_CHECK_MS } = require('../config/protocol');
 const { retryNotifications } = require('../services/notification');
 const { processRestorations } = require('./counter-notice-restorer');
@@ -57,11 +57,18 @@ const abuseInterval = setInterval(runAllDetections, 5 * 60 * 1000);
 console.log('Worker: abuse detection job started (interval: 5m)');
 
 // Reputation recalculation: every hour, batched (safety net — incremental recalc happens per-vote)
+// Chain chunk trust propagation after account rep recalc so chunks reflect fresh rep/badges
 const reputationInterval = setInterval(
-  () => recalculateAllBatched({ batchSize: 50, pauseMs: 100 }),
+  () => recalculateAllBatched({ batchSize: 50, pauseMs: 100 })
+    .then(results => {
+      console.log(`Worker: reputation recalc done (${results.length} accounts), propagating chunk trust...`);
+      return propagateChunkTrustBatched({ batchSize: 50, pauseMs: 50 });
+    })
+    .then(({ updated }) => console.log(`Worker: chunk trust propagation done (${updated} chunks)`))
+    .catch(err => console.error('Worker: reputation/trust propagation error:', err.message)),
   60 * 60 * 1000
 );
-console.log('Worker: reputation recalc job started (interval: 1h)');
+console.log('Worker: reputation recalc + chunk trust propagation job started (interval: 1h)');
 
 // Notification retry: every 30 seconds (webhook DLQ)
 const notificationRetryInterval = setInterval(retryNotifications, 30 * 1000);
