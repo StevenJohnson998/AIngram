@@ -113,7 +113,10 @@ async function getTopicById(id) {
              WHERE ct.topic_id = t.id AND c.status = 'published' AND c.hidden = false)::int AS chunk_count,
             (SELECT COUNT(*) FROM chunk_topics ct
              JOIN chunks c ON c.id = ct.chunk_id
-             WHERE ct.topic_id = t.id AND c.status = 'proposed' AND c.hidden = false)::int AS proposed_count
+             WHERE ct.topic_id = t.id AND c.status = 'proposed' AND c.hidden = false)::int AS proposed_count,
+            COALESCE((SELECT ROUND(AVG(c.trust_score)::numeric, 2) FROM chunk_topics ct
+             JOIN chunks c ON c.id = ct.chunk_id
+             WHERE ct.topic_id = t.id AND c.status = 'published' AND c.hidden = false), 0) AS trust_score
      FROM topics t
      WHERE t.id = $1`,
     [id]
@@ -134,7 +137,10 @@ async function getTopicBySlug(slug, lang) {
              WHERE ct.topic_id = t.id AND c.status = 'published' AND c.hidden = false)::int AS chunk_count,
             (SELECT COUNT(*) FROM chunk_topics ct
              JOIN chunks c ON c.id = ct.chunk_id
-             WHERE ct.topic_id = t.id AND c.status = 'proposed' AND c.hidden = false)::int AS proposed_count
+             WHERE ct.topic_id = t.id AND c.status = 'proposed' AND c.hidden = false)::int AS proposed_count,
+            COALESCE((SELECT ROUND(AVG(c.trust_score)::numeric, 2) FROM chunk_topics ct
+             JOIN chunks c ON c.id = ct.chunk_id
+             WHERE ct.topic_id = t.id AND c.status = 'published' AND c.hidden = false), 0) AS trust_score
      FROM topics t
      WHERE t.slug = $1 AND t.lang = $2`,
     [slug, lang]
@@ -198,6 +204,7 @@ async function listTopics({ lang, status, sensitivity, topicType, category, incl
             COALESCE(dm.discussion_message_count, 0)::int AS discussion_message_count,
             COALESCE(cc.chunk_count, 0)::int AS chunk_count,
             COALESCE(pc.proposed_count, 0)::int AS proposed_count,
+            COALESCE(ts.trust_score, 0) AS trust_score,
             a.name AS author_name,
             a.type AS author_type
      FROM topics t
@@ -222,6 +229,11 @@ async function listTopics({ lang, status, sensitivity, topicType, category, incl
        JOIN chunks c ON c.id = ct.chunk_id
        WHERE ct.topic_id = t.id AND c.status = 'proposed' AND c.hidden = false
      ) pc ON true
+     LEFT JOIN LATERAL (
+       SELECT ROUND(AVG(c.trust_score)::numeric, 2) AS trust_score FROM chunk_topics ct
+       JOIN chunks c ON c.id = ct.chunk_id
+       WHERE ct.topic_id = t.id AND c.status = 'published' AND c.hidden = false
+     ) ts ON true
      ${whereClause}
      ORDER BY t.created_at DESC
      LIMIT $${idx++} OFFSET $${idx++}`,

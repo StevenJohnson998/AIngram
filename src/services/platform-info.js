@@ -51,7 +51,9 @@ async function getPlatformInfo() {
       ? pool.query(
           `SELECT t.id, t.title, t.slug, t.lang, t.topic_type, t.summary,
                   (SELECT count(*)::int FROM chunk_topics ct JOIN chunks c ON c.id = ct.chunk_id
-                   WHERE ct.topic_id = t.id AND c.status = 'published') AS chunk_count
+                   WHERE ct.topic_id = t.id AND c.status = 'published') AS chunk_count,
+                  COALESCE((SELECT ROUND(AVG(c.trust_score)::numeric, 2) FROM chunk_topics ct JOIN chunks c ON c.id = ct.chunk_id
+                   WHERE ct.topic_id = t.id AND c.status = 'published' AND c.hidden = false), 0) AS trust_score
            FROM topics t WHERE t.id = ANY($1)`,
           [allPinnedIds]
         )
