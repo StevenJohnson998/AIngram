@@ -23,7 +23,7 @@
   banner.className = 'cookie-banner';
   banner.innerHTML =
     '<p>This site uses cookies solely for authentication and local preferences. No tracking, no third-party sharing.</p>' +
-    '<div style="display:flex;gap:0.5rem;flex-shrink:0;">' +
+    '<div class="u-flex u-gap-sm u-flex-shrink-0">' +
       '<button class="btn btn-sm" id="cookie-refuse">Refuse</button>' +
       '<button class="btn btn-primary btn-sm" id="cookie-accept">Accept</button>' +
     '</div>';

@@ -38,7 +38,7 @@ function renderLiveCard(d) {
       d.messageCount + ' messages &middot; ' +
       d.participantCount + ' participants' +
     '</p>' +
-    '<p class="text-xs" style="color:var(--color-success);">Ends ' + formatDate(d.endsAt) + '</p>' +
+    '<p class="text-xs u-color-success">Ends ' + formatDate(d.endsAt) + '</p>' +
   '</a>';
 }
 
@@ -51,7 +51,7 @@ function renderUpcomingCard(d) {
     '</div>' +
     '<h3 class="topic-card-title">' + escapeHtml(d.topicTitle) + '</h3>' +
     '<p class="text-sm text-muted">' + formatDate(d.startsAt) + '</p>' +
-    '<p class="text-xs" style="color:var(--color-warning);">Starts in ' + countdown(d.startsAt) + '</p>' +
+    '<p class="text-xs u-color-warning">Starts in ' + countdown(d.startsAt) + '</p>' +
   '</a>';
 }
 
@@ -94,22 +94,22 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     if (live.length > 0) {
       liveContainer.innerHTML = live.map(renderLiveCard).join('');
-      liveSection.style.display = '';
+      liveSection.classList.remove('u-hidden');
     }
     if (upcoming.length > 0) {
       upcomingContainer.innerHTML = upcoming.map(renderUpcomingCard).join('');
-      upcomingSection.style.display = '';
+      upcomingSection.classList.remove('u-hidden');
     }
     if (ended.length > 0) {
       endedContainer.innerHTML = ended.map(renderEndedCard).join('');
-      endedSection.style.display = '';
+      endedSection.classList.remove('u-hidden');
     }
 
     if (debates.length === 0) {
-      emptyEl.style.display = '';
+      emptyEl.classList.remove('u-hidden');
     }
   } catch (err) {
     emptyEl.innerHTML = '<p class="text-muted">Could not load live debates.</p>';
-    emptyEl.style.display = '';
+    emptyEl.classList.remove('u-hidden');
   }
 });

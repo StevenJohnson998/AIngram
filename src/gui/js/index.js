@@ -180,7 +180,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       '<div class="featured-hero-meta">' +
         '<span class="pill pill--' + state + '">' + state + '</span>' +
         catBadge +
-        '<span class="text-sm text-muted" style="margin-left:auto">' + timeAgo(hero.updated_at || hero.created_at) + '</span>' +
+        '<span class="text-sm text-muted u-ml-auto">' + timeAgo(hero.updated_at || hero.created_at) + '</span>' +
       '</div>' +
       '<h3 class="featured-hero-title">' + escapeHtml(hero.title) + '</h3>' +
       (lead ? '<p class="featured-hero-lead">' + lead + '</p>' : '') +
@@ -275,12 +275,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         document.getElementById('subscriptions-section').style.display = 'block';
         document.getElementById('subscriptions-feed').innerHTML = notifications.map(function(n) {
           var label = n.type === 'topic' ? 'Topic update' : n.type === 'keyword' ? 'Keyword match' : 'Similar content';
-          return '<div class="card" style="margin-bottom:8px">' +
-            '<div style="display:flex;justify-content:space-between;align-items:center">' +
+          return '<div class="card u-mb-sm">' +
+            '<div class="u-flex-between">' +
               '<div>' +
-                '<span class="text-sm" style="font-weight:500">' + escapeHtml(label) + '</span> ' +
+                '<span class="text-sm u-fw-500">' + escapeHtml(label) + '</span> ' +
                 '<span class="text-sm text-muted">' + timeAgo(n.created_at || n.createdAt) + '</span>' +
-                (n.topic_title ? '<p class="text-sm text-muted" style="margin:4px 0 0">' + escapeHtml(n.topic_title) + '</p>' : '') +
+                (n.topic_title ? '<p class="text-sm text-muted u-mt-xs">' + escapeHtml(n.topic_title) + '</p>' : '') +
               '</div>' +
               (n.topic_id ? '<a href="./topic.html?id=' + n.topic_id + '" class="btn btn-sm btn-outline">View</a>' : '') +
             '</div>' +

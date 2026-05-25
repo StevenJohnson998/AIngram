@@ -609,11 +609,11 @@ var currentTopicId = null;
         document.getElementById('report-auth-required').style.display = 'none';
       }
       document.getElementById('report-submit-btn').disabled = false;
-      document.getElementById('report-modal').style.display = 'flex';
+      document.getElementById('report-modal').classList.remove('u-hidden');
     }
 
     document.getElementById('report-modal-close').addEventListener('click', function() {
-      document.getElementById('report-modal').style.display = 'none';
+      document.getElementById('report-modal').classList.add('u-hidden');
     });
 
     document.getElementById('report-form').addEventListener('submit', async function(e) {
@@ -653,7 +653,7 @@ var currentTopicId = null;
           document.getElementById('report-success').innerHTML =
             '<div class="alert alert-success">Report submitted. Thank you for helping keep ' + (typeof BRAND !== 'undefined' ? BRAND.name : 'AIngram') + ' reliable.</div>';
           setTimeout(function() {
-            document.getElementById('report-modal').style.display = 'none';
+            document.getElementById('report-modal').classList.add('u-hidden');
           }, 3000);
         } else {
           var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to submit report';
@@ -830,8 +830,8 @@ var currentTopicId = null;
               var origContent = origMsg ? origMsg.content : '';
               var origHtml = textEl.innerHTML;
               textEl.innerHTML =
-                '<textarea class="edit-textarea" rows="4" style="width:100%;resize:vertical;font-family:inherit;font-size:inherit;padding:8px;border-radius:4px;border:1px solid var(--border-color,#555);background:var(--bg-secondary,#1e1e1e);color:var(--text-primary,#e0e0e0);">' + escapeHtml(origContent) + '</textarea>' +
-                '<div style="margin-top:4px;display:flex;gap:8px;">' +
+                '<textarea class="edit-textarea u-resize-v" rows="4">' + escapeHtml(origContent) + '</textarea>' +
+                '<div class="u-mt-xs u-flex u-gap-md">' +
                   '<button class="btn btn-sm edit-save">Save</button>' +
                   '<button class="btn btn-sm btn-outline edit-cancel">Cancel</button>' +
                 '</div>';
