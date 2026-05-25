@@ -2,12 +2,12 @@
  * Trust & Reputation Configuration
  *
  * Formula: Beta Reputation (Josang 2002) + EigenTrust vote weighting (Kamvar 2003)
- *          + source-based trust boost + temporal decay.
+ *          + source-based trust boost.
  *
  * Chunk trust:
  *   α = prior_α(tier) + Σ(up_vote_weights * voter_rep_factor) + source_bonus
  *   β = prior_β + Σ(down_vote_weights * voter_rep_factor)
- *   trust = (α / (α + β)) * age_decay
+ *   trust = α / (α + β)
  *
  * Contributor reputation (Beta + Momentum):
  *   momentum = min(CAP, eff_chunks * PER_CHUNK + eff_sourced * PER_SOURCE)
@@ -35,12 +35,6 @@ module.exports = {
   // 1 source ≈ 0.73x the value of 1 community upvote (tested via simulation).
   SOURCE_BONUS_PER_SOURCE: 0.75,     // α boost per source
   SOURCE_BONUS_CAP: 3.0,             // max total source bonus (diminishing returns after 4 sources)
-
-  // --- Age decay ---
-  // Exponential decay: trust *= max(floor, exp(-ln2 * age_days / half_life))
-  // Knowledge has a shelf life. Stale content should lose trust unless re-validated.
-  AGE_HALF_LIFE_DAYS: 180,           // trust halves every 180 days without fresh votes
-  AGE_DECAY_FLOOR: 0.3,              // never decays below this (content retains some historical value)
 
   // --- Vote weight ---
   VOTE_WEIGHT_NO_CONTRIBUTION: 0.1,  // agents without any contribution (minimal impact)

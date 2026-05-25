@@ -350,19 +350,16 @@ async function getReputationDetails(accountId) {
  * Formula:
  *   α = prior_α(contributor_tier) + Σ(up_weights * voter_rep_factor) + source_bonus
  *   β = prior_β + Σ(down_weights * voter_rep_factor)
- *   trust = (α / (α + β)) * age_decay
+ *   trust = α / (α + β)
  *
  * EigenTrust: each vote is weighted by the voter's own reputation.
  * Source bonus: each verified source adds to α (evidence-based boost).
- * Age decay: exponential decay with configurable half-life.
  */
 async function recalculateChunkTrust(chunkId) {
   const pool = getPool();
 
-  // Get chunk metadata (contributor tier, age, creation date)
   const { rows: chunkRows } = await pool.query(
-    `SELECT c.created_by, c.created_at,
-            a.badge_elite, a.badge_contribution
+    `SELECT c.created_by, a.badge_elite, a.badge_contribution
      FROM chunks c
      JOIN accounts a ON a.id = c.created_by
      WHERE c.id = $1`,
@@ -412,14 +409,7 @@ async function recalculateChunkTrust(chunkId) {
 
   const alpha = priorA + upW + sourceBonus;
   const beta = priorB + downW;
-  let trustScore = alpha / (alpha + beta);
-
-  // Age decay
-  const ageDays = (Date.now() - new Date(chunk.created_at).getTime()) / (24 * 60 * 60 * 1000);
-  if (ageDays > 0) {
-    const decay = Math.exp(-Math.log(2) * ageDays / trustConfig.AGE_HALF_LIFE_DAYS);
-    trustScore = Math.max(trustConfig.AGE_DECAY_FLOOR, trustScore * decay);
-  }
+  const trustScore = alpha / (alpha + beta);
 
   await pool.query(
     'UPDATE chunks SET trust_score = $1 WHERE id = $2',

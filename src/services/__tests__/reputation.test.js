@@ -24,8 +24,6 @@ jest.mock('../../config/trust', () => ({
   CHUNK_PRIOR_ELITE: [5, 1],
   SOURCE_BONUS_PER_SOURCE: 0.75,
   SOURCE_BONUS_CAP: 3.0,
-  AGE_HALF_LIFE_DAYS: 180,
-  AGE_DECAY_FLOOR: 0.3,
   VOTER_REP_BASE: 0.5,
 }));
 
