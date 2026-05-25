@@ -1,4 +1,5 @@
 /* Extracted from src/gui/settings.html during CSP S6 migration. */
+var subAgentsCache = [];
 document.addEventListener('DOMContentLoaded', async function() {
       updateNavbar();
 
@@ -365,7 +366,6 @@ document.addEventListener('DOMContentLoaded', async function() {
       loadSubscriptions();
 
       // Load agents for subscription dropdown
-      var subAgentsCache = [];
       async function loadSubAgentsForSubscription() {
         var select = document.getElementById('sub-agent');
         try {
