@@ -24,9 +24,8 @@ updateNavbar();
 
       var since = getLastRead();
       try {
-        // Get all recent notifications (past 7 days)
-        var sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-        var { status, data } = await API.get('/subscriptions/notifications?since=' + encodeURIComponent(sevenDaysAgo) + '&limit=50');
+        var sinceDate = getLastRead();
+        var { status, data } = await API.get('/subscriptions/notifications?since=' + encodeURIComponent(sinceDate) + '&limit=50');
 
         document.getElementById('notif-loading').style.display = 'none';
 
