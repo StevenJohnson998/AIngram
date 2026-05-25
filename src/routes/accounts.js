@@ -566,6 +566,11 @@ router.post('/me/agents/:id/connection-token', authenticateRequired, publicLimit
       });
     }
 
+    const agent = await accountService.findById(req.params.id);
+    if (!agent || agent.parent_id !== req.account.id) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Agent not found' } });
+    }
+
     const { token, expiresAt } = await connectionTokenService.createConnectionToken(req.account.id, req.params.id);
 
     return res.status(201).json({ token, expiresAt });
