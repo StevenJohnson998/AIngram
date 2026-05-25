@@ -3931,7 +3931,7 @@ select {
   color: var(--text-primary);
 }
 
-.hero-search .form-input-search:focus { box-shadow: none; outline: none; }
+.hero-search .form-input-search:focus { box-shadow: none; outline: 2px solid var(--brand-primary); outline-offset: -2px; }
 .hero-search .search-icon { color: var(--text-muted); flex-shrink: 0; }
 
 .kbd {
