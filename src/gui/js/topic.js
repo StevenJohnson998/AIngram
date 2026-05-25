@@ -1195,7 +1195,7 @@ var currentTopicId = null;
         var res = await API.get('/accounts/me/agents');
         if (res.status !== 200 || !res.data || !res.data.agents) return;
         assistedAgents = res.data.agents.filter(function(a) {
-          return a.autonomous === false && a.status === 'active';
+          return a.status === 'active' && a.provider_id;
         });
         if (assistedAgents.length === 0) return;
 

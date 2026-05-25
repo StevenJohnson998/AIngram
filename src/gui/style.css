@@ -3281,10 +3281,6 @@ select {
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
-  padding: 2px;
-  background: var(--bg-muted);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
 }
 
 .persona-btn {
@@ -3292,9 +3288,9 @@ select {
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-xs) var(--space-sm);
-  border: 1px solid transparent;
+  border: none;
   border-radius: var(--radius-sm);
-  background: none;
+  background: var(--bg-muted);
   cursor: pointer;
   font-size: var(--text-sm);
   font-family: var(--font-sans);
@@ -3304,16 +3300,13 @@ select {
 }
 
 .persona-btn:hover {
-  background: var(--bg-primary);
-  border-color: var(--border-color);
+  background: var(--bg-hover);
 }
 
 .persona-btn.active {
-  background: var(--bg-primary);
-  border-color: var(--brand-accent);
+  background: var(--bg-hover);
   color: var(--brand-accent);
   font-weight: 600;
-  box-shadow: var(--shadow-sm);
 }
 
 .persona-avatar {

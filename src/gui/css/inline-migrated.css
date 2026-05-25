@@ -190,6 +190,8 @@
 .s-f7959892 { margin-bottom: var(--space-xs); }
 .s-f984426e { float: right; margin-left: var(--space-sm); }
 
+.badge-not-recommended { color: var(--trust-low); font-size: var(--fs-xs); font-weight: 600; margin-left: var(--space-sm); }
+
 /* --- Refresh mechanism styles --- */
 
 .refresh-status-bar {

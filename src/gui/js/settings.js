@@ -116,69 +116,15 @@ document.addEventListener('DOMContentLoaded', async function() {
         loadProviders();
         loadProviderTypes();
 
-        // Agent type toggle + flow update
-        function updateAgentFlow(type) {
-          document.getElementById('agent-type-value').value = type;
-          var provSection = document.getElementById('providers-section');
-          var agentSection = document.getElementById('agents-section');
-          var provGuide = document.getElementById('provider-guide');
-          var provGroup = document.getElementById('agent-provider-group');
-          var createAgent = document.getElementById('create-agent');
-          var autoWizard = document.getElementById('autonomous-wizard');
-          var subtitle = document.getElementById('agents-subtitle');
-
-          if (type === 'assisted') {
-            // Assisted: providers first (order 1), agents second (order 2)
-            provSection.style.order = '1';
-            provSection.style.display = '';
-            agentSection.style.order = '2';
-            if (provGroup) provGroup.style.display = '';
-            provGuide.style.display = _providers.length === 0 ? 'block' : 'none';
-            createAgent.style.display = '';
-            autoWizard.style.display = 'none';
-            subtitle.textContent = 'Create agent personas that use your AI provider to generate content.';
-          } else {
-            // Autonomous: agents first (order 1), providers hidden
-            agentSection.style.order = '1';
-            provSection.style.display = 'none';
-            provGuide.style.display = 'none';
-            if (provGroup) provGroup.style.display = 'none';
-            createAgent.style.display = 'none';
-            autoWizard.style.display = '';
-            subtitle.textContent = 'Autonomous agents connect via the API with their own credentials.';
-          }
-        }
-
-        document.querySelectorAll('.agent-type-option').forEach(function(opt) {
-          opt.addEventListener('click', function() {
-            document.querySelectorAll('.agent-type-option').forEach(function(o) { o.classList.remove('selected'); });
-            this.classList.add('selected');
-            updateAgentFlow(this.dataset.type);
-          });
-        });
-
-        // Provider guide button
-        document.getElementById('provider-guide-btn').addEventListener('click', function() {
-          var trigger = document.getElementById('new-provider-trigger');
-          var content = document.getElementById('new-provider-form-container');
-          trigger.classList.add('open');
-          content.classList.add('open');
-          trigger.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
-
-        // Initial flow state
-        updateAgentFlow('assisted');
-
-        // Create agent submit
+        // Create agent submit (always assisted — autonomous uses the wizard above)
         document.getElementById('create-agent-submit').addEventListener('click', async function() {
           var agentName = document.getElementById('agent-name').value.trim();
           if (!agentName || agentName.length < 2) {
             showAlert(document.getElementById('create-agent-message'), 'warning', 'Name must be at least 2 characters.');
             return;
           }
-          var agentType = document.getElementById('agent-type-value').value;
-          var isAutonomous = agentType === 'autonomous';
-          var providerId = isAutonomous ? undefined : (document.getElementById('agent-provider').value || undefined);
+          var isAutonomous = false;
+          var providerId = document.getElementById('agent-provider').value || undefined;
           var description = document.getElementById('agent-description').value.trim() || undefined;
           this.disabled = true;
           try {
@@ -186,17 +132,10 @@ document.addEventListener('DOMContentLoaded', async function() {
               name: agentName, autonomous: isAutonomous, providerId: providerId, description: description,
             });
             if (res.status === 201) {
-              var msg = isAutonomous
-                ? 'Agent "' + escapeHtml(agentName) + '" created. Use "Connect" to activate it.'
-                : 'Assisted agent "' + escapeHtml(agentName) + '" created and active. Use AI buttons on topics.';
-              showAlert(document.getElementById('create-agent-message'), 'success', msg);
+              showAlert(document.getElementById('create-agent-message'), 'success', 'Assisted agent "' + escapeHtml(agentName) + '" created and active. Use AI buttons on topics.');
               document.getElementById('agent-name').value = '';
               document.getElementById('agent-description').value = '';
               loadAgents();
-              // For autonomous agents, auto-show connection prompt
-              if (isAutonomous && res.data && res.data.agent) {
-                showConnectionPrompt(res.data.agent.id).call(document.querySelector('.agent-connect-btn[data-id="' + res.data.agent.id + '"]') || this);
-              }
             } else {
               var errMsg = (res.data && res.data.error) ? res.data.error.message : 'Failed';
               showAlert(document.getElementById('create-agent-message'), 'warning', errMsg);
@@ -285,11 +224,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         document.getElementById('empty-state-start-btn').addEventListener('click', function() {
           document.getElementById('agents-empty-state').style.display = 'none';
           document.getElementById('agents-panels').style.display = 'flex';
-          // Open create agent form
-          var trigger = document.getElementById('create-agent-trigger');
-          var content = document.getElementById('create-agent-form');
-          trigger.classList.add('open');
-          content.classList.add('open');
+          var wizard = document.getElementById('autonomous-wizard');
+          if (wizard) wizard.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
 
         // Provider type toggle
@@ -462,10 +398,10 @@ document.addEventListener('DOMContentLoaded', async function() {
       // Apply hash routing after everything is loaded
       routeFromHash();
 
-      // If #connect-agent, also scroll to create section
+      // If #connect-agent, scroll to the autonomous wizard
       if (window.location.hash === '#connect-agent') {
         setTimeout(function() {
-          var el = document.getElementById('create-agent');
+          var el = document.getElementById('autonomous-wizard');
           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 100);
       }
@@ -550,7 +486,7 @@ document.addEventListener('DOMContentLoaded', async function() {
               var prov = _providers.find(function(p) { return p.id === agent.provider_id; });
               provName = prov ? escapeHtml(prov.name) : 'Unknown';
             } else {
-              provName = agent.autonomous === false ? 'Default' : '';
+              provName = '';
             }
             var provInfo = provName ? ' &middot; ' + provName : '';
             var descSnippet = agent.description ? ' &middot; <span title="' + escapeHtml(agent.description) + '">' + escapeHtml(agent.description.substring(0, 40)) + (agent.description.length > 40 ? '...' : '') + '</span>' : '';
@@ -663,7 +599,7 @@ document.addEventListener('DOMContentLoaded', async function() {
           // Rotate key buttons
           container.querySelectorAll('.agent-rotate-key-btn').forEach(function(btn) {
             btn.addEventListener('click', async function() {
-              if (!confirm('Rotate this agent\'s API key? The old key will be invalidated immediately.')) return;
+              if (!confirm('Rotate this agent\'s internal key? The old key will be invalidated immediately.')) return;
               var rotateBtn = this;
               rotateBtn.disabled = true;
               rotateBtn.textContent = 'Rotating...';
@@ -671,7 +607,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 var res = await API.post('/accounts/me/agents/' + this.dataset.id + '/rotate-key');
                 if (res.status === 200 && res.data) {
                   var data = res.data.data || res.data;
-                  prompt('New API key (shown once, copy now):', data.apiKey);
+                  prompt('New internal key (shown once, copy now):', data.apiKey);
                   loadAgents();
                 } else {
                   var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed';
@@ -720,11 +656,21 @@ document.addEventListener('DOMContentLoaded', async function() {
         document.getElementById('agents-empty-state').style.display = 'none';
         document.getElementById('agents-panels').style.display = 'flex';
       }
-      // Update provider guide visibility
-      var provGuide = document.getElementById('provider-guide');
-      var currentType = document.getElementById('agent-type-value').value;
-      if (provGuide && currentType === 'assisted') {
-        provGuide.style.display = _providers.length === 0 ? 'block' : 'none';
+    }
+
+    function updateByokTrigger() {
+      var trigger = document.getElementById('byok-trigger');
+      if (!trigger) return;
+      var countText = _providers.length > 0 ? ' (' + _providers.length + ' provider' + (_providers.length > 1 ? 's' : '') + ' configured)' : '';
+      trigger.innerHTML = 'I want to use AI through AILore\'s interface' + countText +
+        ' <span class="badge-not-recommended">not recommended</span>' +
+        ' <span class="chevron">&#9660;</span>';
+      if (_providers.length > 0) {
+        var content = document.getElementById('byok-content');
+        if (content && !content.classList.contains('open')) {
+          trigger.classList.add('open');
+          content.classList.add('open');
+        }
       }
     }
 
@@ -773,7 +719,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       var sel = document.getElementById('agent-provider');
       if (!sel) return;
       var current = sel.value;
-      sel.innerHTML = '<option value="">Default provider</option>' +
+      sel.innerHTML = '<option value="">None</option>' +
         _providers.map(function(p) {
           return '<option value="' + p.id + '">' + escapeHtml(p.name) + ' (' + escapeHtml(p.model) + ')</option>';
         }).join('');
@@ -781,7 +727,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     function buildProviderOptions(selectedId) {
-      return '<option value="">Default provider</option>' +
+      return '<option value="">None</option>' +
         _providers.map(function(p) {
           var sel = (p.id === selectedId) ? ' selected' : '';
           return '<option value="' + p.id + '"' + sel + '>' + escapeHtml(p.name) + ' (' + escapeHtml(p.model) + ')</option>';
@@ -796,6 +742,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         // Sync the agent-provider dropdown
         updateProviderDropdown();
+        updateByokTrigger();
 
         if (_providers.length > 0) {
           var providerIcons = { claude: '&#9670;', openai: '&#9671;', groq: '&#9889;', mistral: '&#127752;', custom: '&#128295;' };
@@ -871,7 +818,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 '<div id="provider-edit-msg-' + pid + '"></div>' +
                 '<div class="form-group"><label>Name</label><input type="text" class="form-input" id="pedit-name-' + pid + '" value="' + escapeHtml(prov.name) + '"></div>' +
                 '<div class="form-group"><label>Model</label><input type="text" class="form-input" id="pedit-model-' + pid + '" value="' + escapeHtml(prov.model) + '"></div>' +
-                '<div class="form-group"><label>API key (leave blank to keep current)</label><input type="password" class="form-input" id="pedit-key-' + pid + '" placeholder="Leave blank to keep"></div>' +
+                '<div class="form-group"><label>LLM API key (leave blank to keep current)</label><input type="password" class="form-input" id="pedit-key-' + pid + '" placeholder="Leave blank to keep"></div>' +
                 '<div class="form-group"><label>System prompt</label><textarea class="form-input" rows="2" id="pedit-system-' + pid + '" class="s-a35b8b9c">' + escapeHtml(prov.system_prompt || '') + '</textarea></div>' +
                 '<div class="s-9f58f320">' +
                   '<label class="form-radio"><input type="checkbox" id="pedit-default-' + pid + '"' + (prov.is_default ? ' checked' : '') + '> Set as default</label>' +

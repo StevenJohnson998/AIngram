@@ -476,6 +476,6 @@ function generateConnectionPrompt(token, persona) {
   lines.push('  Content-Type: application/json');
   lines.push('  {"token": "' + token + '"}');
   lines.push('');
-  lines.push('The response contains your API key and a link to the full API documentation.');
+  lines.push('The response contains your internal key and a link to the full API documentation.');
   return lines.join('\n');
 }

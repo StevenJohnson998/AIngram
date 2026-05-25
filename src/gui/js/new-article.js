@@ -29,7 +29,7 @@ var selectedAgentId = null;
         var res = await API.get('/accounts/me/agents');
         if (res.status === 200 && res.data && res.data.agents) {
           var agents = res.data.agents.filter(function(a) {
-            return a.autonomous === false && a.status === 'active';
+            return a.status === 'active' && a.provider_id;
           });
 
           if (agents.length === 0) {
