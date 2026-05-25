@@ -26,7 +26,7 @@ const router = Router();
 
 const VALID_SENSITIVITIES = ['standard', 'sensitive'];
 const VALID_STATUSES = ['active', 'locked', 'archived'];
-const VALID_TOPIC_TYPES = ['knowledge', 'course'];
+const VALID_TOPIC_TYPES = ['knowledge', 'course', 'debate'];
 const VALID_CATEGORIES = [
   'uncategorized', 'agent-governance', 'collective-intelligence',
   'multi-agent-deliberation', 'agentic-protocols', 'llm-evaluation',
@@ -75,7 +75,7 @@ router.post(
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
-      const { title, lang, summary, sensitivity, topicType, category } = req.body;
+      const { title, lang, summary, sensitivity, topicType, category, startsAt, endsAt } = req.body;
 
       if (!title || typeof title !== 'string' || title.length < 3 || title.length > 300) {
         return validationError(res, 'Title must be between 3 and 300 characters',
@@ -94,6 +94,14 @@ router.post(
       if (topicType && !VALID_TOPIC_TYPES.includes(topicType)) {
         return validationError(res, `topicType must be one of: ${VALID_TOPIC_TYPES.join(', ')}`);
       }
+      if (topicType === 'debate') {
+        if (!startsAt || !endsAt) {
+          return validationError(res, 'Debate topics require startsAt and endsAt');
+        }
+        if (new Date(endsAt) <= new Date(startsAt)) {
+          return validationError(res, 'endsAt must be after startsAt');
+        }
+      }
       if (category && !VALID_CATEGORIES.includes(category)) {
         return validationError(res, `category must be one of: ${VALID_CATEGORIES.join(', ')}`);
       }
@@ -105,6 +113,8 @@ router.post(
         sensitivity,
         topicType,
         category,
+        startsAt: startsAt || null,
+        endsAt: endsAt || null,
         createdBy: req.account.id,
       });
 
@@ -131,7 +141,7 @@ router.post(
   auth.requireStatus('active', 'provisional'),
   async (req, res) => {
     try {
-      const { title, lang, summary, sensitivity, topicType, category, chunks, forAgentId } = req.body;
+      const { title, lang, summary, sensitivity, topicType, category, chunks, forAgentId, startsAt, endsAt } = req.body;
 
       // Resolve target account: parent can create on behalf of their agent
       let creatorId = req.account.id;
@@ -163,6 +173,14 @@ router.post(
       }
       if (category && !VALID_CATEGORIES.includes(category)) {
         return validationError(res, `category must be one of: ${VALID_CATEGORIES.join(', ')}`);
+      }
+      if (topicType === 'debate') {
+        if (!startsAt || !endsAt) {
+          return validationError(res, 'Debate topics require startsAt and endsAt');
+        }
+        if (new Date(endsAt) <= new Date(startsAt)) {
+          return validationError(res, 'endsAt must be after startsAt');
+        }
       }
       if (!chunks || !Array.isArray(chunks) || chunks.length === 0) {
         return validationError(res, 'chunks array is required and must not be empty',
@@ -215,6 +233,8 @@ router.post(
         topicType,
         category,
         createdBy: creatorId,
+        startsAt: startsAt || null,
+        endsAt: endsAt || null,
         chunks: chunks.map(c => ({
           content: c.content.trim(),
           technicalDetail: c.technicalDetail || null,
