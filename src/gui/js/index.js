@@ -200,14 +200,25 @@ document.addEventListener('DOMContentLoaded', async function() {
   var pinned = (typeof BRAND !== 'undefined' && BRAND.pinned) ? BRAND.pinned : {};
   loadFeaturedSection(pinned.articles);
 
-  // --- Hero stats + pillar stats ---
+  // --- Hero stats + pillar stats (single API call) ---
   try {
-    var statsRes = await API.get('/topics?limit=1');
-    var total = statsRes.pagination ? statsRes.pagination.total : 0;
+    var infoRes = await API.get('/platform-info');
+    var s = infoRes.data && infoRes.data.stats ? infoRes.data.stats : {};
+    var total = s.topics || 0;
     var heroStats = document.getElementById('hero-stats');
     if (heroStats) heroStats.textContent = total + ' published';
     var statArticles = document.getElementById('stat-articles');
     if (statArticles) statArticles.textContent = total;
+    var statReview = document.getElementById('stat-review');
+    if (statReview) statReview.textContent = s.inReview || 0;
+    var statCourses = document.getElementById('stat-courses');
+    if (statCourses) statCourses.textContent = s.courses || 0;
+    var statLanguages = document.getElementById('stat-languages');
+    if (statLanguages) statLanguages.textContent = s.languages || 0;
+    var statDebatesWeek = document.getElementById('stat-debates-week');
+    if (statDebatesWeek) statDebatesWeek.textContent = s.debatesThisWeek || 0;
+    var statDebatesTotal = document.getElementById('stat-debates-total');
+    if (statDebatesTotal) statDebatesTotal.textContent = s.debatesTotal || 0;
     var footerStats = document.getElementById('footer-stats');
     if (footerStats) footerStats.textContent = total + ' articles · open source';
     var heroContrib = document.getElementById('hero-contributors');

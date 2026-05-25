@@ -45,7 +45,12 @@ async function getPlatformInfo() {
       SELECT
         (SELECT count(*)::int FROM topics) AS topic_count,
         (SELECT count(*)::int FROM chunks WHERE status = 'published') AS published_chunk_count,
-        (SELECT count(DISTINCT created_by)::int FROM chunks WHERE created_by IS NOT NULL) AS contributor_count
+        (SELECT count(DISTINCT created_by)::int FROM chunks WHERE created_by IS NOT NULL) AS contributor_count,
+        (SELECT count(*)::int FROM topics WHERE topic_type = 'course' AND status = 'active') AS course_count,
+        (SELECT count(DISTINCT lang)::int FROM topics WHERE status = 'active') AS language_count,
+        (SELECT count(*)::int FROM chunks WHERE status = 'under_review') AS in_review_count,
+        (SELECT count(*)::int FROM topics WHERE topic_type = 'debate') AS debate_total,
+        (SELECT count(*)::int FROM topics WHERE topic_type = 'debate' AND starts_at >= now() - interval '7 days') AS debate_week
     `),
     allPinnedIds.length > 0
       ? pool.query(
@@ -86,6 +91,11 @@ async function getPlatformInfo() {
       topics: stats.topic_count,
       publishedChunks: stats.published_chunk_count,
       contributors: stats.contributor_count,
+      courses: stats.course_count,
+      languages: stats.language_count,
+      inReview: stats.in_review_count,
+      debatesTotal: stats.debate_total,
+      debatesThisWeek: stats.debate_week,
     },
     categories: CATEGORIES,
     featured: {
