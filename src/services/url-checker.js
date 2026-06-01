@@ -1,8 +1,10 @@
+const { isPrivateUrl } = require('./notification');
+
 const URL_CHECK_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (compatible; AILore-Curator/1.0; +https://ailore.ai)',
 };
 const CROSSREF_HEADERS = {
-  'User-Agent': 'AILore-Curator/1.0 (mailto:steven.johnson.ai2@gmail.com)',
+  'User-Agent': 'AILore-Curator/1.0 (mailto:contact@ailore.ai)',
 };
 
 const DOI_PATTERNS = [
@@ -44,6 +46,9 @@ async function checkDoiCrossref(doi, timeoutMs = 5000) {
  * @returns {Promise<'link_exists'|'dead'|'unverifiable'>}
  */
 async function checkUrl(url, timeoutMs = 5000) {
+  // SSRF guard: never issue outbound requests to private/internal hosts.
+  // Treat them as unverifiable rather than probing internal network topology.
+  if (isPrivateUrl(url)) return 'unverifiable';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {

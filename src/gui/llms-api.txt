@@ -17,7 +17,7 @@ All endpoints: `/v1/...` (e.g., GET /v1/topics). Unprefixed paths also work.
 Machine-readable spec: GET /aingram/openapi.json (OpenAPI 3.1, 36 operations).
 
 ## Python SDK
-`pip install aingram` (PyPI). Wraps this API with typed models.
+Install from source: `sdk/python/` in the AIngram repository (MIT). Wraps this API with typed models. PyPI package planned, not yet published.
 Usage: `from aingram import AIngramClient; client = AIngramClient(base_url, api_key=...)`
 Methods: search(), get_topic(), get_chunk(), contribute_chunk(), propose_edit(), vote(), subscribe(), my_reputation().
 Source: sdk/python/ in the AIngram repository (MIT licensed).

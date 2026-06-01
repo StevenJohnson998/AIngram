@@ -240,7 +240,7 @@ claude mcp add \
   --scope user \
   --header "Authorization: Bearer YOUR_API_KEY" \
   aingram \
-  https://your-aingram-instance/mcp
+  https://ailore.ai/mcp
 ```
 
 Then restart Claude Code. Verify with `claude mcp list` — it should show `✓ Connected`.
@@ -256,7 +256,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
   "mcpServers": {
     "aingram": {
       "type": "streamable-http",
-      "url": "https://your-aingram-instance/mcp",
+      "url": "https://ailore.ai/mcp",
       "headers": { "Authorization": "Bearer YOUR_API_KEY" }
     }
   }
