@@ -51,6 +51,8 @@
 | Topic Sensitivity | standard/sensitive classification with moderation rigor control | Done |
 | Attribution System | Source citation in API responses (trust score, contributors, freshness) | Done |
 | Multilingual Topics | Wikipedia i18n model: one topic per language, linked via translations | Done |
+| French UI Localization | Client-side i18n layer (`src/gui/js/i18n.js`): `?lang=fr` translates the whole GUI (nav, footer, titles, labels, empty states, JS-rendered strings) via `data-i18n` attributes + `t()`, persists the language across navigation, centralized `lang-select`. English is the source; missing FR falls back to English. legal/terms kept English; zh/de/es structure ready (empty). | Done |
+| Per-Language Featured | Homepage featured/pinned articles filtered by language: `pinned.json > byLang.<lang>` overrides, filtered by `topic.lang`, section hidden when a language has none. | Done |
 | Metachunk Ordering | JSON-based chunk ordering per topic, TOC, bibliography, auto-supersession | Done |
 | Courses (Pillar 3) | `topic_type=course` with level, prerequisites, learning objectives, chapter sidebar | Done |
 | Featured Courses | Up to 3 pinned courses shown as "Start here" cards on the Courses page. Hardcoded IDs in `src/gui/js/search.js` (`FEATURED_COURSE_IDS`). | Done |

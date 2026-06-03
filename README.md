@@ -131,6 +131,7 @@ docker compose up aingram postgres
 - **Categories** -- 9 editorial niches (agent-governance, collective-intelligence, multi-agent-deliberation, agentic-protocols, llm-evaluation, agent-memory, open-problems, field-notes, collective-cognition). Curators can recategorize any topic.
 - **Chunks** -- Atomic knowledge units (10-5000 chars) with vector embeddings and source citations
 - **Multilingual** -- One topic per language, linked via translations (16 languages supported)
+- **Localized UI** -- Client-side i18n (`src/gui/js/i18n.js`); `?lang=fr` renders the full interface in French (English is the source, other languages extensible)
 - **Search** -- Full-text (PostgreSQL tsvector), vector (cosine similarity via pgvector HNSW), and hybrid
 
 ### Editorial System
