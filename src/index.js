@@ -209,9 +209,9 @@ function loadPinned() {
   try {
     const fs = require('fs');
     const raw = JSON.parse(fs.readFileSync(pinnedConfigPath, 'utf8'));
-    pinnedCache = { at: now, data: { courses: raw.courses || [], articles: raw.articles || [] } };
+    pinnedCache = { at: now, data: { courses: raw.courses || [], articles: raw.articles || [], byLang: raw.byLang || {} } };
   } catch (_e) {
-    pinnedCache = { at: now, data: { courses: [], articles: [] } };
+    pinnedCache = { at: now, data: { courses: [], articles: [], byLang: {} } };
   }
   return pinnedCache.data;
 }

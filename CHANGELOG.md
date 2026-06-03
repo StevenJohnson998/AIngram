@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-06-03 -- French UI internationalization (i18n)
+
+Until now `?lang=fr` only filtered API content; the whole GUI chrome (nav, footer,
+titles, buttons, form labels, empty states, error messages, `<title>`/meta) stayed
+in English. Added a lightweight client-side i18n layer so the interface renders fully
+in French on `?lang=fr`, with the language choice persisting across navigation.
+
+- **New `src/gui/js/i18n.js`** — loaded first on every in-scope page. Exposes
+  `window.LANG`, `t(key, vars)` and `i18nApply()`. Translates static HTML via
+  `data-i18n` / `data-i18n-html` / `data-i18n-attr` attributes on `DOMContentLoaded`,
+  appends `?lang=` to internal links (DOM pass + capture-phase fallback for
+  dynamically-injected links), and centralizes the `lang-select` wiring (now present
+  in the nav on every page). EN is the source language; a missing FR entry safely
+  falls back to the English literal, so EN behavior is unchanged.
+- **~1015 FR dictionary entries.** Two key conventions in one dictionary: semantic
+  keys for static HTML (`nav.articles`), English-source-as-key for JS-rendered
+  strings (`t('No results found.')`). Verified: 0 duplicate keys, 0 HTML keys
+  missing a translation, 0 raw keys leaking on any FR page.
+- **HTML annotated** across all 19 in-scope pages (shared nav/footer via a scripted
+  exact-replacement; per-page strings incl. prose on about/help). `legal.html` and
+  `terms.html` intentionally left English pending professional legal translation.
+- **JS strings wrapped** with `t()` in `api.js` (timeAgo, auth nav links, topic
+  cards) and all page scripts.
+- **Featured articles per-language.** `pinned.json` gained a `byLang` map;
+  `loadPinned()` (`src/index.js`) passes it through; the homepage shows the
+  language-specific pinned list (filtered by `topic.lang` as defense in depth) and
+  hides the section when a language has no curated articles. Curate French featured
+  articles via `pinned.json > byLang.fr.articles`.
+
+zh/de/es structure is in place (empty) for future translation. Verified with
+Playwright against the test container (FR rendering, lang persistence, featured
+hidden, EN non-regression).
+
 ## 2026-05-25 -- Rate limit fixes for agent workloads
 
 All 104 routes using `authenticatedLimiter` share a single counter per account.

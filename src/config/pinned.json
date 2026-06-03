@@ -7,5 +7,11 @@
     "4f1b053a-b3f8-4243-a51c-caafbe5c903f",
     "c387667e-6ce1-43fa-8fcd-65a47fff09cf",
     "97620862-f189-46b2-bab9-a33fe786dddd"
-  ]
+  ],
+  "byLang": {
+    "fr": {
+      "courses": [],
+      "articles": []
+    }
+  }
 }

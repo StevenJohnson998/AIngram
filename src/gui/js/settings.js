@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       if (!user) {
         document.getElementById('settings-loading').style.display = 'none';
         document.getElementById('settings-error').style.display = 'block';
-        document.getElementById('settings-error').innerHTML = '<div class="alert alert-warning">You must be <a href="./login.html">logged in</a> to access settings.</div>';
+        document.getElementById('settings-error').innerHTML = '<div class="alert alert-warning">' + t('You must be <a href="./login.html">logged in</a> to access settings.') + '</div>';
         return;
       }
 
@@ -66,24 +66,24 @@ document.addEventListener('DOMContentLoaded', async function() {
       document.getElementById('settings-name').value = user.name || '';
       if (user.lang) document.getElementById('settings-lang').value = user.lang;
       var userEmail = user.owner_email || user.ownerEmail || '';
-      document.getElementById('settings-email').textContent = userEmail || '(not available)';
+      document.getElementById('settings-email').textContent = userEmail || t('(not available)');
 
       // Reset password
       document.getElementById('reset-password-btn').addEventListener('click', async function() {
         if (!userEmail) {
-          showAlert(document.getElementById('reset-password-message'), 'warning', 'No email associated with this account.');
+          showAlert(document.getElementById('reset-password-message'), 'warning', t('No email associated with this account.'));
           return;
         }
         this.disabled = true;
         try {
           var res = await API.post('/accounts/reset-password', { email: userEmail });
           if (res.status === 200) {
-            showAlert(document.getElementById('reset-password-message'), 'success', 'Reset link sent to ' + escapeHtml(userEmail) + '. Check your inbox.');
+            showAlert(document.getElementById('reset-password-message'), 'success', t('Reset link sent to {email}. Check your inbox.', {email: escapeHtml(userEmail)}));
           } else {
-            showAlert(document.getElementById('reset-password-message'), 'warning', 'Failed to send reset email.');
+            showAlert(document.getElementById('reset-password-message'), 'warning', t('Failed to send reset email.'));
           }
         } catch (err) {
-          showAlert(document.getElementById('reset-password-message'), 'warning', 'Network error.');
+          showAlert(document.getElementById('reset-password-message'), 'warning', t('Network error.'));
         }
         this.disabled = false;
       });
@@ -96,13 +96,13 @@ document.addEventListener('DOMContentLoaded', async function() {
           var res = await API.put('/accounts/me', { name: name, lang: lang });
           if (res.status === 200) {
             clearCurrentUser();
-            showAlert(document.getElementById('profile-message'), 'success', 'Profile updated.');
+            showAlert(document.getElementById('profile-message'), 'success', t('Profile updated.'));
           } else {
-            var msg = (res.data && res.data.error) ? res.data.error.message : 'Update failed';
+            var msg = (res.data && res.data.error) ? res.data.error.message : t('Update failed');
             showAlert(document.getElementById('profile-message'), 'warning', msg);
           }
         } catch (err) {
-          showAlert(document.getElementById('profile-message'), 'warning', 'Network error.');
+          showAlert(document.getElementById('profile-message'), 'warning', t('Network error.'));
         }
       });
 
@@ -120,7 +120,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         document.getElementById('create-agent-submit').addEventListener('click', async function() {
           var agentName = document.getElementById('agent-name').value.trim();
           if (!agentName || agentName.length < 2) {
-            showAlert(document.getElementById('create-agent-message'), 'warning', 'Name must be at least 2 characters.');
+            showAlert(document.getElementById('create-agent-message'), 'warning', t('Name must be at least 2 characters.'));
             return;
           }
           var isAutonomous = false;
@@ -132,16 +132,16 @@ document.addEventListener('DOMContentLoaded', async function() {
               name: agentName, autonomous: isAutonomous, providerId: providerId, description: description,
             });
             if (res.status === 201) {
-              showAlert(document.getElementById('create-agent-message'), 'success', 'Assisted agent "' + escapeHtml(agentName) + '" created and active. Use AI buttons on topics.');
+              showAlert(document.getElementById('create-agent-message'), 'success', t('Assisted agent "{name}" created and active. Use AI buttons on topics.', {name: escapeHtml(agentName)}));
               document.getElementById('agent-name').value = '';
               document.getElementById('agent-description').value = '';
               loadAgents();
             } else {
-              var errMsg = (res.data && res.data.error) ? res.data.error.message : 'Failed';
+              var errMsg = (res.data && res.data.error) ? res.data.error.message : t('Failed');
               showAlert(document.getElementById('create-agent-message'), 'warning', errMsg);
             }
           } catch (err) {
-            showAlert(document.getElementById('create-agent-message'), 'warning', 'Network error.');
+            showAlert(document.getElementById('create-agent-message'), 'warning', t('Network error.'));
           }
           this.disabled = false;
         });
@@ -151,11 +151,11 @@ document.addEventListener('DOMContentLoaded', async function() {
           var nameInput = document.getElementById('auto-agent-name');
           var agentName = nameInput.value.trim();
           if (!agentName || agentName.length < 2) {
-            showAlert(document.getElementById('autonomous-wizard-message'), 'warning', 'Name must be at least 2 characters.');
+            showAlert(document.getElementById('autonomous-wizard-message'), 'warning', t('Name must be at least 2 characters.'));
             return;
           }
           this.disabled = true;
-          this.textContent = 'Creating agent...';
+          this.textContent = t('Creating agent...');
           var btn = this;
           try {
             var agentDesc = document.getElementById('auto-agent-desc').value.trim() || undefined;
@@ -164,22 +164,22 @@ document.addEventListener('DOMContentLoaded', async function() {
               name: agentName, autonomous: true, description: agentDesc,
             });
             if (res.status !== 201) {
-              var errMsg = (res.data && res.data.error) ? res.data.error.message : 'Failed to create agent';
+              var errMsg = (res.data && res.data.error) ? res.data.error.message : t('Failed to create agent');
               showAlert(document.getElementById('autonomous-wizard-message'), 'warning', errMsg);
               btn.disabled = false;
-              btn.textContent = 'Generate connection prompt';
+              btn.textContent = t('Generate connection prompt');
               return;
             }
             var agentId = (res.data.account && res.data.account.id) || (res.data.agent && res.data.agent.id) || res.data.id || null;
             if (!agentId) {
-              showAlert(document.getElementById('autonomous-wizard-message'), 'warning', 'Agent created but ID missing.');
+              showAlert(document.getElementById('autonomous-wizard-message'), 'warning', t('Agent created but ID missing.'));
               btn.disabled = false;
-              btn.textContent = 'Generate connection prompt';
+              btn.textContent = t('Generate connection prompt');
               loadAgents();
               return;
             }
             // Step 2: generate connection token
-            btn.textContent = 'Generating prompt...';
+            btn.textContent = t('Generating prompt...');
             var tokenRes = await API.post('/accounts/me/agents/' + agentId + '/connection-token');
             if (tokenRes.status === 201 && tokenRes.data.token) {
               var prompt = generateConnectionPrompt(tokenRes.data.token, agentDesc);
@@ -191,33 +191,33 @@ document.addEventListener('DOMContentLoaded', async function() {
               var expiryEl = document.getElementById('connect-token-expiry');
               _countdownInterval = setInterval(function() {
                 var remaining = expiresAt - Date.now();
-                if (remaining <= 0) { expiryEl.textContent = 'Token expired'; clearInterval(_countdownInterval); return; }
+                if (remaining <= 0) { expiryEl.textContent = t('Token expired'); clearInterval(_countdownInterval); return; }
                 var mins = Math.floor(remaining / 60000);
                 var secs = Math.floor((remaining % 60000) / 1000);
-                expiryEl.textContent = 'Expires in ' + mins + ':' + (secs < 10 ? '0' : '') + secs;
+                expiryEl.textContent = t('Expires in {time}', {time: mins + ':' + (secs < 10 ? '0' : '') + secs});
               }, 1000);
 
               document.getElementById('copy-prompt-btn').onclick = function() {
                 navigator.clipboard.writeText(prompt).then(function() {
-                  document.getElementById('copy-prompt-btn').textContent = 'Copied!';
-                  setTimeout(function() { document.getElementById('copy-prompt-btn').textContent = 'Copy prompt'; }, 3000);
+                  document.getElementById('copy-prompt-btn').textContent = t('Copied!');
+                  setTimeout(function() { document.getElementById('copy-prompt-btn').textContent = t('Copy prompt'); }, 3000);
                 });
               };
 
               document.getElementById('connect-agent-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
-              showAlert(document.getElementById('autonomous-wizard-message'), 'success', 'Agent "' + escapeHtml(agentName) + '" created. Copy the prompt below and paste it into your agent.');
+              showAlert(document.getElementById('autonomous-wizard-message'), 'success', t('Agent "{name}" created. Copy the prompt below and paste it into your agent.', {name: escapeHtml(agentName)}));
               nameInput.value = '';
               document.getElementById('auto-agent-desc').value = '';
               loadAgents();
             } else {
-              showAlert(document.getElementById('autonomous-wizard-message'), 'warning', 'Agent created but token generation failed. Use "Connect" on the agent below.');
+              showAlert(document.getElementById('autonomous-wizard-message'), 'warning', t('Agent created but token generation failed. Use "Connect" on the agent below.'));
               loadAgents();
             }
           } catch (err) {
-            showAlert(document.getElementById('autonomous-wizard-message'), 'warning', 'Network error.');
+            showAlert(document.getElementById('autonomous-wizard-message'), 'warning', t('Network error.'));
           }
           btn.disabled = false;
-          btn.textContent = 'Generate connection prompt';
+          btn.textContent = t('Generate connection prompt');
         });
 
         // Empty state button
@@ -280,20 +280,20 @@ document.addEventListener('DOMContentLoaded', async function() {
                     name: body.name, autonomous: false, providerId: providerId,
                   });
                   if (agentRes.status === 201) {
-                    agentMsg = ' Agent "' + escapeHtml(body.name) + '" created automatically.';
+                    agentMsg = ' ' + t('Agent "{name}" created automatically.', {name: escapeHtml(body.name)});
                   }
                 } catch (_) { /* agent creation is best-effort */ }
               }
-              showAlert(document.getElementById('new-provider-message'), 'success', 'Provider added!' + agentMsg);
+              showAlert(document.getElementById('new-provider-message'), 'success', t('Provider added!') + agentMsg);
               document.getElementById('new-provider-form').reset();
               loadProviders();
               loadAgents();
             } else {
-              var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed';
+              var msg = (res.data && res.data.error) ? res.data.error.message : t('Failed');
               showAlert(document.getElementById('new-provider-message'), 'warning', msg);
             }
           } catch (err) {
-            showAlert(document.getElementById('new-provider-message'), 'warning', 'Network error.');
+            showAlert(document.getElementById('new-provider-message'), 'warning', t('Network error.'));
           }
         });
       }
@@ -309,16 +309,16 @@ document.addEventListener('DOMContentLoaded', async function() {
           if (res.status === 200 && res.data && res.data.length > 0) {
             subAgentsCache = res.data;
             select.innerHTML = res.data.map(function(a) {
-              var label = escapeHtml(a.name) + (a.autonomous ? ' (autonomous)' : ' (assisted)');
+              var label = escapeHtml(a.name) + (a.autonomous ? ' ' + t('(autonomous)') : ' ' + t('(assisted)'));
               return '<option value="' + a.id + '" data-autonomous="' + a.autonomous + '">' + label + '</option>';
             }).join('');
             updateSubAgentHint();
           } else {
-            select.innerHTML = '<option value="" disabled>No agents yet</option>';
-            document.getElementById('sub-agent-hint').innerHTML = '<a href="#agents">Create an agent first</a>';
+            select.innerHTML = '<option value="" disabled>' + t('No agents yet') + '</option>';
+            document.getElementById('sub-agent-hint').innerHTML = '<a href="#agents">' + t('Create an agent first') + '</a>';
           }
         } catch (err) {
-          select.innerHTML = '<option value="" disabled>Could not load agents</option>';
+          select.innerHTML = '<option value="" disabled>' + t('Could not load agents') + '</option>';
         }
       }
       function updateSubAgentHint() {
@@ -327,8 +327,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         var isAutonomous = opt && opt.dataset.autonomous === 'true';
         document.getElementById('sub-webhook-group').style.display = isAutonomous ? 'block' : 'none';
         document.getElementById('sub-agent-hint').textContent = isAutonomous
-          ? 'Autonomous agent — notifications via webhook'
-          : 'Assisted agent — notifications via polling';
+          ? t('Autonomous agent — notifications via webhook')
+          : t('Assisted agent — notifications via polling');
       }
       loadSubAgentsForSubscription();
       document.getElementById('sub-agent').addEventListener('change', updateSubAgentHint);
@@ -348,7 +348,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         var agentId = document.getElementById('sub-agent').value;
         if (!agentId) {
-          showAlert(document.getElementById('sub-message'), 'warning', 'Select an agent first.');
+          showAlert(document.getElementById('sub-message'), 'warning', t('Select an agent first.'));
           return;
         }
 
@@ -382,16 +382,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         try {
           var res = await API.post('/subscriptions', body);
           if (res.status === 201) {
-            showAlert(document.getElementById('sub-message'), 'success', 'Subscription created for ' + escapeHtml(agentOpt.textContent) + '!');
+            showAlert(document.getElementById('sub-message'), 'success', t('Subscription created for {agent}!', {agent: escapeHtml(agentOpt.textContent)}));
             loadSubscriptions();
             document.getElementById('new-sub-form').reset();
             loadSubAgentsForSubscription();
           } else {
-            var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed';
+            var msg = (res.data && res.data.error) ? res.data.error.message : t('Failed');
             showAlert(document.getElementById('sub-message'), 'warning', msg);
           }
         } catch (err) {
-          showAlert(document.getElementById('sub-message'), 'warning', 'Network error.');
+          showAlert(document.getElementById('sub-message'), 'warning', t('Network error.'));
         }
       });
 
@@ -412,7 +412,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     function showConnectionPrompt(agentId) {
       return async function() {
         this.disabled = true;
-        this.textContent = 'Generating...';
+        this.textContent = t('Generating...');
         var btn = this;
         try {
           var res = await API.post('/accounts/me/agents/' + agentId + '/connection-token');
@@ -428,32 +428,32 @@ document.addEventListener('DOMContentLoaded', async function() {
             _countdownInterval = setInterval(function() {
               var remaining = expiresAt - Date.now();
               if (remaining <= 0) {
-                expiryEl.textContent = 'Token expired';
+                expiryEl.textContent = t('Token expired');
                 clearInterval(_countdownInterval);
                 return;
               }
               var mins = Math.floor(remaining / 60000);
               var secs = Math.floor((remaining % 60000) / 1000);
-              expiryEl.textContent = 'Expires in ' + mins + ':' + (secs < 10 ? '0' : '') + secs;
+              expiryEl.textContent = t('Expires in {time}', {time: mins + ':' + (secs < 10 ? '0' : '') + secs});
             }, 1000);
 
             document.getElementById('copy-prompt-btn').onclick = function() {
               navigator.clipboard.writeText(prompt).then(function() {
-                document.getElementById('copy-prompt-btn').textContent = 'Copied! Paste this into your agent.';
-                setTimeout(function() { document.getElementById('copy-prompt-btn').textContent = 'Copy prompt'; }, 3000);
+                document.getElementById('copy-prompt-btn').textContent = t('Copied! Paste this into your agent.');
+                setTimeout(function() { document.getElementById('copy-prompt-btn').textContent = t('Copy prompt'); }, 3000);
               });
             };
 
             document.getElementById('connect-agent-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
           } else {
-            var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to generate token';
+            var msg = (res.data && res.data.error) ? res.data.error.message : t('Failed to generate token');
             showAlert(document.getElementById('agents-message'), 'warning', msg);
           }
         } catch (err) {
-          showAlert(document.getElementById('agents-message'), 'warning', 'Network error.');
+          showAlert(document.getElementById('agents-message'), 'warning', t('Network error.'));
         }
         btn.disabled = false;
-        btn.textContent = 'Connect';
+        btn.textContent = t('Connect');
       };
     }
 
@@ -471,36 +471,36 @@ document.addEventListener('DOMContentLoaded', async function() {
           container.innerHTML = agents.map(function(agent) {
             var statusBadge;
             if (agent.status === 'banned') {
-              statusBadge = '<span class="badge badge-trust-low">Deactivated</span>';
+              statusBadge = '<span class="badge badge-trust-low">' + t('Deactivated') + '</span>';
             } else if (agent.status === 'pending') {
-              statusBadge = '<span class="badge badge-trust-medium">Pending</span>';
+              statusBadge = '<span class="badge badge-trust-medium">' + t('Pending') + '</span>';
             } else {
-              statusBadge = '<span class="badge badge-trust-high">Active</span>';
+              statusBadge = '<span class="badge badge-trust-high">' + t('Active') + '</span>';
             }
             var typeBadge = agent.autonomous === false
-              ? '<span class="badge badge-assisted">Assisted</span>'
-              : '<span class="badge badge-autonomous">Autonomous</span>';
-            var keyInfo = agent.api_key_last4 ? 'Key: ****' + escapeHtml(agent.api_key_last4) : (agent.autonomous === false ? 'No key needed' : 'No key yet');
+              ? '<span class="badge badge-assisted">' + t('Assisted') + '</span>'
+              : '<span class="badge badge-autonomous">' + t('Autonomous') + '</span>';
+            var keyInfo = agent.api_key_last4 ? t('Key: ****{last4}', {last4: escapeHtml(agent.api_key_last4)}) : (agent.autonomous === false ? t('No key needed') : t('No key yet'));
             var provName = '';
             if (agent.provider_id) {
               var prov = _providers.find(function(p) { return p.id === agent.provider_id; });
-              provName = prov ? escapeHtml(prov.name) : 'Unknown';
+              provName = prov ? escapeHtml(prov.name) : t('Unknown');
             } else {
               provName = '';
             }
             var provInfo = provName ? ' &middot; ' + provName : '';
             var descSnippet = agent.description ? ' &middot; <span title="' + escapeHtml(agent.description) + '">' + escapeHtml(agent.description.substring(0, 40)) + (agent.description.length > 40 ? '...' : '') + '</span>' : '';
             var actions = '';
-            actions += '<button class="btn btn-secondary btn-sm agent-edit-btn" data-id="' + agent.id + '">Edit</button>';
+            actions += '<button class="btn btn-secondary btn-sm agent-edit-btn" data-id="' + agent.id + '">' + t('Edit') + '</button>';
             if (agent.autonomous !== false && agent.status !== 'banned') {
-              actions += '<button class="btn btn-secondary btn-sm agent-connect-btn" data-id="' + agent.id + '">Connect</button>';
+              actions += '<button class="btn btn-secondary btn-sm agent-connect-btn" data-id="' + agent.id + '">' + t('Connect') + '</button>';
             }
             if (agent.status === 'active') {
-              actions += '<button class="btn btn-outline btn-sm agent-rotate-key-btn" data-id="' + agent.id + '">Rotate Key</button>';
-              actions += '<button class="btn btn-danger btn-sm agent-deactivate-btn" data-id="' + agent.id + '">Deactivate</button>';
+              actions += '<button class="btn btn-outline btn-sm agent-rotate-key-btn" data-id="' + agent.id + '">' + t('Rotate Key') + '</button>';
+              actions += '<button class="btn btn-danger btn-sm agent-deactivate-btn" data-id="' + agent.id + '">' + t('Deactivate') + '</button>';
             }
             if (agent.status === 'banned') {
-              actions += '<button class="btn btn-primary btn-sm agent-reactivate-btn" data-id="' + agent.id + '">Reactivate</button>';
+              actions += '<button class="btn btn-primary btn-sm agent-reactivate-btn" data-id="' + agent.id + '">' + t('Reactivate') + '</button>';
             }
             return '<div class="sub-item" data-agent-id="' + agent.id + '">' +
               '<span class="sub-icon">&#129302;</span>' +
@@ -524,21 +524,29 @@ document.addEventListener('DOMContentLoaded', async function() {
               if (!res2) return;
 
               var curArch = res2.primary_archetype || '';
+              var archLabels = {
+                '': t('Undeclared (Joker-like default)'),
+                'contributor': t('Contributor'),
+                'curator': t('Curator'),
+                'teacher': t('Teacher'),
+                'sentinel': t('Sentinel'),
+                'joker': t('Joker'),
+              };
               var archOpts = ['','contributor','curator','teacher','sentinel','joker'].map(function(v){
-                var label = v === '' ? 'Undeclared (Joker-like default)' : v.charAt(0).toUpperCase()+v.slice(1);
+                var label = archLabels[v];
                 var sel = v === curArch ? ' selected' : '';
                 return '<option value="' + v + '"' + sel + '>' + label + '</option>';
               }).join('');
 
               var formHtml = '<div class="provider-edit-form" id="agent-edit-' + agentId + '">' +
                 '<div id="agent-edit-msg-' + agentId + '"></div>' +
-                '<div class="form-group"><label>Name</label><input type="text" class="form-input" id="aedit-name-' + agentId + '" value="' + escapeHtml(res2.name) + '" minlength="2" maxlength="100"></div>' +
-                '<div class="form-group"><label>AI Provider</label><select class="form-input" id="aedit-provider-' + agentId + '" class="s-7e375a99">' + buildProviderOptions(res2.provider_id) + '</select></div>' +
-                '<div class="form-group"><label>Archetype <span class="text-sm text-muted">(guides behavior; see <a href="/about.html">about</a>)</span></label><select class="form-input" id="aedit-archetype-' + agentId + '">' + archOpts + '</select></div>' +
-                '<div class="form-group"><label>Persona description</label><textarea class="form-input" rows="3" id="aedit-desc-' + agentId + '" class="s-a35b8b9c" maxlength="2000" placeholder="Describe this agent\'s personality, expertise, or instructions...">' + escapeHtml(res2.description || '') + '</textarea></div>' +
+                '<div class="form-group"><label>' + t('Name') + '</label><input type="text" class="form-input" id="aedit-name-' + agentId + '" value="' + escapeHtml(res2.name) + '" minlength="2" maxlength="100"></div>' +
+                '<div class="form-group"><label>' + t('AI Provider') + '</label><select class="form-input" id="aedit-provider-' + agentId + '" class="s-7e375a99">' + buildProviderOptions(res2.provider_id) + '</select></div>' +
+                '<div class="form-group"><label>' + t('Archetype') + ' <span class="text-sm text-muted">' + t('(guides behavior; see <a href="/about.html">about</a>)') + '</span></label><select class="form-input" id="aedit-archetype-' + agentId + '">' + archOpts + '</select></div>' +
+                '<div class="form-group"><label>' + t('Persona description') + '</label><textarea class="form-input" rows="3" id="aedit-desc-' + agentId + '" class="s-a35b8b9c" maxlength="2000" placeholder="' + t('Describe this agent\'s personality, expertise, or instructions...') + '">' + escapeHtml(res2.description || '') + '</textarea></div>' +
                 '<div class="mt-md s-1cb8e342">' +
-                  '<button class="btn btn-primary btn-sm" id="aedit-save-' + agentId + '">Save</button>' +
-                  '<button class="btn btn-secondary btn-sm" id="aedit-cancel-' + agentId + '">Cancel</button>' +
+                  '<button class="btn btn-primary btn-sm" id="aedit-save-' + agentId + '">' + t('Save') + '</button>' +
+                  '<button class="btn btn-secondary btn-sm" id="aedit-cancel-' + agentId + '">' + t('Cancel') + '</button>' +
                 '</div>' +
               '</div>';
 
@@ -568,11 +576,11 @@ document.addEventListener('DOMContentLoaded', async function() {
                 try {
                   var res3 = await API.put('/accounts/me/agents/' + agentId, body);
                   if (res3.status === 200) { loadAgents(); } else {
-                    var msg = (res3.data && res3.data.error) ? res3.data.error.message : 'Failed';
+                    var msg = (res3.data && res3.data.error) ? res3.data.error.message : t('Failed');
                     showAlert(document.getElementById('agent-edit-msg-' + agentId), 'warning', msg);
                   }
                 } catch (err) {
-                  showAlert(document.getElementById('agent-edit-msg-' + agentId), 'warning', 'Network error.');
+                  showAlert(document.getElementById('agent-edit-msg-' + agentId), 'warning', t('Network error.'));
                 }
               });
             });
@@ -586,12 +594,12 @@ document.addEventListener('DOMContentLoaded', async function() {
           // Deactivate buttons
           container.querySelectorAll('.agent-deactivate-btn').forEach(function(btn) {
             btn.addEventListener('click', async function() {
-              if (!confirm('Deactivate this agent? It will no longer be able to authenticate.')) return;
+              if (!confirm(t('Deactivate this agent? It will no longer be able to authenticate.'))) return;
               try {
                 var delRes = await API.del('/accounts/me/agents/' + this.dataset.id);
                 if (delRes.status === 200) loadAgents();
               } catch (err) {
-                showAlert(document.getElementById('agents-message'), 'warning', 'Failed to deactivate agent.');
+                showAlert(document.getElementById('agents-message'), 'warning', t('Failed to deactivate agent.'));
               }
             });
           });
@@ -599,25 +607,25 @@ document.addEventListener('DOMContentLoaded', async function() {
           // Rotate key buttons
           container.querySelectorAll('.agent-rotate-key-btn').forEach(function(btn) {
             btn.addEventListener('click', async function() {
-              if (!confirm('Rotate this agent\'s internal key? The old key will be invalidated immediately.')) return;
+              if (!confirm(t('Rotate this agent\'s internal key? The old key will be invalidated immediately.'))) return;
               var rotateBtn = this;
               rotateBtn.disabled = true;
-              rotateBtn.textContent = 'Rotating...';
+              rotateBtn.textContent = t('Rotating...');
               try {
                 var res = await API.post('/accounts/me/agents/' + this.dataset.id + '/rotate-key');
                 if (res.status === 200 && res.data) {
                   var data = res.data.data || res.data;
-                  prompt('New internal key (shown once, copy now):', data.apiKey);
+                  prompt(t('New internal key (shown once, copy now):'), data.apiKey);
                   loadAgents();
                 } else {
-                  var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed';
+                  var msg = (res.data && res.data.error) ? res.data.error.message : t('Failed');
                   showAlert(document.getElementById('agents-message'), 'warning', msg);
                 }
               } catch (err) {
-                showAlert(document.getElementById('agents-message'), 'warning', 'Failed to rotate key.');
+                showAlert(document.getElementById('agents-message'), 'warning', t('Failed to rotate key.'));
               }
               rotateBtn.disabled = false;
-              rotateBtn.textContent = 'Rotate Key';
+              rotateBtn.textContent = t('Rotate Key');
             });
           });
 
@@ -628,23 +636,23 @@ document.addEventListener('DOMContentLoaded', async function() {
               try {
                 var res = await API.post('/accounts/me/agents/' + this.dataset.id + '/reactivate');
                 if (res.status === 200) { loadAgents(); } else {
-                  var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed';
+                  var msg = (res.data && res.data.error) ? res.data.error.message : t('Failed');
                   showAlert(document.getElementById('agents-message'), 'warning', msg);
                 }
               } catch (err) {
-                showAlert(document.getElementById('agents-message'), 'warning', 'Failed to reactivate agent.');
+                showAlert(document.getElementById('agents-message'), 'warning', t('Failed to reactivate agent.'));
               }
               this.disabled = false;
             });
           });
         } else {
-          container.innerHTML = '<p class="text-muted">No agent sub-accounts yet.</p>';
+          container.innerHTML = '<p class="text-muted">' + t('No agent sub-accounts yet.') + '</p>';
         }
 
         // Check empty state (both agents and providers empty)
         checkEmptyState(agents);
       } catch (err) {
-        container.innerHTML = '<p class="text-muted">Could not load agents.</p>';
+        container.innerHTML = '<p class="text-muted">' + t('Could not load agents.') + '</p>';
       }
     }
 
@@ -661,9 +669,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     function updateByokTrigger() {
       var trigger = document.getElementById('byok-trigger');
       if (!trigger) return;
-      var countText = _providers.length > 0 ? ' (' + _providers.length + ' provider' + (_providers.length > 1 ? 's' : '') + ' configured)' : '';
-      trigger.innerHTML = 'I want to use AI through AILore\'s interface' + countText +
-        ' <span class="badge-not-recommended">not recommended</span>' +
+      var countText = _providers.length > 0 ? ' ' + t('({n} provider(s) configured)', {n: _providers.length}) : '';
+      trigger.innerHTML = '<span>' + t('I want to use AI through AILore\'s interface') + countText + '</span>' +
+        ' <span class="badge-not-recommended">' + t('not recommended') + '</span>' +
         ' <span class="chevron">&#9660;</span>';
       if (_providers.length > 0) {
         var content = document.getElementById('byok-content');
@@ -689,7 +697,7 @@ document.addEventListener('DOMContentLoaded', async function() {
           updateModelDropdown();
         }
       } catch (err) {
-        document.getElementById('prov-type').innerHTML = '<option value="custom">Custom</option>';
+        document.getElementById('prov-type').innerHTML = '<option value="custom">' + t('Custom') + '</option>';
       }
     }
 
@@ -703,7 +711,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       if (models.length > 0) {
         modelSelect.innerHTML = models.map(function(m) {
           return '<option value="' + escapeHtml(m) + '">' + escapeHtml(m) + '</option>';
-        }).join('') + '<option value="_custom">Other...</option>';
+        }).join('') + '<option value="_custom">' + t('Other...') + '</option>';
         modelSelect.style.display = '';
         modelCustom.style.display = 'none';
         modelCustom.value = '';
@@ -711,7 +719,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         // No presets (custom provider) -- show text input directly
         modelSelect.style.display = 'none';
         modelCustom.style.display = '';
-        modelCustom.placeholder = 'Model ID (e.g. my-model-v1)';
+        modelCustom.placeholder = t('Model ID (e.g. my-model-v1)');
       }
     }
 
@@ -719,7 +727,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       var sel = document.getElementById('agent-provider');
       if (!sel) return;
       var current = sel.value;
-      sel.innerHTML = '<option value="">None</option>' +
+      sel.innerHTML = '<option value="">' + t('None') + '</option>' +
         _providers.map(function(p) {
           return '<option value="' + p.id + '">' + escapeHtml(p.name) + ' (' + escapeHtml(p.model) + ')</option>';
         }).join('');
@@ -727,7 +735,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     function buildProviderOptions(selectedId) {
-      return '<option value="">None</option>' +
+      return '<option value="">' + t('None') + '</option>' +
         _providers.map(function(p) {
           var sel = (p.id === selectedId) ? ' selected' : '';
           return '<option value="' + p.id + '"' + sel + '>' + escapeHtml(p.name) + ' (' + escapeHtml(p.model) + ')</option>';
@@ -748,8 +756,8 @@ document.addEventListener('DOMContentLoaded', async function() {
           var providerIcons = { claude: '&#9670;', openai: '&#9671;', groq: '&#9889;', mistral: '&#127752;', custom: '&#128295;' };
           container.innerHTML = _providers.map(function(p) {
             var icon = providerIcons[p.provider_type] || '&#128295;';
-            var defaultBadge = p.is_default ? ' <span class="badge badge-trust-high">Default</span>' : '';
-            var kindBadge = p.endpoint_kind === 'agent' ? ' <span class="badge badge-trust-medium">Webhook</span>' : '';
+            var defaultBadge = p.is_default ? ' <span class="badge badge-trust-high">' + t('Default') + '</span>' : '';
+            var kindBadge = p.endpoint_kind === 'agent' ? ' <span class="badge badge-trust-medium">' + t('Webhook') + '</span>' : '';
             return '<div class="provider-item" data-provider-id="' + p.id + '">' +
               '<span class="provider-icon">' + icon + '</span>' +
               '<div class="provider-info">' +
@@ -757,9 +765,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                 '<div class="provider-meta">' + escapeHtml(p.provider_type) + ' / ' + escapeHtml(p.model) + '</div>' +
               '</div>' +
               '<div class="settings-actions">' +
-                '<button class="btn btn-outline btn-sm provider-test-btn" data-id="' + p.id + '">Test</button>' +
-                '<button class="btn btn-secondary btn-sm provider-edit-btn" data-id="' + p.id + '">Edit</button>' +
-                '<button class="btn btn-danger btn-sm provider-delete-btn" data-id="' + p.id + '">Remove</button>' +
+                '<button class="btn btn-outline btn-sm provider-test-btn" data-id="' + p.id + '">' + t('Test') + '</button>' +
+                '<button class="btn btn-secondary btn-sm provider-edit-btn" data-id="' + p.id + '">' + t('Edit') + '</button>' +
+                '<button class="btn btn-danger btn-sm provider-delete-btn" data-id="' + p.id + '">' + t('Remove') + '</button>' +
               '</div>' +
             '</div>';
           }).join('');
@@ -769,33 +777,33 @@ document.addEventListener('DOMContentLoaded', async function() {
             btn.addEventListener('click', async function() {
               var pid = this.dataset.id;
               this.disabled = true;
-              this.textContent = 'Testing...';
+              this.textContent = t('Testing...');
               var testBtn = this;
               try {
                 var res = await API.post('/ai/providers/' + pid + '/test');
                 if (res.status === 200 && res.data) {
                   if (res.data.ok) {
-                    testBtn.textContent = '\u2713 OK (' + res.data.responseTimeMs + 'ms)';
+                    testBtn.textContent = '\u2713 ' + t('OK ({ms}ms)', {ms: res.data.responseTimeMs});
                     testBtn.style.color = 'var(--trust-high)';
                     testBtn.style.borderColor = 'var(--trust-high)';
                   } else {
-                    testBtn.textContent = '\u2717 Failed';
+                    testBtn.textContent = '\u2717 ' + t('Failed');
                     testBtn.style.color = 'var(--trust-low)';
                     testBtn.style.borderColor = 'var(--trust-low)';
-                    testBtn.title = res.data.error || 'Unknown error';
+                    testBtn.title = res.data.error || t('Unknown error');
                   }
                 } else {
-                  testBtn.textContent = '\u2717 Error';
+                  testBtn.textContent = '\u2717 ' + t('Error');
                   testBtn.style.color = 'var(--trust-low)';
                   testBtn.style.borderColor = 'var(--trust-low)';
                 }
               } catch (err) {
-                testBtn.textContent = '\u2717 Error';
+                testBtn.textContent = '\u2717 ' + t('Error');
                 testBtn.style.color = 'var(--trust-low)';
                 testBtn.style.borderColor = 'var(--trust-low)';
               }
               setTimeout(function() {
-                testBtn.textContent = 'Test';
+                testBtn.textContent = t('Test');
                 testBtn.style.color = '';
                 testBtn.style.borderColor = '';
                 testBtn.disabled = false;
@@ -816,14 +824,14 @@ document.addEventListener('DOMContentLoaded', async function() {
 
               var formHtml = '<div class="provider-edit-form" id="provider-edit-' + pid + '">' +
                 '<div id="provider-edit-msg-' + pid + '"></div>' +
-                '<div class="form-group"><label>Name</label><input type="text" class="form-input" id="pedit-name-' + pid + '" value="' + escapeHtml(prov.name) + '"></div>' +
-                '<div class="form-group"><label>Model</label><input type="text" class="form-input" id="pedit-model-' + pid + '" value="' + escapeHtml(prov.model) + '"></div>' +
-                '<div class="form-group"><label>LLM API key (leave blank to keep current)</label><input type="password" class="form-input" id="pedit-key-' + pid + '" placeholder="Leave blank to keep"></div>' +
-                '<div class="form-group"><label>System prompt</label><textarea class="form-input" rows="2" id="pedit-system-' + pid + '" class="s-a35b8b9c">' + escapeHtml(prov.system_prompt || '') + '</textarea></div>' +
+                '<div class="form-group"><label>' + t('Name') + '</label><input type="text" class="form-input" id="pedit-name-' + pid + '" value="' + escapeHtml(prov.name) + '"></div>' +
+                '<div class="form-group"><label>' + t('Model') + '</label><input type="text" class="form-input" id="pedit-model-' + pid + '" value="' + escapeHtml(prov.model) + '"></div>' +
+                '<div class="form-group"><label>' + t('LLM API key (leave blank to keep current)') + '</label><input type="password" class="form-input" id="pedit-key-' + pid + '" placeholder="' + t('Leave blank to keep') + '"></div>' +
+                '<div class="form-group"><label>' + t('System prompt') + '</label><textarea class="form-input" rows="2" id="pedit-system-' + pid + '" class="s-a35b8b9c">' + escapeHtml(prov.system_prompt || '') + '</textarea></div>' +
                 '<div class="s-9f58f320">' +
-                  '<label class="form-radio"><input type="checkbox" id="pedit-default-' + pid + '"' + (prov.is_default ? ' checked' : '') + '> Set as default</label>' +
+                  '<label class="form-radio"><input type="checkbox" id="pedit-default-' + pid + '"' + (prov.is_default ? ' checked' : '') + '> ' + t('Set as default') + '</label>' +
                 '</div>' +
-                '<div class="mt-md"><button class="btn btn-primary btn-sm" id="pedit-save-' + pid + '">Save</button></div>' +
+                '<div class="mt-md"><button class="btn btn-primary btn-sm" id="pedit-save-' + pid + '">' + t('Save') + '</button></div>' +
               '</div>';
 
               var provItem = container.querySelector('.provider-item[data-provider-id="' + pid + '"]');
@@ -843,11 +851,11 @@ document.addEventListener('DOMContentLoaded', async function() {
                   if (res.status === 200) {
                     loadProviders();
                   } else {
-                    var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed';
+                    var msg = (res.data && res.data.error) ? res.data.error.message : t('Failed');
                     showAlert(document.getElementById('provider-edit-msg-' + pid), 'warning', msg);
                   }
                 } catch (err) {
-                  showAlert(document.getElementById('provider-edit-msg-' + pid), 'warning', 'Network error.');
+                  showAlert(document.getElementById('provider-edit-msg-' + pid), 'warning', t('Network error.'));
                 }
               });
             });
@@ -856,18 +864,18 @@ document.addEventListener('DOMContentLoaded', async function() {
           // Delete buttons
           container.querySelectorAll('.provider-delete-btn').forEach(function(btn) {
             btn.addEventListener('click', async function() {
-              if (!confirm('Remove this provider?')) return;
+              if (!confirm(t('Remove this provider?'))) return;
               try {
                 var delRes = await API.del('/ai/providers/' + this.dataset.id);
                 if (delRes.status === 204) loadProviders();
-              } catch (err) { alert('Failed to remove provider.'); }
+              } catch (err) { alert(t('Failed to remove provider.')); }
             });
           });
         } else {
-          container.innerHTML = '<p class="text-muted">No AI providers configured yet. Add one to use assisted agents.</p>';
+          container.innerHTML = '<p class="text-muted">' + t('No AI providers configured yet. Add one to use assisted agents.') + '</p>';
         }
       } catch (err) {
-        container.innerHTML = '<p class="text-muted">Could not load providers.</p>';
+        container.innerHTML = '<p class="text-muted">' + t('Could not load providers.') + '</p>';
       }
     }
 
@@ -879,7 +887,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (res.status === 200 && res.data && res.data.length > 0) {
           var subs = res.data;
           var total = res.pagination ? res.pagination.total : subs.length;
-          document.getElementById('sub-count').textContent = total + ' / 20 subscriptions';
+          document.getElementById('sub-count').textContent = t('{n} / 20 subscriptions', {n: total});
 
           // Build agent name lookup from cache
           var agentNames = {};
@@ -887,13 +895,13 @@ document.addEventListener('DOMContentLoaded', async function() {
 
           container.innerHTML = subs.map(function(sub) {
             var icon = sub.type === 'topic' ? '&#128204;' : (sub.type === 'vector' ? '&#128302;' : '&#128273;');
-            var title = sub.keyword || sub.embedding_text || sub.topic_id || 'Subscription';
+            var title = sub.keyword || sub.embedding_text || sub.topic_id || t('Subscription');
             var agentName = agentNames[sub.account_id] || '';
             var agentBadge = agentName ? '<span class="badge s-b021f23b">' + escapeHtml(agentName) + '</span>' : '';
             var methodBadge = '<span class="badge s-cb9e2009">' + (sub.notification_method || 'polling') + '</span>';
-            var meta = escapeHtml(sub.type) + (sub.lang ? ' &middot; ' + sub.lang.toUpperCase() : ' &middot; All languages') + ' &middot; ' + methodBadge;
+            var meta = escapeHtml(sub.type) + (sub.lang ? ' &middot; ' + sub.lang.toUpperCase() : ' &middot; ' + t('All languages')) + ' &middot; ' + methodBadge;
             if (sub.type === 'vector' && sub.similarity_threshold) {
-              meta += ' &middot; threshold ' + sub.similarity_threshold;
+              meta += ' &middot; ' + t('threshold {value}', {value: sub.similarity_threshold});
             }
             return '<div class="sub-item">' +
               '<span class="sub-icon">' + icon + '</span>' +
@@ -901,28 +909,28 @@ document.addEventListener('DOMContentLoaded', async function() {
                 '<div class="sub-title">' + escapeHtml(title) + agentBadge + '</div>' +
                 '<div class="sub-meta">' + meta + '</div>' +
               '</div>' +
-              '<button class="btn btn-secondary btn-sm sub-remove-btn" data-id="' + sub.id + '">&#10005; Remove</button>' +
+              '<button class="btn btn-secondary btn-sm sub-remove-btn" data-id="' + sub.id + '">&#10005; ' + t('Remove') + '</button>' +
             '</div>';
           }).join('');
 
           container.querySelectorAll('.sub-remove-btn').forEach(function(btn) {
             btn.addEventListener('click', async function() {
-              if (!confirm('Remove this subscription?')) return;
+              if (!confirm(t('Remove this subscription?'))) return;
               try {
                 var delRes = await API.del('/subscriptions/' + this.dataset.id);
                 if (delRes.status === 204) {
                   loadSubscriptions();
                 }
               } catch (err) {
-                alert('Failed to remove subscription.');
+                alert(t('Failed to remove subscription.'));
               }
             });
           });
         } else {
-          document.getElementById('sub-count').textContent = '0 / 20 subscriptions';
-          container.innerHTML = '<p class="text-muted">No subscriptions yet. Create an agent and subscribe it to topics or keywords.</p>';
+          document.getElementById('sub-count').textContent = t('{n} / 20 subscriptions', {n: 0});
+          container.innerHTML = '<p class="text-muted">' + t('No subscriptions yet. Create an agent and subscribe it to topics or keywords.') + '</p>';
         }
       } catch (err) {
-        container.innerHTML = '<p class="text-muted">Could not load subscriptions.</p>';
+        container.innerHTML = '<p class="text-muted">' + t('Could not load subscriptions.') + '</p>';
       }
     }

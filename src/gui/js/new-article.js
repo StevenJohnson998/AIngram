@@ -97,12 +97,12 @@ var selectedAgentId = null;
       document.getElementById('generate-draft-btn').addEventListener('click', async function() {
         var title = document.getElementById('article-title').value.trim();
         if (title.length < 3 || title.length > 300) {
-          showAlert(document.getElementById('step2-error'), 'warning', 'Title must be 3-300 characters.');
+          showAlert(document.getElementById('step2-error'), 'warning', t('Title must be 3-300 characters.'));
           return;
         }
 
         this.disabled = true;
-        this.textContent = 'Generating...';
+        this.textContent = t('Generating...');
         document.getElementById('step2-error').innerHTML = '';
 
         var lang = document.getElementById('article-lang').value;
@@ -126,27 +126,27 @@ var selectedAgentId = null;
             renderDraftPreview();
             goToStep(3);
           } else {
-            var msg = (res.data && res.data.error) ? res.data.error.message : 'Draft generation failed';
+            var msg = (res.data && res.data.error) ? res.data.error.message : t('Draft generation failed');
             if (res.data && res.data.error && res.data.error.code === 'PROVIDER_REQUIRED') {
-              msg += ' <a href="./settings.html">Configure one in Settings</a>.';
+              msg += ' ' + t('<a href="./settings.html">Configure one in Settings</a>.');
               document.getElementById('step2-error').innerHTML = '<div class="alert alert-warning">' + msg + '</div>';
             } else {
               showAlert(document.getElementById('step2-error'), 'warning', msg);
             }
           }
         } catch (err) {
-          showAlert(document.getElementById('step2-error'), 'warning', 'Network error. Please try again.');
+          showAlert(document.getElementById('step2-error'), 'warning', t('Network error. Please try again.'));
         }
 
         this.disabled = false;
-        this.textContent = 'Generate Draft';
+        this.textContent = t('Generate Draft');
       });
 
       // Write manually (skip AI)
       document.getElementById('write-manually-btn').addEventListener('click', function() {
         var title = document.getElementById('article-title').value.trim();
         if (title.length < 3 || title.length > 300) {
-          showAlert(document.getElementById('step2-error'), 'warning', 'Title must be 3-300 characters.');
+          showAlert(document.getElementById('step2-error'), 'warning', t('Title must be 3-300 characters.'));
           return;
         }
         draftResult = { summary: '', chunks: [{ content: '', technicalDetail: null }] };
@@ -172,16 +172,16 @@ var selectedAgentId = null;
         var chunks = collectChunks();
 
         if (!summary && chunks.length === 0) {
-          showAlert(document.getElementById('step3-error'), 'warning', 'Add a summary or at least one chunk.');
+          showAlert(document.getElementById('step3-error'), 'warning', t('Add a summary or at least one chunk.'));
           return;
         }
         if (chunks.length === 0) {
-          showAlert(document.getElementById('step3-error'), 'warning', 'Add at least one chunk.');
+          showAlert(document.getElementById('step3-error'), 'warning', t('Add at least one chunk.'));
           return;
         }
         for (var i = 0; i < chunks.length; i++) {
           if (chunks[i].content.length < 10) {
-            showAlert(document.getElementById('step3-error'), 'warning', 'Chunk ' + (i + 1) + ' must be at least 10 characters.');
+            showAlert(document.getElementById('step3-error'), 'warning', t('Chunk {n} must be at least 10 characters.', { n: i + 1 }));
             return;
           }
         }
@@ -217,11 +217,11 @@ var selectedAgentId = null;
         var warning = document.getElementById('duplicate-warning');
         if (res.status === 200 && res.data && res.data && res.data.length > 0) {
           var items = res.data.map(function(item) {
-            var topicTitle = escapeHtml(item.topic_title || 'Unknown');
+            var topicTitle = escapeHtml(item.topic_title || t('Unknown'));
             var link = item.topic_id ? './topic.html?id=' + item.topic_id : '#';
             return '<a href="' + link + '" class="s-b305c5e0">' + topicTitle + '</a>';
           });
-          warning.innerHTML = '<div class="alert alert-info">Similar articles found: ' + items.join(', ') + '. You may want to contribute to an existing article instead.</div>';
+          warning.innerHTML = '<div class="alert alert-info">' + t('Similar articles found: {items}. You may want to contribute to an existing article instead.', { items: items.join(', ') }) + '</div>';
           warning.style.display = 'block';
         } else {
           warning.style.display = 'none';
@@ -248,13 +248,13 @@ var selectedAgentId = null;
       // Token usage
       if (tokenInfo) {
         var usageEl = document.getElementById('token-usage');
-        usageEl.textContent = (tokenInfo.inputTokens + tokenInfo.outputTokens) + ' tokens used';
+        usageEl.textContent = t('{n} tokens used', { n: tokenInfo.inputTokens + tokenInfo.outputTokens });
         usageEl.style.display = 'block';
       }
 
       // Update publish button text
       if (selectedAgentName) {
-        document.getElementById('publish-btn').textContent = 'Submit as ' + selectedAgentName;
+        document.getElementById('publish-btn').textContent = t('Submit as {name}', { name: selectedAgentName });
       }
     }
 
@@ -268,18 +268,18 @@ var selectedAgentId = null;
       card.dataset.chunkNum = num;
       card.innerHTML =
         '<div class="draft-chunk-header">' +
-          '<span>Chunk #' + num + '</span>' +
-          '<button class="draft-chunk-remove" title="Remove">&times; Remove</button>' +
+          '<span>' + t('Chunk #{n}', { n: num }) + '</span>' +
+          '<button class="draft-chunk-remove" title="' + escapeHtml(t('Remove')) + '">&times; ' + t('Remove') + '</button>' +
         '</div>' +
         '<div class="form-group s-569a942f">' +
-          '<input type="text" class="form-input chunk-title-input" placeholder="Section title (required)" maxlength="300" value="' + escapeHtml(title || '') + '">' +
+          '<input type="text" class="form-input chunk-title-input" placeholder="' + escapeHtml(t('Section title (required)')) + '" maxlength="300" value="' + escapeHtml(title || '') + '">' +
         '</div>' +
         '<div class="form-group s-569a942f">' +
-          '<textarea class="form-input chunk-content-input" rows="3" placeholder="Atomic factual statement..." class="s-a35b8b9c">' + escapeHtml(content) + '</textarea>' +
+          '<textarea class="form-input chunk-content-input" rows="3" placeholder="' + escapeHtml(t('Atomic factual statement...')) + '" class="s-a35b8b9c">' + escapeHtml(content) + '</textarea>' +
         '</div>' +
         '<details class="s-45c39df8">' +
-          '<summary class="text-muted s-74fa97c2">Technical detail (optional)</summary>' +
-          '<textarea class="form-input chunk-detail-input" rows="2" placeholder="Code, formulas, data..." class="s-77e323ce">' + escapeHtml(technicalDetail || '') + '</textarea>' +
+          '<summary class="text-muted s-74fa97c2">' + t('Technical detail (optional)') + '</summary>' +
+          '<textarea class="form-input chunk-detail-input" rows="2" placeholder="' + escapeHtml(t('Code, formulas, data...')) + '" class="s-77e323ce">' + escapeHtml(technicalDetail || '') + '</textarea>' +
         '</details>';
 
       card.querySelector('.draft-chunk-remove').addEventListener('click', function() {
@@ -310,7 +310,7 @@ var selectedAgentId = null;
 
       try {
         // Step 1: Create topic
-        statusEl.textContent = 'Creating article...';
+        statusEl.textContent = t('Creating article...');
         var topicRes = await API.post('/topics', {
           title: title,
           lang: lang,
@@ -320,7 +320,7 @@ var selectedAgentId = null;
         });
 
         if (topicRes.status !== 201 || !topicRes.data || !topicRes.data.id) {
-          var msg = (topicRes.data && topicRes.data.error) ? topicRes.data.error.message : 'Failed to create article';
+          var msg = (topicRes.data && topicRes.data.error) ? topicRes.data.error.message : t('Failed to create article');
           statusEl.innerHTML = '<div class="alert alert-warning">' + escapeHtml(msg) + '</div>';
           showRetryButton();
           return;
@@ -330,27 +330,27 @@ var selectedAgentId = null;
 
         // Step 2: Create chunks
         for (var i = 0; i < chunks.length; i++) {
-          statusEl.textContent = 'Adding chunk ' + (i + 1) + ' of ' + chunks.length + '...';
+          statusEl.textContent = t('Adding chunk {n} of {total}...', { n: i + 1, total: chunks.length });
           var chunkBody = { content: chunks[i].content };
           if (chunks[i].title) chunkBody.title = chunks[i].title;
           if (chunks[i].technicalDetail) chunkBody.technicalDetail = chunks[i].technicalDetail;
 
           var chunkRes = await API.post('/topics/' + topicId + '/chunks', chunkBody);
           if (chunkRes.status !== 201) {
-            statusEl.innerHTML = '<div class="alert alert-warning">Failed to add chunk ' + (i + 1) + '. The article was created but some chunks may be missing.</div>';
+            statusEl.innerHTML = '<div class="alert alert-warning">' + t('Failed to add chunk {n}. The article was created but some chunks may be missing.', { n: i + 1 }) + '</div>';
             showRetryButton();
             return;
           }
         }
 
         // Success: redirect
-        statusEl.textContent = 'Submitted for review! Redirecting...';
+        statusEl.textContent = t('Submitted for review! Redirecting...');
         setTimeout(function() {
           window.location.href = './topic.html?id=' + topicId + '&just_created=1';
         }, 800);
 
       } catch (err) {
-        statusEl.innerHTML = '<div class="alert alert-warning">Network error during publishing. Please try again.</div>';
+        statusEl.innerHTML = '<div class="alert alert-warning">' + t('Network error during publishing. Please try again.') + '</div>';
         showRetryButton();
       }
     }
@@ -361,7 +361,7 @@ var selectedAgentId = null;
       retryDiv.style.marginTop = 'var(--space-md)';
       var retryBtn = document.createElement('button');
       retryBtn.className = 'btn btn-primary';
-      retryBtn.textContent = 'Back to Preview';
+      retryBtn.textContent = t('Back to Preview');
       retryBtn.addEventListener('click', function() { goToStep(3); });
       retryDiv.appendChild(retryBtn);
       statusEl.appendChild(retryDiv);

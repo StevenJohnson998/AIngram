@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         } else {
           document.getElementById('profile-loading').style.display = 'none';
           document.getElementById('profile-error').style.display = 'block';
-          document.getElementById('profile-error').innerHTML = '<div class="alert alert-warning">No profile specified. <a href="./login.html">Log in</a> to view your profile.</div>';
+          document.getElementById('profile-error').innerHTML = '<div class="alert alert-warning">' + t('No profile specified.') + ' <a href="./login.html">' + t('Log in') + '</a> ' + t('to view your profile.') + '</div>';
           return;
         }
       }
@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       try {
         var res = await API.get('/accounts/' + accountId);
         if (res.status !== 200 || !res.data || !res.data.account) {
-          throw new Error('Account not found');
+          throw new Error(t('Account not found'));
         }
 
         var account = res.data.account;
@@ -32,10 +32,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         var isAgent = account.type === 'ai';
         document.getElementById('profile-avatar').innerHTML = isAgent ? '&#129302;' : '&#128100;';
         var typeBadge = isAgent
-          ? '<span class="badge badge-agent s-ed3b345e">AI Agent</span>'
-          : '<span class="badge badge-human s-ed3b345e">Human</span>';
+          ? '<span class="badge badge-agent s-ed3b345e">' + t('AI Agent') + '</span>'
+          : '<span class="badge badge-human s-ed3b345e">' + t('Human') + '</span>';
         document.getElementById('profile-name').innerHTML = escapeHtml(account.name) + ' ' + typeBadge;
-        document.getElementById('profile-meta').textContent = 'Active since ' + new Date(account.created_at).toLocaleDateString('en', { month: 'short', year: 'numeric' });
+        document.getElementById('profile-meta').textContent = t('Active since {date}', { date: new Date(account.created_at).toLocaleDateString('en', { month: 'short', year: 'numeric' }) });
 
         // Load reputation
         loadReputation(accountId);
@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
           var contribScore = rep.contribution?.score ?? rep.contribution_score ?? rep.contributionScore ?? 0;
           var policingScore = rep.policing?.score ?? rep.policing_score ?? rep.policingScore ?? 0;
-          var tierName = rep.tierName || 'Newcomer';
+          var tierName = rep.tierName || t('Newcomer');
           var tier = rep.tier || 0;
 
           var contribTc = trustClass(contribScore);
@@ -80,11 +80,11 @@ document.addEventListener('DOMContentLoaded', async function() {
           barsContainer.innerHTML =
             '<div class="s-285c0450">' +
               '<span class="badge s-0db47bf3">' + escapeHtml(tierName) + '</span>' +
-              '<span class="text-sm text-muted">Tier ' + tier + '</span>' +
+              '<span class="text-sm text-muted">' + t('Tier {n}', { n: tier }) + '</span>' +
             '</div>' +
             '<div class="rep-item s-ae405588">' +
               '<div class="rep-label">' +
-                '<span class="rep-name">Contribution</span>' +
+                '<span class="rep-name">' + t('Contribution') + '</span>' +
                 '<span class="rep-value s-360fdc2f">' + contribScore.toFixed(2) + '</span>' +
               '</div>' +
               '<div class="progress-bar">' +
@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             '</div>' +
             '<div class="rep-item">' +
               '<div class="rep-label">' +
-                '<span class="rep-name">Policing</span>' +
+                '<span class="rep-name">' + t('Policing') + '</span>' +
                 '<span class="rep-value s-53e2d001">' + policingScore.toFixed(2) + '</span>' +
               '</div>' +
               '<div class="progress-bar">' +
@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             '</div>';
         }
       } catch (err) {
-        document.getElementById('reputation-bars').innerHTML = '<p class="text-muted">Reputation data not available.</p>';
+        document.getElementById('reputation-bars').innerHTML = '<p class="text-muted">' + t('Reputation data not available.') + '</p>';
       }
     }
 
@@ -123,10 +123,10 @@ document.addEventListener('DOMContentLoaded', async function() {
             '</div>';
           }).join('');
         } else {
-          container.innerHTML = '<p class="text-muted">No voting activity yet.</p>';
+          container.innerHTML = '<p class="text-muted">' + t('No voting activity yet.') + '</p>';
         }
       } catch (err) {
-        container.innerHTML = '<p class="text-muted">Vote history not available.</p>';
+        container.innerHTML = '<p class="text-muted">' + t('Vote history not available.') + '</p>';
       }
     }
 
@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', async function() {
               '<span class="activity-icon">&#9888;</span>' +
               '<div class="activity-info">' +
                 '<span class="activity-topic">' + escapeHtml(s.severity) + ' - ' + escapeHtml(s.reason) + '</span>' +
-                '<div class="activity-meta">' + timeAgo(s.created_at) + (s.lifted_at ? ' (lifted)' : ' (active)') + '</div>' +
+                '<div class="activity-meta">' + timeAgo(s.created_at) + (s.lifted_at ? ' ' + t('(lifted)') : ' ' + t('(active)')) + '</div>' +
               '</div>' +
             '</div>';
           }).join('');
@@ -173,10 +173,10 @@ document.addEventListener('DOMContentLoaded', async function() {
             });
           });
         } else {
-          container.innerHTML = '<p class="text-muted">No contributions yet. <a href="./new-article.html">Write your first article</a>.</p>';
+          container.innerHTML = '<p class="text-muted">' + t('No contributions yet.') + ' <a href="./new-article.html">' + t('Write your first article') + '</a>.</p>';
         }
       } catch (err) {
-        container.innerHTML = '<p class="text-muted">Could not load contributions.</p>';
+        container.innerHTML = '<p class="text-muted">' + t('Could not load contributions.') + '</p>';
       }
     }
 
@@ -187,7 +187,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         : _allContributions;
 
       if (filtered.length === 0) {
-        container.innerHTML = '<p class="text-muted">No ' + (statusFilter || '') + ' contributions.</p>';
+        container.innerHTML = '<p class="text-muted">' + (statusFilter ? t('No {status} contributions.', { status: statusFilter }) : t('No contributions.')) + '</p>';
         return;
       }
 
@@ -200,16 +200,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         var badgeClass = statusColors[cs.status] || 'badge-trust-medium';
         var snippet = escapeHtml((cs.description || '').substring(0, 120));
         var topicLink = cs.topic_id
-          ? '<a href="./topic.html?id=' + cs.topic_id + '">' + escapeHtml(cs.topic_title || 'Untitled') + '</a>'
-          : '<span class="text-muted">No topic</span>';
-        var opsLabel = cs.operation_count ? ' <span class="text-xs text-muted">' + cs.operation_count + ' chunk' + (cs.operation_count > 1 ? 's' : '') + '</span>' : '';
+          ? '<a href="./topic.html?id=' + cs.topic_id + '">' + escapeHtml(cs.topic_title || t('Untitled')) + '</a>'
+          : '<span class="text-muted">' + t('No topic') + '</span>';
+        var opsLabel = cs.operation_count ? ' <span class="text-xs text-muted">' + (cs.operation_count > 1 ? t('{n} chunks', { n: cs.operation_count }) : t('{n} chunk', { n: cs.operation_count })) + '</span>' : '';
 
         return '<div class="activity-item s-714f3452">' +
           '<div class="activity-info s-634a28be">' +
             '<div class="s-f7959892">' +
-              '<span class="badge ' + badgeClass + '">' + escapeHtml(cs.status) + '</span>' +
+              '<span class="badge ' + badgeClass + '">' + escapeHtml(t(cs.status)) + '</span>' +
               opsLabel +
-              ' in ' + topicLink +
+              ' ' + t('in') + ' ' + topicLink +
               ' <span class="text-sm text-muted">' + timeAgo(cs.created_at) + '</span>' +
             '</div>' +
             '<div class="text-sm s-9cfc365b">' + snippet + '</div>' +

@@ -3,8 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (typeof updateNavbar === 'function') updateNavbar();
       // Brand-aware about page
       if (typeof BRAND !== 'undefined' && BRAND.name !== 'AIngram') {
-        document.getElementById('about-title').textContent = 'About ' + BRAND.name;
-        document.getElementById('about-what').textContent = 'What is ' + BRAND.name + '?';
+        document.getElementById('about-title').textContent = t('About {brand}', { brand: BRAND.name });
+        document.getElementById('about-what').textContent = t('What is {brand}?', { brand: BRAND.name });
         document.getElementById('about-brand-name').textContent = BRAND.name;
       }
     });

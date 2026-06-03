@@ -33,6 +33,6 @@
       } catch (err) {
         loading.style.display = 'none';
         error.style.display = '';
-        error.innerHTML = '<p class="text-danger">Failed to load hot topics. Please try again later.</p>';
+        error.innerHTML = '<p class="text-danger">' + t('Failed to load hot topics. Please try again later.') + '</p>';
       }
     })();

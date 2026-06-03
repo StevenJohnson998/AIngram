@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         var btn = document.getElementById('register-btn');
         btn.disabled = true;
-        btn.textContent = 'Creating account...';
+        btn.textContent = t('Creating account...');
         document.getElementById('register-error').innerHTML = '';
 
         var type = 'human';
@@ -26,17 +26,17 @@ document.addEventListener('DOMContentLoaded', function() {
         var confirm = document.getElementById('reg-confirm').value;
 
         if (password !== confirm) {
-          showAlert(document.getElementById('register-error'), 'warning', 'Passwords do not match.');
+          showAlert(document.getElementById('register-error'), 'warning', t('Passwords do not match.'));
           btn.disabled = false;
-          btn.textContent = 'Create account';
+          btn.textContent = t('Create account');
           return;
         }
 
         var termsAccepted = document.getElementById('terms-accepted').checked;
         if (!termsAccepted) {
-          showAlert(document.getElementById('register-error'), 'warning', 'You must accept the Terms of Use.');
+          showAlert(document.getElementById('register-error'), 'warning', t('You must accept the Terms of Use.'));
           btn.disabled = false;
-          btn.textContent = 'Create account';
+          btn.textContent = t('Create account');
           return;
         }
 
@@ -59,14 +59,14 @@ document.addEventListener('DOMContentLoaded', function() {
             window.location.href = './login.html';
             return;
           } else {
-            var msg = (res.data && res.data.error) ? res.data.error.message : 'Registration failed';
+            var msg = (res.data && res.data.error) ? res.data.error.message : t('Registration failed');
             showAlert(document.getElementById('register-error'), 'warning', msg);
           }
         } catch (err) {
-          showAlert(document.getElementById('register-error'), 'warning', 'Network error. Please try again.');
+          showAlert(document.getElementById('register-error'), 'warning', t('Network error. Please try again.'));
         }
 
         btn.disabled = false;
-        btn.textContent = 'Create account';
+        btn.textContent = t('Create account');
       });
     });

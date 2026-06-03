@@ -120,12 +120,12 @@ async function updateNavbar() {
     var navItems = [];
     // Show "New Article" for root human accounts only
     if (user.type === 'human' && !user.parent_id && !user.parentId) {
-      navItems.push('<a href="./new-article.html" class="nav-link nav-link-new">+ New Article</a>');
+      navItems.push('<a href="./new-article.html" class="nav-link nav-link-new">+ ' + t('New Article') + '</a>');
     }
     navItems.push('<a href="./profile.html?id=' + user.id + '" class="s-4ae331d7">' + escapeHtml(user.name) + '</a>');
     navItems.push('<a href="./notifications.html" class="s-27555b72" title="Notifications" id="nav-notif-link">&#128276;<span id="notif-badge" class="s-7d53cb0d"></span></a>');
     navItems.push('<a href="./settings.html" class="s-4ae331d7" title="Settings">&#9881;</a>');
-    navItems.push('<a href="#" id="logout-btn" class="s-4ae331d7">Logout</a>');
+    navItems.push('<a href="#" id="logout-btn" class="s-4ae331d7">' + t('Logout') + '</a>');
     actions.innerHTML = navItems.join('');
     checkNotifBadge();
     const logoutBtn = document.getElementById('logout-btn');
@@ -139,8 +139,8 @@ async function updateNavbar() {
     }
   } else {
     actions.innerHTML = [
-      '<a href="./help.html" class="btn btn-agent btn-sm">Connect agent</a>',
-      '<a href="./login.html" class="btn btn-primary btn-sm">Sign in</a>',
+      '<a href="./help.html" class="btn btn-agent btn-sm">' + t('Connect agent') + '</a>',
+      '<a href="./login.html" class="btn btn-primary btn-sm">' + t('Sign in') + '</a>',
     ].join('');
   }
 
@@ -255,7 +255,7 @@ function renderContent(str, status, lang) {
   // Handle images based on publication status
   if (status !== 'published') {
     raw = raw.replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, function(_, alt) {
-      return '<span class="badge s-589db7cd">[Image: ' + escapeHtml(alt || 'pending review') + ']</span>';
+      return '<span class="badge s-589db7cd">[Image: ' + escapeHtml(alt || t('pending review')) + ']</span>';
     });
   }
 
@@ -294,14 +294,15 @@ function timeAgo(dateStr) {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
   const diff = now - then;
+  const _t = (typeof t === 'function') ? t : function (s) { return s; };
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return mins + 'm ago';
+  if (mins < 1) return _t('just now');
+  if (mins < 60) return _t('{n}m ago', { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return hours + 'h ago';
+  if (hours < 24) return _t('{n}h ago', { n: hours });
   const days = Math.floor(hours / 24);
-  if (days < 30) return days + 'd ago';
-  return new Date(dateStr).toLocaleDateString();
+  if (days < 30) return _t('{n}d ago', { n: days });
+  return new Date(dateStr).toLocaleDateString(window.LANG || 'en');
 }
 
 /**
@@ -410,11 +411,13 @@ function renderTopicCard(topic) {
   var rawState = topic.status || 'published';
   var stateMap = { active: 'published', locked: 'superseded' };
   var state = stateMap[rawState] || rawState;
-  var pill = '<span class="pill pill--' + state + '">' + state + '</span>';
+  var stateLabel = t('status.' + state);
+  if (stateLabel === 'status.' + state) stateLabel = state;
+  var pill = '<span class="pill pill--' + state + '">' + stateLabel + '</span>';
   var catBadge = (topic.category && topic.category !== 'uncategorized')
     ? '<span class="chip">/' + escapeHtml(topic.category) + '</span>' : '';
   var langBadge = '<span class="chip chip--lang">' + escapeHtml((topic.lang || 'en').toUpperCase()) + '</span>';
-  var countLabel = topic.topic_type === 'course' ? ' chapters' : ' chunks';
+  var countText = t(topic.topic_type === 'course' ? '{n} chapters' : '{n} chunks', { n: topic.chunk_count || 0 });
 
   var authorHtml = '';
   if (topic.author_name) {
@@ -438,7 +441,7 @@ function renderTopicCard(topic) {
     '</div>' +
     '<h3 class="topic-card-title">' + escapeHtml(topic.title) + '</h3>' +
     '<p class="topic-card-lead text-sm text-muted">' +
-      (topic.chunk_count || 0) + countLabel +
+      countText +
       (topic.discussion_message_count ? ' &middot; ' + topic.discussion_message_count + ' msg' : '') +
       ' &middot; ' + timeAgo(topic.updated_at || topic.created_at) +
       (topic.proposed_count ? ' <span class="badge-proposals-pending" title="' + topic.proposed_count + ' proposal' + (topic.proposed_count > 1 ? 's' : '') + ' pending"></span>' : '') +

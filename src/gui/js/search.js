@@ -24,7 +24,7 @@ async function loadFeaturedCourses() {
         '<div class="featured-course-title">' + escapeHtml(topic.title) + '</div>' +
       '</div>' +
       (topic.summary ? '<div class="featured-course-summary">' + escapeHtml(topic.summary) + '</div>' : '') +
-      '<div class="featured-course-meta"><span>' + chapCount + ' chapter' + (chapCount !== 1 ? 's' : '') + '</span></div>' +
+      '<div class="featured-course-meta"><span>' + t('{n} chapters', { n: chapCount }) + '</span></div>' +
     '</a>';
   }).join('');
   section.style.display = 'block';
@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   var featuredSection = document.getElementById('featured-courses');
   if (topicTypeParam === 'course') {
-    if (titleEl) titleEl.textContent = 'Courses';
+    if (titleEl) titleEl.textContent = t('Courses');
     document.getElementById('filter-topic-type').value = 'course';
     setActiveChip('course');
     loadFeaturedCourses();
@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var q = getParam('q') || '';
   if (q) {
     document.getElementById('search-input').value = q;
-    if (titleEl) titleEl.textContent = 'Search';
+    if (titleEl) titleEl.textContent = t('Search');
     doSearch(q);
   } else {
     loadRecentTopics();
@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var q = document.getElementById('search-input').value.trim();
     if (q) {
       history.pushState(null, '', './search.html?q=' + encodeURIComponent(q));
-      if (titleEl) titleEl.textContent = 'Search';
+      if (titleEl) titleEl.textContent = t('Search');
       doSearch(q);
     }
   });
@@ -76,8 +76,8 @@ document.addEventListener('DOMContentLoaded', function() {
       setActiveChip(chip.dataset.type);
       document.getElementById('filter-topic-type').value = chip.dataset.type;
       if (titleEl) {
-        if (chip.dataset.type === 'course') titleEl.textContent = 'Courses';
-        else titleEl.textContent = 'Articles';
+        if (chip.dataset.type === 'course') titleEl.textContent = t('Courses');
+        else titleEl.textContent = t('Articles');
       }
       if (featuredSection) {
         if (chip.dataset.type === 'course') { loadFeaturedCourses(); }
@@ -137,7 +137,7 @@ getCurrentUser().then(function(u) { user = u; });
 function renderResultCards(items, q) {
   return items.map(function(item) {
     var topicLink = item.topic_id ? './topic.html?id=' + item.topic_id : '#';
-    var topicTitle = item.topic_title || 'Unknown topic';
+    var topicTitle = item.topic_title || t('Unknown topic');
     var topicLang = (item.topic_lang || 'en').toUpperCase();
     var catBadge = (item.topic_category && item.topic_category !== 'uncategorized')
       ? '<span class="chip">/' + escapeHtml(item.topic_category) + '</span>' : '';
@@ -160,7 +160,7 @@ function showMaxBanner(container) {
   var banner = document.createElement('div');
   banner.id = 'max-results-banner';
   banner.className = 'alert alert-info mt-lg';
-  banner.textContent = 'Maximum of 50 results reached. Refine your search for more specific results.';
+  banner.textContent = t('Maximum of 50 results reached. Refine your search for more specific results.');
   container.after(banner);
 }
 
@@ -184,19 +184,20 @@ async function loadRecentTopics() {
   try {
     var res = await API.get(url);
     if (res.status === 200 && res.data && res.data.length > 0) {
-      var label = topicType === 'course' ? 'courses' : 'articles';
       if (infoEl) {
         infoEl.style.display = 'block';
-        infoEl.textContent = res.data.length + ' recent ' + label;
+        infoEl.textContent = topicType === 'course'
+          ? t('{n} recent courses', { n: res.data.length })
+          : t('{n} recent articles', { n: res.data.length });
       }
       container.innerHTML = res.data.map(renderTopicCard).join('');
     } else {
-      var emptyLabel = topicType === 'course' ? 'courses' : 'articles';
       if (infoEl) infoEl.style.display = 'none';
-      container.innerHTML = '<p class="text-muted">No ' + emptyLabel + ' yet.</p>';
+      container.innerHTML = '<p class="text-muted">' +
+        (topicType === 'course' ? t('No courses yet.') : t('No articles yet.')) + '</p>';
     }
   } catch (err) {
-    container.innerHTML = '<p class="text-muted">Could not load topics.</p>';
+    container.innerHTML = '<p class="text-muted">' + t('Could not load topics.') + '</p>';
   }
 }
 
@@ -210,7 +211,7 @@ async function doSearch(q) {
 
   var container = document.getElementById('results-container');
   container.className = 'search-results-list mt-md';
-  container.innerHTML = '<p class="text-muted"><svg class="u-valign-mid spin-anim" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Searching…</p>';
+  container.innerHTML = '<p class="text-muted"><svg class="u-valign-mid spin-anim" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> ' + t('Searching…') + '</p>';
   var oldBanner = document.getElementById('max-results-banner');
   if (oldBanner) oldBanner.remove();
 
@@ -231,12 +232,12 @@ async function doSearch(q) {
       if (infoEl) {
         infoEl.style.display = 'block';
         infoEl.textContent = hitMax
-          ? 'Too many results — showing top ' + SEARCH_MAX
-          : results.length + ' result' + (results.length !== 1 ? 's' : '');
+          ? t('Too many results — showing top {n}', { n: SEARCH_MAX })
+          : t('{n} results', { n: results.length });
       }
 
       if (results.length === 0) {
-        container.innerHTML = '<p class="text-muted">No results found.</p>';
+        container.innerHTML = '<p class="text-muted">' + t('No results found.') + '</p>';
         var reqBox = document.getElementById('request-topic-box');
         if (reqBox) reqBox.style.display = 'block';
         var reqTitle = document.getElementById('request-topic-title');
@@ -256,17 +257,17 @@ async function doSearch(q) {
       if (loadMoreEl) {
         if (results.length > INITIAL_DISPLAY) {
           loadMoreEl.style.display = 'block';
-          document.getElementById('load-more-btn').textContent = 'Show all ' + results.length + ' results';
+          document.getElementById('load-more-btn').textContent = t('Show all {n} results', { n: results.length });
         } else {
           loadMoreEl.style.display = 'none';
         }
       }
       if (hitMax && results.length <= INITIAL_DISPLAY) showMaxBanner(container);
     } else {
-      container.innerHTML = '<p class="text-muted">No results found.</p>';
+      container.innerHTML = '<p class="text-muted">' + t('No results found.') + '</p>';
     }
   } catch (err) {
-    container.innerHTML = '<div class="alert alert-warning">Search failed: ' + escapeHtml(err.message || 'Unknown error') + '</div>';
+    container.innerHTML = '<div class="alert alert-warning">' + t('Search failed: {error}', { error: escapeHtml(err.message || t('Unknown error')) }) + '</div>';
   }
 }
 
@@ -289,16 +290,16 @@ function showSearchToast(type, message) {
 }
 
 async function subscribeToSimilar(query) {
-  if (!user) { showSearchToast('warning', 'Please log in first.'); return; }
+  if (!user) { showSearchToast('warning', t('Please log in first.')); return; }
   try {
     var r = await API.post('/subscriptions', { type: 'keyword', keyword: query, notificationMethod: 'polling' });
     if (r.status === 201) {
-      showSearchToast('success', 'Subscribed! You will see matches in your Notifications.');
+      showSearchToast('success', t('Subscribed! You will see matches in your Notifications.'));
     } else if (r.data && r.data.error) {
-      showSearchToast('warning', r.data.error.message || 'Subscription failed.');
+      showSearchToast('warning', r.data.error.message || t('Subscription failed.'));
     }
   } catch (err) {
-    showSearchToast('warning', 'Failed to create subscription.');
+    showSearchToast('warning', t('Failed to create subscription.'));
   }
 }
 
@@ -313,7 +314,7 @@ document.getElementById('request-topic-form').addEventListener('submit', async f
   var feedback = document.getElementById('request-topic-feedback');
   if (!title || title.length < 3) {
     feedback.style.display = 'block';
-    feedback.textContent = 'Title must be at least 3 characters.';
+    feedback.textContent = t('Title must be at least 3 characters.');
     feedback.style.color = 'var(--trust-low)';
     return;
   }
@@ -321,18 +322,18 @@ document.getElementById('request-topic-form').addEventListener('submit', async f
     var res = await API.post('/topic-requests', { title: title });
     if (res.status === 201) {
       feedback.style.display = 'block';
-      feedback.textContent = 'Topic requested! Contributors will see it.';
+      feedback.textContent = t('Topic requested! Contributors will see it.');
       feedback.style.color = 'var(--trust-high)';
       document.getElementById('request-topic-title').value = '';
     } else {
-      var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to submit request.';
+      var msg = (res.data && res.data.error) ? res.data.error.message : t('Failed to submit request.');
       feedback.style.display = 'block';
       feedback.textContent = msg;
       feedback.style.color = 'var(--trust-low)';
     }
   } catch (err) {
     feedback.style.display = 'block';
-    feedback.textContent = 'Network error. Please try again.';
+    feedback.textContent = t('Network error. Please try again.');
     feedback.style.color = 'var(--trust-low)';
   }
 });

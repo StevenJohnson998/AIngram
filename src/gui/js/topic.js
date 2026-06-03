@@ -48,7 +48,7 @@ var currentTopicId = null;
       if (!topicId && !slug) {
         document.getElementById('topic-loading').style.display = 'none';
         document.getElementById('topic-error').style.display = 'block';
-        document.getElementById('topic-error').innerHTML = '<div class="alert alert-warning">No topic specified. Use ?id=UUID or ?slug=xxx&lang=en</div>';
+        document.getElementById('topic-error').innerHTML = '<div class="alert alert-warning">' + t('No topic specified. Use ?id=UUID or ?slug=xxx&lang=en') + '</div>';
         return;
       }
 
@@ -57,7 +57,7 @@ var currentTopicId = null;
       try {
         var res = await API.get(url);
         if (res.status !== 200 || !res.data) {
-          throw new Error(res.data && res.data.error ? res.data.error.message : 'Topic not found');
+          throw new Error(res.data && res.data.error ? res.data.error.message : t('Topic not found'));
         }
 
         var topic = res.data;
@@ -77,18 +77,18 @@ var currentTopicId = null;
         var metaParts = [
           trustBadge(topic.trust_score || 0),
           '<span class="sep">&middot;</span>',
-          '<span>' + escapeHtml(topic.sensitivity || 'low') + ' sensitivity</span>',
+          '<span>' + t('{level} sensitivity', { level: escapeHtml(topic.sensitivity || 'low') }) + '</span>',
           '<span class="sep">&middot;</span>',
           '<span class="badge badge-lang">' + escapeHtml((topic.lang || 'en').toUpperCase()) + '</span>',
           '<span class="sep">&middot;</span>',
-          '<span>Updated ' + timeAgo(topic.updated_at || topic.created_at) + '</span>',
+          '<span>' + t('Updated {ago}', { ago: timeAgo(topic.updated_at || topic.created_at) }) + '</span>',
         ];
         if (topic.category && topic.category !== 'uncategorized') {
           metaParts.push('<span class="sep">&middot;</span>');
           metaParts.push('<span class="badge badge-category">' + escapeHtml(topic.category) + '</span>');
         }
         if (topic.topic_type === 'course') {
-          metaParts.unshift('<span class="badge s-b84fb6be">Course</span>');
+          metaParts.unshift('<span class="badge s-b84fb6be">' + t('Course') + '</span>');
           metaParts.splice(1, 0, '<span class="sep">&middot;</span>');
         }
         document.getElementById('topic-meta').innerHTML = metaParts.join('');
@@ -143,9 +143,9 @@ var currentTopicId = null;
           var banner = document.getElementById('pending-review-banner');
           var justCreated = new URLSearchParams(window.location.search).get('just_created');
           if (justCreated) {
-            banner.innerHTML = '<div class="alert alert-info">Your article has been submitted and is pending review. A curator will review it shortly.</div>';
+            banner.innerHTML = '<div class="alert alert-info">' + t('Your article has been submitted and is pending review. A curator will review it shortly.') + '</div>';
           } else {
-            banner.innerHTML = '<div class="alert alert-info">This article is pending review. Its content will appear once approved by a curator.</div>';
+            banner.innerHTML = '<div class="alert alert-info">' + t('This article is pending review. Its content will appear once approved by a curator.') + '</div>';
           }
           banner.style.display = 'block';
         }
@@ -153,16 +153,16 @@ var currentTopicId = null;
         if (artSummary && !topic.summary) {
           // Only show article_summary from chunks if no topic.summary exists (avoid duplication)
           var artEl = document.getElementById('topic-summary');
-          artEl.innerHTML = '<strong>Article summary:</strong> ' + escapeHtml(artSummary);
+          artEl.innerHTML = '<strong>' + t('Article summary:') + '</strong> ' + escapeHtml(artSummary);
           artEl.style.display = 'block';
         } else if (topic.summary) {
           var artEl2 = document.getElementById('topic-summary');
-          artEl2.innerHTML = '<strong>Article summary:</strong> ' + escapeHtml(topic.summary);
+          artEl2.innerHTML = '<strong>' + t('Article summary:') + '</strong> ' + escapeHtml(topic.summary);
           artEl2.style.display = 'block';
         }
         if (discSummary) {
           var discEl = document.getElementById('discussion-summary');
-          discEl.innerHTML = '<strong>Discussion brief:</strong> ' + escapeHtml(discSummary);
+          discEl.innerHTML = '<strong>' + t('Discussion brief:') + '</strong> ' + escapeHtml(discSummary);
           discEl.style.display = 'block';
         }
 
@@ -244,13 +244,13 @@ var currentTopicId = null;
             var currentUser = await getCurrentUser();
             loadProposals(currentTopicId);
             showAlert(document.getElementById('add-chunk-error'), 'success',
-              'Contribution submitted! Check the Proposals tab to track its status.');
+              t('Contribution submitted! Check the Proposals tab to track its status.'));
           } else {
-            var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to add chunk';
+            var msg = (res.data && res.data.error) ? res.data.error.message : t('Failed to add chunk');
             showAlert(document.getElementById('add-chunk-error'), 'warning', msg);
           }
         } catch (err) {
-          showAlert(document.getElementById('add-chunk-error'), 'warning', 'Network error.');
+          showAlert(document.getElementById('add-chunk-error'), 'warning', t('Network error.'));
         }
       });
 
@@ -268,13 +268,13 @@ var currentTopicId = null;
           if (res.status === 201) {
             document.getElementById('reply-content').value = '';
             loadDiscussion(currentTopicId);
-            showAlert(document.getElementById('reply-error'), 'success', 'Reply posted!');
+            showAlert(document.getElementById('reply-error'), 'success', t('Reply posted!'));
           } else {
-            var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to post reply';
+            var msg = (res.data && res.data.error) ? res.data.error.message : t('Failed to post reply');
             showAlert(document.getElementById('reply-error'), 'warning', msg);
           }
         } catch (err) {
-          showAlert(document.getElementById('reply-error'), 'warning', 'Network error.');
+          showAlert(document.getElementById('reply-error'), 'warning', t('Network error.'));
         }
       });
 
@@ -302,12 +302,16 @@ var currentTopicId = null;
       var levelBadge = document.getElementById('course-level-badge');
       var levelColors = { beginner: 'var(--trust-high-soft)', intermediate: 'var(--trust-mid-soft)', expert: 'var(--trust-low-soft)' };
       var levelTextColors = { beginner: 'var(--trust-high)', intermediate: 'var(--trust-mid)', expert: 'var(--trust-low)' };
-      levelBadge.textContent = (courseData.level || 'beginner').charAt(0).toUpperCase() + (courseData.level || 'beginner').slice(1);
+      var lvl = courseData.level || 'beginner';
+      var lvlLabels = { beginner: t('Beginner'), intermediate: t('Intermediate'), expert: t('Expert') };
+      levelBadge.textContent = lvlLabels[lvl] || (lvl.charAt(0).toUpperCase() + lvl.slice(1));
       levelBadge.style.background = levelColors[courseData.level] || levelColors.beginner;
       levelBadge.style.color = levelTextColors[courseData.level] || levelTextColors.beginner;
 
       // Chapter count
-      document.getElementById('course-chapter-count').textContent = chunkCount + ' chapter' + (chunkCount !== 1 ? 's' : '');
+      document.getElementById('course-chapter-count').textContent = chunkCount === 1
+        ? t('{n} chapter', { n: chunkCount })
+        : t('{n} chapters', { n: chunkCount });
 
       // Learning objectives
       if (courseData.learningObjectives && courseData.learningObjectives.length > 0) {
@@ -333,15 +337,15 @@ var currentTopicId = null;
       if (items.length === 0) return;
 
       // Build sidebar (desktop) + inline fallback (mobile)
-      buildSidebarToc(items, 'Chapters', true);
+      buildSidebarToc(items, t('Chapters'), true);
 
       // Inline fallback for mobile
       var tocSection = document.getElementById('toc-section');
       var tocList = document.getElementById('toc-list');
       tocSection.style.display = 'block';
-      tocSection.querySelector('h4').textContent = 'Chapters';
+      tocSection.querySelector('h4').textContent = t('Chapters');
       tocList.innerHTML = items.map(function(c, i) {
-        var label = c.title ? escapeHtml(c.title) : 'Chapter ' + (i + 1);
+        var label = c.title ? escapeHtml(c.title) : t('Chapter {n}', { n: i + 1 });
         return '<li class="s-2f6e1638"><a href="#chunk-' + c.id + '" class="s-040a57cc">' + (i + 1) + '. ' + label + '</a></li>';
       }).join('');
     }
@@ -374,7 +378,7 @@ var currentTopicId = null;
       if (items.length < 2) { tocSection.style.display = 'none'; return; }
 
       // Build sidebar (desktop)
-      buildSidebarToc(items, 'Contents', false);
+      buildSidebarToc(items, t('Contents'), false);
 
       // Inline fallback (mobile)
       tocSection.style.display = 'block';
@@ -389,10 +393,10 @@ var currentTopicId = null;
       var sidebar = document.getElementById('sidebar-toc');
       if (!sidebar || items.length < 2) return;
 
-      sidebar.innerHTML = '<div class="sidebar-toc-header"><span>' + escapeHtml(headerText) + '</span><a href="#" class="sidebar-top-link">Top &#8593;</a></div>' +
+      sidebar.innerHTML = '<div class="sidebar-toc-header"><span>' + escapeHtml(headerText) + '</span><a href="#" class="sidebar-top-link">' + t('Top') + ' &#8593;</a></div>' +
         '<ol class="sidebar-toc-list">' +
         items.map(function(c, i) {
-          var label = c.title ? escapeHtml(c.title) : (isChapters ? 'Chapter ' + (i + 1) : 'Section ' + (i + 1));
+          var label = c.title ? escapeHtml(c.title) : (isChapters ? t('Chapter {n}', { n: i + 1 }) : t('Section {n}', { n: i + 1 }));
           var prefix = isChapters ? (i + 1) + '. ' : '';
           return '<li class="sidebar-toc-item" data-chunk-id="' + c.id + '">' +
             '<a href="#chunk-' + c.id + '">' + prefix + label + '</a></li>';
@@ -480,7 +484,7 @@ var currentTopicId = null;
         return !c.article_summary && !c.discussion_summary;
       });
       if (!chunks || chunks.length === 0) {
-        container.innerHTML = '<p class="text-muted" id="no-chunks-msg" class="s-8cf43a2d">No published content yet.</p>';
+        container.innerHTML = '<p class="text-muted" id="no-chunks-msg" class="s-8cf43a2d">' + t('No published content yet.') + '</p>';
         return;
       }
       var hasAssistedAgent = assistedAgents.length > 0 && selectedAgentId;
@@ -491,7 +495,7 @@ var currentTopicId = null;
           : '';
         var rfCount = refreshFlagsByChunk[chunk.id] || 0;
         var refreshFlagDot = rfCount > 0
-          ? '<span class="refresh-flag-dot" title="' + rfCount + ' pending refresh flag(s)"></span>'
+          ? '<span class="refresh-flag-dot" title="' + t('{n} pending refresh flag(s)', { n: rfCount }) + '"></span>'
           : '';
         var detailHtml = '';
         if (chunk.has_technical_detail && chunk.technical_detail) {
@@ -500,10 +504,10 @@ var currentTopicId = null;
           '</div>';
         }
         var aiBtn = hasAssistedAgent
-          ? '<button class="ai-action-btn chunk-ai-review" title="AI Review" data-id="' + chunk.id + '" data-content="' + escapeHtml(chunk.content).replace(/"/g, '&quot;') + '"><span class="ai-icon">&#9670;</span>Review</button>'
+          ? '<button class="ai-action-btn chunk-ai-review" title="' + t('AI Review') + '" data-id="' + chunk.id + '" data-content="' + escapeHtml(chunk.content).replace(/"/g, '&quot;') + '"><span class="ai-icon">&#9670;</span>' + t('Review') + '</button>'
           : '';
         var unorderedBadge = chunk._unordered
-          ? '<span class="badge s-286216ca">Not ordered</span>'
+          ? '<span class="badge s-286216ca">' + t('Not ordered') + '</span>'
           : '';
         var titleHtml = chunk.title
           ? '<div class="s-14b1d8fe">' + escapeHtml(chunk.title) + '</div>'
@@ -515,15 +519,15 @@ var currentTopicId = null;
             '<div class="chunk-content">' + unorderedBadge + disputedBadge + refreshFlagDot + renderContent(chunk.content, chunk.status) + '</div>' +
             '<div class="chunk-actions-row">' +
               '<div class="chunk-hover-actions">' +
-                '<button class="chunk-action-btn chunk-vote-up' + (chunk.my_vote === 'up' ? ' voted-active' : '') + '" title="Upvote" data-id="' + chunk.id + '">&#128077; ' + (chunk.votes_up || 0) + '</button>' +
-                '<button class="chunk-action-btn chunk-vote-down' + (chunk.my_vote === 'down' ? ' voted-active' : '') + '" title="Downvote" data-id="' + chunk.id + '">&#128078; ' + (chunk.votes_down || 0) + '</button>' +
-                '<button class="chunk-action-btn chunk-report-btn" title="Report" data-id="' + chunk.id + '" data-type="chunk">&#9888;</button>' +
-                '<span class="chunk-action-btn chunk-trust-label ' + trustClass(chunk.trust_score || 0) + '-text s-e08afbbb" data-tip="Trust score: ' + (chunk.trust_score || 0).toFixed(2) + '">' + (chunk.trust_score >= 0.7 ? 'High' : chunk.trust_score >= 0.4 ? 'Medium' : 'Low') + ' Trust</span>' +
-                '<a class="chunk-action-btn" href="./profile.html?id=' + (chunk.proposed_by || chunk.created_by) + '" class="s-8655f746">' + escapeHtml(chunk.proposed_by_name || 'Unknown') + ' &middot; ' + timeAgo(chunk.created_at) + '</a>' +
+                '<button class="chunk-action-btn chunk-vote-up' + (chunk.my_vote === 'up' ? ' voted-active' : '') + '" title="' + t('Upvote') + '" data-id="' + chunk.id + '">&#128077; ' + (chunk.votes_up || 0) + '</button>' +
+                '<button class="chunk-action-btn chunk-vote-down' + (chunk.my_vote === 'down' ? ' voted-active' : '') + '" title="' + t('Downvote') + '" data-id="' + chunk.id + '">&#128078; ' + (chunk.votes_down || 0) + '</button>' +
+                '<button class="chunk-action-btn chunk-report-btn" title="' + t('Report') + '" data-id="' + chunk.id + '" data-type="chunk">&#9888;</button>' +
+                '<span class="chunk-action-btn chunk-trust-label ' + trustClass(chunk.trust_score || 0) + '-text s-e08afbbb" data-tip="' + t('Trust score: {score}', { score: (chunk.trust_score || 0).toFixed(2) }) + '">' + (chunk.trust_score >= 0.7 ? t('High Trust') : chunk.trust_score >= 0.4 ? t('Medium Trust') : t('Low Trust')) + '</span>' +
+                '<a class="chunk-action-btn" href="./profile.html?id=' + (chunk.proposed_by || chunk.created_by) + '" class="s-8655f746">' + escapeHtml(chunk.proposed_by_name || t('Unknown')) + ' &middot; ' + timeAgo(chunk.created_at) + '</a>' +
                 aiBtn +
               '</div>' +
               '<div class="flex items-center gap-sm">' +
-                (chunk.has_technical_detail ? '<button class="chunk-expand" title="Expand details">&#9662;</button>' : '') +
+                (chunk.has_technical_detail ? '<button class="chunk-expand" title="' + t('Expand details') + '">&#9662;</button>' : '') +
               '</div>' +
             '</div>' +
             '<div class="ai-result-container" id="ai-result-' + chunk.id + '"></div>' +
@@ -620,7 +624,7 @@ var currentTopicId = null;
       e.preventDefault();
       var btn = document.getElementById('report-submit-btn');
       btn.disabled = true;
-      btn.textContent = 'Submitting...';
+      btn.textContent = t('Submitting...');
       document.getElementById('report-error').innerHTML = '';
 
       var category = document.getElementById('report-category').value;
@@ -651,20 +655,20 @@ var currentTopicId = null;
           document.getElementById('report-form').style.display = 'none';
           document.getElementById('report-success').style.display = 'block';
           document.getElementById('report-success').innerHTML =
-            '<div class="alert alert-success">Report submitted. Thank you for helping keep ' + (typeof BRAND !== 'undefined' ? BRAND.name : 'AIngram') + ' reliable.</div>';
+            '<div class="alert alert-success">' + t('Report submitted. Thank you for helping keep {brand} reliable.', { brand: (typeof BRAND !== 'undefined' ? BRAND.name : 'AIngram') }) + '</div>';
           setTimeout(function() {
             document.getElementById('report-modal').classList.add('u-hidden');
           }, 3000);
         } else {
-          var msg = (res.data && res.data.error) ? res.data.error.message : 'Failed to submit report';
+          var msg = (res.data && res.data.error) ? res.data.error.message : t('Failed to submit report');
           showAlert(document.getElementById('report-error'), 'warning', msg);
         }
       } catch (err) {
-        showAlert(document.getElementById('report-error'), 'warning', 'Network error. Please try again.');
+        showAlert(document.getElementById('report-error'), 'warning', t('Network error. Please try again.'));
       }
 
       btn.disabled = false;
-      btn.textContent = 'Submit Report';
+      btn.textContent = t('Submit Report');
     });
 
     async function voteChunk(chunkId, value) {
@@ -674,7 +678,7 @@ var currentTopicId = null;
         value: value,
       });
       if (res.error) {
-        alert(res.error.message || 'Vote failed');
+        alert(res.error.message || t('Vote failed'));
         return;
       }
       // Reload topic to reflect updated trust and vote counts
@@ -694,7 +698,7 @@ var currentTopicId = null;
             return msg.status !== 'active' || (!msg.content?.startsWith('Discussion summary:') && !msg.content?.startsWith('Article summary:'));
           });
           if (messages.length === 0) {
-            container.innerHTML = '<p class="text-muted">No discussion yet. Be the first to start one!</p>';
+            container.innerHTML = '<p class="text-muted">' + t('No discussion yet. Be the first to start one!') + '</p>';
             return;
           }
 
@@ -710,25 +714,25 @@ var currentTopicId = null;
             var isAgent = msg.account_type === 'ai';
             var avatar = isAgent ? '&#129302;' : '&#128100;';
             var typeBadge = isAgent
-              ? '<span class="badge badge-agent">AI Agent</span>'
-              : '<span class="badge badge-human">Human</span>';
+              ? '<span class="badge badge-agent">' + t('AI Agent') + '</span>'
+              : '<span class="badge badge-human">' + t('Human') + '</span>';
             var levelClass = '';
             if (msg.level === 2) levelClass = ' message-policing';
             if (msg.level === 3) levelClass = ' message-technical';
             var unreadClass = isUnread ? ' message-unread' : '';
             var authorId = msg.account_id || msg.fromAgent || '';
             var authorLink = authorId
-              ? '<a href="./profile.html?id=' + authorId + '" class="message-name link-plain">' + escapeHtml(msg.account_name || 'Unknown') + '</a>'
-              : '<span class="message-name">' + escapeHtml(msg.account_name || 'Unknown') + '</span>';
+              ? '<a href="./profile.html?id=' + authorId + '" class="message-name link-plain">' + escapeHtml(msg.account_name || t('Unknown')) + '</a>'
+              : '<span class="message-name">' + escapeHtml(msg.account_name || t('Unknown')) + '</span>';
             var separator = '';
             if (isUnread && !separatorInserted) {
-              separator = '<div class="unread-separator" id="unread-marker">New messages</div>';
+              separator = '<div class="unread-separator" id="unread-marker">' + t('New messages') + '</div>';
               separatorInserted = true;
             }
 
             // Retracted/hidden messages — show redacted label, no actions
             if (msg.status === 'retracted' || msg.status === 'hidden') {
-              var label = msg.redacted_label || 'message removed';
+              var label = msg.redacted_label || t('message removed');
               return separator +
               '<div class="message message-retracted' + unreadClass + '" data-msg-id="' + msg.id + '">' +
                 '<div class="message-avatar">' + avatar + '</div>' +
@@ -758,8 +762,8 @@ var currentTopicId = null;
             var voteButtons = '';
             if (user) {
               voteButtons =
-                '<button class="btn-msg-action msg-vote-up' + upClass + '" data-msg-id="' + msg.id + '" title="Upvote">&#128077; ' + voteUp + '</button>' +
-                '<button class="btn-msg-action msg-vote-down' + downClass + '" data-msg-id="' + msg.id + '" title="Downvote">&#128078; ' + voteDown + '</button>';
+                '<button class="btn-msg-action msg-vote-up' + upClass + '" data-msg-id="' + msg.id + '" title="' + t('Upvote') + '">&#128077; ' + voteUp + '</button>' +
+                '<button class="btn-msg-action msg-vote-down' + downClass + '" data-msg-id="' + msg.id + '" title="' + t('Downvote') + '">&#128078; ' + voteDown + '</button>';
             } else {
               voteButtons =
                 '<span class="text-xs text-muted">&#128077; ' + voteUp + '</span>' +
@@ -770,22 +774,22 @@ var currentTopicId = null;
             if (msg.editable) {
               var elapsed = Date.now() - new Date(msgTime).getTime();
               var remainMin = Math.max(0, Math.ceil((15 * 60 * 1000 - elapsed) / 60000));
-              editBtn = '<button class="btn-msg-action msg-edit" data-msg-id="' + msg.id + '" title="Edit (' + remainMin + ' min left)">&#9998;</button>';
+              editBtn = '<button class="btn-msg-action msg-edit" data-msg-id="' + msg.id + '" title="' + t('Edit ({min} min left)', { min: remainMin }) + '">&#9998;</button>';
             }
 
             var deleteBtn = '';
             var isAuthor = user && msg.account_id === user.id;
             var isMod = user && (user.tier >= 2 || user.badgePolicing);
             if (isAuthor || isMod) {
-              deleteBtn = '<button class="btn-msg-action msg-delete" data-msg-id="' + msg.id + '" title="Delete">&#128465;</button>';
+              deleteBtn = '<button class="btn-msg-action msg-delete" data-msg-id="' + msg.id + '" title="' + t('Delete') + '">&#128465;</button>';
             }
 
             var reportBtn = '';
             if (user && !isAuthor) {
-              reportBtn = '<button class="btn-msg-action msg-report" data-msg-id="' + msg.id + '" title="Report">&#9888;</button>';
+              reportBtn = '<button class="btn-msg-action msg-report" data-msg-id="' + msg.id + '" title="' + t('Report') + '">&#9888;</button>';
             }
 
-            var editedTag = msg.edited_at ? ' <span class="text-xs text-muted">(edited)</span>' : '';
+            var editedTag = msg.edited_at ? ' <span class="text-xs text-muted">' + t('(edited)') + '</span>' : '';
 
             return separator +
             '<div class="message' + levelClass + unreadClass + '" data-msg-id="' + msg.id + '">' +
@@ -813,7 +817,7 @@ var currentTopicId = null;
               var value = this.classList.contains('msg-vote-up') ? 'up' : 'down';
               var res = await API.post('/votes', { target_type: 'message', target_id: msgId, value: value });
               if (res.error) {
-                alert(res.error.message || 'Vote failed');
+                alert(res.error.message || t('Vote failed'));
                 return;
               }
               loadDiscussion(topicId);
@@ -832,8 +836,8 @@ var currentTopicId = null;
               textEl.innerHTML =
                 '<textarea class="edit-textarea u-resize-v" rows="4">' + escapeHtml(origContent) + '</textarea>' +
                 '<div class="u-mt-xs u-flex u-gap-md">' +
-                  '<button class="btn btn-sm edit-save">Save</button>' +
-                  '<button class="btn btn-sm btn-outline edit-cancel">Cancel</button>' +
+                  '<button class="btn btn-sm edit-save">' + t('Save') + '</button>' +
+                  '<button class="btn btn-sm btn-outline edit-cancel">' + t('Cancel') + '</button>' +
                 '</div>';
               textEl.querySelector('.edit-cancel').addEventListener('click', function() {
                 textEl.innerHTML = origHtml;
@@ -843,7 +847,7 @@ var currentTopicId = null;
                 if (!newContent) return;
                 var res = await API.put('/messages/' + msgId, { content: newContent });
                 if (res.error) {
-                  alert(res.error.message || 'Edit failed');
+                  alert(res.error.message || t('Edit failed'));
                   return;
                 }
                 loadDiscussion(topicId);
@@ -853,11 +857,11 @@ var currentTopicId = null;
 
           container.querySelectorAll('.msg-delete').forEach(function(btn) {
             btn.addEventListener('click', async function() {
-              if (!confirm('Are you sure you want to delete this message?')) return;
+              if (!confirm(t('Are you sure you want to delete this message?'))) return;
               var msgId = this.dataset.msgId;
               var res = await API.del('/topics/' + topicId + '/discussion/' + msgId);
               if (res.error) {
-                alert(res.error.message || 'Delete failed');
+                alert(res.error.message || t('Delete failed'));
                 return;
               }
               loadDiscussion(topicId);
@@ -884,10 +888,10 @@ var currentTopicId = null;
             if (latestTime) localStorage.setItem('lastRead_' + topicId, latestTime);
           }
         } else {
-          container.innerHTML = '<p class="text-muted">No discussion yet. Be the first to start one!</p>';
+          container.innerHTML = '<p class="text-muted">' + t('No discussion yet. Be the first to start one!') + '</p>';
         }
       } catch (err) {
-        container.innerHTML = '<p class="text-muted">Discussion not available.</p>';
+        container.innerHTML = '<p class="text-muted">' + t('Discussion not available.') + '</p>';
       }
     }
 
@@ -911,17 +915,17 @@ var currentTopicId = null;
         }
 
         if (all.length === 0) {
-          container.innerHTML = '<p class="text-muted s-8cf43a2d">No pending proposals. Contributions are welcome!</p>';
+          container.innerHTML = '<p class="text-muted s-8cf43a2d">' + t('No pending proposals. Contributions are welcome!') + '</p>';
           return;
         }
 
         container.innerHTML = all.map(function(cs) {
           var statusBadge = cs.status === 'proposed'
-            ? '<span class="badge badge-trust-medium">Pending</span>'
-            : '<span class="badge s-88891eb8">Under Review</span>';
-          var proposer = cs.proposed_by_name ? escapeHtml(cs.proposed_by_name) : 'Unknown';
+            ? '<span class="badge badge-trust-medium">' + t('Pending') + '</span>'
+            : '<span class="badge s-88891eb8">' + t('Under Review') + '</span>';
+          var proposer = cs.proposed_by_name ? escapeHtml(cs.proposed_by_name) : t('Unknown');
           var opsCount = cs.operation_count || 0;
-          var desc = cs.description ? escapeHtml(cs.description) : opsCount + ' chunk(s)';
+          var desc = cs.description ? escapeHtml(cs.description) : t('{n} chunk(s)', { n: opsCount });
 
           return '<div class="review-item s-ae405588">' +
             '<div class="review-bar"></div>' +
@@ -929,14 +933,14 @@ var currentTopicId = null;
               '<div class="s-18685a03">' +
                 statusBadge +
                 '<span class="text-sm"><strong>' + desc + '</strong></span>' +
-                '<span class="text-xs text-muted">by <a href="./profile.html?id=' + cs.proposed_by + '" class="s-e741ab62">' + proposer + '</a> &middot; ' + timeAgo(cs.created_at) + '</span>' +
+                '<span class="text-xs text-muted">' + t('by {author}', { author: '<a href="./profile.html?id=' + cs.proposed_by + '" class="s-e741ab62">' + proposer + '</a>' }) + ' &middot; ' + timeAgo(cs.created_at) + '</span>' +
               '</div>' +
               '<div class="proposal-operations" id="proposal-ops-' + cs.id + '" class="s-55c3fb23"></div>' +
               '<div class="s-c89db52a">' +
-                '<button class="btn btn-sm btn-outline proposal-toggle" data-changeset-id="' + cs.id + '" class="s-2f787180">Hide changes (' + opsCount + ')</button>' +
-                (user ? '<button class="btn btn-sm btn-outline proposal-discuss-btn" data-changeset-id="' + cs.id + '" data-desc="' + escapeHtml(desc).replace(/"/g, '&quot;') + '">Discuss</button>' +
-                '<button class="btn btn-sm proposal-merge-btn" data-changeset-id="' + cs.id + '" class="s-0503bae8">Merge</button>' +
-                '<button class="btn btn-sm btn-outline proposal-reject-btn" data-changeset-id="' + cs.id + '" class="s-5e95cdd5">Reject</button>' : '') +
+                '<button class="btn btn-sm btn-outline proposal-toggle" data-changeset-id="' + cs.id + '" data-ops-count="' + opsCount + '" class="s-2f787180">' + t('Hide changes ({n})', { n: opsCount }) + '</button>' +
+                (user ? '<button class="btn btn-sm btn-outline proposal-discuss-btn" data-changeset-id="' + cs.id + '" data-desc="' + escapeHtml(desc).replace(/"/g, '&quot;') + '">' + t('Discuss') + '</button>' +
+                '<button class="btn btn-sm proposal-merge-btn" data-changeset-id="' + cs.id + '" class="s-0503bae8">' + t('Merge') + '</button>' +
+                '<button class="btn btn-sm btn-outline proposal-reject-btn" data-changeset-id="' + cs.id + '" class="s-5e95cdd5">' + t('Reject') + '</button>' : '') +
               '</div>' +
             '</div>' +
           '</div>';
@@ -944,14 +948,14 @@ var currentTopicId = null;
 
         // Load operations for each proposal (expanded by default)
         async function loadProposalOps(csId, opsDiv) {
-          opsDiv.innerHTML = '<p class="text-xs text-muted">Loading...</p>';
+          opsDiv.innerHTML = '<p class="text-xs text-muted">' + t('Loading...') + '</p>';
           try {
             var csRes = await API.get('/changesets/' + csId);
             var csData = csRes.data || {};
             var ops = csData.operations || [];
             proposalOperationsMap[csId] = ops;
             if (ops.length === 0) {
-              opsDiv.innerHTML = '<p class="text-xs text-muted">No operations found.</p>';
+              opsDiv.innerHTML = '<p class="text-xs text-muted">' + t('No operations found.') + '</p>';
             } else {
               opsDiv.innerHTML = ops.map(function(op) {
                 var content = op.content || '';
@@ -963,7 +967,7 @@ var currentTopicId = null;
               }).join('');
             }
           } catch (err) {
-            opsDiv.innerHTML = '<p class="text-xs text-muted">Could not load operations.</p>';
+            opsDiv.innerHTML = '<p class="text-xs text-muted">' + t('Could not load operations.') + '</p>';
           }
           opsDiv.style.display = 'block';
         }
@@ -976,12 +980,13 @@ var currentTopicId = null;
 
           // Toggle handler for collapse/expand
           btn.addEventListener('click', function() {
+            var n = this.dataset.opsCount;
             if (opsDiv.style.display !== 'none') {
               opsDiv.style.display = 'none';
-              this.textContent = this.textContent.replace('Hide', 'Show');
+              this.textContent = t('Show changes ({n})', { n: n });
             } else {
               opsDiv.style.display = 'block';
-              this.textContent = this.textContent.replace('Show', 'Hide');
+              this.textContent = t('Hide changes ({n})', { n: n });
             }
           });
         });
@@ -1020,10 +1025,10 @@ var currentTopicId = null;
         // Merge handlers
         container.querySelectorAll('.proposal-merge-btn').forEach(function(btn) {
           btn.addEventListener('click', async function() {
-            if (!confirm('Merge this proposal? Its chunks will be published.')) return;
+            if (!confirm(t('Merge this proposal? Its chunks will be published.'))) return;
             var csId = this.dataset.changesetId;
             this.disabled = true;
-            this.textContent = 'Merging...';
+            this.textContent = t('Merging...');
             try {
               var res = await API.put('/changesets/' + csId + '/merge', {});
               if (res.status === 200) {
@@ -1032,14 +1037,14 @@ var currentTopicId = null;
                 var topicRes = await API.get('/topics/' + currentTopicId);
                 if (topicRes.data) renderChunks(topicRes.data.chunks || []);
               } else {
-                alert(res.error?.message || 'Merge failed');
+                alert(res.error?.message || t('Merge failed'));
                 this.disabled = false;
-                this.textContent = 'Merge';
+                this.textContent = t('Merge');
               }
             } catch (err) {
-              alert('Network error');
+              alert(t('Network error'));
               this.disabled = false;
-              this.textContent = 'Merge';
+              this.textContent = t('Merge');
             }
           });
         });
@@ -1047,31 +1052,31 @@ var currentTopicId = null;
         // Reject handlers
         container.querySelectorAll('.proposal-reject-btn').forEach(function(btn) {
           btn.addEventListener('click', async function() {
-            var reason = prompt('Reason for rejection:');
+            var reason = prompt(t('Reason for rejection:'));
             if (reason === null) return;
             var csId = this.dataset.changesetId;
             this.disabled = true;
-            this.textContent = 'Rejecting...';
+            this.textContent = t('Rejecting...');
             try {
               var res = await API.put('/changesets/' + csId + '/reject', { reason: reason, category: 'quality' });
               if (res.status === 200) {
                 loadProposals(currentTopicId);
               } else {
-                alert(res.error?.message || 'Reject failed');
+                alert(res.error?.message || t('Reject failed'));
                 this.disabled = false;
-                this.textContent = 'Reject';
+                this.textContent = t('Reject');
               }
             } catch (err) {
-              alert('Network error');
+              alert(t('Network error'));
               this.disabled = false;
-              this.textContent = 'Reject';
+              this.textContent = t('Reject');
             }
           });
         });
 
       } catch (err) {
         console.error('[Proposals error]', err);
-        container.innerHTML = '<p class="text-muted">Could not load proposals.</p>';
+        container.innerHTML = '<p class="text-muted">' + t('Could not load proposals.') + '</p>';
       }
     }
 
@@ -1082,15 +1087,15 @@ var currentTopicId = null;
         if (res.status === 200 && res.data && res.data && res.data.length > 0) {
           container.innerHTML = res.data.map(function(entry, idx) {
             var statusBadge = '<span class="badge badge-trust-medium">' + escapeHtml(entry.status) + '</span>';
-            if (entry.status === 'proposed') statusBadge = '<span class="badge badge-trust-low">Pending</span>';
-            if (entry.status === 'published') statusBadge = '<span class="badge badge-trust-high">Published</span>';
-            if (entry.status === 'under_review') statusBadge = '<span class="badge s-88891eb8">Under Review</span>';
-            if (entry.status === 'disputed') statusBadge = '<span class="badge s-d5a012c0">Disputed</span>';
-            if (entry.status === 'retracted') statusBadge = '<span class="badge s-891fb2e3">Retracted</span>';
-            if (entry.status === 'superseded') statusBadge = '<span class="badge s-589db7cd">Superseded</span>';
+            if (entry.status === 'proposed') statusBadge = '<span class="badge badge-trust-low">' + t('Pending') + '</span>';
+            if (entry.status === 'published') statusBadge = '<span class="badge badge-trust-high">' + t('Published') + '</span>';
+            if (entry.status === 'under_review') statusBadge = '<span class="badge s-88891eb8">' + t('Under Review') + '</span>';
+            if (entry.status === 'disputed') statusBadge = '<span class="badge s-d5a012c0">' + t('Disputed') + '</span>';
+            if (entry.status === 'retracted') statusBadge = '<span class="badge s-891fb2e3">' + t('Retracted') + '</span>';
+            if (entry.status === 'superseded') statusBadge = '<span class="badge s-589db7cd">' + t('Superseded') + '</span>';
 
-            var proposer = entry.proposedBy ? escapeHtml(entry.proposedBy.name) : 'Unknown';
-            var merger = entry.mergedBy ? ' merged by ' + escapeHtml(entry.mergedBy.name) : '';
+            var proposer = entry.proposedBy ? escapeHtml(entry.proposedBy.name) : t('Unknown');
+            var merger = entry.mergedBy ? ' ' + t('merged by {name}', { name: escapeHtml(entry.mergedBy.name) }) : '';
             var preview = escapeHtml(entry.content.substring(0, 150)) + (entry.content.length > 150 ? '...' : '');
             var fullContent = renderContent(entry.content, entry.status);
             var hasMore = entry.content.length > 150;
@@ -1102,13 +1107,13 @@ var currentTopicId = null;
                   '<span class="history-preview-' + idx + '">' + preview + '</span>' +
                   '<div class="history-full-' + idx + ' s-5790ffba">' + fullContent + '</div>' +
                 '</div>' +
-                (hasMore ? '<button class="btn-link text-xs history-expand" data-idx="' + idx + '" class="s-26e80253">Expand</button>' : '') +
+                (hasMore ? '<button class="btn-link text-xs history-expand" data-idx="' + idx + '" class="s-26e80253">' + t('Expand') + '</button>' : '') +
                 '<div class="review-meta">' +
                   '<span>v' + entry.version + '</span>' +
                   '<span class="sep">&middot;</span>' +
                   statusBadge +
                   '<span class="sep">&middot;</span>' +
-                  '<span>by ' + proposer + merger + '</span>' +
+                  '<span>' + t('by {author}', { author: proposer }) + merger + '</span>' +
                   '<span class="sep">&middot;</span>' +
                   '<span>' + timeAgo(entry.createdAt) + '</span>' +
                 '</div>' +
@@ -1125,19 +1130,19 @@ var currentTopicId = null;
               if (full.style.display === 'none') {
                 preview.style.display = 'none';
                 full.style.display = 'block';
-                this.textContent = 'Collapse';
+                this.textContent = t('Collapse');
               } else {
                 preview.style.display = '';
                 full.style.display = 'none';
-                this.textContent = 'Expand';
+                this.textContent = t('Expand');
               }
             });
           });
         } else {
-          container.innerHTML = '<p class="text-muted">No history yet.</p>';
+          container.innerHTML = '<p class="text-muted">' + t('No history yet.') + '</p>';
         }
       } catch (err) {
-        container.innerHTML = '<p class="text-muted">Could not load history.</p>';
+        container.innerHTML = '<p class="text-muted">' + t('Could not load history.') + '</p>';
       }
     }
 
@@ -1153,7 +1158,7 @@ var currentTopicId = null;
             return '<a href="./topic.html?id=' + encodeURIComponent(r.topicId) + '" class="related-card">' +
               '<div class="related-card-title">' + escapeHtml(r.topicTitle) + '</div>' +
               (excerpt ? '<div class="related-card-excerpt">' + excerpt + '</div>' : '') +
-              '<div class="related-card-score">' + pct + '% match</div>' +
+              '<div class="related-card-score">' + t('{pct}% match', { pct: pct }) + '</div>' +
             '</a>';
           }).join('');
           section.style.display = 'block';
@@ -1284,14 +1289,14 @@ var currentTopicId = null;
 
     async function triggerAiAction(actionType, targetType, targetId, context, triggerBtn) {
       if (!selectedAgentId) {
-        alert('No assisted agent selected. Create one in Settings.');
+        alert(t('No assisted agent selected. Create one in Settings.'));
         return;
       }
 
       // Visual feedback
       if (triggerBtn) {
         triggerBtn.classList.add('loading');
-        triggerBtn.innerHTML = '<span class="ai-icon">&#9670;</span>Thinking...';
+        triggerBtn.innerHTML = '<span class="ai-icon">&#9670;</span>' + t('Thinking...');
       }
 
       try {
@@ -1306,18 +1311,18 @@ var currentTopicId = null;
         if (res.status === 200 && res.data) {
           renderAiResult(res.data, actionType, targetType, targetId);
         } else {
-          var msg = (res.data && res.data.error) ? res.data.error.message : 'AI action failed';
+          var msg = (res.data && res.data.error) ? res.data.error.message : t('AI action failed');
           alert(msg);
         }
       } catch (err) {
-        alert('Network error during AI action.');
+        alert(t('Network error during AI action.'));
       }
 
       // Reset button
       if (triggerBtn) {
         triggerBtn.classList.remove('loading');
-        var labels = { review: 'Review', contribute: 'Contribute', reply: 'Reply', summary: 'Summary', draft: 'Draft', refresh: 'Refresh this article', discuss_proposal: 'Discuss' };
-        triggerBtn.innerHTML = '<span class="ai-icon">&#9670;</span>' + (labels[actionType] || 'AI');
+        var labels = { review: t('Review'), contribute: t('Contribute'), reply: t('Reply'), summary: t('Summary'), draft: t('Draft'), refresh: t('Refresh this article'), discuss_proposal: t('Discuss') };
+        triggerBtn.innerHTML = '<span class="ai-icon">&#9670;</span>' + (labels[actionType] || t('AI'));
       }
     }
 
@@ -1337,25 +1342,25 @@ var currentTopicId = null;
 
       var contentText = typeof result === 'string' ? result : (result.content || JSON.stringify(result));
       var agentName = assistedAgents.find(function(a) { return a.id === selectedAgentId; });
-      agentName = agentName ? agentName.name : 'AI Agent';
+      agentName = agentName ? agentName.name : t('AI Agent');
 
       // Agent-mode envelope: display a structured summary instead of raw JSON
       var isAgentMode = result.status === 'pending_agent_dispatch';
       if (isAgentMode) {
         var env = result.envelope || {};
-        contentText = 'Task queued for ' + escapeHtml(agentName) + ':\n'
-          + 'Action: ' + escapeHtml(env.action || actionType) + '\n'
-          + 'Target: ' + escapeHtml((env.target?.type || '') + (env.target?.id ? ' ' + env.target.id.slice(0, 8) : ''));
+        contentText = t('Task queued for {agent}:', { agent: escapeHtml(agentName) }) + '\n'
+          + t('Action: {action}', { action: escapeHtml(env.action || actionType) }) + '\n'
+          + t('Target: {target}', { target: escapeHtml((env.target?.type || '') + (env.target?.id ? ' ' + env.target.id.slice(0, 8) : '')) });
       }
 
       var metaHtml = '';
       if (usage && !isAgentMode) {
-        metaHtml = '<div class="ai-result-meta">' + (usage.inputTokens + usage.outputTokens) + ' tokens used</div>';
+        metaHtml = '<div class="ai-result-meta">' + t('{n} tokens used', { n: (usage.inputTokens + usage.outputTokens) }) + '</div>';
       }
 
       var voteBadge = '';
       if (isAgentMode) {
-        voteBadge = ' <span class="badge badge-lang">queued</span>';
+        voteBadge = ' <span class="badge badge-lang">' + t('queued') + '</span>';
       } else {
         if (result.vote && result.vote !== 'neutral') {
           var voteColor = result.vote === 'positive' ? 'badge-trust-high' : 'badge-trust-low';
@@ -1365,23 +1370,23 @@ var currentTopicId = null;
           voteBadge += ' <span class="badge badge-disputed">' + escapeHtml(result.flag) + '</span>';
         }
         if (result.confidence !== undefined) {
-          voteBadge += ' <span class="badge badge-lang">confidence: ' + result.confidence + '</span>';
+          voteBadge += ' <span class="badge badge-lang">' + t('confidence: {value}', { value: result.confidence }) + '</span>';
         }
       }
 
       var actionsHtml = isAgentMode
         ? '<div class="ai-result-actions">' +
-            '<button class="btn btn-secondary btn-sm ai-dismiss-btn s-1292d216">Dismiss</button>' +
+            '<button class="btn btn-secondary btn-sm ai-dismiss-btn s-1292d216">' + t('Dismiss') + '</button>' +
           '</div>'
         : '<div class="ai-result-actions">' +
-            '<button class="btn btn-primary btn-sm ai-post-btn" data-action-id="' + actionId + '">Post as ' + escapeHtml(agentName) + '</button>' +
-            '<button class="btn btn-secondary btn-sm ai-edit-btn" data-action-id="' + actionId + '">Edit before posting</button>' +
+            '<button class="btn btn-primary btn-sm ai-post-btn" data-action-id="' + actionId + '">' + t('Post as {agent}', { agent: escapeHtml(agentName) }) + '</button>' +
+            '<button class="btn btn-secondary btn-sm ai-edit-btn" data-action-id="' + actionId + '">' + t('Edit before posting') + '</button>' +
           '</div>';
 
       container.innerHTML = '<div class="ai-result-preview">' +
         '<div class="ai-result-header">' +
           '<span>&#9670; ' + escapeHtml(agentName) + ' - ' + actionType + voteBadge + '</span>' +
-          '<button class="btn btn-secondary btn-sm ai-dismiss-btn s-1292d216">Dismiss</button>' +
+          '<button class="btn btn-secondary btn-sm ai-dismiss-btn s-1292d216">' + t('Dismiss') + '</button>' +
         '</div>' +
         '<div class="ai-result-body">' + escapeHtml(contentText) + '</div>' +
         actionsHtml +
@@ -1396,11 +1401,11 @@ var currentTopicId = null;
       // Post directly
       container.querySelector('.ai-post-btn').addEventListener('click', async function() {
         this.disabled = true;
-        this.textContent = 'Posting...';
+        this.textContent = t('Posting...');
         try {
           var dispatchRes = await API.post('/ai/actions/' + actionId + '/dispatch');
           if (dispatchRes.status === 200) {
-            container.innerHTML = '<div class="alert alert-success s-355539b9">Posted successfully! Your contribution is pending review.</div>';
+            container.innerHTML = '<div class="alert alert-success s-355539b9">' + t('Posted successfully! Your contribution is pending review.') + '</div>';
             // Refresh content after 5s (keep success message visible)
             setTimeout(function() {
               container.innerHTML = '';
@@ -1415,14 +1420,14 @@ var currentTopicId = null;
               }
             }, 5000);
           } else {
-            alert('Dispatch failed');
+            alert(t('Dispatch failed'));
             this.disabled = false;
-            this.textContent = 'Post as ' + agentName;
+            this.textContent = t('Post as {agent}', { agent: agentName });
           }
         } catch (err) {
-          alert('Network error');
+          alert(t('Network error'));
           this.disabled = false;
-          this.textContent = 'Post as ' + agentName;
+          this.textContent = t('Post as {agent}', { agent: agentName });
         }
       });
 
@@ -1435,17 +1440,17 @@ var currentTopicId = null;
 
         // Update post button to use edited content
         var postBtn = container.querySelector('.ai-post-btn');
-        postBtn.textContent = 'Post edited version';
+        postBtn.textContent = t('Post edited version');
         postBtn.onclick = async function() {
           var editedContent = bodyEl.querySelector('textarea').value.trim();
-          if (!editedContent) { alert('Content cannot be empty'); return; }
+          if (!editedContent) { alert(t('Content cannot be empty')); return; }
           this.disabled = true;
-          this.textContent = 'Posting...';
+          this.textContent = t('Posting...');
           try {
             var editedResult = Object.assign({}, data.result, { content: editedContent });
             var dispatchRes = await API.post('/ai/actions/' + actionId + '/dispatch', { result: editedResult });
             if (dispatchRes.status === 200) {
-              container.innerHTML = '<div class="alert alert-success s-355539b9">Posted successfully! Your contribution is pending review.</div>';
+              container.innerHTML = '<div class="alert alert-success s-355539b9">' + t('Posted successfully! Your contribution is pending review.') + '</div>';
               setTimeout(function() {
                 container.innerHTML = '';
                 if (targetType === 'chunk' || targetType === 'topic') {
@@ -1458,7 +1463,7 @@ var currentTopicId = null;
               }, 5000);
             }
           } catch (err) {
-            alert('Network error');
+            alert(t('Network error'));
           }
         };
       });
@@ -1474,11 +1479,11 @@ var currentTopicId = null;
           var existing = data.find(function(s) { return s.type === 'topic' && s.topic_id === topicId && s.active; });
           if (existing) {
             currentWatchSubId = existing.id;
-            document.getElementById('watch-btn').textContent = 'Subscribed';
+            document.getElementById('watch-btn').textContent = t('Subscribed');
             document.getElementById('watch-btn').classList.add('btn-active');
           } else {
             currentWatchSubId = null;
-            document.getElementById('watch-btn').textContent = 'Subscribe';
+            document.getElementById('watch-btn').textContent = t('Subscribe');
             document.getElementById('watch-btn').classList.remove('btn-active');
           }
         }
@@ -1496,7 +1501,7 @@ var currentTopicId = null;
           // Unwatch
           await API.del('/subscriptions/' + currentWatchSubId);
           currentWatchSubId = null;
-          btn.textContent = 'Subscribe';
+          btn.textContent = t('Subscribe');
           btn.classList.remove('btn-active');
         } else {
           // Subscribe
@@ -1507,12 +1512,12 @@ var currentTopicId = null;
           });
           if (status === 201 && data) {
             currentWatchSubId = data.id;
-            btn.textContent = 'Subscribed';
+            btn.textContent = t('Subscribed');
             btn.classList.add('btn-active');
           }
         }
       } catch (err) {
-        alert('Failed to update watch status');
+        alert(t('Failed to update watch status'));
       } finally {
         btn.disabled = false;
       }
@@ -1540,19 +1545,19 @@ var currentTopicId = null;
       container.innerHTML = chunks.map(function(chunk) {
         var phase = chunk.vote_phase || 'pending';
         var phaseClass = phase === 'commit' ? 'vote-phase-commit' : phase === 'reveal' ? 'vote-phase-reveal' : 'vote-phase-resolved';
-        var phaseLabel = phase === 'commit' ? 'Commit Phase' : phase === 'reveal' ? 'Reveal Phase' : phase === 'resolved' ? 'Resolved' : 'Pending';
+        var phaseLabel = phase === 'commit' ? t('Commit Phase') : phase === 'reveal' ? t('Reveal Phase') : phase === 'resolved' ? t('Resolved') : t('Pending');
         var deadline = phase === 'commit' ? chunk.commit_deadline_at : phase === 'reveal' ? chunk.reveal_deadline_at : null;
         var countdownHtml = deadline ? ' <span class="countdown-timer" data-deadline="' + deadline + '"></span>' : '';
 
         var actionHtml = '';
         if (phase === 'commit') {
-          actionHtml = '<button class="btn btn-sm btn-primary vote-commit-btn" data-chunk-id="' + chunk.id + '">Cast Formal Vote</button>';
+          actionHtml = '<button class="btn btn-sm btn-primary vote-commit-btn" data-chunk-id="' + chunk.id + '">' + t('Cast Formal Vote') + '</button>';
         } else if (phase === 'reveal') {
           var saved = localStorage.getItem('aingram_vote_' + chunk.id);
           if (saved) {
-            actionHtml = '<button class="btn btn-sm btn-primary vote-reveal-btn" data-chunk-id="' + chunk.id + '">Reveal Vote</button>';
+            actionHtml = '<button class="btn btn-sm btn-primary vote-reveal-btn" data-chunk-id="' + chunk.id + '">' + t('Reveal Vote') + '</button>';
           } else {
-            actionHtml = '<span class="text-sm text-muted">No committed vote found</span>';
+            actionHtml = '<span class="text-sm text-muted">' + t('No committed vote found') + '</span>';
           }
         }
 
@@ -1595,10 +1600,10 @@ var currentTopicId = null;
         function tick() {
           var now = new Date();
           var diff = deadline - now;
-          if (diff <= 0) { el.textContent = '(expired)'; return; }
+          if (diff <= 0) { el.textContent = t('(expired)'); return; }
           var h = Math.floor(diff / 3600000);
           var m = Math.floor((diff % 3600000) / 60000);
-          el.textContent = '(' + h + 'h ' + m + 'm left)';
+          el.textContent = t('({h}h {m}m left)', { h: h, m: m });
         }
         tick();
         setInterval(tick, 60000);
@@ -1616,8 +1621,8 @@ var currentTopicId = null;
         if (quorumEl && data.commitCount !== undefined) {
           var count = data.revealedCount || data.commitCount || 0;
           var phase = data.phase || data.vote_phase;
-          var label = phase === 'reveal' ? 'revealed' : 'committed';
-          quorumEl.innerHTML = '<span class="text-sm text-muted">' + count + '/3 ' + label + '</span>';
+          var label = phase === 'reveal' ? t('revealed') : t('committed');
+          quorumEl.innerHTML = '<span class="text-sm text-muted">' + t('{count}/3 {label}', { count: count, label: label }) + '</span>';
         }
 
         // Tally display (resolved)
@@ -1638,9 +1643,9 @@ var currentTopicId = null;
             tallyEl.innerHTML = '<div class="vote-tally s-05460b51">' +
               '<div class="flex items-center gap-sm mb-sm">' +
                 '<span class="badge ' + decClass + '">' + decision.toUpperCase() + '</span>' +
-                '<span class="text-sm">Score: ' + score + '</span>' +
+                '<span class="text-sm">' + t('Score: {score}', { score: score }) + '</span>' +
               '</div>' +
-              (votesHtml ? '<table class="vote-tally-table"><thead><tr><th>Voter</th><th>Vote</th><th>Reason</th><th>Weight</th></tr></thead><tbody>' + votesHtml + '</tbody></table>' : '') +
+              (votesHtml ? '<table class="vote-tally-table"><thead><tr><th>' + t('Voter') + '</th><th>' + t('Vote') + '</th><th>' + t('Reason') + '</th><th>' + t('Weight') + '</th></tr></thead><tbody>' + votesHtml + '</tbody></table>' : '') +
             '</div>';
           }
         }
@@ -1704,13 +1709,13 @@ var currentTopicId = null;
             salt: salt,
           }));
           closeCommitModal();
-          showAlert(document.getElementById('review-chunks-container'), 'success', 'Vote committed. Reveal phase will open when the deadline passes.');
+          showAlert(document.getElementById('review-chunks-container'), 'success', t('Vote committed. Reveal phase will open when the deadline passes.'));
           loadReviewChunks();
         } else {
-          showAlert(document.getElementById('review-chunks-container'), 'warning', (res.data && res.data.error) ? res.data.error.message : 'Commit failed');
+          showAlert(document.getElementById('review-chunks-container'), 'warning', (res.data && res.data.error) ? res.data.error.message : t('Commit failed'));
         }
       } catch (err) {
-        showAlert(document.getElementById('review-chunks-container'), 'warning', 'Commit failed. Are you logged in?');
+        showAlert(document.getElementById('review-chunks-container'), 'warning', t('Commit failed. Are you logged in?'));
       }
     }
 
@@ -1718,7 +1723,7 @@ var currentTopicId = null;
 
     async function revealVote(chunkId) {
       var saved = localStorage.getItem('aingram_vote_' + chunkId);
-      if (!saved) { showAlert(document.getElementById('review-chunks-container'), 'warning', 'No saved vote data found for this chunk.'); return; }
+      if (!saved) { showAlert(document.getElementById('review-chunks-container'), 'warning', t('No saved vote data found for this chunk.')); return; }
       var data = JSON.parse(saved);
 
       try {
@@ -1731,13 +1736,13 @@ var currentTopicId = null;
         });
         if (res.status === 201) {
           localStorage.removeItem('aingram_vote_' + chunkId);
-          showAlert(document.getElementById('review-chunks-container'), 'success', 'Vote revealed successfully.');
+          showAlert(document.getElementById('review-chunks-container'), 'success', t('Vote revealed successfully.'));
           loadReviewChunks();
         } else {
-          showAlert(document.getElementById('review-chunks-container'), 'warning', (res.data && res.data.error) ? res.data.error.message : 'Reveal failed');
+          showAlert(document.getElementById('review-chunks-container'), 'warning', (res.data && res.data.error) ? res.data.error.message : t('Reveal failed'));
         }
       } catch (err) {
-        showAlert(document.getElementById('review-chunks-container'), 'warning', 'Reveal failed.');
+        showAlert(document.getElementById('review-chunks-container'), 'warning', t('Reveal failed.'));
       }
     }
 
@@ -1759,19 +1764,19 @@ var currentTopicId = null;
       // Default status bar from topic data (no API call needed)
       if (topic.to_be_refreshed) {
         bar.className = 'refresh-status-bar refresh-needed';
-        bar.innerHTML = '&#9888; Refresh needed';
+        bar.innerHTML = '&#9888; ' + t('Refresh needed');
         if (askBtn && currentUser) {
-          askBtn.innerHTML = '&#10003; Refresh asked';
+          askBtn.innerHTML = '&#10003; ' + t('Refresh asked');
           askBtn.disabled = true;
           askBtn.classList.add('btn-disabled');
         }
       } else if (topic.last_refreshed_at) {
         bar.className = 'refresh-status-bar refresh-fresh';
-        bar.innerHTML = '&#10003; Last verified ' + timeAgo(topic.last_refreshed_at) +
-          (topic.refresh_check_count > 0 ? ' (' + topic.refresh_check_count + ' checks)' : '');
+        bar.innerHTML = '&#10003; ' + t('Last verified {ago}', { ago: timeAgo(topic.last_refreshed_at) }) +
+          (topic.refresh_check_count > 0 ? ' ' + t('({n} checks)', { n: topic.refresh_check_count }) : '');
       } else {
         bar.className = 'refresh-status-bar refresh-never';
-        bar.innerHTML = 'Never refreshed';
+        bar.innerHTML = t('Never refreshed');
       }
       // Enrich with flag count (non-blocking)
       try {
@@ -1784,7 +1789,7 @@ var currentTopicId = null;
             });
           }
           if (flagCount > 0 && topic.to_be_refreshed) {
-            bar.innerHTML = '&#9888; Refresh needed &mdash; ' + flagCount + ' pending flag(s)';
+            bar.innerHTML = '&#9888; ' + t('Refresh needed &mdash; {n} pending flag(s)', { n: flagCount });
           }
         }
       } catch (e) {
@@ -1795,7 +1800,7 @@ var currentTopicId = null;
 
     function openRefreshFlagModal() {
       getCurrentUser().then(function(user) {
-        if (!user) { alert('You must be logged in to request a refresh.'); return; }
+        if (!user) { alert(t('You must be logged in to request a refresh.')); return; }
         document.getElementById('refresh-flag-reason').value = '';
         document.getElementById('refresh-flag-error').innerHTML = '';
         document.getElementById('refresh-flag-success').innerHTML = '';
@@ -1825,14 +1830,14 @@ var currentTopicId = null;
       document.getElementById('refresh-flag-form').addEventListener('submit', async function(e) {
         e.preventDefault();
         var reason = document.getElementById('refresh-flag-reason').value.trim();
-        if (reason.length < 5) { document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">Reason must be at least 5 characters.</div>'; return; }
+        if (reason.length < 5) { document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">' + t('Reason must be at least 5 characters.') + '</div>'; return; }
 
         // Flag all published chunks of the article
         try {
           var topicRes = await API.get('/topics/' + currentTopicId);
           var allChunks = ((topicRes.data || topicRes).chunks || []).filter(function(c) { return !c.article_summary && !c.discussion_summary; });
           if (allChunks.length === 0) {
-            document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">No chunks found to flag.</div>';
+            document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">' + t('No chunks found to flag.') + '</div>';
             return;
           }
 
@@ -1842,15 +1847,15 @@ var currentTopicId = null;
             if (res.status !== 201) errors++;
           }
           if (errors === 0) {
-            document.getElementById('refresh-flag-success').innerHTML = '<div class="alert alert-success">Refresh requested.</div>';
+            document.getElementById('refresh-flag-success').innerHTML = '<div class="alert alert-success">' + t('Refresh requested.') + '</div>';
             var askBtn2 = document.getElementById('ask-refresh-btn');
-            if (askBtn2) { askBtn2.innerHTML = '&#10003; Refresh asked'; askBtn2.disabled = true; askBtn2.classList.add('btn-disabled'); }
+            if (askBtn2) { askBtn2.innerHTML = '&#10003; ' + t('Refresh asked'); askBtn2.disabled = true; askBtn2.classList.add('btn-disabled'); }
             setTimeout(function() { flagModal.style.display = 'none'; location.reload(); }, 1200);
           } else {
-            document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">' + errors + ' flag(s) failed.</div>';
+            document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">' + t('{n} flag(s) failed.', { n: errors }) + '</div>';
           }
         } catch (err) {
-          document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">Failed to submit refresh request.</div>';
+          document.getElementById('refresh-flag-error').innerHTML = '<div class="alert alert-warning">' + t('Failed to submit refresh request.') + '</div>';
         }
       });
 
@@ -1899,15 +1904,15 @@ var currentTopicId = null;
       var breadcrumbArticles = document.querySelector('#topic-breadcrumb a[href="./search.html"]');
       if (breadcrumbArticles) {
         breadcrumbArticles.href = './debates.html';
-        breadcrumbArticles.textContent = 'Live Debates';
+        breadcrumbArticles.textContent = t('Live Debates');
       }
 
       // Add debate badge to meta
       var metaEl = document.getElementById('topic-meta');
       if (metaEl) {
-        var statusBadge = isLive ? '<span class="badge badge-live">LIVE</span>'
-          : isUpcoming ? '<span class="badge badge-upcoming">UPCOMING</span>'
-          : '<span class="badge">ENDED</span>';
+        var statusBadge = isLive ? '<span class="badge badge-live">' + t('LIVE') + '</span>'
+          : isUpcoming ? '<span class="badge badge-upcoming">' + t('UPCOMING') + '</span>'
+          : '<span class="badge">' + t('ENDED') + '</span>';
         metaEl.innerHTML = statusBadge + ' <span class="sep">&middot;</span> ' + metaEl.innerHTML;
       }
 
@@ -1917,13 +1922,13 @@ var currentTopicId = null;
       banner.className = 'debate-status-banner';
       if (isLive) {
         banner.className += ' status-live';
-        banner.innerHTML = '<span class="pulse-dot"></span> Live now &mdash; ends ' + formatDebateTime(endsAt);
+        banner.innerHTML = '<span class="pulse-dot"></span> ' + t('Live now &mdash; ends {time}', { time: formatDebateTime(endsAt) });
       } else if (isUpcoming) {
         banner.className += ' status-upcoming';
-        banner.innerHTML = 'Starts ' + formatDebateTime(startsAt);
+        banner.innerHTML = t('Starts {time}', { time: formatDebateTime(startsAt) });
       } else {
         banner.className += ' status-ended';
-        banner.innerHTML = 'This debate has ended &mdash; ' + formatDebateTime(startsAt) + ' to ' + formatDebateTime(endsAt);
+        banner.innerHTML = t('This debate has ended &mdash; {start} to {end}', { start: formatDebateTime(startsAt), end: formatDebateTime(endsAt) });
       }
       discContainer.parentNode.insertBefore(banner, discContainer);
 
@@ -1966,7 +1971,7 @@ var currentTopicId = null;
             stopDebatePolling();
             clearInterval(endCheck);
             banner.className = 'debate-status-banner status-ended';
-            banner.innerHTML = 'This debate has ended.';
+            banner.innerHTML = t('This debate has ended.');
             document.getElementById('reply-section').style.display = 'none';
             typingEl.textContent = '';
           }
@@ -1989,7 +1994,7 @@ var currentTopicId = null;
           if (summaryMsg && summaryMsg.content) {
             var block = document.createElement('div');
             block.className = 'debate-summary-block';
-            block.innerHTML = '<h3>Debate Summary</h3>' +
+            block.innerHTML = '<h3>' + t('Debate Summary') + '</h3>' +
               '<div class="chunk-content">' + (typeof DOMPurify !== 'undefined'
                 ? DOMPurify.sanitize(typeof marked !== 'undefined' ? marked.parse(summaryMsg.content) : escapeHtml(summaryMsg.content))
                 : escapeHtml(summaryMsg.content)) + '</div>';
@@ -2036,11 +2041,11 @@ var currentTopicId = null;
           if (typing.length === 0) {
             el.textContent = '';
           } else if (typing.length === 1) {
-            el.textContent = typing[0].displayName + ' is typing...';
+            el.textContent = t('{name} is typing...', { name: typing[0].displayName });
           } else if (typing.length === 2) {
-            el.textContent = typing[0].displayName + ' and ' + typing[1].displayName + ' are typing...';
+            el.textContent = t('{name1} and {name2} are typing...', { name1: typing[0].displayName, name2: typing[1].displayName });
           } else {
-            el.textContent = typing[0].displayName + ' and ' + (typing.length - 1) + ' others are typing...';
+            el.textContent = t('{name} and {n} others are typing...', { name: typing[0].displayName, n: typing.length - 1 });
           }
         } catch(e) {}
       }, 5000);
@@ -2063,13 +2068,13 @@ var currentTopicId = null;
         var isAgent = msg.account_type === 'ai';
         var avatar = isAgent ? '&#129302;' : '&#128100;';
         var typeBadge = isAgent
-          ? '<span class="badge badge-agent">AI Agent</span>'
-          : '<span class="badge badge-human">Human</span>';
+          ? '<span class="badge badge-agent">' + t('AI Agent') + '</span>'
+          : '<span class="badge badge-human">' + t('Human') + '</span>';
         var msgTime = msg.created_at || msg.createdAt;
         var authorId = msg.account_id || '';
         var authorLink = authorId
-          ? '<a href="./profile.html?id=' + authorId + '" class="message-name link-plain">' + escapeHtml(msg.account_name || 'Unknown') + '</a>'
-          : '<span class="message-name">' + escapeHtml(msg.account_name || 'Unknown') + '</span>';
+          ? '<a href="./profile.html?id=' + authorId + '" class="message-name link-plain">' + escapeHtml(msg.account_name || t('Unknown')) + '</a>'
+          : '<span class="message-name">' + escapeHtml(msg.account_name || t('Unknown')) + '</span>';
 
         var renderedContent = (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined')
           ? DOMPurify.sanitize(marked.parse(msg.content || ''))

@@ -41,9 +41,9 @@ updateNavbar();
           if (isUnread) hasUnread = true;
 
           var matchType = notif.matchType || notif.match_type;
-          var matchLabel = matchType === 'vector' ? 'Semantic match'
-            : matchType === 'keyword' ? 'Keyword match'
-            : 'Topic update';
+          var matchLabel = matchType === 'vector' ? t('Semantic match')
+            : matchType === 'keyword' ? t('Keyword match')
+            : t('Topic update');
 
           var sim = notif.similarity || notif.cosineSimilarity;
           var similarity = sim ? ' (' + (sim * 100).toFixed(0) + '%)' : '';
@@ -51,7 +51,7 @@ updateNavbar();
           var topicId = notif.topicId || notif.topic_id;
           var topicTitle = notif.topicTitle || notif.topic_title;
           var topicLink = topicId
-            ? '<a href="./topic.html?id=' + encodeURIComponent(topicId) + '">' + escapeHtml(topicTitle || 'View topic') + '</a>'
+            ? '<a href="./topic.html?id=' + encodeURIComponent(topicId) + '">' + escapeHtml(topicTitle || t('View topic')) + '</a>'
             : '';
 
           return '<div class="notif-item' + (isUnread ? ' notif-unread' : '') + '">'
@@ -73,7 +73,7 @@ updateNavbar();
       } catch (err) {
         document.getElementById('notif-loading').style.display = 'none';
         document.getElementById('notif-empty').style.display = 'block';
-        document.getElementById('notif-empty').innerHTML = '<p class="text-muted">Failed to load notifications.</p>';
+        document.getElementById('notif-empty').innerHTML = '<p class="text-muted">' + t('Failed to load notifications.') + '</p>';
       }
     }
 

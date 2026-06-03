@@ -4,10 +4,10 @@ function escapeHtml(str) { var d = document.createElement('div'); d.textContent 
 
 function timeAgo(d) {
   var s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return Math.floor(s / 60) + 'm ago';
-  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
-  return Math.floor(s / 86400) + 'd ago';
+  if (s < 60) return t('just now');
+  if (s < 3600) return t('{n}m ago', { n: Math.floor(s / 60) });
+  if (s < 86400) return t('{n}h ago', { n: Math.floor(s / 3600) });
+  return t('{n}d ago', { n: Math.floor(s / 86400) });
 }
 
 function formatDate(iso) {
@@ -18,7 +18,7 @@ function formatDate(iso) {
 
 function countdown(iso) {
   var diff = new Date(iso).getTime() - Date.now();
-  if (diff <= 0) return 'starting...';
+  if (diff <= 0) return t('starting...');
   var h = Math.floor(diff / 3600000);
   var m = Math.floor((diff % 3600000) / 60000);
   if (h > 24) return Math.floor(h / 24) + 'd ' + (h % 24) + 'h';
@@ -29,29 +29,29 @@ function countdown(iso) {
 function renderLiveCard(d) {
   return '<a href="./topic.html?slug=' + encodeURIComponent(d.topicSlug) + '&lang=' + d.topicLang + '" class="card topic-card debate-card debate-live">' +
     '<div class="flex items-center gap-sm mb-sm">' +
-      '<span class="badge badge-live">LIVE</span>' +
+      '<span class="badge badge-live">' + t('LIVE') + '</span>' +
       '<span class="badge badge-lang">' + escapeHtml((d.topicLang || 'en').toUpperCase()) + '</span>' +
       (d.category !== 'uncategorized' ? '<span class="badge">' + escapeHtml(d.category) + '</span>' : '') +
     '</div>' +
     '<h3 class="topic-card-title">' + escapeHtml(d.topicTitle) + '</h3>' +
     '<p class="text-sm text-muted">' +
-      d.messageCount + ' messages &middot; ' +
-      d.participantCount + ' participants' +
+      t('{n} messages', { n: d.messageCount }) + ' &middot; ' +
+      t('{n} participants', { n: d.participantCount }) +
     '</p>' +
-    '<p class="text-xs u-color-success">Ends ' + formatDate(d.endsAt) + '</p>' +
+    '<p class="text-xs u-color-success">' + t('Ends {date}', { date: formatDate(d.endsAt) }) + '</p>' +
   '</a>';
 }
 
 function renderUpcomingCard(d) {
   return '<a href="./topic.html?slug=' + encodeURIComponent(d.topicSlug) + '&lang=' + d.topicLang + '" class="card topic-card debate-card">' +
     '<div class="flex items-center gap-sm mb-sm">' +
-      '<span class="badge badge-upcoming">UPCOMING</span>' +
+      '<span class="badge badge-upcoming">' + t('UPCOMING') + '</span>' +
       '<span class="badge badge-lang">' + escapeHtml((d.topicLang || 'en').toUpperCase()) + '</span>' +
       (d.category !== 'uncategorized' ? '<span class="badge">' + escapeHtml(d.category) + '</span>' : '') +
     '</div>' +
     '<h3 class="topic-card-title">' + escapeHtml(d.topicTitle) + '</h3>' +
     '<p class="text-sm text-muted">' + formatDate(d.startsAt) + '</p>' +
-    '<p class="text-xs u-color-warning">Starts in ' + countdown(d.startsAt) + '</p>' +
+    '<p class="text-xs u-color-warning">' + t('Starts in {time}', { time: countdown(d.startsAt) }) + '</p>' +
   '</a>';
 }
 
@@ -59,15 +59,15 @@ function renderEndedCard(d) {
   var summaryPreview = d.summary ? escapeHtml(d.summary.slice(0, 150)) + (d.summary.length > 150 ? '...' : '') : '';
   return '<a href="./topic.html?slug=' + encodeURIComponent(d.topicSlug) + '&lang=' + d.topicLang + '" class="card topic-card debate-card">' +
     '<div class="flex items-center gap-sm mb-sm">' +
-      '<span class="badge">ENDED</span>' +
+      '<span class="badge">' + t('ENDED') + '</span>' +
       '<span class="badge badge-lang">' + escapeHtml((d.topicLang || 'en').toUpperCase()) + '</span>' +
       (d.category !== 'uncategorized' ? '<span class="badge">' + escapeHtml(d.category) + '</span>' : '') +
     '</div>' +
     '<h3 class="topic-card-title">' + escapeHtml(d.topicTitle) + '</h3>' +
     (summaryPreview ? '<p class="text-sm text-muted mb-sm">' + summaryPreview + '</p>' : '') +
     '<p class="text-xs text-muted">' +
-      d.messageCount + ' messages &middot; ' +
-      d.participantCount + ' participants &middot; ' +
+      t('{n} messages', { n: d.messageCount }) + ' &middot; ' +
+      t('{n} participants', { n: d.participantCount }) + ' &middot; ' +
       formatDate(d.endsAt) +
     '</p>' +
   '</a>';
@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       emptyEl.classList.remove('u-hidden');
     }
   } catch (err) {
-    emptyEl.innerHTML = '<p class="text-muted">Could not load live debates.</p>';
+    emptyEl.innerHTML = '<p class="text-muted">' + t('Could not load live debates.') + '</p>';
     emptyEl.classList.remove('u-hidden');
   }
 });

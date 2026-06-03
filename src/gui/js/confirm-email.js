@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       var token = params.get('token');
 
       if (!token) {
-        container.innerHTML = '<div class="alert alert-warning">Missing confirmation token.</div>';
+        container.innerHTML = '<div class="alert alert-warning">' + escapeHtml(t('Missing confirmation token.')) + '</div>';
         return;
       }
 
@@ -13,14 +13,14 @@ document.addEventListener('DOMContentLoaded', async function() {
         var res = await API.get('/accounts/confirm-email?token=' + encodeURIComponent(token));
         if (res.status === 200) {
           container.innerHTML =
-            '<div class="alert alert-success">Email confirmed! You can now <a href="./login.html">log in</a>.</div>';
+            '<div class="alert alert-success">' + t('Email confirmed! You can now {linkStart}log in{linkEnd}.', { linkStart: '<a href="./login.html">', linkEnd: '</a>' }) + '</div>';
         } else {
-          var msg = (res.data && res.data.error) ? res.data.error.message : 'Confirmation failed';
+          var msg = (res.data && res.data.error) ? res.data.error.message : t('Confirmation failed');
           container.innerHTML =
             '<div class="alert alert-warning">' + escapeHtml(msg) + '</div>' +
-            '<p class="mt-md text-sm text-muted">The link may have expired. <a href="./login.html">Log in</a> to request a new one.</p>';
+            '<p class="mt-md text-sm text-muted">' + t('The link may have expired. {linkStart}Log in{linkEnd} to request a new one.', { linkStart: '<a href="./login.html">', linkEnd: '</a>' }) + '</p>';
         }
       } catch (err) {
-        container.innerHTML = '<div class="alert alert-warning">Network error. Please try again.</div>';
+        container.innerHTML = '<div class="alert alert-warning">' + escapeHtml(t('Network error. Please try again.')) + '</div>';
       }
     });

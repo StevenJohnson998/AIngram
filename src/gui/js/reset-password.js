@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       if (!token) {
         document.getElementById('reset-form').style.display = 'none';
-        showAlert(document.getElementById('reset-error'), 'warning', 'Missing reset token. Request a new link from the login page.');
+        showAlert(document.getElementById('reset-error'), 'warning', t('Missing reset token. Request a new link from the login page.'));
         return;
       }
 
@@ -15,13 +15,13 @@ document.addEventListener('DOMContentLoaded', function() {
         var confirm = document.getElementById('confirm-password').value;
 
         if (password !== confirm) {
-          showAlert(document.getElementById('reset-error'), 'warning', 'Passwords do not match.');
+          showAlert(document.getElementById('reset-error'), 'warning', t('Passwords do not match.'));
           return;
         }
 
         var btn = document.getElementById('reset-btn');
         btn.disabled = true;
-        btn.textContent = 'Resetting...';
+        btn.textContent = t('Resetting...');
 
         try {
           var res = await API.put('/accounts/reset-password', { token: token, password: password });
@@ -29,16 +29,16 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('reset-form').style.display = 'none';
             document.getElementById('reset-success').style.display = 'block';
             document.getElementById('reset-success').innerHTML =
-              '<div class="alert alert-success">Password reset! You can now <a href="./login.html">log in</a>.</div>';
+              '<div class="alert alert-success">' + t('Password reset! You can now {linkStart}log in{linkEnd}.', { linkStart: '<a href="./login.html">', linkEnd: '</a>' }) + '</div>';
           } else {
-            var msg = (res.data && res.data.error) ? res.data.error.message : 'Reset failed';
+            var msg = (res.data && res.data.error) ? res.data.error.message : t('Reset failed');
             showAlert(document.getElementById('reset-error'), 'warning', msg);
           }
         } catch (err) {
-          showAlert(document.getElementById('reset-error'), 'warning', 'Network error. Please try again.');
+          showAlert(document.getElementById('reset-error'), 'warning', t('Network error. Please try again.'));
         }
 
         btn.disabled = false;
-        btn.textContent = 'Set new password';
+        btn.textContent = t('Set new password');
       });
     });

@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (localStorage.getItem('aingram_just_registered') === '1') {
         localStorage.removeItem('aingram_just_registered');
         showAlert(document.getElementById('login-error'), 'success',
-          'Account created. Check your inbox to confirm your email, then log in below.');
+          t('Account created. Check your inbox to confirm your email, then log in below.'));
       }
 
       // Collapsibles
@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         var btn = document.getElementById('login-btn');
         btn.disabled = true;
-        btn.textContent = 'Logging in...';
+        btn.textContent = t('Logging in...');
         document.getElementById('login-error').innerHTML = '';
 
         var email = document.getElementById('email').value;
@@ -53,30 +53,30 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('login-error').innerHTML =
               '<div class="alert alert-warning">' +
                 escapeHtml(res.data.error.message) +
-                ' <button class="btn btn-secondary btn-sm" id="resend-confirm-btn" class="s-49534fcf">Resend confirmation email</button>' +
+                ' <button class="btn btn-secondary btn-sm" id="resend-confirm-btn" class="s-49534fcf">' + escapeHtml(t('Resend confirmation email')) + '</button>' +
               '</div>';
             document.getElementById('resend-confirm-btn').addEventListener('click', async function() {
               this.disabled = true;
-              this.textContent = 'Sending...';
+              this.textContent = t('Sending...');
               try {
                 await API.post('/accounts/resend-confirmation', { email: email });
                 document.getElementById('login-error').innerHTML =
-                  '<div class="alert alert-success">Confirmation email sent! Check your inbox.</div>';
+                  '<div class="alert alert-success">' + escapeHtml(t('Confirmation email sent! Check your inbox.')) + '</div>';
               } catch (err2) {
-                this.textContent = 'Resend confirmation email';
+                this.textContent = t('Resend confirmation email');
                 this.disabled = false;
               }
             });
           } else {
-            var msg = (res.data && res.data.error) ? res.data.error.message : 'Login failed';
+            var msg = (res.data && res.data.error) ? res.data.error.message : t('Login failed');
             showAlert(document.getElementById('login-error'), 'warning', msg);
           }
         } catch (err) {
-          showAlert(document.getElementById('login-error'), 'warning', 'Network error. Please try again.');
+          showAlert(document.getElementById('login-error'), 'warning', t('Network error. Please try again.'));
         }
 
         btn.disabled = false;
-        btn.textContent = 'Login';
+        btn.textContent = t('Login');
       });
 
       // Forgot password toggle
@@ -93,9 +93,9 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
           var res = await API.post('/accounts/reset-password', { email: email });
           showAlert(document.getElementById('forgot-message'), 'success',
-            'If an account exists with this email, a reset link has been sent.');
+            t('If an account exists with this email, a reset link has been sent.'));
         } catch (err) {
-          showAlert(document.getElementById('forgot-message'), 'warning', 'Something went wrong.');
+          showAlert(document.getElementById('forgot-message'), 'warning', t('Something went wrong.'));
         }
       });
     });

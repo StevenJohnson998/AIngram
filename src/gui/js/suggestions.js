@@ -12,17 +12,17 @@ let currentPage = 1;
         new_feature: '#f59e0b', documentation: '#8b5cf6', other: '#6b7280'
       };
       const labels = {
-        governance: 'Governance', ui_ux: 'UI/UX', technical: 'Technical',
-        new_feature: 'New Feature', documentation: 'Documentation', other: 'Other'
+        governance: t('Governance'), ui_ux: t('UI/UX'), technical: t('Technical'),
+        new_feature: t('New Feature'), documentation: t('Documentation'), other: t('Other')
       };
       const c = colors[cat] || '#6b7280';
       return '<span class="s-dcf9ee87">' + (labels[cat] || cat) + '</span>';
     }
 
     function statusBadge(status) {
-      if (status === 'published') return '<span class="badge badge-success" title="Community-approved recommendation. Implementation at maintainer discretion.">Approved</span>';
-      if (status === 'under_review') return '<span class="badge badge-warning">Under Review</span>';
-      if (status === 'retracted') return '<span class="badge badge-danger">Retracted</span>';
+      if (status === 'published') return '<span class="badge badge-success" title="' + t('Community-approved recommendation. Implementation at maintainer discretion.') + '">' + t('Approved') + '</span>';
+      if (status === 'under_review') return '<span class="badge badge-warning">' + t('Under Review') + '</span>';
+      if (status === 'retracted') return '<span class="badge badge-danger">' + t('Retracted') + '</span>';
       return '<span class="badge">' + status + '</span>';
     }
 
@@ -38,13 +38,13 @@ let currentPage = 1;
         const items = res.data || [];
         const total = res.pagination ? res.pagination.total : items.length;
 
-        document.getElementById('suggestion-count').textContent = total + ' suggestion(s)';
+        document.getElementById('suggestion-count').textContent = t('{n} suggestion(s)', { n: total });
 
         const container = document.getElementById('suggestions-list');
         if (!append) container.innerHTML = '';
 
         if (items.length === 0 && !append) {
-          container.innerHTML = '<p class="text-muted">No suggestions found.</p>';
+          container.innerHTML = '<p class="text-muted">' + t('No suggestions found.') + '</p>';
         }
 
         for (const s of items) {
@@ -59,15 +59,15 @@ let currentPage = 1;
             '    <div class="s-be1d6f45">',
             '      ' + categoryBadge(s.suggestion_category),
             '      ' + statusBadge(s.status),
-            '      <span class="text-sm text-muted">by ' + escapeHtml(s.author_name || 'Unknown') + '</span>',
+            '      <span class="text-sm text-muted">' + t('by {name}', { name: escapeHtml(s.author_name || t('Unknown')) }) + '</span>',
             '      <span class="text-sm text-muted">' + new Date(s.created_at).toLocaleDateString() + '</span>',
             '    </div>',
             '  </div>',
             '</div>',
             '<p class="s-05460b51">' + escapeHtml(s.content.substring(0, 300)) + (s.content.length > 300 ? '...' : '') + '</p>',
-            s.rationale ? '<p class="text-sm text-muted s-c15f7cfa"><strong>Rationale:</strong> ' + escapeHtml(s.rationale.substring(0, 200)) + '</p>' : '',
+            s.rationale ? '<p class="text-sm text-muted s-c15f7cfa"><strong>' + t('Rationale:') + '</strong> ' + escapeHtml(s.rationale.substring(0, 200)) + '</p>' : '',
             '<div class="s-05460b51">',
-            '  <a href="./topic.html?slug=' + (s.topic_slug || '') + '" class="text-sm">View topic</a>',
+            '  <a href="./topic.html?slug=' + (s.topic_slug || '') + '" class="text-sm">' + t('View topic') + '</a>',
             '</div>',
           ].join('\n');
           container.appendChild(card);
@@ -81,7 +81,7 @@ let currentPage = 1;
       } catch (err) {
         document.getElementById('suggestions-loading').style.display = 'none';
         document.getElementById('suggestions-error').style.display = 'block';
-        document.getElementById('suggestions-error').innerHTML = '<p class="text-muted">Failed to load suggestions.</p>';
+        document.getElementById('suggestions-error').innerHTML = '<p class="text-muted">' + t('Failed to load suggestions.') + '</p>';
       }
     }
 
@@ -94,7 +94,7 @@ let currentPage = 1;
       try {
         const res = await API.get('/v1/topics?limit=100');
         const select = document.getElementById('sug-topic');
-        select.innerHTML = '<option value="">Select topic...</option>';
+        select.innerHTML = '<option value="">' + t('Select topic...') + '</option>';
         for (const t of (res.data || [])) {
           const opt = document.createElement('option');
           opt.value = t.id;
@@ -119,17 +119,17 @@ let currentPage = 1;
       };
 
       if (!body.content || body.content.length < 20) {
-        errEl.textContent = 'Proposal must be at least 20 characters.';
+        errEl.textContent = t('Proposal must be at least 20 characters.');
         errEl.style.display = 'block';
         return;
       }
       if (!body.suggestionCategory) {
-        errEl.textContent = 'Please select a category.';
+        errEl.textContent = t('Please select a category.');
         errEl.style.display = 'block';
         return;
       }
       if (!body.topicId) {
-        errEl.textContent = 'Please select a topic.';
+        errEl.textContent = t('Please select a topic.');
         errEl.style.display = 'block';
         return;
       }
@@ -137,7 +137,7 @@ let currentPage = 1;
       try {
         const res = await API.post('/v1/suggestions', body);
         if (res.status >= 400) {
-          throw new Error(res.error?.message || 'Failed to submit');
+          throw new Error(res.error?.message || t('Failed to submit'));
         }
         toggleForm();
         document.getElementById('sug-title').value = '';

@@ -10,13 +10,13 @@
   async function init() {
     const me = await API.get('/accounts/me');
     if (me.status !== 200) {
-      showError('You must be logged in to access the admin dashboard.');
+      showError(t('You must be logged in to access the admin dashboard.'));
       return;
     }
     const account = me.data;
     const isAdmin = account.is_instance_admin || account.badge_policing;
     if (!isAdmin) {
-      showError('Admin access required (instance admin or policing badge).');
+      showError(t('Admin access required (instance admin or policing badge).'));
       return;
     }
 
@@ -68,17 +68,17 @@
   async function loadStats() {
     const res = await API.get('/admin/stats');
     if (res.status !== 200) {
-      document.getElementById('stats-grid').innerHTML = '<p class="text-error">Failed to load stats</p>';
+      document.getElementById('stats-grid').innerHTML = '<p class="text-error">' + t('Failed to load stats') + '</p>';
       return;
     }
     const s = res.data;
     const cards = [
-      { label: 'Ban reviews pending', value: s.ban_reviews_pending, urgent: s.ban_reviews_pending > 0 },
-      { label: 'Escalated to human', value: s.ban_reviews_escalated, urgent: s.ban_reviews_escalated > 0 },
-      { label: 'Open flags (all)', value: s.flags_open },
-      { label: 'Active bans', value: s.active_bans },
-      { label: 'Bans (last 24h)', value: s.bans_last_24h },
-      { label: 'Bans (last 7 days)', value: s.bans_last_7d },
+      { label: t('Ban reviews pending'), value: s.ban_reviews_pending, urgent: s.ban_reviews_pending > 0 },
+      { label: t('Escalated to human'), value: s.ban_reviews_escalated, urgent: s.ban_reviews_escalated > 0 },
+      { label: t('Open flags (all)'), value: s.flags_open },
+      { label: t('Active bans'), value: s.active_bans },
+      { label: t('Bans (last 24h)'), value: s.bans_last_24h },
+      { label: t('Bans (last 7 days)'), value: s.bans_last_7d },
     ];
     document.getElementById('stats-grid').innerHTML = cards.map(c =>
       `<div class="stat-card"><div class="stat-label">${escapeHtml(c.label)}</div><div class="stat-value">${c.value}</div></div>`
@@ -95,25 +95,25 @@
     const res = await API.get('/admin/ban-reviews?status=' + encodeURIComponent(status));
     const list = document.getElementById('ban-reviews-list');
     if (res.status !== 200) {
-      list.innerHTML = '<p class="text-error">Failed to load ban reviews</p>';
+      list.innerHTML = '<p class="text-error">' + t('Failed to load ban reviews') + '</p>';
       return;
     }
     const flags = res.data;
     if (flags.length === 0) {
-      list.innerHTML = '<p class="text-muted">No ban reviews match the current filter.</p>';
+      list.innerHTML = '<p class="text-muted">' + t('No ban reviews match the current filter.') + '</p>';
       return;
     }
     list.innerHTML = flags.map(f => {
-      const accountLabel = (f.account_name || '(unknown)') + (f.owner_email ? ' <' + f.owner_email + '>' : '');
+      const accountLabel = (f.account_name || t('(unknown)')) + (f.owner_email ? ' <' + f.owner_email + '>' : '');
       const age = relativeTime(f.created_at);
       return `<div class="ban-review-row" data-flag-id="${f.flag_id}">
         <div>
           <div><strong>${escapeHtml(accountLabel)}</strong></div>
-          <div class="text-sm text-muted">${escapeHtml(f.reason || '(no reason)').substring(0, 160)}...</div>
+          <div class="text-sm text-muted">${escapeHtml(f.reason || t('(no reason)')).substring(0, 160)}...</div>
         </div>
-        <div class="text-sm">Score: <strong>${Number(f.cumulative_score || 0).toFixed(2)}</strong><br/><span class="text-muted">${f.detection_count} detections</span></div>
-        <div class="text-sm">Age: ${age}<br/><span class="text-muted">${f.review_status || 'pending'}</span></div>
-        <div><span class="ban-review-status ${f.status}">${f.status}</span></div>
+        <div class="text-sm">${t('Score:')} <strong>${Number(f.cumulative_score || 0).toFixed(2)}</strong><br/><span class="text-muted">${t('{n} detections', { n: f.detection_count })}</span></div>
+        <div class="text-sm">${t('Age: {age}', { age: age })}<br/><span class="text-muted">${escapeHtml(t(f.review_status || 'pending'))}</span></div>
+        <div><span class="ban-review-status ${f.status}">${escapeHtml(t(f.status))}</span></div>
       </div>`;
     }).join('');
     list.querySelectorAll('.ban-review-row').forEach(row => {
@@ -125,40 +125,40 @@
     currentFlagId = flagId;
     const modal = document.getElementById('ban-detail-modal');
     const body = document.getElementById('ban-detail-body');
-    body.innerHTML = 'Loading...';
+    body.innerHTML = t('Loading...');
     modal.classList.remove('hidden');
 
     const res = await API.get('/admin/ban-reviews/' + encodeURIComponent(flagId));
     if (res.status !== 200) {
-      body.innerHTML = '<p class="text-error">Failed to load flag detail</p>';
+      body.innerHTML = '<p class="text-error">' + t('Failed to load flag detail') + '</p>';
       return;
     }
     const f = res.data;
     const detections = (f.recent_detections || []).map(d =>
       `<div class="detection-log">
-        <div class="log-meta">score=${Number(d.score).toFixed(2)} field=${escapeHtml(d.field_type)} flags=[${(d.flags || []).map(escapeHtml).join(', ')}] at ${new Date(d.created_at).toLocaleString()}</div>
-        <div class="log-preview">${escapeHtml(d.content_preview || '(no preview)')}</div>
+        <div class="log-meta">${t('score={score} field={field} flags=[{flags}] at {time}', { score: Number(d.score).toFixed(2), field: escapeHtml(d.field_type), flags: (d.flags || []).map(escapeHtml).join(', '), time: new Date(d.created_at).toLocaleString() })}</div>
+        <div class="log-preview">${escapeHtml(d.content_preview || t('(no preview)'))}</div>
       </div>`
     ).join('');
 
     body.innerHTML = `
-      <h3>${escapeHtml(f.account_name || '(unknown account)')}</h3>
-      <p class="text-sm text-muted">${escapeHtml(f.owner_email || '')} &middot; ${escapeHtml(f.account_type)} &middot; created ${new Date(f.account_created_at).toLocaleDateString()}</p>
-      <p><strong>Current status:</strong> flag=${escapeHtml(f.status)}, review_status=${escapeHtml(f.review_status || 'n/a')}</p>
-      <p><strong>Cumulative score:</strong> ${Number(f.cumulative_score || 0).toFixed(2)}</p>
-      <p><strong>Flag created:</strong> ${new Date(f.created_at).toLocaleString()}</p>
-      <p><strong>Reason:</strong><br/>${escapeHtml(f.reason || '(no reason)')}</p>
-      <h4>Recent detections (${(f.recent_detections || []).length})</h4>
-      ${detections || '<p class="text-muted">No detection logs available.</p>'}
+      <h3>${escapeHtml(f.account_name || t('(unknown account)'))}</h3>
+      <p class="text-sm text-muted">${escapeHtml(f.owner_email || '')} &middot; ${escapeHtml(t(f.account_type))} &middot; ${t('created {date}', { date: new Date(f.account_created_at).toLocaleDateString() })}</p>
+      <p><strong>${t('Current status:')}</strong> ${t('flag={status}, review_status={reviewStatus}', { status: escapeHtml(t(f.status)), reviewStatus: escapeHtml(f.review_status ? t(f.review_status) : t('n/a')) })}</p>
+      <p><strong>${t('Cumulative score:')}</strong> ${Number(f.cumulative_score || 0).toFixed(2)}</p>
+      <p><strong>${t('Flag created:')}</strong> ${new Date(f.created_at).toLocaleString()}</p>
+      <p><strong>${t('Reason:')}</strong><br/>${escapeHtml(f.reason || t('(no reason)'))}</p>
+      <h4>${t('Recent detections ({n})', { n: (f.recent_detections || []).length })}</h4>
+      ${detections || '<p class="text-muted">' + t('No detection logs available.') + '</p>'}
     `;
   }
 
   async function handleConfirm() {
     if (!currentFlagId) return;
-    if (!confirm('Confirm ban? This will permanently ban the account and send a notification email.')) return;
+    if (!confirm(t('Confirm ban? This will permanently ban the account and send a notification email.'))) return;
     const res = await API.post('/admin/ban-reviews/' + encodeURIComponent(currentFlagId) + '/confirm', {});
     if (res.status !== 200) {
-      alert('Failed: ' + (res.error?.message || 'unknown error'));
+      alert(t('Failed: {error}', { error: res.error?.message || t('unknown error') }));
       return;
     }
     document.getElementById('ban-detail-modal').classList.add('hidden');
@@ -167,10 +167,10 @@
 
   async function handleDismiss() {
     if (!currentFlagId) return;
-    if (!confirm('Dismiss flag and unblock account? The account score will be reset.')) return;
+    if (!confirm(t('Dismiss flag and unblock account? The account score will be reset.'))) return;
     const res = await API.post('/admin/ban-reviews/' + encodeURIComponent(currentFlagId) + '/dismiss', {});
     if (res.status !== 200) {
-      alert('Failed: ' + (res.error?.message || 'unknown error'));
+      alert(t('Failed: {error}', { error: res.error?.message || t('unknown error') }));
       return;
     }
     document.getElementById('ban-detail-modal').classList.add('hidden');
@@ -190,11 +190,11 @@
   function relativeTime(iso) {
     const diff = Date.now() - new Date(iso).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return mins + 'm ago';
+    if (mins < 1) return t('just now');
+    if (mins < 60) return t('{n}m ago', { n: mins });
     const hours = Math.floor(mins / 60);
-    if (hours < 24) return hours + 'h ago';
-    return Math.floor(hours / 24) + 'd ago';
+    if (hours < 24) return t('{n}h ago', { n: hours });
+    return t('{n}d ago', { n: Math.floor(hours / 24) });
   }
 
   if (document.readyState === 'loading') {

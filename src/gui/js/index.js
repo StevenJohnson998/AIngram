@@ -2,17 +2,8 @@
 document.addEventListener('DOMContentLoaded', async function() {
   updateNavbar();
 
-  var params = new URLSearchParams(window.location.search);
-  var currentLang = params.get('lang') || 'en';
-  var langSelect = document.getElementById('lang-select');
-  if (langSelect) {
-    langSelect.value = currentLang;
-    langSelect.addEventListener('change', function() {
-      var url = new URL(window.location);
-      url.searchParams.set('lang', this.value);
-      window.location.href = url.toString();
-    });
-  }
+  // Language selection (lang-select wiring lives in i18n.js)
+  var currentLang = window.LANG || 'en';
 
   // Welcome banner
   var user = await getCurrentUser();
@@ -22,9 +13,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     var banner = document.createElement('div');
     banner.className = 'alert alert-success';
     banner.style.marginBottom = 'var(--space-lg)';
-    banner.innerHTML = '<strong>Welcome to ' + (typeof BRAND !== 'undefined' ? BRAND.name : 'AILore') + '!</strong> ' +
-      '<a href="./search.html">Explore articles</a> or ' +
-      '<a href="./settings.html#agents">Set up an AI agent</a>.';
+    banner.innerHTML = '<strong>' + t('Welcome to {brand}!', { brand: (typeof BRAND !== 'undefined' ? BRAND.name : 'AILore') }) + '</strong> ' +
+      '<a href="./search.html">' + t('Explore articles') + '</a> ' + t('or') + ' ' +
+      '<a href="./settings.html#agents">' + t('Set up an AI agent') + '</a>.';
     main.prepend(banner);
   }
 
@@ -53,10 +44,10 @@ document.addEventListener('DOMContentLoaded', async function() {
       if (res.status === 200 && res.data && res.data.length > 0) {
         container.innerHTML = res.data.map(renderTopicCard).join('');
       } else {
-        container.innerHTML = '<p class="text-muted">No articles yet. <a href="./new-article.html">Be the first!</a></p>';
+        container.innerHTML = '<p class="text-muted">' + t('No articles yet.') + ' <a href="./new-article.html">' + t('Be the first!') + '</a></p>';
       }
     } catch (err) {
-      container.innerHTML = '<p class="text-muted">Could not load topics.</p>';
+      container.innerHTML = '<p class="text-muted">' + t('Could not load topics.') + '</p>';
     }
   }
 
@@ -121,17 +112,17 @@ document.addEventListener('DOMContentLoaded', async function() {
       if (res.status === 200 && res.data && res.data.length > 0) {
         container.innerHTML = res.data.map(renderTopicCard).join('');
       } else {
-        var emptyMsg = topicType === 'course' ? 'No courses yet.' : 'No articles yet.';
+        var emptyMsg = topicType === 'course' ? t('No courses yet.') : t('No articles yet.');
         container.innerHTML = '<p class="text-muted">' + emptyMsg + '</p>';
       }
     } catch (err) {
-      container.innerHTML = '<p class="text-muted">Could not load topics.</p>';
+      container.innerHTML = '<p class="text-muted">' + t('Could not load topics.') + '</p>';
     }
   }
 
   loadHotTopics('');
 
-  // --- Pinned articles ---
+  // --- Pinned articles (per-language curation) ---
   async function loadFeaturedSection(ids) {
     if (!ids || ids.length === 0) return;
     var section = document.getElementById('pinned-articles');
@@ -142,7 +133,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     for (var i = 0; i < ids.length; i++) {
       try {
         var r = await API.get('/topics/' + ids[i]);
-        if (r.status === 200 && r.data) topics.push(r.data);
+        // Defense in depth: only show pinned articles in the current language,
+        // so a stale/misconfigured list never leaks wrong-language content.
+        if (r.status === 200 && r.data && (r.data.lang || 'en') === currentLang) topics.push(r.data);
       } catch (_e) {}
     }
     if (topics.length === 0) return;
@@ -153,6 +146,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     var rawState = hero.status || 'published';
     var stateMap = { active: 'published', locked: 'superseded' };
     var state = stateMap[rawState] || rawState;
+    var stateLabel = t('status.' + state);
+    if (stateLabel === 'status.' + state) stateLabel = state;
     var catBadge = (hero.category && hero.category !== 'uncategorized')
       ? '<span class="chip">/' + escapeHtml(hero.category) + '</span>' : '';
 
@@ -169,7 +164,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       chunkPreviews = '<div class="featured-chunks">' +
         hero.chunks.slice(0, 3).map(function(c) {
           return '<div class="featured-chunk-preview">' +
-            '<div class="featured-chunk-title">' + escapeHtml(c.title || 'Untitled') + '</div>' +
+            '<div class="featured-chunk-title">' + escapeHtml(c.title || t('Untitled')) + '</div>' +
             trustBadge(c.trust_score || 0) +
           '</div>';
         }).join('') +
@@ -178,7 +173,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     var heroHtml = '<a href="./topic.html?id=' + hero.id + '" class="card card-featured-hero">' +
       '<div class="featured-hero-meta">' +
-        '<span class="pill pill--' + state + '">' + state + '</span>' +
+        '<span class="pill pill--' + state + '">' + stateLabel + '</span>' +
         catBadge +
         '<span class="text-sm text-muted u-ml-auto">' + timeAgo(hero.updated_at || hero.created_at) + '</span>' +
       '</div>' +
@@ -187,7 +182,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       chunkPreviews +
       '<div class="featured-hero-footer">' +
         trustBadge(hero.trust_score || 0) +
-        '<span class="text-sm text-muted">' + (hero.chunk_count || 0) + ' chunks</span>' +
+        '<span class="text-sm text-muted">' + t('{n} chunks', { n: hero.chunk_count || 0 }) + '</span>' +
       '</div>' +
     '</a>';
 
@@ -198,7 +193,12 @@ document.addEventListener('DOMContentLoaded', async function() {
   }
 
   var pinned = (typeof BRAND !== 'undefined' && BRAND.pinned) ? BRAND.pinned : {};
-  loadFeaturedSection(pinned.articles);
+  // Per-language curation: use the language-specific pinned list when present;
+  // for English fall back to the default list; for other languages with no
+  // curated list, show nothing (the section stays hidden).
+  var langPinned = (pinned.byLang && pinned.byLang[currentLang]) ? pinned.byLang[currentLang] : null;
+  var featuredArticles = langPinned ? langPinned.articles : (currentLang === 'en' ? pinned.articles : null);
+  loadFeaturedSection(featuredArticles);
 
   // --- Hero stats + pillar stats (single API call) ---
   try {
@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     var s = infoRes.data && infoRes.data.stats ? infoRes.data.stats : {};
     var total = s.topics || 0;
     var heroStats = document.getElementById('hero-stats');
-    if (heroStats) heroStats.textContent = total + ' published';
+    if (heroStats) heroStats.textContent = t('{n} published', { n: total });
     var statArticles = document.getElementById('stat-articles');
     if (statArticles) statArticles.textContent = total;
     var statReview = document.getElementById('stat-review');
@@ -220,9 +220,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     var statDebatesTotal = document.getElementById('stat-debates-total');
     if (statDebatesTotal) statDebatesTotal.textContent = s.debatesTotal || 0;
     var footerStats = document.getElementById('footer-stats');
-    if (footerStats) footerStats.textContent = total + ' articles · open source';
+    if (footerStats) footerStats.textContent = t('{n} articles · open source', { n: total });
     var heroContrib = document.getElementById('hero-contributors');
-    if (heroContrib) heroContrib.textContent = total + ' articles · open source';
+    if (heroContrib) heroContrib.textContent = t('{n} articles · open source', { n: total });
   } catch (e) {}
 
   // --- Debates ---
@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     var liveCount = filtered.filter(function(d) { return d.debateStatus === 'live'; }).length;
     var heroBtn = document.getElementById('hero-debates-btn');
     if (heroBtn && liveCount > 0) {
-      heroBtn.textContent = 'Live debates · ' + liveCount;
+      heroBtn.textContent = t('Live debates · {n}', { n: liveCount });
     }
 
     var statLive = document.getElementById('stat-debates-live');
@@ -256,7 +256,7 @@ document.addEventListener('DOMContentLoaded', async function() {
           '<div class="debate-card-inner">' +
             '<div class="debate-card-header">' +
               '<div class="live-label">' +
-                (isLive ? '<span class="live-dot"></span><span class="live-tag">LIVE</span>' : '<span class="pill pill--superseded">ended</span>') +
+                (isLive ? '<span class="live-dot"></span><span class="live-tag">' + t('LIVE') + '</span>' : '<span class="pill pill--superseded">' + t('ended') + '</span>') +
                 catChip +
               '</div>' +
               '<span class="timer">' + d.messageCount + ' msg</span>' +
@@ -264,17 +264,17 @@ document.addEventListener('DOMContentLoaded', async function() {
             '<h4 class="debate-card-title">' + escapeHtml(d.topicTitle) + '</h4>' +
             (d.summary ? '<p class="debate-card-thesis">' + escapeHtml(d.summary.substring(0, 120)) + '…</p>' : '') +
             '<div class="debate-card-footer">' +
-              '<span class="participants">' + d.participantCount + ' participants' + (timeLabel ? ' &middot; ' + timeLabel : '') + '</span>' +
-              '<span class="btn btn-sm btn-ghost">' + (isLive ? 'Join →' : 'Transcript') + '</span>' +
+              '<span class="participants">' + t('{n} participants', { n: d.participantCount }) + (timeLabel ? ' &middot; ' + timeLabel : '') + '</span>' +
+              '<span class="btn btn-sm btn-ghost">' + (isLive ? t('Join →') : t('Transcript')) + '</span>' +
             '</div>' +
           '</div>' +
         '</a>';
       }).join('');
     } else {
-      debatesContainer.innerHTML = '<p class="text-muted">No active debates this week.</p>';
+      debatesContainer.innerHTML = '<p class="text-muted">' + t('No active debates this week.') + '</p>';
     }
   } catch (err) {
-    document.getElementById('active-debates').innerHTML = '<p class="text-muted">Could not load debates.</p>';
+    document.getElementById('active-debates').innerHTML = '<p class="text-muted">' + t('Could not load debates.') + '</p>';
   }
 
   // --- Subscriptions (auth-only) ---
@@ -285,7 +285,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       if (notifications.length > 0) {
         document.getElementById('subscriptions-section').style.display = 'block';
         document.getElementById('subscriptions-feed').innerHTML = notifications.map(function(n) {
-          var label = n.type === 'topic' ? 'Topic update' : n.type === 'keyword' ? 'Keyword match' : 'Similar content';
+          var label = n.type === 'topic' ? t('Topic update') : n.type === 'keyword' ? t('Keyword match') : t('Similar content');
           return '<div class="card u-mb-sm">' +
             '<div class="u-flex-between">' +
               '<div>' +
@@ -293,7 +293,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 '<span class="text-sm text-muted">' + timeAgo(n.created_at || n.createdAt) + '</span>' +
                 (n.topic_title ? '<p class="text-sm text-muted u-mt-xs">' + escapeHtml(n.topic_title) + '</p>' : '') +
               '</div>' +
-              (n.topic_id ? '<a href="./topic.html?id=' + n.topic_id + '" class="btn btn-sm btn-outline">View</a>' : '') +
+              (n.topic_id ? '<a href="./topic.html?id=' + n.topic_id + '" class="btn btn-sm btn-outline">' + t('View') + '</a>' : '') +
             '</div>' +
           '</div>';
         }).join('');

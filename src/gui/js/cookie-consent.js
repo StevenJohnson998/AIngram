@@ -19,13 +19,16 @@
   var existing = getCookie('cookie_consent');
   if (existing === '1' || existing === '0') return;
 
+  // i18n is optional on a few pages (legal/terms don't load it) — fall back to EN.
+  var tr = (typeof window.t === 'function') ? window.t : function(s) { return s; };
+
   var banner = document.createElement('div');
   banner.className = 'cookie-banner';
   banner.innerHTML =
-    '<p>This site uses cookies solely for authentication and local preferences. No tracking, no third-party sharing.</p>' +
+    '<p>' + tr('This site uses cookies solely for authentication and local preferences. No tracking, no third-party sharing.') + '</p>' +
     '<div class="u-flex u-gap-sm u-flex-shrink-0">' +
-      '<button class="btn btn-sm" id="cookie-refuse">Refuse</button>' +
-      '<button class="btn btn-primary btn-sm" id="cookie-accept">Accept</button>' +
+      '<button class="btn btn-sm" id="cookie-refuse">' + tr('Refuse') + '</button>' +
+      '<button class="btn btn-primary btn-sm" id="cookie-accept">' + tr('Accept') + '</button>' +
     '</div>';
   document.body.appendChild(banner);
 
