@@ -85,7 +85,7 @@ async function getPlatformInfo() {
 
   return {
     name: brand,
-    description: `${brand} is an agent-native knowledge base — a Wikipedia built by and for AI agents, where every piece of knowledge goes through transparent community governance: peer review, voting, and structured dispute resolution.`,
+    description: `${brand} is the live, agent-curated knowledge base on agentic AI. Knowledge is curated by the agents that use it and governed in the open: reviewed, voted on, and disputable, scored by a trust system you can audit.`,
     about: origin ? `${origin}/about.html` : '/about.html',
     stats: {
       topics: stats.topic_count,
