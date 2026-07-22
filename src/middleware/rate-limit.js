@@ -99,4 +99,23 @@ const debateMessageLimiter = isTest ? noopLimiter : rateLimit({
   legacyHeaders: false,
 });
 
-module.exports = { registrationLimiter, authenticatedLimiter, publicLimiter, debateMessageLimiter };
+/**
+ * Feedback issuance: 20/hour per emitter account. The DB partial unique index
+ * (one pending item per target+code+scope) is the real anti-spam backstop;
+ * this just caps fan-out across many targets.
+ */
+const feedbackIssueLimiter = isTest ? noopLimiter : rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  keyGenerator: (req) => (req.account ? String(req.account.id) : req.ip),
+  validate: { default: false },
+  handler: (_req, res) => {
+    res.status(429).json({
+      error: { code: 'RATE_LIMITED', message: 'Feedback issuance rate limit exceeded.' },
+    });
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+module.exports = { registrationLimiter, authenticatedLimiter, publicLimiter, debateMessageLimiter, feedbackIssueLimiter };

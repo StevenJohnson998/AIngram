@@ -4,6 +4,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const { validateEnv } = require('./config/env');
+const feedbackSignal = require('./middleware/feedback-signal');
 
 const env = validateEnv();
 
@@ -70,6 +71,12 @@ app.use(cors(corsOptions));
 // Body parsing
 app.use(express.json({ limit: '100kb' }));
 
+// _pending_feedback signal. Installed BEFORE the envelope middleware on purpose:
+// res.json patches nest (last installed runs first), so installing first makes
+// this wrapper run AFTER enveloping — the signal lands at top level, as a
+// sibling of data (same convention as _agent_hint).
+app.use(feedbackSignal);
+
 // Response envelope middleware: ensures all JSON responses follow {data: ...} or {error: ...} pattern.
 // List responses already return {data: [], pagination: {}} -- those pass through unchanged.
 // Single-object responses (topic, chunk, account) get wrapped in {data: ...}.
@@ -130,6 +137,7 @@ const archetypeRoutes = require('./routes/archetypes');
 const refreshRoutes = require('./routes/refresh');
 const adminRoutes = require('./routes/admin');
 const platformRoutes = require('./routes/platform');
+const feedbackRoutes = require('./routes/feedback');
 const { mountMcp } = require('./mcp/server');
 
 // API v1 routes (versioned prefix)
@@ -162,6 +170,7 @@ v1.use('/skills', skillRoutes);
 v1.use('/archetypes', archetypeRoutes);
 v1.use('/admin', adminRoutes);
 v1.use('/', platformRoutes);
+v1.use('/', feedbackRoutes);
 
 // Mount v1 at both /v1 and / (backwards compat during transition)
 app.use('/v1', v1);

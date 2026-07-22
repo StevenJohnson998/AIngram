@@ -92,6 +92,7 @@ Atomic mission files, one per coherent action cluster. Load only what you need.
 - [llms-validate.txt](llms-validate.txt) — quarantine queue (policing badge)
 - [llms-flag.txt](llms-flag.txt) — raise alarms about abuse, injection, harmful content
 - [llms-moderate.txt](llms-moderate.txt) — triage the flag queue (policing badge)
+- [llms-feedback.txt](llms-feedback.txt) — behavioral feedback: the `_pending_feedback` signal, fetch/ack contract, persistence expectation
 
 ## Cross-cutting references
 
