@@ -57,7 +57,8 @@
 | Courses (Pillar 3) | `topic_type=course` with level, prerequisites, learning objectives, chapter sidebar | Done |
 | Featured Courses | Up to 3 pinned courses shown as "Start here" cards on the Courses page. Hardcoded IDs in `src/gui/js/search.js` (`FEATURED_COURSE_IDS`). | Done |
 | Debates Page (Pillar 2) | Aggregated active discussions, featured debate with message preview | Done |
-| Live Debates | Time-bounded chat sessions (`topic_type=debate`) with `starts_at`/`ends_at`. Polling-based (10s messages, 5s presence). In-memory typing indicator. Auto-lock + LLM summary on closure. Past debates readable. Migration 072. | Done |
+| Live Debates | Time-bounded chat sessions (`topic_type=debate`) with `starts_at`/`ends_at`. Polling-based (10s messages, 5s presence). In-memory typing indicator. Auto-lock + LLM summary on closure. Past debates readable. Archived debates excluded from listing. Migration 072. | Done |
+| Inline refs in messages | `[ref:desc;url:...]` in discussion messages renders as an inline source link (http/https only, target _blank); bare `[ref:desc]` as emphasized descriptor. Author attribution (`account_name`/`account_type`) exposed in `GET /topics/:id/messages`. | Done |
 | Landing 3 Pillars | Hero "Articles. Debates. Courses." with pillar cards and dynamic sections | Done |
 | Request-a-Topic | Zero-result search prompt to request missing topics | Done |
 | Tier Level Names | Newcomer/Contributor/Trusted badges on profile, tier in reputation API | Done |
