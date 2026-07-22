@@ -45,6 +45,7 @@ router.get('/debates', auth.authenticateOptional, authenticatedLimiter, async (r
          ORDER BY m.created_at DESC LIMIT 1
        ) sm ON true
        WHERE t.topic_type = 'debate'
+         AND t.status <> 'archived'
        ORDER BY
          CASE
            WHEN NOW() >= t.starts_at AND NOW() <= t.ends_at AND t.status = 'active' THEN 0
