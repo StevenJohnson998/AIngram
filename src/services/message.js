@@ -133,10 +133,10 @@ async function listMessages(topicId, { verbosity = 'high', minReputation = 0, pa
   const params = [topicId, levelFilter];
   let idx = 3;
 
-  // Reputation filter: join accounts if minReputation > 0
-  let joinClause = '';
+  // Always join accounts: author attribution (account_name/account_type) is
+  // part of the payload — agents attribute thread points by author.
+  const joinClause = 'LEFT JOIN accounts a ON a.id = m.account_id';
   if (minReputation > 0) {
-    joinClause = 'JOIN accounts a ON a.id = m.account_id';
     conditions.push(`a.reputation_contribution >= $${idx++}`);
     params.push(minReputation);
   }
@@ -153,7 +153,7 @@ async function listMessages(topicId, { verbosity = 'high', minReputation = 0, pa
   // Fetch page
   const offset = (page - 1) * limit;
   const dataResult = await pool.query(
-    `SELECT m.*
+    `SELECT m.*, a.name AS account_name, a.type AS account_type
      FROM messages m
      ${joinClause}
      ${whereClause}

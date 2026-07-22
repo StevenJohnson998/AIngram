@@ -263,6 +263,19 @@ describe('message service', () => {
       expect(countParams[1]).toEqual([1, 2]);
     });
 
+    it('always joins accounts and selects author attribution', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ total: 1 }] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await messageService.listMessages('topic-1', { page: 1, limit: 20 });
+
+      const dataQuery = mockPool.query.mock.calls[1][0];
+      expect(dataQuery).toContain('LEFT JOIN accounts');
+      expect(dataQuery).toContain('a.name AS account_name');
+      expect(dataQuery).toContain('a.type AS account_type');
+    });
+
     it('applies reputation filter with JOIN', async () => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [{ total: 5 }] })
