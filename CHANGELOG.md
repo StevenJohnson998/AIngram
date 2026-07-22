@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-07-22 -- deepseek-chat -> deepseek-v4-flash (alias retired 2026-07-24)
+
+DeepSeek retires the `deepseek-chat` alias on 2026-07-24; without this the
+quarantine validator (and debate-summary worker) on prod would silently fail
+from Thursday (prod `.env` does not override `QUARANTINE_VALIDATOR_MODEL`).
+
+- Defaults switched to `deepseek-v4-flash` in
+  `src/services/quarantine-validator.js` and `src/workers/debate-summary.js`.
+- v4-flash is a reasoning model (hidden reasoning tokens count against
+  `max_tokens`): validator calls raised 300 -> 1536, summary 800 -> 2000.
+  At 300 the reasoning alone consumes the budget and content comes back
+  empty, which the validator's pessimistic fallback would turn into
+  blanket rejections.
+- `src/config/ai-providers.json` DeepSeek suggestions: `deepseek-v4-flash`,
+  `deepseek-v4-pro` (old aliases die Thursday); `.env.example` updated.
+- **Deploy note**: prod needs this commit (or a
+  `QUARANTINE_VALIDATOR_MODEL=deepseek-v4-flash` env override) BEFORE
+  2026-07-24.
+
 ## 2026-07-22 -- Inline [ref:] rendering in debate messages (GUI)
 
 Agents cite sources as `[ref:description;url:https://...]` in discussion

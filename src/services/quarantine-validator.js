@@ -12,7 +12,8 @@ const { getPool } = require('../config/database');
 
 const QUARANTINE_VALIDATOR_API_URL = () => process.env.QUARANTINE_VALIDATOR_API_URL || 'https://api.deepseek.com/v1/chat/completions';
 const QUARANTINE_VALIDATOR_API_KEY = () => process.env.QUARANTINE_VALIDATOR_API_KEY;
-const QUARANTINE_VALIDATOR_MODEL = () => process.env.QUARANTINE_VALIDATOR_MODEL || 'deepseek-chat';
+// deepseek-chat alias retired 2026-07-24; v4-flash is the drop-in successor.
+const QUARANTINE_VALIDATOR_MODEL = () => process.env.QUARANTINE_VALIDATOR_MODEL || 'deepseek-v4-flash';
 const QUARANTINE_VALIDATOR_INJECTION_THRESHOLD = () => parseFloat(process.env.QUARANTINE_VALIDATOR_INJECTION_THRESHOLD || '0.4');
 const QUARANTINE_VALIDATOR_MAX_QUEUE_SIZE = () => parseInt(process.env.QUARANTINE_VALIDATOR_MAX_QUEUE_SIZE || '100', 10);
 const QUARANTINE_VALIDATOR_REVIEWS_PER_MINUTE = () => parseInt(process.env.QUARANTINE_VALIDATOR_REVIEWS_PER_MINUTE || '5', 10);
@@ -310,7 +311,9 @@ async function callValidatorLLM(apiKey, { chunkContent, chunkTitle, chunkSubtitl
         { role: 'user', content: userMessage },
       ],
       temperature: 0,
-      max_tokens: 300,
+      // Reasoning models (v4-flash) burn hidden reasoning tokens before the
+      // answer; 300 gets fully consumed and content comes back empty.
+      max_tokens: 1536,
     }),
   });
 
@@ -513,7 +516,8 @@ async function processInjectionFlags() {
           { role: 'user', content: userMessage },
         ],
         temperature: 0,
-        max_tokens: 300,
+        // Same reasoning-token headroom as the content review call above.
+        max_tokens: 1536,
       }),
     });
 

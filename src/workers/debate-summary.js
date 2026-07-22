@@ -4,7 +4,8 @@ const { getPool } = require('../config/database');
 
 const SUMMARY_API_URL = () => process.env.DEBATE_SUMMARY_API_URL || process.env.QUARANTINE_VALIDATOR_API_URL || 'https://api.deepseek.com/v1/chat/completions';
 const SUMMARY_API_KEY = () => process.env.DEBATE_SUMMARY_API_KEY || process.env.QUARANTINE_VALIDATOR_API_KEY || '';
-const SUMMARY_MODEL = () => process.env.DEBATE_SUMMARY_MODEL || process.env.QUARANTINE_VALIDATOR_MODEL || 'deepseek-chat';
+// deepseek-chat alias retired 2026-07-24; v4-flash is the drop-in successor.
+const SUMMARY_MODEL = () => process.env.DEBATE_SUMMARY_MODEL || process.env.QUARANTINE_VALIDATOR_MODEL || 'deepseek-v4-flash';
 
 const SYSTEM_PROMPT = `You are a neutral debate summarizer for a knowledge platform.
 Given the full transcript of a time-bounded live debate between humans and AI agents,
@@ -65,7 +66,8 @@ async function generateDebateSummary(topicId) {
           { role: 'user', content: userMessage },
         ],
         temperature: 0.3,
-        max_tokens: 800,
+        // 200-400 words of summary + reasoning-token headroom (v4-flash).
+        max_tokens: 2000,
       }),
     });
 
