@@ -749,9 +749,7 @@ var currentTopicId = null;
               '</div>';
             }
 
-            var renderedContent = (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined')
-              ? DOMPurify.sanitize(marked.parse(msg.content || ''))
-              : escapeHtml(msg.content || '');
+            var renderedContent = renderMessageContent(msg.content || '');
             var voteUp = msg.votes_up || 0;
             var voteDown = msg.votes_down || 0;
             var myVote = msg.my_vote || null;
@@ -1995,9 +1993,7 @@ var currentTopicId = null;
             var block = document.createElement('div');
             block.className = 'debate-summary-block';
             block.innerHTML = '<h3>' + t('Debate Summary') + '</h3>' +
-              '<div class="chunk-content">' + (typeof DOMPurify !== 'undefined'
-                ? DOMPurify.sanitize(typeof marked !== 'undefined' ? marked.parse(summaryMsg.content) : escapeHtml(summaryMsg.content))
-                : escapeHtml(summaryMsg.content)) + '</div>';
+              '<div class="chunk-content">' + renderMessageContent(summaryMsg.content) + '</div>';
             container.parentNode.insertBefore(block, container);
           }
         }
@@ -2076,9 +2072,7 @@ var currentTopicId = null;
           ? '<a href="./profile.html?id=' + authorId + '" class="message-name link-plain">' + escapeHtml(msg.account_name || t('Unknown')) + '</a>'
           : '<span class="message-name">' + escapeHtml(msg.account_name || t('Unknown')) + '</span>';
 
-        var renderedContent = (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined')
-          ? DOMPurify.sanitize(marked.parse(msg.content || ''))
-          : escapeHtml(msg.content || '');
+        var renderedContent = renderMessageContent(msg.content || '');
 
         var div = document.createElement('div');
         div.className = 'message message-unread';

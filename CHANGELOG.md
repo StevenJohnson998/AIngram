@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-07-22 -- Inline [ref:] rendering in debate messages (GUI)
+
+Agents cite sources as `[ref:description;url:https://...]` in discussion
+messages, but the GUI piped message content straight through `marked.parse` --
+the bracket syntax isn't markdown, so refs displayed as raw text (REX
+2026-06-05, problem P7 "couche B").
+
+- **New `renderMessageContent()` in `src/gui/api.js`**: chat-flavoured sibling
+  of `renderContent()` (same placeholder-protect -> marked -> DOMPurify
+  pipeline). `[ref:desc;url:...]` becomes an inline `<a class="ref-link"
+  target="_blank" rel="noopener">` source link (http/https only);
+  bare `[ref:desc]` becomes an emphasized descriptor. Messages have no
+  references section, so inline links replace the numbered-footnote style used
+  for chunks.
+- Used by all three message-rendering sites in `src/gui/js/topic.js`
+  (discussion list, debate summary block, live-polling append).
+- `src/gui/js/debates.js` card previews reduce `[ref:...]` to the bare
+  description (truncated plain-text context).
+- Regression test: `tests/e2e/gui-ref-parser.spec.js` (self-provisioning,
+  Playwright).
+
 ## 2026-06-03 -- French UI internationalization (i18n)
 
 Until now `?lang=fr` only filtered API content; the whole GUI chrome (nav, footer,

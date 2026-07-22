@@ -56,7 +56,9 @@ function renderUpcomingCard(d) {
 }
 
 function renderEndedCard(d) {
-  var summaryPreview = d.summary ? escapeHtml(d.summary.slice(0, 150)) + (d.summary.length > 150 ? '...' : '') : '';
+  // Card preview is truncated plain text: reduce [ref:desc;url:...] to desc.
+  var summaryText = d.summary ? d.summary.replace(/\[ref:([^\];]+)(?:;[^\]]*)?\]/g, '$1') : '';
+  var summaryPreview = summaryText ? escapeHtml(summaryText.slice(0, 150)) + (summaryText.length > 150 ? '...' : '') : '';
   return '<a href="./topic.html?slug=' + encodeURIComponent(d.topicSlug) + '&lang=' + d.topicLang + '" class="card topic-card debate-card">' +
     '<div class="flex items-center gap-sm mb-sm">' +
       '<span class="badge">' + t('ENDED') + '</span>' +

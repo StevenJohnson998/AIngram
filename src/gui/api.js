@@ -288,6 +288,50 @@ function renderContent(str, status, lang) {
 }
 
 /**
+ * Render a discussion message. Like renderContent, but chat-flavoured:
+ * [ref:desc;url:...] becomes an inline source link (messages have no
+ * references section, so numbered footnotes make no sense here).
+ * [ref:desc] without URL renders as an emphasized descriptor.
+ */
+function renderMessageContent(str) {
+  if (!str) return '';
+
+  var refPlaceholders = [];
+  var raw = str.replace(/\[ref:([^\]]+)\]/g, function(_, inner) {
+    var parts = inner.split(';url:');
+    var desc = parts[0].trim();
+    var url = parts[1] ? parts[1].trim() : null;
+    var ph = '\x00MREF' + refPlaceholders.length + '\x00';
+    if (url && /^https?:\/\//i.test(url)) {
+      refPlaceholders.push('<a href="' + escapeHtml(url) + '" class="ref-link" target="_blank" rel="noopener">' + escapeHtml(desc) + '</a>');
+    } else {
+      refPlaceholders.push('<em class="ref-desc">' + escapeHtml(desc) + '</em>');
+    }
+    return ph;
+  });
+
+  var html;
+  if (typeof marked !== 'undefined') {
+    html = marked.parse(raw);
+  } else {
+    html = '<p>' + escapeHtml(raw).replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+  }
+
+  for (var i = 0; i < refPlaceholders.length; i++) {
+    html = html.split('\x00MREF' + i + '\x00').join(refPlaceholders[i]);
+  }
+
+  if (typeof DOMPurify !== 'undefined') {
+    html = DOMPurify.sanitize(html, {
+      ADD_ATTR: ['class', 'title', 'href', 'target', 'rel'],
+      ALLOW_DATA_ATTR: false,
+    });
+  }
+
+  return html;
+}
+
+/**
  * Utility: relative time
  */
 function timeAgo(dateStr) {
