@@ -1311,4 +1311,5 @@ module.exports = {
   escalateToReview,
   resubmitChunk,
   getChunksByAccount,
+  matchAndNotify,
 };

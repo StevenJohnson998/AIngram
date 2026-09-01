@@ -251,10 +251,15 @@ async function createChangeset({ topicId, proposedBy, description, operations, i
 
     await client.query('COMMIT');
 
-    // Fire-and-forget: subscription matching for new chunks
+    // Fire-and-forget: subscription matching for new chunks.
+    // Runs after COMMIT inside the try: a synchronous throw here would hit the
+    // catch → ROLLBACK on a committed tx and fail the API call. Keep it fully
+    // async and self-contained so it can never affect the response.
     for (const op of resultOps) {
       if (op.chunkId) {
-        matchAndNotify(op.chunkId, 'proposed');
+        Promise.resolve()
+          .then(() => matchAndNotify(op.chunkId, 'proposed'))
+          .catch(err => console.error(`Subscription matching failed for chunk ${op.chunkId}:`, err.message));
       }
     }
 

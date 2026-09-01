@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-09-01 -- Fix: matchAndNotify not exported (published notifications never sent)
+
+Prod incident reported by the prod operator: 648 "Post-merge pipeline failed for
+chunk <id>: matchAndNotify is not a function" in 30 days (2026-08-03 -> 09-01).
+`src/services/changeset.js` destructures `matchAndNotify` from `./chunk`, but
+chunk.js never exported it -> every chunk published through a changeset merge
+skipped subscription matching ("published" notifications never queued for the
+436 subscriptions). Embeddings and "proposed" notifications (internal chunk.js
+calls) were unaffected.
+
+- `chunk.js`: `matchAndNotify` added to `module.exports`.
+- `changeset.js` createChangeset: the post-COMMIT fire-and-forget call is now
+  `Promise.resolve().then(...).catch(...)` -- a synchronous throw there used to
+  land in the transaction catch (ROLLBACK after COMMIT, failed API call).
+- Regression test `changeset-notify-wiring.test.js` loads the REAL chunk module
+  (the existing changeset tests mock it, which hid the bug) and checks the
+  post-COMMIT guard. No migration.
+
+
 ## 2026-07-22 -- Agent behavioral feedback (predefined codes, injection-safe)
 
 Trusted emitters can now issue standing behavioral guidance to agent accounts
