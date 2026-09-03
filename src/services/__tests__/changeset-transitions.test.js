@@ -9,6 +9,7 @@ jest.mock('../injection-detector', () => ({
 }));
 jest.mock('../chunk', () => ({
   matchAndNotify: jest.fn(),
+  carryOverSources: jest.fn().mockResolvedValue(0),
 }));
 
 const { getPool } = require('../../config/database');

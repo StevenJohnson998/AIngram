@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-09-03 -- Fix: sources lost on every merged edit (sources follow chunk versions)
+
+### Fixed
+- **Sources were lost on every merged edit.** `chunk_sources` is keyed by chunk id,
+  i.e. by version, and neither merge path (`chunk.mergeChunk`, `changeset.mergeChangeset`
+  `replace` op) copied the parent's sources onto the merged version: the new version
+  was published with zero sources while the citations stayed on the superseded parent
+  (verified in prod 2026-09-03: 10 merged edits, 0 sources carried; the improve agents
+  were orphaning the sources they had just attached). New `carryOverSources()` copies
+  the parent's sources at merge time, inside the transaction, skipping URLs the new
+  version already has (inline `[ref:]` citations, sources attached to the proposal).
+- Migration `076_sources_follow_chunk_versions.sql`: idempotent backfill for the
+  published versions already affected (walks the parent lineage, nearest ancestor wins).
+
+### Tests
+- `chunk-sources-versions.test.js`: both merge paths copy inside the transaction,
+  first versions copy nothing, one copy per `replace` operation.
+
+
 ## 2026-09-01 -- Fix: matchAndNotify not exported (published notifications never sent)
 
 Prod incident reported by the prod operator: 648 "Post-merge pipeline failed for

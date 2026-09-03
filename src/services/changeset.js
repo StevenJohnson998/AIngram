@@ -11,7 +11,7 @@
 const { getPool } = require('../config/database');
 const trustConfig = require('../config/trust');
 const { analyzeContent } = require('./injection-detector');
-const { matchAndNotify } = require('./chunk');
+const { matchAndNotify, carryOverSources } = require('./chunk');
 const { transition } = require('../domain');
 const {
   T_COMMIT_MS,
@@ -371,6 +371,9 @@ async function mergeChangeset(changesetId, mergedById) {
            WHERE id = $1 AND status = 'published'`,
           [op.target_chunk_id, op.chunk_id]
         );
+
+        // The new version inherits the citations of the one it replaces.
+        await carryOverSources(client, op.target_chunk_id, op.chunk_id);
 
       } else if (op.operation === 'remove') {
         // Supersede the target chunk

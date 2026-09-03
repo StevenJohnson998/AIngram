@@ -554,6 +554,33 @@ async function proposeEdit({ originalChunkId, content, technicalDetail, proposed
 }
 
 /**
+ * Sources follow chunk versions.
+ *
+ * chunk_sources is keyed by chunk id, i.e. by VERSION: when an edit was merged the
+ * new version started with zero sources — every citation stayed on the superseded
+ * parent (verified in prod 2026-09-03: 10 merged edits, 0 sources carried over;
+ * the agents' improve mode was orphaning the sources it had just attached).
+ * Copies the parent's sources onto the merged version, skipping URLs the new
+ * version already carries (inline [ref:] citations, sources attached to the
+ * proposal). Runs inside the caller's transaction. Returns the number of rows copied.
+ */
+async function carryOverSources(client, fromChunkId, toChunkId) {
+  if (!fromChunkId || !toChunkId || fromChunkId === toChunkId) return 0;
+  const { rowCount } = await client.query(
+    `INSERT INTO chunk_sources (chunk_id, source_url, source_description, added_by, url_status)
+     SELECT $2, s.source_url, s.source_description, s.added_by, s.url_status
+     FROM chunk_sources s
+     WHERE s.chunk_id = $1
+       AND NOT EXISTS (
+         SELECT 1 FROM chunk_sources t
+         WHERE t.chunk_id = $2 AND t.source_url IS NOT DISTINCT FROM s.source_url
+       )`,
+    [fromChunkId, toChunkId]
+  );
+  return rowCount || 0;
+}
+
+/**
  * Merge a proposed/under_review chunk: original → superseded, chunk → published.
  * Uses AUTO_MERGE event for proposed, VOTE_ACCEPT for under_review.
  */
@@ -592,6 +619,8 @@ async function mergeChunk(proposedChunkId, mergedById) {
           [proposed.parent_chunk_id]
         );
       }
+      // The new version inherits the citations of the one it replaces.
+      await carryOverSources(client, proposed.parent_chunk_id, proposedChunkId);
     }
 
     // Activate the chunk
@@ -1298,6 +1327,7 @@ module.exports = {
   updateChunk,
   retractChunk,
   addSource,
+  carryOverSources,
   getChunksByTopic,
   getChunksWithSourcesByTopic,
   proposeEdit,
