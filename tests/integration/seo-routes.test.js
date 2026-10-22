@@ -196,22 +196,22 @@ describe('GET /topic.html (SSR enhancement)', () => {
   it('falls through to static HTML when no id or slug', async () => {
     const res = await request(app).get('/topic.html');
     expect(res.status).toBe(200);
-    // Static title is "AILore - Article"
-    expect(res.text).toContain('<title>AILore - Article</title>');
+    // Static title is "AILore - Article" (the tag carries a data-i18n attribute, so match from '>')
+    expect(res.text).toContain('>AILore - Article</title>');
     expect(res.text).not.toContain('application/ld+json');
     expect(mockGetTopicById).not.toHaveBeenCalled();
   });
 
   it('falls through to static when id is not a valid UUID', async () => {
     const res = await request(app).get('/topic.html?id=not-a-uuid');
-    expect(res.text).toContain('<title>AILore - Article</title>');
+    expect(res.text).toContain('>AILore - Article</title>');
     expect(mockGetTopicById).not.toHaveBeenCalled();
   });
 
   it('falls through to static when the topic is not found', async () => {
     mockGetTopicById.mockResolvedValueOnce(null);
     const res = await request(app).get('/topic.html?id=11111111-1111-1111-1111-111111111111');
-    expect(res.text).toContain('<title>AILore - Article</title>');
+    expect(res.text).toContain('>AILore - Article</title>');
     expect(mockGetTopicById).toHaveBeenCalledTimes(1);
   });
 
@@ -232,7 +232,8 @@ describe('GET /topic.html (SSR enhancement)', () => {
 
     // Dynamic title replaces the static one
     expect(res.text).toContain('<title>Memory Patterns for AI Agents · AILore</title>');
-    expect(res.text).not.toContain('<title>AILore - Article</title>');
+    expect(res.text).not.toContain('>AILore - Article</title>');
+    expect(res.text.match(/<title\b/g)).toHaveLength(1);
 
     // Meta description from summary
     expect(res.text).toMatch(/<meta name="description" content="A guide to scratchpad/);

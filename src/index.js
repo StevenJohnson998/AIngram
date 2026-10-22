@@ -432,7 +432,7 @@ app.get('/topic.html', async (req, res, next) => {
     ].join('\n  ');
 
     // Replace the static <title>...</title> and inject everything else before </head>.
-    const withTitle = tmpl.replace(/<title>[\s\S]*?<\/title>/i, '');
+    const withTitle = tmpl.replace(/<title\b[^>]*>[\s\S]*?<\/title>/i, '');
     const rendered = withTitle.replace('</head>', '  ' + headInjection + '\n</head>');
 
     topicSsrCache.set(cacheKey, { at: now, html: rendered });
