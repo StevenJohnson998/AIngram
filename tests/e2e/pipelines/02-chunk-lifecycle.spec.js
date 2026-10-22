@@ -10,6 +10,7 @@ const { test, expect } = require('@playwright/test');
 const {
   BASE, apiAuth, createUserInDB, createTopicInDB, createChunkInDB,
   getChunkStatus, waitFF, unique, queryDB, execInAPI,
+  getChangesetStatus, proposeChangeset, runFastTrack,
 } = require('./helpers');
 
 test.describe('Chunk Lifecycle', () => {
@@ -38,63 +39,37 @@ test.describe('Chunk Lifecycle', () => {
     expect(chunk.status).toBe('proposed');
   });
 
-  test('fast-track merge: no objections after timeout → published', async () => {
-    // Create chunk directly with proposed status and past fast-track deadline
-    const chunkId = createChunkInDB(topic.id, author.id,
-      `Fast-track test chunk ${unique()}`, { status: 'proposed' });
+  // Fast-track works on changesets (the enforcer only looks at proposed changesets),
+  // so these tests go through POST /v1/changesets, not a bare chunk.
+  test('fast-track merge: no objections after timeout → changeset and chunk published', async ({ request }) => {
+    const { changesetId, chunkId } = await proposeChangeset(request, author, topic.id,
+      `Fast-track test chunk with enough content length for validation ${unique()}`);
+    expect(getChangesetStatus(changesetId)).toBe('proposed');
 
-    // Set the proposed_at to the past (beyond fast-track timeout)
-    queryDB(`UPDATE chunks SET created_at = now() - interval '24 hours' WHERE id = '${chunkId}'`);
+    queryDB(`UPDATE changesets SET created_at = now() - interval '24 hours' WHERE id = '${changesetId}'`);
+    runFastTrack();
 
-    // Trigger the timeout enforcer via worker container
-    const { execSync } = require('child_process');
-    try {
-      execSync(
-        `docker exec aingram-worker-test node -e "
-          const { enforceFastTrack } = require('./src/workers/timeout-enforcer');
-          enforceFastTrack().then(c => { console.log(c); process.exit(0); }).catch(e => { console.error(e.message); process.exit(1); });
-        "`,
-        { encoding: 'utf-8', timeout: 15000 }
-      );
-    } catch (e) {
-      // Worker may exit with error if no chunks match; that's OK
-    }
-
-    await waitFF(500);
-
-    const status = getChunkStatus(chunkId);
-    expect(status).toBe('published');
+    // A merged changeset is 'published' with merged_at set (changeset.js mergeChangeset)
+    expect(getChangesetStatus(changesetId)).toBe('published');
+    expect(queryDB(`SELECT merged_at IS NOT NULL FROM changesets WHERE id = '${changesetId}'`)).toBe('true');
+    expect(getChunkStatus(chunkId)).toBe('published');
   });
 
-  test('fast-track blocked by downvote → stays proposed', async ({ request }) => {
-    const chunkId = createChunkInDB(topic.id, author.id,
-      `Blocked fast-track test chunk ${unique()}`, { status: 'proposed' });
+  test('fast-track blocked by downvote → changeset stays proposed', async ({ request }) => {
+    const { changesetId, chunkId } = await proposeChangeset(request, author, topic.id,
+      `Blocked fast-track test chunk with enough content length ${unique()}`);
+    queryDB(`UPDATE changesets SET created_at = now() - interval '24 hours' WHERE id = '${changesetId}'`);
 
-    // Set past deadline
-    queryDB(`UPDATE chunks SET created_at = now() - interval '24 hours' WHERE id = '${chunkId}'`);
-
-    // Cast a downvote to block fast-track
-    await request.post(`${BASE}/v1/votes`, {
+    const vote = await request.post(`${BASE}/v1/votes`, {
       headers: apiAuth(voter1),
-      data: { target_type: 'chunk', target_id: chunkId, value: 'down', reason_tag: 'inaccurate' },
+      data: { target_type: 'changeset', target_id: changesetId, value: 'down', reason_tag: 'inaccurate' },
     });
+    expect(vote.status()).toBe(201);
 
-    // Trigger enforcer
-    const { execSync } = require('child_process');
-    try {
-      execSync(
-        `docker exec aingram-worker-test node -e "
-          const { enforceFastTrack } = require('./src/workers/timeout-enforcer');
-          enforceFastTrack().then(c => { console.log(c); process.exit(0); }).catch(e => { console.error(e.message); process.exit(1); });
-        "`,
-        { encoding: 'utf-8', timeout: 15000 }
-      );
-    } catch (e) { /* OK */ }
+    runFastTrack();
 
-    await waitFF(500);
-
-    const status = getChunkStatus(chunkId);
-    expect(status).toBe('proposed');
+    expect(getChangesetStatus(changesetId)).toBe('proposed');
+    expect(getChunkStatus(chunkId)).toBe('proposed');
   });
 
   test('escalation → under_review with commit phase', async ({ request }) => {

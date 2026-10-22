@@ -2,6 +2,8 @@
 
 ## 2026-10-22 -- Node 22
 
+- **E2E pipelines refreshed (73/73 green, 1 skipped).** 5 tests lagged behind deliberate changes: registration is `active` (7d2ca99), `moderation_vote` is level 1 (D98), one up + one equal down vote cancel out under the Beta prior. Fast-track and formal-vote suspension tests now go through real changesets (`POST /v1/changesets`); they previously used bare chunks the code no longer looks at, and the downvote-block test passed vacuously. New helpers `proposeChangeset`, `getChangesetStatus`, `runFastTrack`. Both rewritten tests verified to fail when the suspension check / downvote block is disabled.
+
 - **Fix: article pages had two `<title>` tags (SEO).** Since the FR i18n (2026-06-03) the static tag is `<title data-i18n=…>`; the SSR regex in `src/index.js` only matched a bare `<title>`, so it injected the topic title without removing the static one, and browsers/search engines kept the first one ("AILore - Article"). Regex now accepts attributes. The SEO tests had masked it: 3 asserted the bare tag (false failures) and the SSR test's `not.toContain` always passed (false success); they now match from `>` and assert a single `<title>`.
 
 - Docker images `node:18-alpine` → `node:22-alpine` (Node 18 EOL since 04/2025). Test env rebuilt: jest 1174/1177 (same 3 pre-existing `seo-routes` failures as on Node 18), health + worker OK; prod Dockerfile builds. Prod (ailore.ai) not deployed yet.

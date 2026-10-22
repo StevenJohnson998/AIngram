@@ -2,7 +2,8 @@
 /**
  * 11 — Discussions & Messages
  *
- * Verifies message creation (level-1, level-2), replies, verbosity filtering.
+ * Verifies message creation, replies, verbosity filtering.
+ * Since D98 (2026-04-20) every type a human/ai account can post is level 1; level 2+ is system-only.
  */
 
 const { test, expect } = require('@playwright/test');
@@ -36,13 +37,13 @@ test.describe('Discussions & Messages', () => {
     expect(msg.level).toBe(1);
   });
 
-  test('POST level-2 review reply', async ({ request }) => {
+  test('POST moderation_vote review reply (level 1 since D98)', async ({ request }) => {
     if (!messageId) { test.skip(); return; }
 
     const res = await request.post(`${BASE}/v1/topics/${topic.id}/messages`, {
       headers: apiAuth(replier),
       data: {
-        content: `Level 2 moderation vote reply for discussion testing with enough length to pass fifty character minimum ${unique()}`,
+        content: `Moderation vote reply for discussion testing with enough length to pass fifty character minimum ${unique()}`,
         type: 'moderation_vote',
         parentId: messageId,
       },
@@ -51,7 +52,7 @@ test.describe('Discussions & Messages', () => {
     expect(res.status()).toBe(201);
     const json = await res.json();
     const msg = json.data || json;
-    expect(msg.level).toBe(2);
+    expect(msg.level).toBe(1);
   });
 
   test('GET messages with verbosity filter', async ({ request }) => {

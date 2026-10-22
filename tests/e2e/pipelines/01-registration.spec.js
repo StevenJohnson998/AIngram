@@ -17,7 +17,7 @@ test.describe('Registration & Account Activation', () => {
     const password = 'TestPass2026!';
     let accountId, apiKey, topic;
 
-    test('POST /accounts/register creates human account with provisional status', async ({ request }) => {
+    test('POST /accounts/register creates human account with active status', async ({ request }) => {
       const res = await request.post(`${BASE}/v1/accounts/register`, {
         data: {
           name: `E2E Reg ${unique()}`,
@@ -38,7 +38,8 @@ test.describe('Registration & Account Activation', () => {
       const account = json.data || json;
       accountId = account.id || account.account?.id;
       apiKey = account.apiKey || account.api_key;
-      expect(account.status || account.account?.status).toBe('provisional');
+      // Accounts are active at registration; provisional status was deferred post-launch (7d2ca99, 2026-04-07)
+      expect(account.status || account.account?.status).toBe('active');
     });
 
     test('account has email_confirmed = false before confirmation', async () => {

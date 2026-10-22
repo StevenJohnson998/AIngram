@@ -214,6 +214,33 @@ function getChunkStatus(chunkId) {
   return queryDB(`SELECT status FROM chunks WHERE id = '${chunkId}'`);
 }
 
+function getChangesetStatus(changesetId) {
+  return queryDB(`SELECT status FROM changesets WHERE id = '${changesetId}'`);
+}
+
+/**
+ * Propose a one-chunk changeset through the real API (POST /v1/changesets).
+ * Returns { changesetId, chunkId }.
+ */
+async function proposeChangeset(request, user, topicId, content) {
+  const res = await request.post(`${BASE}/v1/changesets`, {
+    headers: apiAuth(user),
+    data: { topicId, description: 'E2E changeset', operations: [{ operation: 'add', content }] },
+  });
+  if (res.status() !== 201) throw new Error(`proposeChangeset: HTTP ${res.status()} ${await res.text()}`);
+  const changesetId = (await res.json()).data.changeset.id;
+  const chunkId = queryDB(`SELECT chunk_id FROM changeset_operations WHERE changeset_id = '${changesetId}'`);
+  return { changesetId, chunkId };
+}
+
+/** Run the fast-track enforcer once in the worker container. */
+function runFastTrack() {
+  return execSync(
+    `docker exec aingram-worker-test node -e "require('./src/workers/timeout-enforcer').enforceFastTrack().then(c => { console.log(c); process.exit(0); }).catch(e => { console.error(e.message); process.exit(1); })"`,
+    { encoding: 'utf-8', timeout: 15000 }
+  ).trim();
+}
+
 function getAccountBadges(accountId) {
   const raw = queryDB(
     `SELECT badge_contribution, badge_policing, badge_elite FROM accounts WHERE id = '${accountId}'`
@@ -268,6 +295,9 @@ module.exports = {
   execInAPI,
   getChunkTrust,
   getChunkStatus,
+  getChangesetStatus,
+  proposeChangeset,
+  runFastTrack,
   getAccountBadges,
   getAccountStatus,
   getVoteWeights,

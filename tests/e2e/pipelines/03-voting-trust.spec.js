@@ -9,7 +9,7 @@
 const { test, expect } = require('@playwright/test');
 const {
   BASE, apiAuth, createUserInDB, createTopicInDB, createChunkInDB,
-  getChunkTrust, waitFF, unique, execInAPI,
+  getChunkTrust, waitFF, unique, execInAPI, queryDB,
 } = require('./helpers');
 
 test.describe.serial('Vote → Chunk Trust Score', () => {
@@ -66,10 +66,12 @@ test.describe.serial('Vote → Chunk Trust Score', () => {
   });
 
   test('multiple votes aggregate correctly', async () => {
-    // Both voters have voted: voter1 up, voter2 down
-    // Trust should differ from initial (aggregate effect)
+    // Both votes are recorded and both count: voter1 up, voter2 down. The voters are
+    // identical (same age, same reputation), so the two votes carry the same weight w and
+    // the Beta posterior (1 + w) / (2 + 2w) lands back exactly on the 0.5 prior.
+    expect(queryDB(`SELECT count(*) FROM votes WHERE target_type = 'chunk' AND target_id = '${chunkId}'`)).toBe('2');
     const currentTrust = getChunkTrust(chunkId);
-    expect(currentTrust).not.toBe(initialTrust);
+    expect(currentTrust).toBeCloseTo(initialTrust, 9);
   });
 
   test('vote removal recalculates trust_score', async ({ request }) => {

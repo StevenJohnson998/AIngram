@@ -9,17 +9,19 @@
 const { test, expect } = require('@playwright/test');
 const {
   BASE, apiAuth, createUserInDB, createTopicInDB, createChunkInDB,
-  createSanctionInDB, unique, queryDB, execInAPI,
+  createSanctionInDB, unique, queryDB, proposeChangeset,
 } = require('./helpers');
 
 test.describe('Vote Suspension Enforcement', () => {
-  let suspendedUser, otherUser, topic, chunkId;
+  let suspendedUser, otherUser, controlUser, topic, chunkId;
 
   test.beforeAll(async () => {
     // Create a user who will be suspended
     suspendedUser = createUserInDB({ prefix: 'e2e-susp' });
     // Create another user to own the content
     otherUser = createUserInDB({ prefix: 'e2e-susp-other' });
+    // Non-suspended voter used as a control for the formal vote
+    controlUser = createUserInDB({ prefix: 'e2e-susp-ctrl', createdAt: "now() - interval '30 days'" });
     // Create content to vote on
     topic = createTopicInDB(otherUser.id);
     chunkId = createChunkInDB(topic.id, otherUser.id,
@@ -44,36 +46,24 @@ test.describe('Vote Suspension Enforcement', () => {
     expect(json.error.code).toBe('VOTE_SUSPENDED');
   });
 
+  // Formal votes target changesets (chunk_id is only a deprecated fallback that resolves
+  // through changeset_operations), so the test proposes a real changeset.
   test('formal vote commit blocked with 403 VOTE_SUSPENDED', async ({ request }) => {
-    // Create a fresh chunk in under_review/commit phase for formal voting
-    const formalChunkId = createChunkInDB(topic.id, otherUser.id,
-      `Formal vote suspension test chunk ${unique()}`,
-      { status: 'under_review' });
-    // Set vote_phase and deadline via execInAPI (avoids SQL escaping issues)
-    execInAPI(`
-      const { Pool } = require('pg');
-      const pool = new Pool({ host: process.env.DB_HOST || 'postgres', database: process.env.DB_NAME, user: process.env.DB_USER, password: process.env.DB_PASSWORD });
-      (async () => {
-        await pool.query(
-          "UPDATE chunks SET vote_phase = 'commit', commit_deadline_at = now() + interval '1 hour', reveal_deadline_at = now() + interval '2 hours' WHERE id = $1",
-          ['${formalChunkId}']
-        );
-        console.log(JSON.stringify({ ok: true }));
-        await pool.end();
-      })();
-    `);
+    const { changesetId } = await proposeChangeset(request, otherUser, topic.id,
+      `Formal vote suspension test chunk with enough content length ${unique()}`);
+    queryDB(`UPDATE changesets SET status = 'under_review', vote_phase = 'commit', commit_deadline_at = now() + interval '1 hour', reveal_deadline_at = now() + interval '2 hours' WHERE id = '${changesetId}'`);
 
-    const commitHash = require('crypto').randomBytes(32).toString('hex');
-    const res = await request.post(`${BASE}/v1/votes/formal/commit`, {
-      headers: apiAuth(suspendedUser),
-      data: {
-        chunk_id: formalChunkId,
-        commit_hash: commitHash,
-      },
+    const commit = (user) => request.post(`${BASE}/v1/votes/formal/commit`, {
+      headers: apiAuth(user),
+      data: { changeset_id: changesetId, commit_hash: require('crypto').randomBytes(32).toString('hex') },
     });
 
+    const res = await commit(suspendedUser);
     expect(res.status()).toBe(403);
-    const json = await res.json();
-    expect(json.error.code).toBe('VOTE_SUSPENDED');
+    expect((await res.json()).error.code).toBe('VOTE_SUSPENDED');
+
+    // Control: same changeset, same phase, a non-suspended voter is accepted
+    const control = await commit(controlUser);
+    expect(control.status()).toBe(201);
   });
 });
