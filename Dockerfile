@@ -1,4 +1,4 @@
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ COPY src/ ./src/
 # This step is a no-op until .ts files exist, then it compiles them
 RUN npx tsc 2>/dev/null || true
 
-FROM node:18-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 

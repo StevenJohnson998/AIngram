@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-22 -- Node 22
+
+- Docker images `node:18-alpine` → `node:22-alpine` (Node 18 EOL since 04/2025). Test env rebuilt: jest 1174/1177 (same 3 pre-existing `seo-routes` failures as on Node 18), health + worker OK; prod Dockerfile builds. Prod (ailore.ai) not deployed yet.
+
 ## 2026-09-03 -- Fix: sources lost on every merged edit (sources follow chunk versions)
 
 ### Fixed
